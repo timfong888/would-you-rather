@@ -24,9 +24,9 @@ export default function CategoriesScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>SELECT YOUR CATEGORY</Text>
+        <Text style={styles.title}>Categories</Text>
         <Text style={styles.subtitle}>
-          Every premium category — free to try. Play 3 dilemmas before you unlock.
+          Every premium category — free to try. Play 3 questions before you unlock.
         </Text>
       </View>
 
@@ -55,7 +55,7 @@ export default function CategoriesScreen() {
                 <Text style={[styles.featuredName, { color: cat.color }]}>
                   {cat.label.toUpperCase()}
                 </Text>
-                <Text style={styles.featuredCount}>{count} DILEMMAS</Text>
+                <Text style={styles.featuredCount}>{count} questions</Text>
                 {cat.tier === 'premium' && (
                   <View style={styles.trialBadge}>
                     <Text style={styles.trialBadgeText}>3 FREE</Text>
@@ -93,9 +93,9 @@ export default function CategoriesScreen() {
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowName}>{cat.label.toUpperCase()}</Text>
-                  <Text style={styles.rowCount}>{count} DILEMMAS</Text>
+                  <Text style={styles.rowCount}>{count} questions</Text>
                   {isPremium && (
-                    <Text style={styles.rowFreeHint}>Free to try — first 3 dilemmas free</Text>
+                    <Text style={styles.rowFreeHint}>Free to try — first 3 questions free</Text>
                   )}
                 </View>
                 <View style={styles.rowRight}>
@@ -135,10 +135,8 @@ const styles = StyleSheet.create({
   },
   title: {
     color: COLORS.text,
-    fontSize: FONTS.sizes.lg,
+    fontSize: FONTS.sizes.xxl,
     fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 3,
-    textTransform: 'uppercase',
   },
   subtitle: {
     color: COLORS.textSecondary,

@@ -187,7 +187,7 @@ export default function CompleteScreen() {
               <View style={styles.upsellTextBlock}>
                 <Text style={styles.upsellTitle}>THE DEPTHS AWAIT</Text>
                 <Text style={styles.upsellHook}>
-                  {remaining} dilemmas remain unfinished in {category.label}
+                  {remaining} questions remain unfinished in {category.label}
                 </Text>
               </View>
             </View>

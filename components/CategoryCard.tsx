@@ -39,7 +39,7 @@ export default function CategoryCard({
         </View>
         <View style={styles.rowContent}>
           <Text style={styles.rowLabel}>{category.label.toUpperCase()}</Text>
-          <Text style={styles.rowCount}>{questionCount} DILEMMAS</Text>
+          <Text style={styles.rowCount}>{questionCount} questions</Text>
         </View>
         <View style={styles.rowRight}>
           {isPremium ? (
@@ -70,7 +70,7 @@ export default function CategoryCard({
       <Text style={[styles.gridLabel, { color: category.color }]}>
         {category.label.toUpperCase()}
       </Text>
-      <Text style={styles.gridCount}>{questionCount} dilemmas</Text>
+      <Text style={styles.gridCount}>{questionCount} questions</Text>
       {isPremium ? (
         <View style={styles.premiumPill}>
           <Text style={styles.premiumPillText}>👑 PREMIUM</Text>

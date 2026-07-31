@@ -28,7 +28,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="game/[id]"
           options={{
-            title: 'DILEMMA',
+            title: 'Would You Rather?',
             headerBackTitle: 'Back',
           }}
         />
@@ -56,7 +56,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="categories/index"
           options={{
-            title: 'DILEMMA',
+            title: 'Categories',
             headerBackTitle: 'Home',
           }}
         />

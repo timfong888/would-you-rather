@@ -12,7 +12,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { QUESTIONS, CATEGORIES, getCategoryQuestions } from '@/constants/questions';
 
 const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
-const TOTAL_DILEMMAS = QUESTIONS.length;
+const TOTAL_QUESTIONS = QUESTIONS.length;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -33,11 +33,11 @@ export default function HomeScreen() {
     >
       {/* Hero */}
       <View style={styles.hero}>
-        <Text style={styles.appLabel}>WOULD YOU RATHER</Text>
-        <Text style={styles.heroTitle}>DILEMMA</Text>
+        <Text style={styles.appLabel}>The ultimate choice game</Text>
+        <Text style={styles.heroTitle}>Would You{'\n'}Rather?</Text>
         <Text style={styles.heroSubtitle}>
-          Pick your preference. See how the world voted.{'\n'}
-          No right answers — only revealing ones.
+          Pick your preference, see how others voted.{'\n'}
+          No wrong answers — only interesting ones.
         </Text>
 
         <View style={styles.audiencePills}>
@@ -76,7 +76,7 @@ export default function HomeScreen() {
       {/* Stats Row */}
       <View style={styles.statsRow}>
         {[
-          { label: 'Dilemmas', value: TOTAL_DILEMMAS.toString() },
+          { label: 'Questions', value: TOTAL_QUESTIONS.toString() },
           { label: 'Categories', value: CATEGORIES.length.toString() },
           { label: 'Free', value: CATEGORIES.filter(c => c.tier === 'free').length.toString() },
         ].map((stat) => (
@@ -109,7 +109,7 @@ export default function HomeScreen() {
                 <Text style={[styles.featuredLabel, { color: cat.color }]}>
                   {cat.label.toUpperCase()}
                 </Text>
-                <Text style={styles.featuredCount}>{count} dilemmas</Text>
+                <Text style={styles.featuredCount}>{count} questions</Text>
                 {cat.tier === 'premium' && (
                   <View style={styles.featuredPremiumBadge}>
                     <Text style={styles.featuredPremiumText}>3 FREE</Text>
@@ -148,7 +148,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.categoryRowContent}>
                   <Text style={styles.categoryRowLabel}>{cat.label.toUpperCase()}</Text>
-                  <Text style={styles.categoryRowCount}>{count} DILEMMAS</Text>
+                  <Text style={styles.categoryRowCount}>{count} questions</Text>
                 </View>
                 {isPremium ? (
                   <View style={styles.premiumBadge}>
@@ -186,19 +186,17 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   appLabel: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 3,
+    color: COLORS.primary,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.semibold,
     textTransform: 'uppercase',
+    letterSpacing: 1.5,
   },
   heroTitle: {
     color: COLORS.text,
-    fontSize: 52,
-    fontWeight: FONTS.weights.black,
-    letterSpacing: 6,
-    lineHeight: 58,
-    textTransform: 'uppercase',
+    fontSize: FONTS.sizes.xxxl,
+    fontWeight: FONTS.weights.extrabold,
+    lineHeight: 44,
   },
   heroSubtitle: {
     color: COLORS.textSecondary,

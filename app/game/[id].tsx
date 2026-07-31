@@ -134,7 +134,7 @@ export default function GameScreen() {
           disabled={confirmed}
           votesA={votesA}
           votesB={votesB}
-          showConsensus
+          showConsensus={confirmed}
         />
 
         <View style={styles.orDivider}>
@@ -153,7 +153,7 @@ export default function GameScreen() {
           disabled={confirmed}
           votesA={votesA}
           votesB={votesB}
-          showConsensus
+          showConsensus={confirmed}
         />
       </View>
 

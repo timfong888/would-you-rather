@@ -132,7 +132,7 @@ export default function ResultsScreen() {
 
       {/* Share row */}
       <View style={styles.shareRow}>
-        <Text style={styles.shareText}>Share this dilemma:</Text>
+        <Text style={styles.shareText}>Share this question:</Text>
         <View style={styles.shareButtons}>
           {['𝕏', '📋'].map((icon, i) => (
             <Pressable
