@@ -17,19 +17,23 @@ a "review skipped" notice.
 
 **Root cause: the repository was not accessible to the CodeRabbit GitHub App
 until it was added to the app's selected repositories, shortly before PR #4.**
-Nothing about PRs #1–#3 explains the silence on its own — #3 in particular
-targeted the default branch, was not a draft, and was authored the same way as
-PRs that are reviewed now. Being *listed* as available in the app is not the same
-as being *selected*; CodeRabbit's FAQ attributes an unreviewable repo to "the
-repository not being accessible to CodeRabbit."
+Repository access is the confirmed root cause — PR #3 targeted the default branch,
+was not a draft, and was authored the same way as PRs that are reviewed now, yet
+received nothing. PR #1 and PR #2 also had independent eligibility blockers that
+would have caused them to be skipped even with access: PR #1 targeted `main`
+(not the default branch) and PR #2 was a draft. Being *listed* as available in
+the app is not the same as being *selected*; CodeRabbit's FAQ attributes an
+unreviewable repo to "the repository not being accessible to CodeRabbit."
 
 PR #4 confirms the fix end to end. Its review reports
 `Configuration used: Path: .coderabbit.yaml` and `Plan: Pro`.
 
 ### Pre-existing PRs are not reviewed retroactively
 
-PRs #1–#3 were opened before access was granted and will stay unreviewed. Comment
-`@coderabbitai review` on each one to review it on demand.
+PRs #1–#3 were opened before access was granted and will not be reviewed
+automatically retroactively. To review them on demand: use `@coderabbitai review`
+for an incremental review covering only new changes, or `@coderabbitai full review`
+for complete coverage of the entire PR.
 
 ### `.coderabbit.yaml` applies to the PR that adds it
 
@@ -76,7 +80,7 @@ documented way to exclude specific authors.
 | --- | --- |
 | `auto_review.base_branches: [".*"]` | Review PRs against any base branch, not just the default one. |
 | `auto_review.drafts: true` | Review agent-opened draft PRs. |
-| `path_filters: !**/package-lock.json` | 18 of Sourcery's 20 comments on PR #1 were transitive-dependency CVEs in the lockfile. Keeps reviews on hand-written code. |
+| `path_filters: ["!**/package-lock.json", "!dist/**"]` | 18 of Sourcery's 20 comments on PR #1 were transitive-dependency CVEs in the lockfile. Excludes lockfiles and build output; keeps reviews on hand-written code. |
 | `profile: chill` | Fewer nitpicks than `assertive`. |
 | `poem: false` | Trim review boilerplate. |
 
