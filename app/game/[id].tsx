@@ -97,12 +97,13 @@ export default function GameScreen() {
       {category && (
         <Pressable
           onPress={handleLeaveCategory}
+          hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
           style={({ pressed }) => [
-            styles.leaveCategoryButton,
+            styles.leaveTopButton,
             pressed && { opacity: 0.6 },
           ]}
         >
-          <Text style={styles.leaveCategoryText}>← All Categories</Text>
+          <Text style={styles.leaveActionText}>← All Categories</Text>
         </Pressable>
       )}
 
@@ -207,15 +208,16 @@ export default function GameScreen() {
               </Pressable>
             )}
 
-            {cat && (
+            {category && (
               <Pressable
                 onPress={handleLeaveCategory}
+                hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
                 style={({ pressed }) => [
-                  styles.leaveButton,
+                  styles.leaveBottomButton,
                   pressed && { opacity: 0.6 },
                 ]}
               >
-                <Text style={styles.leaveText}>✕ Leave Category</Text>
+                <Text style={styles.leaveActionText}>✕ Leave Category</Text>
               </Pressable>
             )}
           </>
@@ -482,34 +484,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  leaveCategoryButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: SPACING.xs,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-      },
-    }),
-  },
-  leaveCategoryText: {
+  leaveActionText: {
     color: COLORS.textMuted,
     fontSize: FONTS.sizes.sm,
     fontWeight: FONTS.weights.medium,
     letterSpacing: 0.3,
   },
-  leaveButton: {
+  leaveTopButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: SPACING.xs,
+    ...Platform.select({
+      web: { cursor: 'pointer' },
+    }),
+  },
+  leaveBottomButton: {
     alignItems: 'center',
     paddingVertical: SPACING.sm,
     marginTop: SPACING.xs,
     ...Platform.select({
-      web: {
-        cursor: 'pointer',
-      },
+      web: { cursor: 'pointer' },
     }),
-  },
-  leaveText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    letterSpacing: 0.3,
   },
 });
