@@ -35,5 +35,9 @@
     "@babel/core": "^7.24.0",
     "@types/react": "~18.2.45",
     "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.9.10",
+    "turbo-stream": "^3.0.0"
   }
 }

@@ -17,7 +17,6 @@ export default function CategoryScreen() {
   const router = useRouter();
 
   const category = CATEGORIES.find((c) => c.id === id);
-  const questions = getCategoryQuestions(id as CategoryId);
 
   if (!category) {
     return (
@@ -29,6 +28,8 @@ export default function CategoryScreen() {
       </View>
     );
   }
+
+  const questions = getCategoryQuestions(category.id);
 
   const isPremium = category.tier === 'premium';
   const freeCount = isPremium ? FREE_TRIAL_COUNT : questions.length;
