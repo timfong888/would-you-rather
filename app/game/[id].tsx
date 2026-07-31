@@ -6,20 +6,24 @@ import {
   ScrollView,
   Pressable,
   Platform,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { getQuestionById, CATEGORIES, QUESTIONS } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import type { CategoryId } from '@/constants/questions';
 import OptionButton from '@/components/OptionButton';
 
 export default function GameScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, cat, idx } = useLocalSearchParams<{ id: string; cat: string; idx: string }>();
   const router = useRouter();
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
-  const [hasVoted, setHasVoted] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
   const question = getQuestionById(id);
+  const category = cat ? getCategoryById(cat as CategoryId) : undefined;
+  const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
+  const currentIdx = idx !== undefined ? parseInt(idx, 10) : 0;
+  const totalInCategory = categoryQuestions.length;
 
   if (!question) {
     return (
@@ -32,23 +36,52 @@ export default function GameScreen() {
     );
   }
 
-  const category = CATEGORIES.find((c) => c.id === question.category);
-  const currentIndex = QUESTIONS.findIndex((q) => q.id === id);
-  const nextQuestion = QUESTIONS[currentIndex + 1] || QUESTIONS[0];
+  const catColor = category?.color ?? COLORS.magenta;
+  const isLastInCategory = cat ? currentIdx >= totalInCategory - 1 : false;
+  const nextIdx = currentIdx + 1;
+  const nextQuestion = cat && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
 
-  const handleSelect = (option: 'A' | 'B') => {
-    if (!hasVoted) setSelected(option);
+  const handleConfirm = () => {
+    if (!selected) return;
+    setConfirmed(true);
   };
 
-  const handleVote = () => {
+  const handleNext = () => {
     if (!selected) return;
-    setHasVoted(true);
-    router.push(`/results/${id}?voted=${selected}`);
+
+    if (isLastInCategory && cat) {
+      router.push(`/complete/${cat}?voted=${selected}&q=${id}`);
+      return;
+    }
+
+    if (nextQuestion && cat) {
+      // Check premium gate
+      const catDef = getCategoryById(cat as CategoryId);
+      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT) {
+        router.push(`/unlock/${cat}`);
+        return;
+      }
+      router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${nextIdx}`);
+    } else {
+      router.push('/');
+    }
   };
 
   const handleSkip = () => {
-    router.push(`/game/${nextQuestion.id}`);
+    if (nextQuestion && cat) {
+      const catDef = getCategoryById(cat as CategoryId);
+      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT) {
+        router.push(`/unlock/${cat}`);
+        return;
+      }
+      router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${nextIdx}`);
+    } else {
+      router.push('/categories');
+    }
   };
+
+  const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
+  const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
 
   return (
     <ScrollView
@@ -56,23 +89,40 @@ export default function GameScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Category badge */}
+      {/* Category + Progress Header */}
       {category && (
-        <View style={[styles.categoryBadge, { backgroundColor: `${category.color}20` }]}>
-          <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-          <Text style={[styles.categoryLabel, { color: category.color }]}>
-            {category.label}
-          </Text>
+        <View style={styles.progressHeader}>
+          <View style={[styles.categoryBadge, { backgroundColor: `${catColor}20` }]}>
+            <Text style={styles.categoryEmoji}>{category.emoji}</Text>
+            <Text style={[styles.categoryLabel, { color: catColor }]}>
+              {category.label.toUpperCase()}
+            </Text>
+          </View>
+          {totalInCategory > 0 && (
+            <Text style={styles.progressText}>
+              QUESTION {currentIdx + 1} OF {totalInCategory}
+            </Text>
+          )}
         </View>
       )}
 
-      {/* Question header */}
-      <View style={styles.questionHeader}>
-        <Text style={styles.questionLabel}>Would you rather...</Text>
-        <Text style={styles.questionProgress}>
-          {currentIndex + 1} / {QUESTIONS.length}
-        </Text>
-      </View>
+      {/* Progress Bar */}
+      {totalInCategory > 0 && (
+        <View style={styles.progressBar}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                backgroundColor: catColor,
+                width: `${((currentIdx + (confirmed ? 1 : 0)) / totalInCategory) * 100}%` as any,
+              },
+            ]}
+          />
+        </View>
+      )}
+
+      {/* WYR Label */}
+      <Text style={styles.wyrLabel}>WOULD YOU RATHER...</Text>
 
       {/* Options */}
       <View style={styles.options}>
@@ -80,14 +130,17 @@ export default function GameScreen() {
           label="A"
           text={question.optionA}
           selected={selected === 'A'}
-          onPress={() => handleSelect('A')}
-          disabled={hasVoted}
+          onPress={() => { if (!confirmed) setSelected('A'); }}
+          disabled={confirmed}
+          votesA={votesA}
+          votesB={votesB}
+          showConsensus={confirmed}
         />
 
         <View style={styles.orDivider}>
           <View style={styles.dividerLine} />
-          <View style={styles.orBadge}>
-            <Text style={styles.orText}>OR</Text>
+          <View style={[styles.diamondBadge, { borderColor: `${catColor}60` }]}>
+            <Text style={[styles.diamondText, { color: catColor }]}>◆</Text>
           </View>
           <View style={styles.dividerLine} />
         </View>
@@ -96,49 +149,101 @@ export default function GameScreen() {
           label="B"
           text={question.optionB}
           selected={selected === 'B'}
-          onPress={() => handleSelect('B')}
-          disabled={hasVoted}
+          onPress={() => { if (!confirmed) setSelected('B'); }}
+          disabled={confirmed}
+          votesA={votesA}
+          votesB={votesB}
+          showConsensus={confirmed}
         />
       </View>
 
-      {/* Action buttons */}
+      {/* Actions */}
       <View style={styles.actions}>
-        <Pressable
-          onPress={handleVote}
-          disabled={!selected}
-          style={({ pressed }) => [
-            styles.voteButton,
-            !selected && styles.voteButtonDisabled,
-            pressed && selected && styles.buttonPressed,
-          ]}
-        >
-          <Text style={[styles.voteButtonText, !selected && styles.voteButtonTextDisabled]}>
-            {selected ? `Lock in Option ${selected}` : 'Pick an option first'}
-          </Text>
-        </Pressable>
+        {!confirmed ? (
+          <>
+            <Pressable
+              onPress={handleConfirm}
+              disabled={!selected}
+              style={({ pressed }) => [
+                styles.confirmButton,
+                { backgroundColor: selected ? catColor : COLORS.surfaceLight },
+                pressed && selected && styles.buttonPressed,
+              ]}
+            >
+              <Text style={[
+                styles.confirmButtonText,
+                !selected && styles.confirmButtonTextDisabled,
+              ]}>
+                {selected ? 'CONFIRM PREFERENCE' : 'PICK AN OPTION FIRST'}
+              </Text>
+            </Pressable>
 
-        <Pressable
-          onPress={handleSkip}
-          style={({ pressed }) => [
-            styles.skipButton,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          <Text style={styles.skipButtonText}>Skip →</Text>
-        </Pressable>
+            {nextQuestion && (
+              <Pressable
+                onPress={handleSkip}
+                style={({ pressed }) => [
+                  styles.skipButton,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={styles.skipText}>Skip →</Text>
+              </Pressable>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Post-confirmation state */}
+            <View style={[styles.resultBanner, { borderColor: `${catColor}40` }]}>
+              <Text style={styles.resultBannerEmoji}>
+                {selected === 'A'
+                  ? (question.votesA > question.votesB ? '🎯' : '🔥')
+                  : (question.votesB > question.votesA ? '🎯' : '🔥')}
+              </Text>
+              <View style={styles.resultBannerText}>
+                <Text style={styles.resultBannerTitle}>
+                  {(() => {
+                    const myVotes = selected === 'A' ? votesA : votesB;
+                    const otherVotes = selected === 'A' ? votesB : votesA;
+                    return myVotes >= otherVotes ? 'With the majority!' : 'Uniquely yours!';
+                  })()}
+                </Text>
+                <Text style={styles.resultBannerSub}>
+                  You chose Option {selected}
+                </Text>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={handleNext}
+              style={({ pressed }) => [
+                styles.nextButton,
+                { backgroundColor: catColor },
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              <Text style={styles.nextButtonText}>
+                {isLastInCategory ? 'SEE RESULTS →' : 'NEXT QUESTION →'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setSelected(null);
+                setConfirmed(false);
+              }}
+              style={({ pressed }) => [
+                styles.replayButton,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.replayText}>Change my answer</Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
-      {/* Hint */}
-      {!selected && (
-        <Text style={styles.hint}>
-          Tap an option to make your choice
-        </Text>
-      )}
-
-      {selected && (
-        <Text style={styles.hint}>
-          You chose Option {selected} — tap "Lock in" to see results!
-        </Text>
+      {!selected && !confirmed && (
+        <Text style={styles.hint}>Tap an option to make your choice</Text>
       )}
     </ScrollView>
   );
@@ -153,8 +258,7 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     gap: SPACING.lg,
     flexGrow: 1,
-    justifyContent: 'center',
-    minHeight: '100%',
+    paddingBottom: SPACING.xxl,
   },
   errorContainer: {
     flex: 1,
@@ -168,7 +272,7 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.lg,
   },
   backButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.magenta,
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
@@ -177,11 +281,15 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: FONTS.weights.bold,
   },
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
-    alignSelf: 'flex-start',
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
@@ -191,24 +299,32 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 1,
   },
-  questionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  progressText: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xs,
+    fontWeight: FONTS.weights.bold,
+    letterSpacing: 1.5,
   },
-  questionLabel: {
+  progressBar: {
+    height: 4,
+    backgroundColor: COLORS.surfaceLight,
+    borderRadius: RADIUS.full,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: RADIUS.full,
+  },
+  wyrLabel: {
     color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.lg,
+    fontSize: FONTS.sizes.md,
     fontStyle: 'italic',
     fontWeight: FONTS.weights.medium,
-  },
-  questionProgress: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
   options: {
     gap: SPACING.md,
@@ -223,43 +339,40 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.border,
   },
-  orBadge: {
-    backgroundColor: COLORS.surfaceLight,
+  diamondBadge: {
+    width: 36,
+    height: 36,
     borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
   },
-  orText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 2,
+  diamondText: {
+    fontSize: 14,
   },
   actions: {
     gap: SPACING.sm,
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
   },
-  voteButton: {
-    backgroundColor: COLORS.primary,
+  confirmButton: {
     borderRadius: RADIUS.full,
     paddingVertical: SPACING.md,
     alignItems: 'center',
     ...Platform.select({
       web: {
         cursor: 'pointer',
-        transition: 'opacity 0.15s ease',
+        transition: 'all 0.15s ease',
       },
     }),
   },
-  voteButtonDisabled: {
-    backgroundColor: COLORS.surfaceLight,
-  },
-  voteButtonText: {
+  confirmButtonText: {
     color: COLORS.text,
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 2,
   },
-  voteButtonTextDisabled: {
+  confirmButtonTextDisabled: {
     color: COLORS.textMuted,
   },
   skipButton: {
@@ -271,7 +384,62 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  skipButtonText: {
+  skipText: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.md,
+  },
+  resultBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.md,
+    borderWidth: 1,
+  },
+  resultBannerEmoji: {
+    fontSize: 32,
+  },
+  resultBannerText: {
+    flex: 1,
+    gap: 2,
+  },
+  resultBannerTitle: {
+    color: COLORS.text,
+    fontSize: FONTS.sizes.lg,
+    fontWeight: FONTS.weights.extrabold,
+  },
+  resultBannerSub: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.sm,
+  },
+  nextButton: {
+    borderRadius: RADIUS.full,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'opacity 0.15s ease',
+      },
+    }),
+  },
+  nextButtonText: {
+    color: COLORS.text,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 2,
+  },
+  replayButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      },
+    }),
+  },
+  replayText: {
     color: COLORS.textSecondary,
     fontSize: FONTS.sizes.md,
   },

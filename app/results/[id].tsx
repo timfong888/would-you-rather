@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,16 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { getQuestionById, CATEGORIES, QUESTIONS } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions } from '@/constants/questions';
+import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 
 export default function ResultsScreen() {
-  const { id, voted } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' }>();
+  const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; cat: string }>();
   const router = useRouter();
 
   const question = getQuestionById(id);
+  const category = cat ? getCategoryById(cat as CategoryId) : undefined;
 
   if (!question) {
     return (
@@ -29,19 +31,21 @@ export default function ResultsScreen() {
     );
   }
 
-  const category = CATEGORIES.find((c) => c.id === question.category);
+  const catColor = category?.color ?? COLORS.primary;
 
-  // Add the user's vote to the totals (simulated)
   const votesA = voted === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = voted === 'B' ? question.votesB + 1 : question.votesB;
   const totalVotes = votesA + votesB;
 
-  const currentIndex = QUESTIONS.findIndex((q) => q.id === id);
-  const nextQuestion = QUESTIONS[currentIndex + 1] || QUESTIONS[0];
-
   const userPickedA = voted === 'A';
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
+
+  const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
+  const currentIdx = categoryQuestions.findIndex((q) => q.id === id);
+  const nextQuestion = currentIdx >= 0 && currentIdx < categoryQuestions.length - 1
+    ? categoryQuestions[currentIdx + 1]
+    : null;
 
   return (
     <ScrollView
@@ -49,12 +53,12 @@ export default function ResultsScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Category */}
+      {/* Category badge */}
       {category && (
-        <View style={[styles.categoryBadge, { backgroundColor: `${category.color}20` }]}>
+        <View style={[styles.categoryBadge, { backgroundColor: `${catColor}20` }]}>
           <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-          <Text style={[styles.categoryLabel, { color: category.color }]}>
-            {category.label}
+          <Text style={[styles.categoryLabel, { color: catColor }]}>
+            {category.label.toUpperCase()}
           </Text>
         </View>
       )}
@@ -67,21 +71,19 @@ export default function ResultsScreen() {
               {withMajority ? '🎯' : '🔥'}
             </Text>
             <Text style={styles.resultTitle}>
-              {withMajority ? 'You\'re with the majority!' : 'You\'re in the minority!'}
+              {withMajority ? "You're with the majority!" : "You're in the minority!"}
             </Text>
             <Text style={styles.resultSubtitle}>
               {withMajority
                 ? `Most people also chose Option ${voted}`
-                : `Most people chose Option ${voted === 'A' ? 'B' : 'A'} — you\'re unique!`}
+                : `Most people chose Option ${voted === 'A' ? 'B' : 'A'} — you're unique!`}
             </Text>
           </>
         ) : (
           <>
             <Text style={styles.resultEmoji}>📊</Text>
             <Text style={styles.resultTitle}>See the results</Text>
-            <Text style={styles.resultSubtitle}>
-              Here's how everyone voted
-            </Text>
+            <Text style={styles.resultSubtitle}>Here's how everyone voted</Text>
           </>
         )}
       </View>
@@ -90,7 +92,6 @@ export default function ResultsScreen() {
       <View style={styles.questionCard}>
         <Text style={styles.questionLabel}>Would you rather...</Text>
 
-        {/* Vote Bars */}
         <View style={styles.voteBars}>
           <VoteBar
             label="A"
@@ -99,9 +100,7 @@ export default function ResultsScreen() {
             totalVotes={totalVotes}
             userVoted={voted === 'A'}
           />
-
           <View style={styles.voteDivider} />
-
           <VoteBar
             label="B"
             text={question.optionB}
@@ -111,13 +110,12 @@ export default function ResultsScreen() {
           />
         </View>
 
-        {/* User's choice indicator */}
         {voted && (
           <View style={[
             styles.yourChoice,
             { borderColor: voted === 'A' ? COLORS.optionA : COLORS.optionB },
           ]}>
-            <Text style={styles.yourChoiceLabel}>Your choice:</Text>
+            <Text style={styles.yourChoiceLabel}>YOUR CHOICE</Text>
             <Text style={[
               styles.yourChoiceOption,
               { color: voted === 'A' ? COLORS.optionA : COLORS.optionB },
@@ -147,20 +145,34 @@ export default function ResultsScreen() {
         </View>
       </View>
 
-      {/* Navigation actions */}
+      {/* Navigation */}
       <View style={styles.actions}>
-        <Pressable
-          onPress={() => router.push(`/game/${nextQuestion.id}`)}
-          style={({ pressed }) => [
-            styles.nextButton,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          <Text style={styles.nextButtonText}>Next Question →</Text>
-        </Pressable>
+        {nextQuestion && cat ? (
+          <Pressable
+            onPress={() => router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${currentIdx + 1}`)}
+            style={({ pressed }) => [
+              styles.nextButton,
+              { backgroundColor: catColor },
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.nextButtonText}>Next Question →</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => router.push('/categories')}
+            style={({ pressed }) => [
+              styles.nextButton,
+              { backgroundColor: catColor },
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.nextButtonText}>Explore Categories →</Text>
+          </Pressable>
+        )}
 
         <Pressable
-          onPress={() => router.push(`/game/${id}`)}
+          onPress={() => router.push(`/game/${id}${cat ? `?cat=${cat}&idx=${currentIdx}` : ''}`)}
           style={({ pressed }) => [
             styles.replayButton,
             pressed && styles.buttonPressed,
@@ -205,7 +217,7 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.lg,
   },
   homeButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.magenta,
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
@@ -228,9 +240,8 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 1,
   },
   resultBanner: {
     backgroundColor: COLORS.surface,
@@ -285,9 +296,9 @@ const styles = StyleSheet.create({
   yourChoiceLabel: {
     color: COLORS.textMuted,
     fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.semibold,
+    fontWeight: FONTS.weights.extrabold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
   },
   yourChoiceOption: {
     fontSize: FONTS.sizes.sm,
@@ -325,9 +336,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
-      web: {
-        cursor: 'pointer',
-      },
+      web: { cursor: 'pointer' },
     }),
   },
   shareButtonText: {
@@ -337,15 +346,11 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   nextButton: {
-    backgroundColor: COLORS.primary,
     borderRadius: RADIUS.full,
     paddingVertical: SPACING.md,
     alignItems: 'center',
     ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'opacity 0.15s ease',
-      },
+      web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
     }),
   },
   nextButtonText: {
@@ -360,9 +365,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     alignItems: 'center',
     ...Platform.select({
-      web: {
-        cursor: 'pointer',
-      },
+      web: { cursor: 'pointer' },
     }),
   },
   replayButtonText: {
@@ -373,11 +376,7 @@ const styles = StyleSheet.create({
   homeButton2: {
     alignItems: 'center',
     paddingVertical: SPACING.sm,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-      },
-    }),
+    ...Platform.select({ web: { cursor: 'pointer' } }),
   },
   homeButton2Text: {
     color: COLORS.textMuted,

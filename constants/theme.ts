@@ -6,6 +6,10 @@ export const COLORS = {
   primaryLight: '#8B85FF',
   secondary: '#FF6B6B',
   accent: '#4ECDC4',
+  magenta: '#D63384',
+  magentaLight: '#E055A3',
+  gold: '#C9A84C',
+  goldLight: '#DFC26A',
   text: '#FFFFFF',
   textSecondary: '#A0A0C0',
   textMuted: '#5A5A7A',
@@ -16,6 +20,10 @@ export const COLORS = {
   border: '#2A2A4A',
   success: '#4ECDC4',
   warning: '#FFEAA7',
+  premium: '#C9A84C',
+  premiumBg: '#2A1F08',
+  free: '#2D9E6B',
+  freeBg: '#0A2018',
 };
 
 export const FONTS = {
@@ -34,6 +42,7 @@ export const FONTS = {
     semibold: '600' as const,
     bold: '700' as const,
     extrabold: '800' as const,
+    black: '900' as const,
   },
 };
 

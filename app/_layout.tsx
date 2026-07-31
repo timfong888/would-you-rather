@@ -40,6 +40,20 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="complete/[id]"
+          options={{
+            title: 'Complete',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="unlock/[id]"
+          options={{
+            title: 'Unlock',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="categories/index"
           options={{
             title: 'Categories',
@@ -49,7 +63,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="categories/[id]"
           options={{
-            title: 'Questions',
+            title: 'Category',
             headerBackTitle: 'Categories',
           }}
         />
