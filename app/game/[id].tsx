@@ -157,8 +157,8 @@ export default function GameScreen() {
 
         <View style={styles.orDivider}>
           <View style={styles.dividerLine} />
-          <View style={[styles.diamondBadge, { borderColor: `${catColor}60` }]}>
-            <Text style={[styles.diamondText, { color: catColor }]}>◆</Text>
+          <View style={[styles.heartBadge, { borderColor: `${catColor}60`, backgroundColor: `${catColor}15` }]}>
+            <Text style={[styles.heartText, { color: catColor }]}>♥</Text>
           </View>
           <View style={styles.dividerLine} />
         </View>
@@ -370,17 +370,16 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.border,
   },
-  diamondBadge: {
-    width: 36,
-    height: 36,
+  heartBadge: {
+    width: 40,
+    height: 40,
     borderRadius: RADIUS.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.surface,
   },
-  diamondText: {
-    fontSize: 14,
+  heartText: {
+    fontSize: 18,
   },
   actions: {
     gap: SPACING.sm,

@@ -109,7 +109,7 @@ export default function HomeScreen() {
                 <Text style={[styles.featuredLabel, { color: cat.color }]}>
                   {cat.label.toUpperCase()}
                 </Text>
-                <Text style={styles.featuredCount}>{count} questions</Text>
+                <Text style={styles.featuredCount}>{count} DILEMMAS</Text>
                 {cat.tier === 'premium' && (
                   <View style={styles.featuredPremiumBadge}>
                     <Text style={styles.featuredPremiumText}>3 FREE</Text>
@@ -143,12 +143,12 @@ export default function HomeScreen() {
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <View style={[styles.categoryRowIcon, { backgroundColor: `${cat.color}20` }]}>
+                <View style={[styles.categoryRowIcon, { backgroundColor: cat.color }]}>
                   <Text style={styles.categoryRowEmoji}>{cat.emoji}</Text>
                 </View>
                 <View style={styles.categoryRowContent}>
                   <Text style={styles.categoryRowLabel}>{cat.label.toUpperCase()}</Text>
-                  <Text style={styles.categoryRowCount}>{count} questions</Text>
+                  <Text style={styles.categoryRowCount}>{count} DILEMMAS</Text>
                 </View>
                 {isPremium ? (
                   <View style={styles.premiumBadge}>
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   audiencePill: {
     backgroundColor: COLORS.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.md,

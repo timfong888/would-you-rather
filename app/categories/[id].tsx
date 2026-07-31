@@ -52,7 +52,7 @@ export default function CategoryScreen() {
         <Text style={[styles.heroName, { color: category.color }]}>
           {category.label.toUpperCase()}
         </Text>
-        <Text style={styles.heroCount}>{questions.length} questions</Text>
+        <Text style={styles.heroCount}>{questions.length} DILEMMAS</Text>
 
         {isPremium && (
           <View style={styles.trialBanner}>
@@ -133,7 +133,7 @@ export default function CategoryScreen() {
         >
           <Text style={styles.unlockCtaEmoji}>👑</Text>
           <View style={styles.unlockCtaText}>
-            <Text style={styles.unlockCtaTitle}>Unlock All {questions.length} Questions</Text>
+            <Text style={styles.unlockCtaTitle}>Unlock All {questions.length} Dilemmas</Text>
             <Text style={styles.unlockCtaSub}>One-time category unlock · $2.99</Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     }),
   },
   playButtonText: {
-    color: COLORS.text,
+    color: '#FFFFFF',
     fontSize: FONTS.sizes.md,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,

@@ -46,18 +46,18 @@ export default function OptionButton({
         styles.container,
         {
           borderColor: selected ? baseColor : COLORS.border,
-          backgroundColor: selected ? `${baseColor}20` : COLORS.surface,
+          backgroundColor: selected ? `${baseColor}15` : COLORS.surface,
           transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         },
       ]}
     >
       <View style={styles.topRow}>
-        <View style={[styles.labelBadge, { backgroundColor: selected ? baseColor : COLORS.surfaceLight }]}>
-          <Text style={[styles.labelText, { color: selected ? COLORS.text : COLORS.textMuted }]}>
+        <View style={[styles.labelBadge, { backgroundColor: selected ? baseColor : `${baseColor}20`, borderWidth: selected ? 0 : 1.5, borderColor: baseColor }]}>
+          <Text style={[styles.labelText, { color: selected ? '#FFFFFF' : baseColor }]}>
             {label}
           </Text>
         </View>
-        <Text style={[styles.optionText, selected && { color: lightColor }]}>
+        <Text style={[styles.optionText, selected && { color: baseColor }]}>
           {text}
         </Text>
       </View>

@@ -13,7 +13,7 @@ import { getCategoryById, getCategoryQuestions } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 
 const BENEFITS = [
-  { icon: '💬', text: '20 exclusive hand-picked questions' },
+  { icon: '💬', text: '20 exclusive hand-picked dilemmas' },
   { icon: '📊', text: 'Global real-time voter statistics' },
   { icon: '♾️', text: 'Permanent library access — own it forever' },
   { icon: '🚫', text: 'Ad-free category experience' },
@@ -83,7 +83,7 @@ export default function UnlockScreen() {
           {' '}has only just begun.
         </Text>
         <Text style={styles.lossAversion}>
-          {questions.length - 3} questions remain locked. Will you leave them unanswered?
+          {questions.length - 3} dilemmas remain locked. Will you leave them unanswered?
         </Text>
       </View>
 
@@ -112,7 +112,7 @@ export default function UnlockScreen() {
           pressed && styles.btnPressed,
         ]}
       >
-        <Text style={styles.unlockBtnText}>UNLOCK {questions.length} QUESTIONS →</Text>
+        <Text style={styles.unlockBtnText}>UNLOCK {questions.length} DILEMMAS →</Text>
       </Pressable>
 
       <Pressable
@@ -139,7 +139,7 @@ export default function UnlockScreen() {
             </View>
           ))}
           <Text style={styles.teaserMore}>
-            + {questions.length - 6} more questions...
+            + {questions.length - 6} more dilemmas...
           </Text>
         </View>
       </View>
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     }),
   },
   unlockBtnText: {
-    color: '#0F0F1A',
+    color: '#FFFFFF',
     fontSize: FONTS.sizes.md,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,
