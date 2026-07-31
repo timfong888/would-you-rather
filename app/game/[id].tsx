@@ -80,6 +80,10 @@ export default function GameScreen() {
     }
   };
 
+  const handleLeaveCategory = () => {
+    router.push('/categories');
+  };
+
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
 
@@ -89,6 +93,19 @@ export default function GameScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      {/* Leave Category Link */}
+      {category && (
+        <Pressable
+          onPress={handleLeaveCategory}
+          style={({ pressed }) => [
+            styles.leaveCategoryButton,
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Text style={styles.leaveCategoryText}>← All Categories</Text>
+        </Pressable>
+      )}
+
       {/* Category + Progress Header */}
       {category && (
         <View style={styles.progressHeader}>
@@ -187,6 +204,18 @@ export default function GameScreen() {
                 ]}
               >
                 <Text style={styles.skipText}>Skip →</Text>
+              </Pressable>
+            )}
+
+            {cat && (
+              <Pressable
+                onPress={handleLeaveCategory}
+                style={({ pressed }) => [
+                  styles.leaveButton,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Text style={styles.leaveText}>✕ Leave Category</Text>
               </Pressable>
             )}
           </>
@@ -452,5 +481,35 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.sm,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  leaveCategoryButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: SPACING.xs,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      },
+    }),
+  },
+  leaveCategoryText: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.medium,
+    letterSpacing: 0.3,
+  },
+  leaveButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.xs,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      },
+    }),
+  },
+  leaveText: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.sm,
+    letterSpacing: 0.3,
   },
 });
