@@ -77,8 +77,6 @@ export default function CategoryScreen() {
       <View style={styles.list}>
         {questions.map((q, idx) => {
           const isLocked = isPremium && idx >= FREE_TRIAL_COUNT;
-          const totalVotes = q.votesA + q.votesB;
-          const pctA = totalVotes > 0 ? Math.round((q.votesA / totalVotes) * 100) : 50;
 
           return (
             <Pressable
@@ -110,12 +108,6 @@ export default function CategoryScreen() {
                   {isLocked ? '••••••••••••••••' : q.optionB}
                 </Text>
 
-                {!isLocked && (
-                  <View style={styles.miniBar}>
-                    <View style={[styles.miniBarA, { width: `${pctA}%` as any }]} />
-                    <View style={[styles.miniBarB, { width: `${100 - pctA}%` as any }]} />
-                  </View>
-                )}
               </View>
               {!isLocked && (
                 <Text style={styles.questionChevron}>›</Text>
@@ -296,22 +288,6 @@ const styles = StyleSheet.create({
   textLockedBlur: {
     color: COLORS.textMuted,
     letterSpacing: 2,
-  },
-  miniBar: {
-    flexDirection: 'row',
-    height: 3,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-    marginTop: SPACING.xs,
-    backgroundColor: COLORS.surfaceLight,
-  },
-  miniBarA: {
-    height: '100%',
-    backgroundColor: COLORS.optionA,
-  },
-  miniBarB: {
-    height: '100%',
-    backgroundColor: COLORS.optionB,
   },
   questionChevron: {
     color: COLORS.textMuted,
