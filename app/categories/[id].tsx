@@ -9,8 +9,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
-import { COPY } from '@/constants/copy';
+import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
+import { MOCK_ANSWERED } from '@/constants/mockData';
 import type { CategoryId } from '@/constants/questions';
 
 export default function CategoryScreen() {
@@ -31,6 +31,8 @@ export default function CategoryScreen() {
   }
 
   const questions = getCategoryQuestions(category.id);
+  const answered = MOCK_ANSWERED[category.id as CategoryId] ?? 0;
+  const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answered;
 
   const isPremium = category.tier === 'premium';
   const freeCount = isPremium ? FREE_TRIAL_COUNT : questions.length;
@@ -53,7 +55,7 @@ export default function CategoryScreen() {
         <Text style={[styles.heroName, { color: category.color }]}>
           {category.label.toUpperCase()}
         </Text>
-        <Text style={styles.heroCount}>{COPY.dilemmaCount(questions.length)}</Text>
+        <Text style={styles.heroCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
 
         {isPremium && (
           <View style={styles.trialBanner}>

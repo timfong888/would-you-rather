@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { CATEGORIES, getCategoryQuestions } from '@/constants/questions';
+import { CATEGORIES, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
+import { MOCK_ANSWERED } from '@/constants/mockData';
 import { COPY } from '@/constants/copy';
 
 const FEATURED = CATEGORIES.filter((c) => c.featured);
@@ -41,7 +42,8 @@ export default function CategoriesScreen() {
 
         <View style={styles.featuredRow}>
           {FEATURED.map((cat) => {
-            const count = getCategoryQuestions(cat.id).length;
+            const answered = MOCK_ANSWERED[cat.id] ?? 0;
+            const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answered;
             return (
               <Pressable
                 key={cat.id}
@@ -58,7 +60,7 @@ export default function CategoriesScreen() {
                 <Text style={[styles.featuredName, { color: cat.color }]}>
                   {cat.label.toUpperCase()}
                 </Text>
-                <Text style={styles.featuredCount}>{COPY.dilemmaCount(count)}</Text>
+                <Text style={styles.featuredCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
                 {cat.tier === 'premium' && (
                   <Text style={styles.featuredFreeHint}>{COPY.freeTrialHint}</Text>
                 )}
@@ -74,7 +76,8 @@ export default function CategoriesScreen() {
 
         <View style={styles.allList}>
           {ALL.map((cat) => {
-            const count = getCategoryQuestions(cat.id).length;
+            const answered = MOCK_ANSWERED[cat.id] ?? 0;
+            const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answered;
             const isPremium = cat.tier === 'premium';
             return (
               <Pressable
@@ -90,7 +93,7 @@ export default function CategoriesScreen() {
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowName}>{cat.label.toUpperCase()}</Text>
-                  <Text style={styles.rowCount}>{COPY.dilemmaCount(count)}</Text>
+                  <Text style={styles.rowCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
                   {isPremium && (
                     <Text style={styles.rowFreeHint}>{COPY.freeTrialHint}</Text>
                   )}
@@ -133,7 +136,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
   },
   appTitle: {
-    color: COLORS.text,
+    color: COLORS.primary,
     fontSize: FONTS.sizes.xxl,
     fontWeight: FONTS.weights.black,
     letterSpacing: 4,

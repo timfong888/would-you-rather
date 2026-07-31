@@ -12,6 +12,7 @@ export type CategoryId =
 export type CategoryTier = 'free' | 'premium';
 
 export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
+export const TOTAL_QUESTIONS_PER_CATEGORY = 20;
 
 export interface CategoryDef {
   id: CategoryId;
