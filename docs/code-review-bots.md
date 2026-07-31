@@ -4,45 +4,54 @@
 
 Observed on every pull request opened so far:
 
-| PR | Author | Base branch | Sourcery | CodeRabbit |
-| --- | --- | --- | --- | --- |
-| [#1](https://github.com/timfong888/would-you-rather/pull/1) | `blocksorg[bot]` | `main` | check run + review (20 comments) | nothing |
-| [#2](https://github.com/timfong888/would-you-rather/pull/2) | `timfong888` | `blocks/sat-695-…` | — | nothing |
-| [#3](https://github.com/timfong888/would-you-rather/pull/3) | `blocksorg[bot]` | `blocks/sat-695-…` | check run + review (2 issues) | nothing |
+This repo's default branch is **`blocks/sat-695-create-a-web-ui-using-vercel`**,
+not `main` (`origin/HEAD` confirms it). That matters for every row below.
+
+| PR | Author | Base branch | Draft | Sourcery | CodeRabbit |
+| --- | --- | --- | --- | --- | --- |
+| [#1](https://github.com/timfong888/would-you-rather/pull/1) | `blocksorg[bot]` | `main` (not default) | no | check run + review (20 comments) | nothing |
+| [#2](https://github.com/timfong888/would-you-rather/pull/2) | `timfong888` | default | **yes** | — | nothing |
+| [#3](https://github.com/timfong888/would-you-rather/pull/3) | `blocksorg[bot]` | default | no | check run + review (2 issues) | nothing |
+| [#4](https://github.com/timfong888/would-you-rather/pull/4) | `timfong888` | default | **yes** | — | nothing |
 
 "Nothing" means literally nothing: no check run, no comment, no review, and no
-"review skipped" notice. That distinction matters — the filters CodeRabbit
-documents (base branch, drafts, labels, title keywords) make it skip *quietly*,
-but the app still has to be reachable for the skip to happen at all.
+"review skipped" notice — which is expected, because CodeRabbit's documented
+filters skip *silently*.
 
-### The base-branch filter cannot be the whole story
+### Only PR #3 is unexplained
 
-`reviews.auto_review.base_branches` defaults to `[]`, which means **only the
-repository default branch is auto-reviewed**. This repo has an unusual default
-branch (`blocks/sat-695-create-a-web-ui-using-vercel`, not `main`), and the PRs
-above are split across two different base branches — so whichever branch is the
-real default, at least one of these PRs targeted it and should still have been
-reviewed. Something upstream of the per-PR filters is suppressing all of them.
+Three of the four rows are CodeRabbit behaving exactly as documented:
+
+- **#1** targeted `main`, which is *not* the default branch.
+  `reviews.auto_review.base_branches` defaults to `[]`, meaning only the default
+  branch is auto-reviewed. Skipping #1 was correct.
+- **#2 and #4** are drafts, and `auto_review.drafts` defaults to `false`.
+
+**PR #3 is the decisive case**: default base branch, not a draft, and the repo is
+visible in the CodeRabbit GitHub App. Nothing in the documented filter set
+accounts for it. Its only remaining difference from a PR that should be reviewed
+is that `blocksorg[bot]` — a GitHub App — opened it.
 
 ### Ranked causes and how to confirm each (needs a human — not fixable from a PR)
 
-1. **The repo is not actually granted to the CodeRabbit app.** Being *listed* in
-   the app's repository picker is not the same as being *selected*. Verify at
-   repo Settings → GitHub Apps → CodeRabbit; the repo must appear there. Per
-   CodeRabbit's FAQ, an unreviewable repo "is likely due to the repository not
-   being accessible to CodeRabbit."
-2. **The PR author has no CodeRabbit seat.** The FAQ explicitly says to confirm
-   "that the author of a pull request has an active seat in CodeRabbit." PRs #1
-   and #3 are authored by `blocksorg[bot]`, a GitHub App — it can never hold a
-   seat. If seat enforcement is what's biting, agent-opened PRs will need a
-   manual `@coderabbitai review` (or a CodeRabbit org setting that allows
-   bot-authored PRs).
-3. **Base branch / drafts filters.** Real, and the part fixable in-repo:
-   `.coderabbit.yaml` sets `base_branches: [".*"]` and `drafts: true`.
+1. **The PR author has no CodeRabbit seat.** The FAQ says to confirm "that the
+   author of a pull request has an active seat in CodeRabbit." A GitHub App can
+   never hold one, and this is the cause that explains PR #3 when the filters do
+   not. If it is the blocker, agent-opened PRs need a manual
+   `@coderabbitai review` or a CodeRabbit org setting that permits bot-authored
+   PRs.
+2. **The app is listed but not receiving events for this repo.** Appearing in the
+   app's repository picker is not the same as being *selected*; the FAQ
+   attributes an unreviewable repo to "the repository not being accessible to
+   CodeRabbit." Confirm at repo Settings → GitHub Apps → CodeRabbit. A reply to
+   any `@coderabbitai` command is the real proof that events land.
+3. **Base branch / drafts filters.** These explain #1, #2 and #4, and are the
+   part fixable in-repo: `.coderabbit.yaml` sets `base_branches: [".*"]` and
+   `drafts: true`.
 4. **Config not live yet.** `.coderabbit.yaml` is read from the PR's *base*
-   branch, so it does nothing until it is merged into the branches PRs target.
-   This is why nothing changed between the first triage (PR #2, still open) and
-   PR #3 — the config has never been on a base branch.
+   branch, so it does nothing until merged into the branches PRs target. This is
+   why nothing changed between the first triage (PR #2, still open) and PR #3 —
+   the config has never been on a base branch.
 
 Fixing the unusual default branch (make it `main`) is worth doing separately;
 CodeRabbit and other tools key off the default branch.
@@ -59,7 +68,9 @@ the repo:
 | `@coderabbitai configuration` | Echoes the effective config, confirming whether `.coderabbit.yaml` was picked up. |
 | `@coderabbitai rate limit` | Rules out hourly per-developer caps (Pro: 5 reviews/hour). |
 
-Silence from all three means the app cannot see the repo — go back to cause #1.
+Silence from all three means the app cannot see the repo — go back to cause #2.
+A reply plus a review on PR #3 means auto-review is the only thing broken, which
+points at cause #1.
 
 ## What `.coderabbit.yaml` does
 
