@@ -1,82 +1,80 @@
 # AI code review bots
 
-## Triage: CodeRabbit reviews nothing in this repo, Sourcery reviews everything
+## Why CodeRabbit was not reviewing PRs (resolved)
 
-Observed on every pull request opened so far:
+All times 2026-07-31 UTC. This repo's default branch is
+`blocks/sat-695-create-a-web-ui-using-vercel`, not `main`.
 
-This repo's default branch is **`blocks/sat-695-create-a-web-ui-using-vercel`**,
-not `main` (`origin/HEAD` confirms it). That matters for every row below.
-
-| PR | Author | Base branch | Draft | Sourcery | CodeRabbit |
+| PR | Opened | Author | Base | Draft | CodeRabbit |
 | --- | --- | --- | --- | --- | --- |
-| [#1](https://github.com/timfong888/would-you-rather/pull/1) | `blocksorg[bot]` | `main` (not default) | no | check run + review (20 comments) | nothing |
-| [#2](https://github.com/timfong888/would-you-rather/pull/2) | `timfong888` | default | **yes** | — | nothing |
-| [#3](https://github.com/timfong888/would-you-rather/pull/3) | `blocksorg[bot]` | default | no | check run + review (2 issues) | nothing |
-| [#4](https://github.com/timfong888/would-you-rather/pull/4) | `timfong888` | default | **yes** | — | nothing |
+| [#1](https://github.com/timfong888/would-you-rather/pull/1) | 14:32 | `blocksorg[bot]` | `main` (not default) | no | nothing |
+| [#2](https://github.com/timfong888/would-you-rather/pull/2) | 15:17 | `timfong888` | default | yes | nothing |
+| [#3](https://github.com/timfong888/would-you-rather/pull/3) | 15:50 | `blocksorg[bot]` | default | no | nothing |
+| [#4](https://github.com/timfong888/would-you-rather/pull/4) | 20:13 | `timfong888` | default | yes | **walkthrough + pre-merge checks + 5-comment review** |
 
-"Nothing" means literally nothing: no check run, no comment, no review, and no
-"review skipped" notice — which is expected, because CodeRabbit's documented
-filters skip *silently*.
+"Nothing" means literally nothing: no check run, no comment, no review, not even
+a "review skipped" notice.
 
-### Only PR #3 is unexplained
+**Root cause: the repository was not accessible to the CodeRabbit GitHub App
+until it was added to the app's selected repositories, shortly before PR #4.**
+Nothing about PRs #1–#3 explains the silence on its own — #3 in particular
+targeted the default branch, was not a draft, and was authored the same way as
+PRs that are reviewed now. Being *listed* as available in the app is not the same
+as being *selected*; CodeRabbit's FAQ attributes an unreviewable repo to "the
+repository not being accessible to CodeRabbit."
 
-Three of the four rows are CodeRabbit behaving exactly as documented:
+PR #4 confirms the fix end to end. Its review reports
+`Configuration used: Path: .coderabbit.yaml` and `Plan: Pro`.
 
-- **#1** targeted `main`, which is *not* the default branch.
-  `reviews.auto_review.base_branches` defaults to `[]`, meaning only the default
-  branch is auto-reviewed. Skipping #1 was correct.
-- **#2 and #4** are drafts, and `auto_review.drafts` defaults to `false`.
+### Pre-existing PRs are not reviewed retroactively
 
-**PR #3 is the decisive case**: default base branch, not a draft, and the repo is
-visible in the CodeRabbit GitHub App. Nothing in the documented filter set
-accounts for it. Its only remaining difference from a PR that should be reviewed
-is that `blocksorg[bot]` — a GitHub App — opened it.
+PRs #1–#3 were opened before access was granted and will stay unreviewed. Comment
+`@coderabbitai review` on each one to review it on demand.
 
-### Ranked causes and how to confirm each (needs a human — not fixable from a PR)
+### `.coderabbit.yaml` applies to the PR that adds it
 
-1. **The PR author has no CodeRabbit seat.** The FAQ says to confirm "that the
-   author of a pull request has an active seat in CodeRabbit." A GitHub App can
-   never hold one, and this is the cause that explains PR #3 when the filters do
-   not. If it is the blocker, agent-opened PRs need a manual
-   `@coderabbitai review` or a CodeRabbit org setting that permits bot-authored
-   PRs.
-2. **The app is listed but not receiving events for this repo.** Appearing in the
-   app's repository picker is not the same as being *selected*; the FAQ
-   attributes an unreviewable repo to "the repository not being accessible to
-   CodeRabbit." Confirm at repo Settings → GitHub Apps → CodeRabbit. A reply to
-   any `@coderabbitai` command is the real proof that events land.
-3. **Base branch / drafts filters.** These explain #1, #2 and #4, and are the
-   part fixable in-repo: `.coderabbit.yaml` sets `base_branches: [".*"]` and
-   `drafts: true`.
-4. **Config not live yet.** `.coderabbit.yaml` is read from the PR's *base*
-   branch, so it does nothing until merged into the branches PRs target. This is
-   why nothing changed between the first triage (PR #2, still open) and PR #3 —
-   the config has never been on a base branch.
+CodeRabbit reads `.coderabbit.yaml` from the **branch under review**, not from the
+base branch — PR #4 carries the file only on its head branch and CodeRabbit still
+used it. Merging it makes it the default for subsequent PRs; it does not have to
+be merged to take effect on the PR introducing it.
 
-Fixing the unusual default branch (make it `main`) is worth doing separately;
-CodeRabbit and other tools key off the default branch.
+Two settings mattered here, because both defaults are restrictive:
 
-### Diagnostics to run as PR comments
+- `auto_review.base_branches` defaults to `[]`, meaning **only the default branch
+  is auto-reviewed**. PR #1 targeted `main`, which is not the default, so it
+  would have been skipped even with access. `[".*"]` opts every base branch in.
+- `auto_review.drafts` defaults to `false`. Agent sessions open PRs as drafts, so
+  every one of them would be skipped. PR #4 is a draft and was reviewed only
+  because its own config sets `drafts: true`.
 
-Post these on an open PR — **any** response at all proves the app is installed
-and can see the repo, which is the one thing that can't be checked from inside
-the repo:
+Fixing the unusual default branch (make it `main`) is still worth doing
+separately; CodeRabbit and other tools key off the default branch.
+
+### If a PR is silent again
 
 | Comment | What it tells you |
 | --- | --- |
-| `@coderabbitai review` | Triggers a review of a PR that auto-review skipped or that predates installation. |
+| `@coderabbitai review` | Reviews a PR that auto-review skipped or that predates installation. |
 | `@coderabbitai configuration` | Echoes the effective config, confirming whether `.coderabbit.yaml` was picked up. |
 | `@coderabbitai rate limit` | Rules out hourly per-developer caps (Pro: 5 reviews/hour). |
 
-Silence from all three means the app cannot see the repo — go back to cause #2.
-A reply plus a review on PR #3 means auto-review is the only thing broken, which
-points at cause #1.
+Silence from all three *suggests* the app cannot see the repo, but it is not
+proof — config, chat access controls, author eligibility, and rate limits can all
+produce silence. Check the repo's CodeRabbit permissions (Settings → GitHub Apps
+→ CodeRabbit) before concluding anything.
+
+On author eligibility: CodeRabbit's FAQ says to confirm "that the author of a
+pull request has an active seat." For a bot identity such as `blocksorg[bot]`,
+check its seat assignment and the effective `enable_free_tier` setting — authors
+without a paid seat can still receive free-tier reviews unless
+`enable_free_tier` is `false`. `reviews.auto_review.ignore_usernames` is the
+documented way to exclude specific authors.
 
 ## What `.coderabbit.yaml` does
 
 | Setting | Why |
 | --- | --- |
-| `auto_review.base_branches: [".*"]` | Review PRs against any base branch, not just the default one (cause #3). |
+| `auto_review.base_branches: [".*"]` | Review PRs against any base branch, not just the default one. |
 | `auto_review.drafts: true` | Review agent-opened draft PRs. |
 | `path_filters: !**/package-lock.json` | 18 of Sourcery's 20 comments on PR #1 were transitive-dependency CVEs in the lockfile. Keeps reviews on hand-written code. |
 | `profile: chill` | Fewer nitpicks than `assertive`. |
