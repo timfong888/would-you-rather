@@ -9,16 +9,15 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { CATEGORIES, getQuestionsByCategory } from '@/constants/questions';
-import type { Category } from '@/constants/questions';
-import QuestionCard from '@/components/QuestionCard';
+import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import type { CategoryId } from '@/constants/questions';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
   const category = CATEGORIES.find((c) => c.id === id);
-  const questions = getQuestionsByCategory(id as Category);
+  const questions = getCategoryQuestions(id as CategoryId);
 
   if (!category) {
     return (
@@ -31,10 +30,13 @@ export default function CategoryScreen() {
     );
   }
 
-  const handlePlayAll = () => {
-    if (questions.length > 0) {
-      router.push(`/game/${questions[0].id}`);
-    }
+  const isPremium = category.tier === 'premium';
+  const freeCount = isPremium ? FREE_TRIAL_COUNT : questions.length;
+
+  const handlePlay = (startIdx = 0) => {
+    if (questions.length === 0) return;
+    const q = questions[startIdx];
+    router.push(`/game/${q.id}?cat=${category.id}&idx=${startIdx}`);
   };
 
   return (
@@ -44,34 +46,108 @@ export default function CategoryScreen() {
       showsVerticalScrollIndicator={false}
     >
       {/* Category Hero */}
-      <View style={[styles.categoryHero, { backgroundColor: `${category.color}15`, borderColor: `${category.color}30` }]}>
-        <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-        <Text style={[styles.categoryName, { color: category.color }]}>{category.label}</Text>
-        <Text style={styles.questionCount}>{questions.length} questions</Text>
+      <View style={[styles.hero, { borderColor: `${category.color}30`, backgroundColor: `${category.color}10` }]}>
+        <Text style={styles.heroEmoji}>{category.emoji}</Text>
+        <Text style={[styles.heroName, { color: category.color }]}>
+          {category.label.toUpperCase()}
+        </Text>
+        <Text style={styles.heroCount}>{questions.length} DILEMMAS</Text>
+
+        {isPremium && (
+          <View style={styles.trialBanner}>
+            <Text style={styles.trialBannerText}>
+              👑 Premium — first {FREE_TRIAL_COUNT} dilemmas are free
+            </Text>
+          </View>
+        )}
 
         <Pressable
-          onPress={handlePlayAll}
+          onPress={() => handlePlay(0)}
           style={({ pressed }) => [
             styles.playButton,
             { backgroundColor: category.color },
             pressed && styles.buttonPressed,
           ]}
         >
-          <Text style={styles.playButtonText}>Play All →</Text>
+          <Text style={styles.playButtonText}>PLAY ALL →</Text>
         </Pressable>
       </View>
 
       {/* Questions List */}
-      <View style={styles.questionList}>
-        {questions.map((q, idx) => (
-          <View key={q.id} style={styles.questionWrapper}>
-            <Text style={styles.questionIndex}>#{idx + 1}</Text>
-            <View style={styles.questionCardWrapper}>
-              <QuestionCard question={q} compact />
-            </View>
-          </View>
-        ))}
+      <View style={styles.list}>
+        {questions.map((q, idx) => {
+          const isLocked = isPremium && idx >= FREE_TRIAL_COUNT;
+          const totalVotes = q.votesA + q.votesB;
+          const pctA = totalVotes > 0 ? Math.round((q.votesA / totalVotes) * 100) : 50;
+
+          return (
+            <Pressable
+              key={q.id}
+              onPress={() => {
+                if (isLocked) {
+                  router.push(`/unlock/${category.id}`);
+                } else {
+                  handlePlay(idx);
+                }
+              }}
+              style={({ pressed }) => [
+                styles.questionRow,
+                isLocked && styles.questionRowLocked,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <View style={styles.questionRowLeft}>
+                <Text style={[styles.questionNum, { color: isLocked ? COLORS.textMuted : category.color }]}>
+                  {isLocked ? '🔒' : `${idx + 1}`}
+                </Text>
+              </View>
+              <View style={styles.questionRowContent}>
+                <Text style={[styles.questionOptionA, isLocked && styles.textLockedBlur]} numberOfLines={1}>
+                  {isLocked ? '••••••••••••••••' : q.optionA}
+                </Text>
+                <Text style={styles.questionOr}>or</Text>
+                <Text style={[styles.questionOptionB, isLocked && styles.textLockedBlur]} numberOfLines={1}>
+                  {isLocked ? '••••••••••••••••' : q.optionB}
+                </Text>
+
+                {!isLocked && (
+                  <View style={styles.miniBar}>
+                    <View style={[styles.miniBarA, { width: `${pctA}%` as any }]} />
+                    <View style={[styles.miniBarB, { width: `${100 - pctA}%` as any }]} />
+                  </View>
+                )}
+              </View>
+              {!isLocked && (
+                <Text style={styles.questionChevron}>›</Text>
+              )}
+              {isLocked && (
+                <View style={styles.unlockHint}>
+                  <Text style={styles.unlockHintText}>Unlock</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
       </View>
+
+      {isPremium && (
+        <Pressable
+          onPress={() => router.push(`/unlock/${category.id}`)}
+          style={({ pressed }) => [
+            styles.unlockCta,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.unlockCtaEmoji}>👑</Text>
+          <View style={styles.unlockCtaText}>
+            <Text style={styles.unlockCtaTitle}>Unlock All {questions.length} Dilemmas</Text>
+            <Text style={styles.unlockCtaSub}>One-time category unlock · $2.99</Text>
+          </View>
+          <Text style={styles.unlockCtaArrow}>→</Text>
+        </Pressable>
+      )}
+
+      <View style={{ height: SPACING.xxl }} />
     </ScrollView>
   );
 }
@@ -84,7 +160,6 @@ const styles = StyleSheet.create({
   content: {
     padding: SPACING.lg,
     gap: SPACING.lg,
-    paddingBottom: SPACING.xxl,
   },
   errorContainer: {
     flex: 1,
@@ -98,7 +173,7 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.lg,
   },
   backButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.magenta,
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
@@ -107,27 +182,45 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: FONTS.weights.bold,
   },
-  categoryHero: {
+  hero: {
     borderWidth: 1,
     borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  categoryEmoji: {
+  heroEmoji: {
     fontSize: 48,
   },
-  categoryName: {
+  heroName: {
     fontSize: FONTS.sizes.xxl,
     fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 3,
+    textAlign: 'center',
   },
-  questionCount: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
+  heroCount: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.sm,
+    letterSpacing: 1.5,
+  },
+  trialBanner: {
+    backgroundColor: COLORS.premiumBg,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.premium,
+    marginTop: SPACING.xs,
+  },
+  trialBannerText: {
+    color: COLORS.premium,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.semibold,
+    textAlign: 'center',
   },
   playButton: {
     borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.xl,
+    paddingHorizontal: SPACING.xxl,
     paddingVertical: SPACING.md,
     marginTop: SPACING.sm,
     ...Platform.select({
@@ -139,29 +232,140 @@ const styles = StyleSheet.create({
   },
   playButtonText: {
     color: COLORS.text,
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 2,
   },
   buttonPressed: {
     opacity: 0.8,
     transform: [{ scale: 0.97 }],
   },
-  questionList: {
-    gap: SPACING.md,
-  },
-  questionWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  list: {
     gap: SPACING.sm,
   },
-  questionIndex: {
+  questionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+      },
+    }),
+  },
+  questionRowLocked: {
+    opacity: 0.6,
+  },
+  questionRowLeft: {
+    width: 28,
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  questionNum: {
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 0.5,
+  },
+  questionRowContent: {
+    flex: 1,
+    gap: 2,
+  },
+  questionOptionA: {
+    color: COLORS.text,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.medium,
+    lineHeight: 18,
+  },
+  questionOr: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+    fontStyle: 'italic',
+  },
+  questionOptionB: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.medium,
+    lineHeight: 18,
+  },
+  textLockedBlur: {
+    color: COLORS.textMuted,
+    letterSpacing: 2,
+  },
+  miniBar: {
+    flexDirection: 'row',
+    height: 3,
+    borderRadius: RADIUS.full,
+    overflow: 'hidden',
+    marginTop: SPACING.xs,
+    backgroundColor: COLORS.surfaceLight,
+  },
+  miniBarA: {
+    height: '100%',
+    backgroundColor: COLORS.optionA,
+  },
+  miniBarB: {
+    height: '100%',
+    backgroundColor: COLORS.optionB,
+  },
+  questionChevron: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xl,
+    flexShrink: 0,
+  },
+  unlockHint: {
+    backgroundColor: COLORS.premiumBg,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: COLORS.premium,
+    flexShrink: 0,
+  },
+  unlockHintText: {
+    color: COLORS.premium,
+    fontSize: 10,
+    fontWeight: FONTS.weights.bold,
+  },
+  unlockCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.premiumBg,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.premium,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+      },
+    }),
+  },
+  unlockCtaEmoji: {
+    fontSize: 24,
+  },
+  unlockCtaText: {
+    flex: 1,
+    gap: 2,
+  },
+  unlockCtaTitle: {
+    color: COLORS.premium,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.bold,
+  },
+  unlockCtaSub: {
     color: COLORS.textMuted,
     fontSize: FONTS.sizes.sm,
-    paddingTop: SPACING.md,
-    minWidth: 28,
-    textAlign: 'right',
   },
-  questionCardWrapper: {
-    flex: 1,
+  unlockCtaArrow: {
+    color: COLORS.premium,
+    fontSize: FONTS.sizes.xl,
   },
 });

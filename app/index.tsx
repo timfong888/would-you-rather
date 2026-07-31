@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,20 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getQuestionsByCategory } from '@/constants/questions';
-import CategoryCard from '@/components/CategoryCard';
-import QuestionCard from '@/components/QuestionCard';
+import { QUESTIONS, CATEGORIES, getCategoryQuestions } from '@/constants/questions';
+
+const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
+const TOTAL_DILEMMAS = QUESTIONS.length;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const featuredQuestions = QUESTIONS.slice(0, 3);
 
   const handleRandomQuestion = () => {
-    const random = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
-    router.push(`/game/${random.id}`);
+    const freeCats = CATEGORIES.filter((c) => c.tier === 'free');
+    const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
+    const questions = getCategoryQuestions(cat.id);
+    const q = questions[Math.floor(Math.random() * questions.length)];
+    router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
   };
 
   return (
@@ -28,15 +31,23 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero Section */}
+      {/* Hero */}
       <View style={styles.hero}>
-        <View style={styles.heroTopRow}>
-          <Text style={styles.tagline}>The ultimate choice game</Text>
-        </View>
-        <Text style={styles.heroTitle}>Would You{'\n'}Rather?</Text>
+        <Text style={styles.appLabel}>WOULD YOU RATHER</Text>
+        <Text style={styles.heroTitle}>DILEMMA</Text>
         <Text style={styles.heroSubtitle}>
-          Pick your preference, see how others voted. No wrong answers — only interesting ones.
+          Pick your preference. See how the world voted.{'\n'}
+          No right answers — only revealing ones.
         </Text>
+
+        <View style={styles.audiencePills}>
+          <View style={styles.audiencePill}>
+            <Text style={styles.audiencePillText}>👨‍👧 Parents & Kids</Text>
+          </View>
+          <View style={styles.audiencePill}>
+            <Text style={styles.audiencePillText}>🔥 Daring Conversations</Text>
+          </View>
+        </View>
 
         <View style={styles.heroActions}>
           <Pressable
@@ -46,7 +57,7 @@ export default function HomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.primaryButtonText}>Play Now</Text>
+            <Text style={styles.primaryButtonText}>PLAY NOW</Text>
             <Text style={styles.buttonEmoji}>🎲</Text>
           </Pressable>
 
@@ -65,9 +76,9 @@ export default function HomeScreen() {
       {/* Stats Row */}
       <View style={styles.statsRow}>
         {[
-          { label: 'Questions', value: QUESTIONS.length.toString() },
+          { label: 'Dilemmas', value: TOTAL_DILEMMAS.toString() },
           { label: 'Categories', value: CATEGORIES.length.toString() },
-          { label: 'Total Votes', value: '12.4k' },
+          { label: 'Free', value: CATEGORIES.filter(c => c.tier === 'free').length.toString() },
         ].map((stat) => (
           <View key={stat.label} style={styles.statCard}>
             <Text style={styles.statValue}>{stat.value}</Text>
@@ -76,42 +87,82 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {/* Categories Section */}
+      {/* Featured Categories */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Categories</Text>
+          <Text style={styles.sectionTitle}>FEATURED</Text>
+        </View>
+        <View style={styles.featuredGrid}>
+          {FEATURED_CATEGORIES.map((cat) => {
+            const count = getCategoryQuestions(cat.id).length;
+            return (
+              <Pressable
+                key={cat.id}
+                onPress={() => router.push(`/categories/${cat.id}`)}
+                style={({ pressed }) => [
+                  styles.featuredCard,
+                  { borderColor: `${cat.color}50`, backgroundColor: `${cat.color}12` },
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.featuredEmoji}>{cat.emoji}</Text>
+                <Text style={[styles.featuredLabel, { color: cat.color }]}>
+                  {cat.label.toUpperCase()}
+                </Text>
+                <Text style={styles.featuredCount}>{count} dilemmas</Text>
+                {cat.tier === 'premium' && (
+                  <View style={styles.featuredPremiumBadge}>
+                    <Text style={styles.featuredPremiumText}>3 FREE</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* All Categories CTA */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>ALL CATEGORIES</Text>
           <Pressable onPress={() => router.push('/categories')}>
             <Text style={styles.seeAll}>See all →</Text>
           </Pressable>
         </View>
 
-        <View style={styles.categoriesGrid}>
-          {CATEGORIES.map((cat) => (
-            <View key={cat.id} style={styles.categoryItem}>
-              <CategoryCard
-                id={cat.id}
-                label={cat.label}
-                emoji={cat.emoji}
-                color={cat.color}
-                questionCount={getQuestionsByCategory(cat.id).length}
+        <View style={styles.categoryList}>
+          {CATEGORIES.map((cat) => {
+            const count = getCategoryQuestions(cat.id).length;
+            const isPremium = cat.tier === 'premium';
+            return (
+              <Pressable
+                key={cat.id}
                 onPress={() => router.push(`/categories/${cat.id}`)}
-              />
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Featured Questions */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Trending Questions</Text>
-          <Text style={styles.sectionEmoji}>🔥</Text>
-        </View>
-
-        <View style={styles.questionList}>
-          {featuredQuestions.map((q) => (
-            <QuestionCard key={q.id} question={q} />
-          ))}
+                style={({ pressed }) => [
+                  styles.categoryRow,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <View style={[styles.categoryRowIcon, { backgroundColor: `${cat.color}20` }]}>
+                  <Text style={styles.categoryRowEmoji}>{cat.emoji}</Text>
+                </View>
+                <View style={styles.categoryRowContent}>
+                  <Text style={styles.categoryRowLabel}>{cat.label.toUpperCase()}</Text>
+                  <Text style={styles.categoryRowCount}>{count} DILEMMAS</Text>
+                </View>
+                {isPremium ? (
+                  <View style={styles.premiumBadge}>
+                    <Text style={styles.premiumBadgeText}>PREMIUM</Text>
+                  </View>
+                ) : (
+                  <View style={styles.freeBadge}>
+                    <Text style={styles.freeBadgeText}>FREE</Text>
+                  </View>
+                )}
+                <Text style={styles.rowChevron}>›</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
@@ -132,29 +183,47 @@ const styles = StyleSheet.create({
   hero: {
     gap: SPACING.md,
     marginBottom: SPACING.xl,
+    alignItems: 'flex-start',
   },
-  heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tagline: {
-    color: COLORS.primary,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.semibold,
+  appLabel: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xs,
+    fontWeight: FONTS.weights.bold,
+    letterSpacing: 3,
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
   },
   heroTitle: {
     color: COLORS.text,
-    fontSize: FONTS.sizes.xxxl,
-    fontWeight: FONTS.weights.extrabold,
-    lineHeight: 44,
+    fontSize: 52,
+    fontWeight: FONTS.weights.black,
+    letterSpacing: 6,
+    lineHeight: 58,
+    textTransform: 'uppercase',
   },
   heroSubtitle: {
     color: COLORS.textSecondary,
     fontSize: FONTS.sizes.md,
     lineHeight: 24,
     maxWidth: 340,
+  },
+  audiencePills: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    flexWrap: 'wrap',
+    marginTop: SPACING.xs,
+  },
+  audiencePill: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+  },
+  audiencePillText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.medium,
   },
   heroActions: {
     flexDirection: 'row',
@@ -163,7 +232,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   primaryButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.magenta,
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
@@ -179,11 +248,12 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: COLORS.text,
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 2,
   },
   buttonEmoji: {
-    fontSize: 18,
+    fontSize: 16,
   },
   secondaryButton: {
     borderWidth: 1.5,
@@ -230,6 +300,7 @@ const styles = StyleSheet.create({
   statLabel: {
     color: COLORS.textMuted,
     fontSize: FONTS.sizes.xs,
+    letterSpacing: 0.5,
   },
   section: {
     marginBottom: SPACING.xl,
@@ -242,33 +313,135 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: COLORS.text,
-    fontSize: FONTS.sizes.xl,
-    fontWeight: FONTS.weights.bold,
-  },
-  sectionEmoji: {
-    fontSize: 20,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 3,
   },
   seeAll: {
-    color: COLORS.primary,
+    color: COLORS.magenta,
     fontSize: FONTS.sizes.sm,
     fontWeight: FONTS.weights.semibold,
   },
-  categoriesGrid: {
+  featuredGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: SPACING.sm,
   },
-  categoryItem: {
-    width: '48%',
+  featuredCard: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    alignItems: 'center',
+    gap: SPACING.xs,
     ...Platform.select({
       web: {
-        width: 'calc(33.33% - 6px)',
-        minWidth: 140,
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
       },
     }),
   },
-  questionList: {
+  featuredEmoji: {
+    fontSize: 28,
+  },
+  featuredLabel: {
+    fontSize: 10,
+    fontWeight: FONTS.weights.extrabold,
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+  featuredCount: {
+    color: COLORS.textMuted,
+    fontSize: 10,
+  },
+  featuredPremiumBadge: {
+    backgroundColor: COLORS.premiumBg,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: COLORS.premium,
+  },
+  featuredPremiumText: {
+    color: COLORS.premium,
+    fontSize: 9,
+    fontWeight: FONTS.weights.bold,
+  },
+  categoryList: {
+    gap: SPACING.sm,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
     gap: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+      },
+    }),
+  },
+  categoryRowIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  categoryRowEmoji: {
+    fontSize: 22,
+  },
+  categoryRowContent: {
+    flex: 1,
+    gap: 2,
+  },
+  categoryRowLabel: {
+    color: COLORS.text,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 1,
+  },
+  categoryRowCount: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xs,
+    letterSpacing: 0.5,
+  },
+  premiumBadge: {
+    backgroundColor: COLORS.premiumBg,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: COLORS.premium,
+  },
+  premiumBadgeText: {
+    color: COLORS.premium,
+    fontSize: 9,
+    fontWeight: FONTS.weights.bold,
+    letterSpacing: 0.5,
+  },
+  freeBadge: {
+    backgroundColor: COLORS.freeBg,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: COLORS.free,
+  },
+  freeBadgeText: {
+    color: COLORS.free,
+    fontSize: 9,
+    fontWeight: FONTS.weights.bold,
+    letterSpacing: 0.5,
+  },
+  rowChevron: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xl,
   },
   bottomPadding: {
     height: SPACING.xxl,
