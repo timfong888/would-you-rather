@@ -22,13 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Post @coderabbitai review trigger
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.CR_TRIGGER_TOKEN }}
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: '@coderabbitai review'
-            });
+        # Use gh CLI (shell-based) instead of actions/github-script to avoid
+        # the Node 20 deprecation warning on GitHub Actions runners.
+        # CR_TRIGGER_TOKEN must be a human-owned PAT (classic, repo scope).
+        env:
+          GH_TOKEN: ${{ secrets.CR_TRIGGER_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+            -f body='@coderabbitai review'
