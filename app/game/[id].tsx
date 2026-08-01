@@ -12,6 +12,7 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import OptionButton from '@/components/OptionButton';
+import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
@@ -22,6 +23,7 @@ export default function GameScreen() {
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const { markAnswered } = useAnsweredQuestions();
 
   const question = getQuestionById(id);
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
@@ -48,6 +50,7 @@ export default function GameScreen() {
   const handleConfirm = () => {
     if (!selected) return;
     setConfirmed(true);
+    markAnswered(question!.id, selected);
   };
 
   const handleNext = () => {

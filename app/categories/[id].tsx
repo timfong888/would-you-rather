@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,19 +7,23 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
+import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { answered, refresh } = useAnsweredQuestions();
   const { isUnlocked } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
+
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const category = CATEGORIES.find((c) => c.id === id);
 
@@ -40,6 +44,8 @@ export default function CategoryScreen() {
   const categoryUnlocked = isUnlocked(category.id);
   const freeCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
 
+  const answeredCount = questions.filter((q) => answered[q.id] !== undefined).length;
+
   const handlePlay = (startIdx = 0) => {
     if (questions.length === 0) return;
     const q = questions[startIdx];
@@ -59,6 +65,27 @@ export default function CategoryScreen() {
           {category.label.toUpperCase()}
         </Text>
         <Text style={styles.heroCount}>{COPY.dilemmaCount(questions.length)}</Text>
+
+        {answeredCount > 0 && (
+          <>
+            <View style={styles.progressPill}>
+              <Text style={styles.progressPillText}>
+                ✓ {answeredCount} OF {questions.length} ANSWERED
+              </Text>
+            </View>
+            <View style={styles.heroProgressTrack}>
+              <View
+                style={[
+                  styles.heroProgressFill,
+                  {
+                    backgroundColor: category.color,
+                    width: `${(answeredCount / questions.length) * 100}%` as any,
+                  },
+                ]}
+              />
+            </View>
+          </>
+        )}
 
         {isPremium && !categoryUnlocked && (
           <View style={styles.trialBanner}>
@@ -91,6 +118,8 @@ export default function CategoryScreen() {
       <View style={styles.list}>
         {questions.map((q, idx) => {
           const isLocked = isPremium && !categoryUnlocked && idx >= FREE_TRIAL_COUNT;
+          const answeredChoice = answered[q.id];
+          const isAnswered = answeredChoice !== undefined;
 
           return (
             <Pressable
@@ -105,13 +134,20 @@ export default function CategoryScreen() {
               style={({ pressed }) => [
                 styles.questionRow,
                 isLocked && styles.questionRowLocked,
+                isAnswered && styles.questionRowAnswered,
                 pressed && { opacity: 0.8 },
               ]}
             >
               <View style={styles.questionRowLeft}>
-                <Text style={[styles.questionNum, { color: isLocked ? colors.textMuted : category.color }]}>
-                  {isLocked ? '🔒' : `${idx + 1}`}
-                </Text>
+                {isLocked ? (
+                  <Text style={[styles.questionNum, { color: colors.textMuted }]}>🔒</Text>
+                ) : isAnswered ? (
+                  <View style={[styles.answeredBadge, { backgroundColor: category.color }]}>
+                    <Text style={styles.answeredBadgeText}>✓</Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.questionNum, { color: category.color }]}>{idx + 1}</Text>
+                )}
               </View>
               <View style={styles.questionRowContent}>
                 <Text style={[styles.questionOptionA, isLocked && styles.textLockedBlur]} numberOfLines={1}>
@@ -122,12 +158,19 @@ export default function CategoryScreen() {
                   {isLocked ? '••••••••••••••••' : q.optionB}
                 </Text>
               </View>
-              {!isLocked && (
+              {!isLocked && !isAnswered && (
                 <Text style={styles.questionChevron}>›</Text>
               )}
               {isLocked && (
                 <View style={styles.unlockHint}>
                   <Text style={styles.unlockHintText}>Unlock</Text>
+                </View>
+              )}
+              {isAnswered && (
+                <View style={[styles.answeredTag, { borderColor: category.color }]}>
+                  <Text style={[styles.answeredTagText, { color: category.color }]}>
+                    {answeredChoice}
+                  </Text>
                 </View>
               )}
             </Pressable>
@@ -209,6 +252,31 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.sm,
       letterSpacing: 1.5,
     },
+    progressPill: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    progressPillText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 1.5,
+    },
+    heroProgressTrack: {
+      width: '100%',
+      height: 4,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      overflow: 'hidden',
+    },
+    heroProgressFill: {
+      height: '100%',
+      borderRadius: RADIUS.full,
+    },
     trialBanner: {
       backgroundColor: colors.premiumBg,
       borderRadius: RADIUS.full,
@@ -274,6 +342,33 @@ function makeStyles(colors: ThemeColors) {
     },
     questionRowLocked: {
       opacity: 0.6,
+    },
+    questionRowAnswered: {
+      opacity: 0.75,
+    },
+    answeredBadge: {
+      width: 22,
+      height: 22,
+      borderRadius: RADIUS.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    answeredBadgeText: {
+      color: colors.textOnColor,
+      fontSize: 11,
+      fontWeight: FONTS.weights.extrabold,
+    },
+    answeredTag: {
+      borderWidth: 1,
+      borderRadius: RADIUS.sm,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      flexShrink: 0,
+    },
+    answeredTagText: {
+      fontSize: 10,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 0.5,
     },
     questionRowLeft: {
       width: 28,
