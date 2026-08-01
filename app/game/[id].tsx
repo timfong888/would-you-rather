@@ -25,6 +25,7 @@ export default function GameScreen() {
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const { markAnswered } = useAnsweredQuestions();
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const question = getQuestionById(id);
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
@@ -107,12 +108,16 @@ export default function GameScreen() {
         try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
       }
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(shareUrl);
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          setCopyFeedback('Link copied!');
+          setTimeout(() => setCopyFeedback(null), 2000);
+        } catch {}
       }
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [question, shareUrl]);
+  }, [question, shareUrl, setCopyFeedback]);
 
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
@@ -235,7 +240,7 @@ export default function GameScreen() {
                   pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text style={styles.challengeText}>💬  Challenge a friend to this question first</Text>
+                <Text style={styles.challengeText}>{copyFeedback ?? '💬  Challenge a friend to this question first'}</Text>
               </Pressable>
             )}
 
