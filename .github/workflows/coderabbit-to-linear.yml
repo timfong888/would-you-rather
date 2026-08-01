@@ -123,8 +123,8 @@ jobs:
 
           # 1. Resolve identifier → internal UUID
           resp = gql({
-              "query": "query ($id: String!) { issue(id: $id) { id title } }",
-              "variables": {"id": issue_id},
+              "query": "query ($key: String!) { issue(key: $key) { id title } }",
+              "variables": {"key": issue_id},
           })
           if resp.get("errors") or not (resp.get("data") or {}).get("issue"):
               print(f"Could not resolve Linear issue {issue_id}: {resp}", file=sys.stderr)
