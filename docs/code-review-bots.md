@@ -1,6 +1,6 @@
 # AI code review bots
 
-## Why CodeRabbit was not reviewing PRs (resolved)
+## Why CodeRabbit was not reviewing PRs — issue 1 (resolved PR #4)
 
 All times 2026-07-31 UTC. This repo's default branch is
 `blocks/sat-695-create-a-web-ui-using-vercel`, not `main`.
@@ -27,6 +27,41 @@ unreviewable repo to "the repository not being accessible to CodeRabbit."
 
 PR #4 confirms the fix end to end. Its review reports
 `Configuration used: Path: .coderabbit.yaml` and `Plan: Pro`.
+
+## Why CodeRabbit was not reviewing PRs — issue 2 (resolved PR #10)
+
+After PR #4 fixed repo access and config, PRs #5–#9 (all authored by
+`blocksorg[bot]`) still received no CodeRabbit review. PR #9 (SAT-701) triggered
+this second investigation.
+
+| PR | Opened | Author type | Config present | CodeRabbit |
+| --- | --- | --- | --- | --- |
+| [#5](https://github.com/timfong888/would-you-rather/pull/5) | 20:35 | Bot | no (pre-merge) | nothing |
+| [#6](https://github.com/timfong888/would-you-rather/pull/6) | 21:12 | Bot | no (pre-merge) | nothing |
+| [#7](https://github.com/timfong888/would-you-rather/pull/7) | 23:15 | Bot | no (pre-merge) | nothing |
+| [#8](https://github.com/timfong888/would-you-rather/pull/8) | 23:25 | Bot | no (pre-merge) | nothing |
+| [#9](https://github.com/timfong888/would-you-rather/pull/9) | 23:53 | Bot | **yes** | nothing |
+
+PR #9 is particularly diagnostic: it was opened *after* PR #4 merged, so the
+config was on the default branch, the base branch was correct, and it was not a
+draft — yet CodeRabbit still did not review it. A `check_suites` query showed a
+`coderabbitai` suite in `queued` state with no check runs inside it, meaning
+CodeRabbit received the webhook but declined to process the PR.
+
+**Root cause: author eligibility.** `blocksorg[bot]` is a GitHub App account.
+CodeRabbit requires the PR author to have either a paid seat or free-tier access.
+Bot identities typically cannot hold a paid seat, and the default
+`enable_free_tier` value may exclude them. The check suite is auto-created by
+GitHub (not CodeRabbit), so its `queued` state is not evidence that CodeRabbit
+is processing the PR — it just means the webhook arrived.
+
+**Fix (this PR):** Two changes together solve the problem permanently:
+
+1. `.coderabbit.yaml` gains `enable_free_tier: true` so bot-authored PRs are
+   eligible for free-tier reviews without a paid seat.
+2. `.github/workflows/coderabbit-bot-prs.yml` posts `@coderabbitai review`
+   automatically whenever a bot opens or marks a PR ready, as a belt-and-
+   suspenders fallback in case the eligibility setting alone is insufficient.
 
 ### Pre-existing PRs are not reviewed retroactively
 
@@ -80,6 +115,7 @@ documented way to exclude specific authors.
 | --- | --- |
 | `auto_review.base_branches: [".*"]` | Review PRs against any base branch, not just the default one. |
 | `auto_review.drafts: true` | Review agent-opened draft PRs. |
+| `auto_review.enable_free_tier: true` | Allow reviews for PR authors without a paid seat (e.g. `blocksorg[bot]`). Without this, bot-authored PRs are silently skipped. |
 | `path_filters: ["!**/package-lock.json", "!dist/**"]` | 18 of Sourcery's 20 comments on PR #1 were transitive-dependency CVEs in the lockfile. Excludes lockfiles and build output; keeps reviews on hand-written code. |
 | `profile: chill` | Fewer nitpicks than `assertive`. |
 | `poem: false` | Trim review boilerplate. |
