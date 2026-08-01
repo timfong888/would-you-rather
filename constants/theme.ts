@@ -27,6 +27,8 @@ export const LIGHT_COLORS = {
   freeBg: '#E8F7EF',
   trialBannerBg: '#F0C5E0',
   trialBannerText: '#6B1A4A',
+  daringAccent: '#C94F87',
+  daringBg: '#FFF0F7',
 };
 
 export const DARK_COLORS = {
@@ -58,6 +60,8 @@ export const DARK_COLORS = {
   freeBg: '#0A2018',
   trialBannerBg: '#2A0A20',
   trialBannerText: '#E090C8',
+  daringAccent: '#E055A3',
+  daringBg: '#2A0A20',
 };
 
 // Keep COLORS as the light palette for backwards compatibility

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
@@ -18,8 +19,19 @@ export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const question = getQuestionById(id);
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+      if (igTimerRef.current !== null) clearTimeout(igTimerRef.current);
+    };
+  }, []);
+
+  const question = getQuestionById(id ?? '');
+  const safeVoted = voted === 'A' || voted === 'B' ? voted : null;
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
 
   if (!question) {
@@ -35,13 +47,128 @@ export default function ResultsScreen() {
 
   const catColor = category?.color ?? colors.primary;
 
-  const votesA = voted === 'A' ? question.votesA + 1 : question.votesA;
-  const votesB = voted === 'B' ? question.votesB + 1 : question.votesB;
+  const votesA = safeVoted === 'A' ? question.votesA + 1 : question.votesA;
+  const votesB = safeVoted === 'B' ? question.votesB + 1 : question.votesB;
   const totalVotes = votesA + votesB;
 
-  const userPickedA = voted === 'A';
+  const userPickedA = safeVoted === 'A';
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
+
+  const shareUrl = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/p/${id}`
+      : `/p/${id}`,
+    default: `/p/${id}`,
+  }) as string;
+
+  const handleShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}`;
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch {
+          // User cancelled or API unavailable — fall through to clipboard
+        }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopyFeedback('Link copied!');
+        copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, shareUrl]);
+
+  // "Share my take" — includes voted param so the card shows the user's choice
+  const handleShareMyTake = useCallback(async () => {
+    if (!voted) return;
+    const cardUrl = Platform.select({
+      web: typeof window !== 'undefined'
+        ? `${window.location.origin}/api/card?id=${id}&ratio=1.91x1&voted=${voted}`
+        : `/api/card?id=${id}&ratio=1.91x1&voted=${voted}`,
+      default: `/api/card?id=${id}&ratio=1.91x1&voted=${voted}`,
+    }) as string;
+    const myOption = voted === 'A' ? question?.optionA : question?.optionB;
+    const title = 'My Would You Rather Take';
+    const text = `I chose: "${myOption}" — do you agree?`;
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: cardUrl });
+          return;
+        } catch {
+          // fall through to clipboard
+        }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(`${text}\n${cardUrl}`);
+        setCopyFeedback('Take copied!');
+        setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${cardUrl}`, url: cardUrl });
+    }
+  }, [voted, question, shareUrl, id]);
+
+  const cardUrl9x16 = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/api/card?id=${id}&ratio=9x16`
+      : `/api/card?id=${id}&ratio=9x16`,
+    default: `/api/card?id=${id}&ratio=9x16`,
+  }) as string;
+
+
+  const handleInstagramStories = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const cardImageUrl = encodeURIComponent(cardUrl9x16);
+    window.location.href =
+      `instagram-stories://share?backgroundImageURL=${cardImageUrl}`;
+    igTimerRef.current = setTimeout(() => {
+      handleShare();
+    }, 2500);
+  }, [cardUrl9x16, handleShare]);
+
+  const categoryHashtags: Record<string, string[]> = {
+    'high-life': ['#WouldYouRather', '#TheHighLife', '#Luxury'],
+    'moral-compass': ['#WouldYouRather', '#MoralCompass', '#Ethics'],
+    'midnight-secrets': ['#WouldYouRather', '#MidnightSecrets', '#DeepQuestions'],
+    'social-blunders': ['#WouldYouRather', '#SocialBlunders', '#Awkward'],
+    'time-traveler': ['#WouldYouRather', '#TimeTraveler', '#WhatIf'],
+    'deep-desires': ['#WouldYouRather', '#DeepDesires', '#LifeChoices'],
+    'career-climber': ['#WouldYouRather', '#CareerClimber', '#WorkLife'],
+    'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
+    'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
+  };
+
+  const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];
+
+  const handleTikTokShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch { /* user cancelled */ }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(`${shareUrl}\n\n${hashtags.join(' ')}`);
+        setCopyFeedback('Link + hashtags copied!');
+        copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, shareUrl, hashtags]);
 
   const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
   const currentIdx = categoryQuestions.findIndex((q) => q.id === id);
@@ -67,7 +194,7 @@ export default function ResultsScreen() {
 
       {/* Result banner */}
       <View style={styles.resultBanner}>
-        {voted ? (
+        {safeVoted ? (
           <>
             <Text style={styles.resultEmoji}>
               {withMajority ? '🎯' : '🔥'}
@@ -77,8 +204,8 @@ export default function ResultsScreen() {
             </Text>
             <Text style={styles.resultSubtitle}>
               {withMajority
-                ? `Most people also chose Option ${voted}`
-                : `Most people chose Option ${voted === 'A' ? 'B' : 'A'} — you're unique!`}
+                ? `Most people also chose Option ${safeVoted}`
+                : `Most people chose Option ${safeVoted === 'A' ? 'B' : 'A'} — you're unique!`}
             </Text>
           </>
         ) : (
@@ -100,7 +227,7 @@ export default function ResultsScreen() {
             text={question.optionA}
             votes={votesA}
             totalVotes={totalVotes}
-            userVoted={voted === 'A'}
+            userVoted={safeVoted === 'A'}
           />
           <View style={styles.voteDivider} />
           <VoteBar
@@ -108,21 +235,21 @@ export default function ResultsScreen() {
             text={question.optionB}
             votes={votesB}
             totalVotes={totalVotes}
-            userVoted={voted === 'B'}
+            userVoted={safeVoted === 'B'}
           />
         </View>
 
-        {voted && (
+        {safeVoted && (
           <View style={[
             styles.yourChoice,
-            { borderColor: voted === 'A' ? colors.optionA : colors.optionB },
+            { borderColor: safeVoted === 'A' ? colors.optionA : colors.optionB },
           ]}>
             <Text style={styles.yourChoiceLabel}>YOUR CHOICE</Text>
             <Text style={[
               styles.yourChoiceOption,
-              { color: voted === 'A' ? colors.optionA : colors.optionB },
+              { color: safeVoted === 'A' ? colors.optionA : colors.optionB },
             ]}>
-              Option {voted} — {voted === 'A' ? question.optionA : question.optionB}
+              Option {safeVoted} — {safeVoted === 'A' ? question.optionA : question.optionB}
             </Text>
           </View>
         )}
@@ -132,19 +259,65 @@ export default function ResultsScreen() {
         </Text>
       </View>
 
-      {/* Share row */}
-      <View style={styles.shareRow}>
-        <Text style={styles.shareText}>Share this question:</Text>
-        <View style={styles.shareButtons}>
-          {['𝕏', '📋'].map((icon, i) => (
-            <Pressable
-              key={i}
-              style={({ pressed }) => [styles.shareButton, pressed && { opacity: 0.6 }]}
-            >
-              <Text style={styles.shareButtonText}>{icon}</Text>
-            </Pressable>
-          ))}
+      {/* Share card */}
+      <View style={styles.shareCard}>
+        <View style={styles.shareCardHeader}>
+          <Text style={styles.shareCardTitle}>Share</Text>
         </View>
+
+        {/* Primary: Challenge friends (curiosity gap — result is blurred) */}
+        <Pressable
+          onPress={handleShare}
+          style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.shareButtonText}>
+            {copyFeedback === 'Link copied!' ? 'Link copied!' : '🔗  Challenge friends'}
+          </Text>
+        </Pressable>
+        <Text style={styles.shareButtonHint}>
+          They see the question but the result is hidden — they have to play to find out.
+        </Text>
+
+        {/* Secondary: Share my take (shows user's choice + position) */}
+        {voted && (
+          <>
+            <Pressable
+              onPress={handleShareMyTake}
+              style={({ pressed }) => [styles.myTakeButton, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.myTakeButtonText}>
+                {copyFeedback === 'Take copied!' ? 'Take copied!' : `${voted === 'A' ? '🎯' : '🔥'}  Share my take`}
+              </Text>
+            </Pressable>
+            <Text style={styles.shareButtonHint}>
+              {totalVotes >= 5
+                ? `Show that you're in the ${(voted === 'A'
+                    ? Math.round((votesA / totalVotes) * 100)
+                    : Math.round((votesB / totalVotes) * 100))}% — prove your point.`
+                : 'Show which side you chose and spark a debate.'}
+            </Text>
+          </>
+        )}
+
+        {/* Instagram Stories */}
+        {Platform.OS === 'web' && (
+          <Pressable
+            onPress={handleInstagramStories}
+            style={({ pressed }) => [styles.igButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.igButtonText}>📸  Instagram Stories</Text>
+          </Pressable>
+        )}
+
+        {/* TikTok share — includes category hashtags */}
+        <Pressable
+          onPress={handleTikTokShare}
+          style={({ pressed }) => [styles.igButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.igButtonText}>🎵  TikTok</Text>
+        </Pressable>
+
+        <Text style={styles.shareLink} numberOfLines={1}>{shareUrl}</Text>
       </View>
 
       {/* Navigation */}
@@ -313,37 +486,81 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.sm,
       textAlign: 'center',
     },
-    shareRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+    shareCard: {
       backgroundColor: colors.surface,
       borderRadius: RADIUS.lg,
-      padding: SPACING.md,
+      padding: SPACING.lg,
       borderWidth: 1,
       borderColor: colors.border,
-    },
-    shareText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.sm,
-    },
-    shareButtons: {
-      flexDirection: 'row',
       gap: SPACING.sm,
     },
+    shareCardHeader: {
+      gap: SPACING.xs,
+      marginBottom: SPACING.xs,
+    },
+    shareCardTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    shareCardSub: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      lineHeight: 16,
+    },
     shareButton: {
-      backgroundColor: colors.surfaceLight,
-      borderRadius: RADIUS.md,
-      width: 36,
-      height: 36,
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
       alignItems: 'center',
-      justifyContent: 'center',
-      ...Platform.select({
-        web: { cursor: 'pointer' },
-      }),
+      ...Platform.select({ web: { cursor: 'pointer' } }),
     },
     shareButtonText: {
-      fontSize: 16,
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    shareButtonHint: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      textAlign: 'center',
+      lineHeight: 16,
+      marginTop: -SPACING.xs,
+    },
+    myTakeButton: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      marginTop: SPACING.xs,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    myTakeButtonText: {
+      color: colors.primary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    igButton: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    igButtonText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+    },
+    shareLink: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      textAlign: 'center',
+      marginTop: SPACING.xs,
     },
     actions: {
       gap: SPACING.sm,

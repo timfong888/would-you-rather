@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getCategoryQuestions } from '@/constants/questions';
+import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -21,12 +21,25 @@ export default function HomeScreen() {
   const router = useRouter();
   const { styles } = useThemedStyles(makeStyles);
 
+  const navigateToQuestion = (cat: typeof CATEGORIES[number], questions: ReturnType<typeof getCategoryQuestions>) => {
+    const q = questions[Math.floor(Math.random() * questions.length)];
+    router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
+  };
+
   const handleRandomQuestion = () => {
     const freeCats = CATEGORIES.filter((c) => c.tier === 'free');
     const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
     const questions = getCategoryQuestions(cat.id);
-    const q = questions[Math.floor(Math.random() * questions.length)];
-    router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
+    navigateToQuestion(cat, questions);
+  };
+
+  const handleQuickPlay = (categoryIds: CategoryId[]) => {
+    const cats = CATEGORIES.filter((c) => categoryIds.includes(c.id));
+    if (!cats.length) return;
+    const cat = cats[Math.floor(Math.random() * cats.length)];
+    const questions = getCategoryQuestions(cat.id);
+    if (!questions.length) return;
+    navigateToQuestion(cat, questions);
   };
 
   return (
@@ -49,12 +62,30 @@ export default function HomeScreen() {
           No wrong answers — only interesting ones.
         </Text>
 
-        <View style={styles.audiencePills}>
-          <View style={styles.audiencePill}>
-            <Text style={styles.audiencePillText}>👨‍👧 Parents & Kids</Text>
-          </View>
-          <View style={styles.audiencePill}>
-            <Text style={styles.audiencePillText}>🔥 Daring Conversations</Text>
+        <View style={styles.quickPlaySection}>
+          <Text style={styles.quickPlayLabel}>QUICK PLAY</Text>
+          <View style={styles.audiencePills}>
+            <Pressable
+              onPress={() => handleQuickPlay(FAMILY_FRIENDLY)}
+              style={({ pressed }) => [
+                styles.audiencePill,
+                pressed && styles.audiencePillPressed,
+              ]}
+            >
+              <Text style={styles.audiencePillText}>👨‍👧 Parents & Kids</Text>
+              <Text style={styles.audiencePillHint}>▶</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleQuickPlay(DARING)}
+              style={({ pressed }) => [
+                styles.audiencePill,
+                styles.audiencePillDaring,
+                pressed && styles.audiencePillPressed,
+              ]}
+            >
+              <Text style={styles.audiencePillText}>🔥 Daring</Text>
+              <Text style={styles.audiencePillHint}>▶</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -218,24 +249,54 @@ function makeStyles(colors: ThemeColors) {
       lineHeight: 24,
       maxWidth: 340,
     },
+    quickPlaySection: {
+      marginTop: SPACING.xs,
+      gap: SPACING.xs,
+    },
+    quickPlayLabel: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 2,
+    },
     audiencePills: {
       flexDirection: 'row',
       gap: SPACING.sm,
       flexWrap: 'wrap',
-      marginTop: SPACING.xs,
     },
     audiencePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
       backgroundColor: colors.surface,
       borderWidth: 1.5,
       borderColor: colors.border,
       borderRadius: RADIUS.full,
       paddingHorizontal: SPACING.md,
-      paddingVertical: 6,
+      paddingVertical: 8,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        },
+      }),
+    },
+    audiencePillDaring: {
+      borderColor: colors.daringAccent,
+      backgroundColor: colors.daringBg,
+    },
+    audiencePillPressed: {
+      opacity: 0.75,
+      transform: [{ scale: 0.96 }],
     },
     audiencePillText: {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.sm,
-      fontWeight: FONTS.weights.medium,
+      fontWeight: FONTS.weights.semibold,
+    },
+    audiencePillHint: {
+      color: colors.textMuted,
+      fontSize: 10,
     },
     heroActions: {
       flexDirection: 'row',

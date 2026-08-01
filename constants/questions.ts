@@ -12,6 +12,7 @@ export type CategoryId =
 export type CategoryTier = 'free' | 'premium';
 
 export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
+export const TOTAL_QUESTIONS_PER_CATEGORY = 20;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -105,6 +106,12 @@ export const CATEGORIES: CategoryDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Quick-play category groups
+// ---------------------------------------------------------------------------
+
+export const FAMILY_FRIENDLY: CategoryId[] = ['moral-compass', 'social-blunders', 'career-climber', 'tech-dystopia'];
+export const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-traveler', 'wildest-dreams', 'high-life'];
+
 // Questions
 // ---------------------------------------------------------------------------
 
@@ -1589,10 +1596,6 @@ export const QUESTIONS: Question[] = [
 // ---------------------------------------------------------------------------
 // Helper functions
 // ---------------------------------------------------------------------------
-
-export function getQuestionsByCategory(category: CategoryId): Question[] {
-  return QUESTIONS.filter((q) => q.category === category);
-}
 
 export function getQuestionById(id: string): Question | undefined {
   return QUESTIONS.find((q) => q.id === id);

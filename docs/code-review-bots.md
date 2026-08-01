@@ -1,5 +1,22 @@
 # AI code review bots
 
+## How CodeRabbit auto-review is triggered (SAT-702)
+
+`coderabbit-trigger.yml` fires on every non-draft PR (all authors except
+`dependabot[bot]`) and posts `@coderabbitai review` via a human PAT
+(`CR_TRIGGER_TOKEN` secret). This makes CodeRabbit as consistent as Sourcery —
+every PR gets reviewed regardless of who opened it or which branch it targets.
+
+Two layers work together:
+
+| Layer | What it does |
+| --- | --- |
+| `coderabbit-trigger.yml` | Posts `@coderabbitai review` via `CR_TRIGGER_TOKEN` PAT on all non-draft PRs. Explicit trigger; always fires. |
+| `.coderabbit.yaml` `enable_free_tier: true` | Allows the GitHub App to auto-review bot-authored PRs without a paid seat. Belt-and-suspenders if the PAT trigger is absent. |
+
+`CR_TRIGGER_TOKEN` must be a classic PAT (repo scope) from a human collaborator
+set under **Settings → Secrets → Actions**.
+
 ## Why CodeRabbit was not reviewing PRs — issue 1 (resolved PR #4)
 
 All times 2026-07-31 UTC. This repo's default branch is
@@ -115,10 +132,51 @@ documented way to exclude specific authors.
 | --- | --- |
 | `auto_review.base_branches: [".*"]` | Review PRs against any base branch, not just the default one. |
 | `auto_review.drafts: true` | Review agent-opened draft PRs. |
-| `auto_review.enable_free_tier: true` | Allow reviews for PR authors without a paid seat (e.g. `blocksorg[bot]`). Without this, bot-authored PRs are silently skipped. |
+| `auto_review.enable_free_tier: true` | Allow reviews for PR authors without a paid seat (e.g. `blocksorg[bot]`). Without this, bot-authored PRs are silently skipped by the GitHub App. Added in SAT-702. |
 | `path_filters: ["!**/package-lock.json", "!dist/**"]` | 18 of Sourcery's 20 comments on PR #1 were transitive-dependency CVEs in the lockfile. Excludes lockfiles and build output; keeps reviews on hand-written code. |
 | `profile: chill` | Fewer nitpicks than `assertive`. |
 | `poem: false` | Trim review boilerplate. |
 
 All keys were validated against
 [`schema.v2.json`](https://coderabbit.ai/integrations/schema.v2.json).
+
+## Closing the loop back to Linear (SAT-727)
+
+`.github/workflows/coderabbit-to-linear.yml` closes the feedback loop so Linear
+becomes the control plane for the full implement → review → fix → verify cycle:
+
+```
+Blocks opens PR  →  CodeRabbit reviews  →  workflow forwards findings to Linear
+→  @blocks picks up the Linear comment  →  fixes code  →  posts back with PR link
+```
+
+### What the workflow does
+
+1. **Trigger** — fires on `issue_comment` (CodeRabbit's walkthrough) and
+   `pull_request_review` (formal review submissions), filtered to `coderabbitai[bot]`
+   comments that include a summary or actionable-comments line.
+2. **Extract** — reads the PR's head branch name (`gh pr view`) and pulls out the
+   Linear issue identifier with `[A-Z]{2,6}-[0-9]+` (e.g. `SAT-727`).
+3. **Forward** — calls the Linear GraphQL API to post a comment on the matched issue
+   containing the full CodeRabbit findings (truncated at 3 500 chars) plus a
+   `@blocks` mention so the local agent poller picks it up.
+4. **Assign (optional)** — if `LINEAR_BLOCKS_USER_ID` is set, the issue is also
+   re-assigned to the @blocks user so it surfaces in the poller queue immediately.
+5. **Acknowledge** — posts a short `gh pr comment` on the GitHub PR so humans can
+   see the handoff happened.
+
+### Required secrets
+
+| Secret | Where to set | Notes |
+|---|---|---|
+| `LINEAR_API_KEY` | Repo → Settings → Secrets → Actions | A Linear personal API key (no `Bearer` prefix needed). |
+| `CR_TRIGGER_TOKEN` | Same | Human PAT for posting `@coderabbitai review` on bot PRs (already used by `coderabbit-bot-prs.yml`). |
+| `LINEAR_BLOCKS_USER_ID` | Same (optional) | Linear user UUID for @blocks. When set, the workflow re-assigns the issue to @blocks. Find it via `Settings → Account → API → Personal API Keys → copy user ID` or the Linear GraphQL `viewer { id }` query. |
+
+### Branch-name convention
+
+The workflow uses the PR's **head branch name** to find the Linear issue.  Any
+branch that contains a Linear-style identifier (`SAT-NNN`, `BLO-NNN`, etc.) will
+match.  The standard Blocks branch format — `blocks/sat-NNN-slug` — already
+satisfies this.  PRs on branches with no identifier (e.g. `main`, `chore/typo`)
+are silently skipped.

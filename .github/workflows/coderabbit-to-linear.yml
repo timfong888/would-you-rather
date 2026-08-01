@@ -1,0 +1,181 @@
+name: Forward CodeRabbit review to Linear
+
+# When CodeRabbit posts its walkthrough/summary comment on a PR, extract the
+# linked Linear issue from the branch name and post the review there, mentioning
+# @blocks so the agent picks it up.  The agent then implements the fixes and
+# replies on the Linear issue with the PR link when done — closing the loop.
+#
+# Required secret: LINEAR_API_KEY  (a Linear personal API key, repo scope)
+# Optional:        LINEAR_BLOCKS_USER_ID  (Linear UUID for @blocks; if set, the
+#                  comment also assigns the issue to blocks)
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  forward-to-linear:
+    runs-on: ubuntu-latest
+
+    # Conditions vary by event type — evaluated inside the step below.
+    # The outer if avoids the job spinning up on every non-relevant comment.
+    if: >
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        github.event.comment.user.login == 'coderabbitai[bot]' &&
+        (
+          contains(github.event.comment.body, '## Summary by CodeRabbit') ||
+          contains(github.event.comment.body, 'actionable comments posted')
+        )
+      ) || (
+        github.event_name == 'pull_request_review' &&
+        github.event.review.user.login == 'coderabbitai[bot]' &&
+        github.event.review.state == 'commented' &&
+        contains(github.event.review.body, 'actionable comments')
+      )
+
+    steps:
+      - name: Extract Linear issue ID from PR branch name
+        id: extract
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # PR number differs by event type
+          PR_NUMBER: >-
+            ${{
+              github.event_name == 'issue_comment'
+                && github.event.issue.number
+                || github.event.pull_request.number
+            }}
+          REPO: ${{ github.repository }}
+        run: |
+          branch=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName -q '.headRefName')
+          # Match SAT-123, blo-456, ENGINEERING-789, etc. (2–10 alpha chars, any case, before numeric ID)
+          issue_id=$(echo "$branch" | grep -oE '[A-Za-z]{2,10}-[0-9]+' | head -1)
+          echo "branch=$branch  issue_id=${issue_id:-<none found>}"
+          echo "issue_id=$issue_id" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Post CodeRabbit findings to Linear and notify PR
+        if: steps.extract.outputs.issue_id != ''
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_BLOCKS_USER_ID: ${{ secrets.LINEAR_BLOCKS_USER_ID }}
+          ISSUE_ID: ${{ steps.extract.outputs.issue_id }}
+          PR_NUMBER: ${{ steps.extract.outputs.pr_number }}
+          # PR URL and review body differ by event type
+          PR_URL: >-
+            ${{
+              github.event_name == 'issue_comment'
+                && github.event.issue.html_url
+                || github.event.pull_request.html_url
+            }}
+          REVIEW_BODY: >-
+            ${{
+              github.event_name == 'issue_comment'
+                && github.event.comment.body
+                || github.event.review.body
+            }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request, sys
+
+          api_key        = os.environ["LINEAR_API_KEY"]
+          blocks_user_id = os.environ.get("LINEAR_BLOCKS_USER_ID", "").strip()
+          issue_id       = os.environ["ISSUE_ID"]
+          pr_url         = os.environ["PR_URL"]
+          pr_number      = os.environ["PR_NUMBER"]
+          review         = os.environ["REVIEW_BODY"]
+
+          MAX_CHARS = 3500
+          body_section = (
+              review[:MAX_CHARS]
+              + f"\n\n*(review truncated — [see full review on GitHub]({pr_url}))*"
+              if len(review) > MAX_CHARS
+              else review
+          )
+
+          comment_body = (
+              f"## CodeRabbit review — PR #{pr_number}\n\n"
+              f"**PR:** {pr_url}\n\n"
+              f"@blocks — CodeRabbit has finished reviewing this PR. "
+              f"Please address the actionable items below, then reply here with "
+              f"a summary and the PR link when done.\n\n"
+              f"---\n\n"
+              f"{body_section}\n\n"
+              f"---\n"
+              f"*Auto-forwarded by the coderabbit-to-linear workflow*"
+          )
+
+          headers = {"Authorization": api_key, "Content-Type": "application/json"}
+
+          def gql(payload):
+              req = urllib.request.Request(
+                  "https://api.linear.app/graphql",
+                  json.dumps(payload).encode(), headers
+              )
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          # 1. Resolve identifier → internal UUID
+          resp = gql({
+              "query": "query ($key: String!) { issue(key: $key) { id title } }",
+              "variables": {"key": issue_id},
+          })
+          if resp.get("errors") or not (resp.get("data") or {}).get("issue"):
+              print(f"Could not resolve Linear issue {issue_id}: {resp}", file=sys.stderr)
+              sys.exit(1)
+          internal_id = resp["data"]["issue"]["id"]
+          print(f"Resolved {issue_id} → {internal_id}")
+
+          # 2. Post the forwarded review comment
+          mutation_vars = {"issueId": internal_id, "body": comment_body}
+          result = gql({
+              "query": """
+                  mutation ($issueId: String!, $body: String!) {
+                      commentCreate(input: { issueId: $issueId, body: $body }) {
+                          success
+                          comment { id url }
+                      }
+                  }
+              """,
+              "variables": mutation_vars,
+          })
+          if result.get("errors") or not result["data"]["commentCreate"]["success"]:
+              print(f"Failed to post comment: {result}", file=sys.stderr)
+              sys.exit(1)
+          comment_url = result["data"]["commentCreate"]["comment"].get("url", "")
+          print(f"Comment posted to Linear: {comment_url}")
+
+          # 3. Optionally assign issue to @blocks so the poller picks it up
+          if blocks_user_id:
+              assign = gql({
+                  "query": """
+                      mutation ($id: String!, $uid: String!) {
+                          issueUpdate(id: $id, input: { assigneeId: $uid }) {
+                              success
+                          }
+                      }
+                  """,
+                  "variables": {"id": internal_id, "uid": blocks_user_id},
+              })
+              if assign.get("errors") or not assign["data"]["issueUpdate"]["success"]:
+                  print(f"Assign failed (non-fatal): {assign}", file=sys.stderr)
+              else:
+                  print(f"Issue {issue_id} assigned to blocks ({blocks_user_id})")
+          PYEOF
+
+      - name: Post acknowledgement comment on PR
+        if: steps.extract.outputs.issue_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.extract.outputs.pr_number }}
+          ISSUE_ID: ${{ steps.extract.outputs.issue_id }}
+        run: |
+          gh pr comment "$PR_NUMBER" --repo "$REPO" \
+            --body "CodeRabbit review forwarded to Linear issue \`$ISSUE_ID\`. @blocks will pick it up, address the findings, and post back with the PR link when done."
