@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
@@ -45,6 +45,7 @@ export default function CategoryScreen() {
   const freeCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
 
   const answeredCount = questions.filter((q) => answered[q.id] !== undefined).length;
+  const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answeredCount;
 
   const handlePlay = (startIdx = 0) => {
     if (questions.length === 0) return;
@@ -64,7 +65,7 @@ export default function CategoryScreen() {
         <Text style={[styles.heroName, { color: category.color }]}>
           {category.label.toUpperCase()}
         </Text>
-        <Text style={styles.heroCount}>{COPY.dilemmaCount(questions.length)}</Text>
+        <Text style={styles.heroCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
 
         {answeredCount > 0 && (
           <>
