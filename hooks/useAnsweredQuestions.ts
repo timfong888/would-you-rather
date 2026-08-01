@@ -35,5 +35,9 @@ export function useAnsweredQuestions() {
     });
   }, []);
 
-  return { answered, markAnswered };
+  const refresh = useCallback(() => {
+    setAnswered(loadAnswered());
+  }, []);
+
+  return { answered, markAnswered, refresh };
 }

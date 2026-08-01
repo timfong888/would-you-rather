@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
@@ -17,7 +17,9 @@ import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { answered } = useAnsweredQuestions();
+  const { answered, refresh } = useAnsweredQuestions();
+
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const category = CATEGORIES.find((c) => c.id === id);
 
@@ -60,11 +62,24 @@ export default function CategoryScreen() {
         <Text style={styles.heroCount}>{COPY.dilemmaCount(questions.length)}</Text>
 
         {answeredCount > 0 && (
-          <View style={styles.progressPill}>
-            <Text style={styles.progressPillText}>
-              ✓ {answeredCount} OF {questions.length} ANSWERED
-            </Text>
-          </View>
+          <>
+            <View style={styles.progressPill}>
+              <Text style={styles.progressPillText}>
+                ✓ {answeredCount} OF {questions.length} ANSWERED
+              </Text>
+            </View>
+            <View style={styles.heroProgressTrack}>
+              <View
+                style={[
+                  styles.heroProgressFill,
+                  {
+                    backgroundColor: category.color,
+                    width: `${(answeredCount / questions.length) * 100}%` as any,
+                  },
+                ]}
+              />
+            </View>
+          </>
         )}
 
         {isPremium && (
@@ -237,6 +252,17 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.xs,
     fontWeight: FONTS.weights.bold,
     letterSpacing: 1.5,
+  },
+  heroProgressTrack: {
+    width: '100%',
+    height: 4,
+    backgroundColor: COLORS.surfaceLight,
+    borderRadius: RADIUS.full,
+    overflow: 'hidden',
+  },
+  heroProgressFill: {
+    height: '100%',
+    borderRadius: RADIUS.full,
   },
   trialBanner: {
     backgroundColor: COLORS.premiumBg,
