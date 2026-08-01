@@ -12,10 +12,12 @@ import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
+import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { answered } = useAnsweredQuestions();
 
   const category = CATEGORIES.find((c) => c.id === id);
 
@@ -34,6 +36,8 @@ export default function CategoryScreen() {
 
   const isPremium = category.tier === 'premium';
   const freeCount = isPremium ? FREE_TRIAL_COUNT : questions.length;
+
+  const answeredCount = questions.filter((q) => answered[q.id] !== undefined).length;
 
   const handlePlay = (startIdx = 0) => {
     if (questions.length === 0) return;
@@ -54,6 +58,14 @@ export default function CategoryScreen() {
           {category.label.toUpperCase()}
         </Text>
         <Text style={styles.heroCount}>{COPY.dilemmaCount(questions.length)}</Text>
+
+        {answeredCount > 0 && (
+          <View style={styles.progressPill}>
+            <Text style={styles.progressPillText}>
+              ✓ {answeredCount} OF {questions.length} ANSWERED
+            </Text>
+          </View>
+        )}
 
         {isPremium && (
           <View style={styles.trialBanner}>
@@ -79,6 +91,8 @@ export default function CategoryScreen() {
       <View style={styles.list}>
         {questions.map((q, idx) => {
           const isLocked = isPremium && idx >= FREE_TRIAL_COUNT;
+          const answeredChoice = answered[q.id];
+          const isAnswered = answeredChoice !== undefined;
 
           return (
             <Pressable
@@ -93,13 +107,20 @@ export default function CategoryScreen() {
               style={({ pressed }) => [
                 styles.questionRow,
                 isLocked && styles.questionRowLocked,
+                isAnswered && styles.questionRowAnswered,
                 pressed && { opacity: 0.8 },
               ]}
             >
               <View style={styles.questionRowLeft}>
-                <Text style={[styles.questionNum, { color: isLocked ? COLORS.textMuted : category.color }]}>
-                  {isLocked ? '🔒' : `${idx + 1}`}
-                </Text>
+                {isLocked ? (
+                  <Text style={[styles.questionNum, { color: COLORS.textMuted }]}>🔒</Text>
+                ) : isAnswered ? (
+                  <View style={[styles.answeredBadge, { backgroundColor: category.color }]}>
+                    <Text style={styles.answeredBadgeText}>✓</Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.questionNum, { color: category.color }]}>{idx + 1}</Text>
+                )}
               </View>
               <View style={styles.questionRowContent}>
                 <Text style={[styles.questionOptionA, isLocked && styles.textLockedBlur]} numberOfLines={1}>
@@ -109,14 +130,20 @@ export default function CategoryScreen() {
                 <Text style={[styles.questionOptionB, isLocked && styles.textLockedBlur]} numberOfLines={1}>
                   {isLocked ? '••••••••••••••••' : q.optionB}
                 </Text>
-
               </View>
-              {!isLocked && (
+              {!isLocked && !isAnswered && (
                 <Text style={styles.questionChevron}>›</Text>
               )}
               {isLocked && (
                 <View style={styles.unlockHint}>
                   <Text style={styles.unlockHintText}>Unlock</Text>
+                </View>
+              )}
+              {isAnswered && (
+                <View style={[styles.answeredTag, { borderColor: category.color }]}>
+                  <Text style={[styles.answeredTagText, { color: category.color }]}>
+                    {answeredChoice}
+                  </Text>
                 </View>
               )}
             </Pressable>
@@ -197,6 +224,20 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.sm,
     letterSpacing: 1.5,
   },
+  progressPill: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  progressPillText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.xs,
+    fontWeight: FONTS.weights.bold,
+    letterSpacing: 1.5,
+  },
   trialBanner: {
     backgroundColor: COLORS.premiumBg,
     borderRadius: RADIUS.full,
@@ -255,6 +296,33 @@ const styles = StyleSheet.create({
   },
   questionRowLocked: {
     opacity: 0.6,
+  },
+  questionRowAnswered: {
+    opacity: 0.75,
+  },
+  answeredBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  answeredBadgeText: {
+    color: COLORS.text,
+    fontSize: 11,
+    fontWeight: FONTS.weights.extrabold,
+  },
+  answeredTag: {
+    borderWidth: 1,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    flexShrink: 0,
+  },
+  answeredTagText: {
+    fontSize: 10,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 0.5,
   },
   questionRowLeft: {
     width: 28,

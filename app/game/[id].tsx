@@ -12,12 +12,14 @@ import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import OptionButton from '@/components/OptionButton';
+import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 
 export default function GameScreen() {
   const { id, cat, idx } = useLocalSearchParams<{ id: string; cat: string; idx: string }>();
   const router = useRouter();
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const { markAnswered } = useAnsweredQuestions();
 
   const question = getQuestionById(id);
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
@@ -44,6 +46,7 @@ export default function GameScreen() {
   const handleConfirm = () => {
     if (!selected) return;
     setConfirmed(true);
+    markAnswered(question!.id, selected);
   };
 
   const handleNext = () => {
