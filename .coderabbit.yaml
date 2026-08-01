@@ -15,10 +15,11 @@ reviews:
       - ".*"
     # PRs opened by agent sessions start as drafts; CodeRabbit skips drafts by default.
     drafts: true
-    # Allow reviews for PR authors without a paid seat (e.g. blocksorg[bot]).
-    # Without this, bot-authored PRs are silently skipped even when all other
-    # eligibility criteria pass (base branch, draft status, repo access).
-    enable_free_tier: true
+    # Note: CodeRabbit silently skips bot-authored PRs (e.g. blocksorg[bot])
+    # regardless of YAML settings. The coderabbit-bot-prs.yml workflow
+    # works around this by posting @coderabbitai review via a human PAT
+    # (CR_TRIGGER_TOKEN secret). There is no YAML option to override
+    # CodeRabbit's author-eligibility check for bot accounts.
   path_filters:
     # Lockfiles are generated and dominate reviews with transitive-dependency CVE noise.
     - "!**/package-lock.json"
