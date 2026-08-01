@@ -14,7 +14,7 @@ import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 
 export default function ResultsScreen() {
-  const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; cat: string }>();
+  const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
   const router = useRouter();
 
   const question = getQuestionById(id ?? '');

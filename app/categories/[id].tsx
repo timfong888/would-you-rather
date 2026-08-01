@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 
 export default function CategoryScreen() {
@@ -17,7 +18,6 @@ export default function CategoryScreen() {
   const router = useRouter();
 
   const category = CATEGORIES.find((c) => c.id === id);
-  const questions = getCategoryQuestions(id as CategoryId);
 
   if (!category) {
     return (
@@ -29,6 +29,8 @@ export default function CategoryScreen() {
       </View>
     );
   }
+
+  const questions = getCategoryQuestions(category.id);
 
   const isPremium = category.tier === 'premium';
   const freeCount = isPremium ? FREE_TRIAL_COUNT : questions.length;
@@ -51,7 +53,7 @@ export default function CategoryScreen() {
         <Text style={[styles.heroName, { color: category.color }]}>
           {category.label.toUpperCase()}
         </Text>
-        <Text style={styles.heroCount}>{questions.length} questions</Text>
+        <Text style={styles.heroCount}>{COPY.dilemmaCount(questions.length)}</Text>
 
         {isPremium && (
           <View style={styles.trialBanner}>
@@ -77,8 +79,6 @@ export default function CategoryScreen() {
       <View style={styles.list}>
         {questions.map((q, idx) => {
           const isLocked = isPremium && idx >= FREE_TRIAL_COUNT;
-          const totalVotes = q.votesA + q.votesB;
-          const pctA = totalVotes > 0 ? Math.round((q.votesA / totalVotes) * 100) : 50;
 
           return (
             <Pressable
@@ -110,12 +110,6 @@ export default function CategoryScreen() {
                   {isLocked ? '••••••••••••••••' : q.optionB}
                 </Text>
 
-                {!isLocked && (
-                  <View style={styles.miniBar}>
-                    <View style={[styles.miniBarA, { width: `${pctA}%` as any }]} />
-                    <View style={[styles.miniBarB, { width: `${100 - pctA}%` as any }]} />
-                  </View>
-                )}
               </View>
               {!isLocked && (
                 <Text style={styles.questionChevron}>›</Text>
@@ -140,7 +134,7 @@ export default function CategoryScreen() {
         >
           <Text style={styles.unlockCtaEmoji}>👑</Text>
           <View style={styles.unlockCtaText}>
-            <Text style={styles.unlockCtaTitle}>Unlock All {questions.length} Questions</Text>
+            <Text style={styles.unlockCtaTitle}>Unlock All {questions.length} Dilemmas</Text>
             <Text style={styles.unlockCtaSub}>One-time category unlock · $2.99</Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>
@@ -231,7 +225,7 @@ const styles = StyleSheet.create({
     }),
   },
   playButtonText: {
-    color: COLORS.text,
+    color: COLORS.textOnColor,
     fontSize: FONTS.sizes.md,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,
@@ -296,22 +290,6 @@ const styles = StyleSheet.create({
   textLockedBlur: {
     color: COLORS.textMuted,
     letterSpacing: 2,
-  },
-  miniBar: {
-    flexDirection: 'row',
-    height: 3,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-    marginTop: SPACING.xs,
-    backgroundColor: COLORS.surfaceLight,
-  },
-  miniBarA: {
-    height: '100%',
-    backgroundColor: COLORS.optionA,
-  },
-  miniBarB: {
-    height: '100%',
-    backgroundColor: COLORS.optionB,
   },
   questionChevron: {
     color: COLORS.textMuted,

@@ -13,8 +13,6 @@ interface QuestionCardProps {
 export default function QuestionCard({ question, compact = false }: QuestionCardProps) {
   const router = useRouter();
   const category = CATEGORIES.find((c) => c.id === question.category);
-  const totalVotes = question.votesA + question.votesB;
-  const percentA = totalVotes > 0 ? Math.round((question.votesA / totalVotes) * 100) : 50;
 
   return (
     <Pressable
@@ -59,13 +57,6 @@ export default function QuestionCard({ question, compact = false }: QuestionCard
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <View style={styles.miniBar}>
-          <View style={[styles.miniBarA, { width: `${percentA}%` }]} />
-          <View style={[styles.miniBarB, { width: `${100 - percentA}%` }]} />
-        </View>
-        <Text style={styles.voteCount}>{totalVotes.toLocaleString()} votes</Text>
-      </View>
     </Pressable>
   );
 }
@@ -148,31 +139,5 @@ const styles = StyleSheet.create({
     fontWeight: FONTS.weights.bold,
     textAlign: 'center',
     letterSpacing: 2,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginTop: SPACING.xs,
-  },
-  miniBar: {
-    flex: 1,
-    height: 4,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  miniBarA: {
-    height: '100%',
-    backgroundColor: COLORS.optionA,
-  },
-  miniBarB: {
-    height: '100%',
-    backgroundColor: COLORS.optionB,
-  },
-  voteCount: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    flexShrink: 0,
   },
 });

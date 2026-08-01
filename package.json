@@ -39,6 +39,7 @@
   "overrides": {
     "@xmldom/xmldom": ">=0.9.10",
     "postcss": ">=8.5.12",
-    "tar": ">=7.5.19"
+    "tar": ">=7.5.19",
+    "turbo-stream": "^3.0.0"
   }
 }

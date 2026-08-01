@@ -80,6 +80,10 @@ export default function GameScreen() {
     }
   };
 
+  const handleLeaveCategory = () => {
+    router.push('/categories');
+  };
+
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
 
@@ -89,6 +93,20 @@ export default function GameScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      {/* Leave Category Link */}
+      {category && (
+        <Pressable
+          onPress={handleLeaveCategory}
+          hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+          style={({ pressed }) => [
+            styles.leaveTopButton,
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Text style={styles.leaveActionText}>← All Categories</Text>
+        </Pressable>
+      )}
+
       {/* Category + Progress Header */}
       {category && (
         <View style={styles.progressHeader}>
@@ -139,8 +157,8 @@ export default function GameScreen() {
 
         <View style={styles.orDivider}>
           <View style={styles.dividerLine} />
-          <View style={[styles.diamondBadge, { borderColor: `${catColor}60` }]}>
-            <Text style={[styles.diamondText, { color: catColor }]}>◆</Text>
+          <View style={[styles.heartBadge, { borderColor: `${catColor}60`, backgroundColor: `${catColor}15` }]}>
+            <Text style={[styles.heartText, { color: catColor }]}>♥</Text>
           </View>
           <View style={styles.dividerLine} />
         </View>
@@ -187,6 +205,19 @@ export default function GameScreen() {
                 ]}
               >
                 <Text style={styles.skipText}>Skip →</Text>
+              </Pressable>
+            )}
+
+            {category && (
+              <Pressable
+                onPress={handleLeaveCategory}
+                hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+                style={({ pressed }) => [
+                  styles.leaveBottomButton,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Text style={styles.leaveActionText}>✕ Leave Category</Text>
               </Pressable>
             )}
           </>
@@ -339,17 +370,16 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.border,
   },
-  diamondBadge: {
-    width: 36,
-    height: 36,
+  heartBadge: {
+    width: 40,
+    height: 40,
     borderRadius: RADIUS.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.surface,
   },
-  diamondText: {
-    fontSize: 14,
+  heartText: {
+    fontSize: 18,
   },
   actions: {
     gap: SPACING.sm,
@@ -452,5 +482,26 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.sm,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  leaveActionText: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.medium,
+    letterSpacing: 0.3,
+  },
+  leaveTopButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: SPACING.xs,
+    ...Platform.select({
+      web: { cursor: 'pointer' },
+    }),
+  },
+  leaveBottomButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.xs,
+    ...Platform.select({
+      web: { cursor: 'pointer' },
+    }),
   },
 });

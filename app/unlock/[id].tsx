@@ -11,10 +11,11 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 
 const BENEFITS = [
-  { icon: '💬', text: '20 exclusive hand-picked questions' },
+  { icon: '💬', text: '20 exclusive hand-picked dilemmas' },
   { icon: '📊', text: 'Global real-time voter statistics' },
   { icon: '♾️', text: 'Permanent library access — own it forever' },
   { icon: '🚫', text: 'Ad-free category experience' },
@@ -90,7 +91,7 @@ export default function UnlockScreen() {
           {' '}has only just begun.
         </Text>
         <Text style={styles.lossAversion}>
-          {questions.length - FREE_TRIAL_COUNT} questions remain locked. Will you leave them unanswered?
+          {questions.length - FREE_TRIAL_COUNT} dilemmas remain locked. Will you leave them unanswered?
         </Text>
       </View>
 
@@ -119,7 +120,7 @@ export default function UnlockScreen() {
           pressed && styles.btnPressed,
         ]}
       >
-        <Text style={styles.unlockBtnText}>UNLOCK {questions.length} QUESTIONS →</Text>
+        <Text style={styles.unlockBtnText}>UNLOCK {COPY.dilemmaCount(questions.length)} →</Text>
       </Pressable>
 
       <Pressable
@@ -147,7 +148,7 @@ export default function UnlockScreen() {
           ))}
           {remainingCount > 0 && (
             <Text style={styles.teaserMore}>
-              + {remainingCount} more questions...
+              + {remainingCount} more dilemmas...
             </Text>
           )}
         </View>
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
     }),
   },
   unlockBtnText: {
-    color: '#0F0F1A',
+    color: COLORS.textOnColor,
     fontSize: FONTS.sizes.md,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,
