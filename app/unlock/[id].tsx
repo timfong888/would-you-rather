@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { getCategoryById, getCategoryQuestions } from '@/constants/questions';
+import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 
 const BENEFITS = [
   { icon: '💬', text: '20 exclusive hand-picked dilemmas' },
@@ -23,6 +24,7 @@ const BENEFITS = [
 export default function UnlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { unlock } = useUnlocked();
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);
@@ -39,9 +41,14 @@ export default function UnlockScreen() {
   }
 
   const handleUnlock = () => {
-    // In production this triggers an IAP flow (RevenueCat / App Store)
-    // For web MVP: show confirmation message
-    alert(`Premium unlock for "${category.label}" would trigger IAP ($2.99). Connect RevenueCat to enable real purchases.`);
+    unlock(id as CategoryId);
+    // Navigate into the game at the first previously-locked question
+    const firstLockedQ = questions[FREE_TRIAL_COUNT];
+    if (firstLockedQ) {
+      router.replace(`/game/${firstLockedQ.id}?cat=${id}&idx=${FREE_TRIAL_COUNT}`);
+    } else {
+      router.back();
+    }
   };
 
   return (
