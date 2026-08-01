@@ -64,11 +64,11 @@ export default function handler(req) {
   const shareUrl = `${baseUrl}/p/${id}`;
 
   const isLandscape = ratio === '1.91x1';
-  const width = isLandscape ? 1200 : 540;
-  const height = isLandscape ? 628 : 960;
+  const width = isLandscape ? 1200 : 1080;
+  const height = isLandscape ? 628 : 1920;
 
-  const optA = truncate(question.optionA, isLandscape ? 90 : 130);
-  const optB = truncate(question.optionB, isLandscape ? 90 : 130);
+  const optA = truncate(question.optionA, isLandscape ? 90 : 160);
+  const optB = truncate(question.optionB, isLandscape ? 90 : 160);
 
   // ── Blurred consensus strip (shared by both layouts) ──────────────────────
   // Satori doesn't support CSS filter:blur, so we simulate frosted glass by:
@@ -79,8 +79,8 @@ export default function handler(req) {
       style={{
         position: 'relative',
         width: '100%',
-        height: isLandscape ? 64 : 72,
-        borderRadius: 14,
+        height: isLandscape ? 64 : 120,
+        borderRadius: isLandscape ? 14 : 24,
         overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
@@ -94,7 +94,7 @@ export default function handler(req) {
         alignItems: 'center',
         justifyContent: 'center',
         color: 'rgba(255,255,255,0.11)',
-        fontSize: isLandscape ? 22 : 20,
+        fontSize: isLandscape ? 22 : 36,
         fontWeight: 800,
         letterSpacing: 10,
       }}>
@@ -109,13 +109,13 @@ export default function handler(req) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 10,
-        borderRadius: 14,
+        gap: 14,
+        borderRadius: isLandscape ? 14 : 24,
       }}>
-        <div style={{ fontSize: isLandscape ? 18 : 16, display: 'flex' }}>🔒</div>
+        <div style={{ fontSize: isLandscape ? 18 : 30, display: 'flex' }}>🔒</div>
         <div style={{
           color: t.textSecondary,
-          fontSize: isLandscape ? 15 : 14,
+          fontSize: isLandscape ? 15 : 26,
           fontWeight: 600,
           display: 'flex',
         }}>
@@ -128,15 +128,15 @@ export default function handler(req) {
   const PlaceholderStrip = (
     <div style={{
       width: '100%',
-      height: isLandscape ? 64 : 72,
-      borderRadius: 14,
+      height: isLandscape ? 64 : 120,
+      borderRadius: isLandscape ? 14 : 24,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       background: t.optionBg,
       border: `1.5px solid ${t.optionBorder}`,
     }}>
-      <div style={{ color: t.textSecondary, fontSize: 16, fontWeight: 600, display: 'flex' }}>
+      <div style={{ color: t.textSecondary, fontSize: isLandscape ? 16 : 28, fontWeight: 600, display: 'flex' }}>
         See what others chose →
       </div>
     </div>
@@ -262,7 +262,7 @@ export default function handler(req) {
     );
   }
 
-  // ── 540×960 Stories / TikTok card ─────────────────────────────────────────
+  // ── 1080×1920 Stories / TikTok card ───────────────────────────────────────
   return new ImageResponse(
     <div style={{
       width: '100%',
@@ -271,23 +271,23 @@ export default function handler(req) {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '64px 36px 52px',
+      padding: '120px 72px 100px',
       fontFamily: 'sans-serif',
     }}>
       {/* Top branding */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 80 }}>
         <div style={{
           background: t.badgeBg,
           borderRadius: 9999,
-          padding: '8px 18px',
+          padding: '14px 32px',
           display: 'flex',
         }}>
-          <span style={{ color: t.textSecondary, fontSize: 12, letterSpacing: 2, fontWeight: 700 }}>
+          <span style={{ color: t.textSecondary, fontSize: 22, letterSpacing: 3, fontWeight: 700 }}>
             WOULD YOU RATHER
           </span>
         </div>
         {category && (
-          <span style={{ fontSize: 22, display: 'flex' }}>{category.emoji}</span>
+          <span style={{ fontSize: 40, display: 'flex' }}>{category.emoji}</span>
         )}
       </div>
 
@@ -298,78 +298,78 @@ export default function handler(req) {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        gap: 18,
+        gap: 32,
       }}>
         {/* Option A */}
         <div style={{
           background: t.optionBg,
-          borderRadius: 18,
-          border: `1.5px solid ${t.optionBorder}`,
-          padding: '22px 26px',
+          borderRadius: 28,
+          border: `2px solid ${t.optionBorder}`,
+          padding: '40px 44px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 12,
+          gap: 20,
         }}>
           <div style={{
             background: t.labelA,
-            borderRadius: 8,
-            padding: '3px 12px',
+            borderRadius: 12,
+            padding: '6px 20px',
             alignSelf: 'flex-start',
             display: 'flex',
           }}>
-            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>OPTION A</span>
+            <span style={{ color: '#fff', fontSize: 20, fontWeight: 800, letterSpacing: 1.5 }}>OPTION A</span>
           </div>
-          <span style={{ color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: 'flex' }}>
+          <span style={{ color: t.textPrimary, fontSize: 36, fontWeight: 700, lineHeight: 1.38, display: 'flex' }}>
             {optA}
           </span>
         </div>
 
         {/* OR divider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ flex: 1, height: 1, background: t.optionBorder }} />
-          <span style={{ color: t.textMuted, fontSize: 16, fontWeight: 800, letterSpacing: 2, display: 'flex' }}>OR</span>
-          <div style={{ flex: 1, height: 1, background: t.optionBorder }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <div style={{ flex: 1, height: 2, background: t.optionBorder }} />
+          <span style={{ color: t.textMuted, fontSize: 28, fontWeight: 800, letterSpacing: 3, display: 'flex' }}>OR</span>
+          <div style={{ flex: 1, height: 2, background: t.optionBorder }} />
         </div>
 
         {/* Option B */}
         <div style={{
           background: t.optionBg,
-          borderRadius: 18,
-          border: `1.5px solid ${t.optionBorder}`,
-          padding: '22px 26px',
+          borderRadius: 28,
+          border: `2px solid ${t.optionBorder}`,
+          padding: '40px 44px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 12,
+          gap: 20,
         }}>
           <div style={{
             background: t.labelB,
-            borderRadius: 8,
-            padding: '3px 12px',
+            borderRadius: 12,
+            padding: '6px 20px',
             alignSelf: 'flex-start',
             display: 'flex',
           }}>
-            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>OPTION B</span>
+            <span style={{ color: '#fff', fontSize: 20, fontWeight: 800, letterSpacing: 1.5 }}>OPTION B</span>
           </div>
-          <span style={{ color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: 'flex' }}>
+          <span style={{ color: t.textPrimary, fontSize: 36, fontWeight: 700, lineHeight: 1.38, display: 'flex' }}>
             {optB}
           </span>
         </div>
       </div>
 
       {/* Result strip */}
-      <div style={{ width: '100%', marginTop: 28 }}>
+      <div style={{ width: '100%', marginTop: 48 }}>
         {ResultStrip}
       </div>
 
       {/* Link */}
       <div style={{
-        marginTop: 22,
+        marginTop: 36,
         background: t.badgeBg,
         borderRadius: 9999,
-        padding: '10px 22px',
+        padding: '16px 36px',
         display: 'flex',
       }}>
-        <span style={{ color: t.textMuted, fontSize: 13, display: 'flex' }}>{shareUrl}</span>
+        <span style={{ color: t.textMuted, fontSize: 24, display: 'flex' }}>{shareUrl}</span>
       </div>
     </div>,
     { width, height }

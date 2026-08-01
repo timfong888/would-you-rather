@@ -78,17 +78,57 @@ export default function ResultsScreen() {
     }
   }, [question, shareUrl]);
 
-  // Instagram Stories deep link (iOS only). Opens Instagram and passes the
-  // 9:16 card image as the background sticker via URL scheme.
+  const cardUrl9x16 = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/api/card?id=${id}&ratio=9x16`
+      : `/api/card?id=${id}&ratio=9x16`,
+    default: `/api/card?id=${id}&ratio=9x16`,
+  }) as string;
+
   const handleInstagramStories = useCallback(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-    const cardImageUrl = encodeURIComponent(
-      `${window.location.origin}/api/card?id=${id}&ratio=9x16`
-    );
-    // Instagram Stories URL scheme — only works if Instagram is installed on iOS.
+    const cardImageUrl = encodeURIComponent(cardUrl9x16);
     window.location.href =
       `instagram-stories://share?backgroundImageURL=${cardImageUrl}`;
-  }, [id]);
+    setTimeout(() => {
+      handleShare();
+    }, 2500);
+  }, [cardUrl9x16, handleShare]);
+
+  const categoryHashtags: Record<string, string[]> = {
+    'high-life': ['#WouldYouRather', '#TheHighLife', '#Luxury'],
+    'moral-compass': ['#WouldYouRather', '#MoralCompass', '#Ethics'],
+    'midnight-secrets': ['#WouldYouRather', '#MidnightSecrets', '#DeepQuestions'],
+    'social-blunders': ['#WouldYouRather', '#SocialBlunders', '#Awkward'],
+    'time-traveler': ['#WouldYouRather', '#TimeTraveler', '#WhatIf'],
+    'deep-desires': ['#WouldYouRather', '#DeepDesires', '#LifeChoices'],
+    'career-climber': ['#WouldYouRather', '#CareerClimber', '#WorkLife'],
+    'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
+    'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
+  };
+
+  const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];
+
+  const handleTikTokShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch { /* user cancelled */ }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(`${shareUrl}\n\n${hashtags.join(' ')}`);
+        setCopyFeedback('Link + hashtags copied!');
+        setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, shareUrl, hashtags]);
 
   const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
   const currentIdx = categoryQuestions.findIndex((q) => q.id === id);
@@ -198,7 +238,7 @@ export default function ResultsScreen() {
           </Text>
         </Pressable>
 
-        {/* Instagram Stories — only shown in web/iOS context */}
+        {/* Instagram Stories */}
         {Platform.OS === 'web' && (
           <Pressable
             onPress={handleInstagramStories}
@@ -207,6 +247,14 @@ export default function ResultsScreen() {
             <Text style={styles.igButtonText}>📸  Instagram Stories</Text>
           </Pressable>
         )}
+
+        {/* TikTok share — includes category hashtags */}
+        <Pressable
+          onPress={handleTikTokShare}
+          style={({ pressed }) => [styles.igButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.igButtonText}>🎵  TikTok</Text>
+        </Pressable>
 
         <Text style={styles.shareLink} numberOfLines={1}>{shareUrl}</Text>
       </View>

@@ -77,6 +77,7 @@ export default function handler(req) {
   <meta property="og:image"       content="${esc(cardUrl)}" />
   <meta property="og:image:width"  content="1200" />
   <meta property="og:image:height" content="628" />
+  <meta property="og:image:type"  content="image/png" />
   <meta property="og:site_name"   content="Would You Rather" />
 
   <!-- Twitter Card -->
@@ -84,6 +85,7 @@ export default function handler(req) {
   <meta name="twitter:title"       content="${esc(ogTitle)}" />
   <meta name="twitter:description" content="${esc(ogDescription)}" />
   <meta name="twitter:image"       content="${esc(cardUrl)}" />
+  <meta name="twitter:image:alt"   content="${esc(ogTitle)}" />
 
   <!-- Redirect immediately -->
   <meta http-equiv="refresh" content="0; url=${esc(appUrl)}" />
