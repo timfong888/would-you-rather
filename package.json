@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "export:web": "expo export --platform web",
     "build:web": "expo export --platform web",
-    "generate:sitemap": "node scripts/generate-sitemap.mjs"
+    "generate:sitemap": "tsx scripts/generate-sitemap.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.1",
@@ -37,6 +37,7 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "~18.2.45",
+    "tsx": "^4.23.1",
     "typescript": "^5.3.3"
   },
   "overrides": {

@@ -9,11 +9,11 @@ import {
   Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import Head from 'expo-router/head';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
-import { SEO, SITE_URL } from '@/constants/config';
+import { SITE_URL } from '@/constants/config';
+import PageHead from '@/components/PageHead';
 import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
@@ -136,20 +136,12 @@ export default function GameScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <Head>
-        <title>{truncatedTitle}</title>
-        <meta name="description" content={pageDescription.slice(0, 160)} />
-        <meta name="robots" content="index, follow" />
-        <link rel="canonical" href={`${SITE_URL}/game/${question.id}`} />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={`${SITE_URL}/game/${question.id}`} />
-        <meta property="og:title" content={truncatedTitle} />
-        <meta property="og:description" content={pageDescription.slice(0, 200)} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:site" content={SEO.twitterHandle} />
-        <meta name="twitter:title" content={truncatedTitle} />
-        <meta name="twitter:description" content={pageDescription.slice(0, 200)} />
-      </Head>
+      <PageHead
+        title={truncatedTitle}
+        description={pageDescription.slice(0, 200)}
+        canonicalUrl={`${SITE_URL}/game/${question.id}`}
+        twitterCard="summary_large_image"
+      />
       {/* Leave Category Link */}
       {category && (
         <Pressable

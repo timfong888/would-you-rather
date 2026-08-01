@@ -8,12 +8,12 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import Head from 'expo-router/head';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
-import { SEO, SITE_URL } from '@/constants/config';
+import { SITE_URL } from '@/constants/config';
+import PageHead from '@/components/PageHead';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -64,20 +64,11 @@ export default function CategoryScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <Head>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
-        <meta name="robots" content="index, follow" />
-        <link rel="canonical" href={`${SITE_URL}/categories/${category.id}`} />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={`${SITE_URL}/categories/${category.id}`} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        <meta name="twitter:card" content="summary" />
-        <meta name="twitter:site" content={SEO.twitterHandle} />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={pageDescription} />
-      </Head>
+      <PageHead
+        title={pageTitle}
+        description={pageDescription}
+        canonicalUrl={`${SITE_URL}/categories/${category.id}`}
+      />
       {/* Category Hero */}
       <View style={[styles.hero, { borderColor: `${category.color}30`, backgroundColor: `${category.color}10` }]}>
         <Text style={styles.heroEmoji}>{category.emoji}</Text>
