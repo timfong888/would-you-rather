@@ -9,6 +9,7 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import type { CategoryDef } from '@/constants/questions';
 import { FREE_TRIAL_COUNT } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 
 interface CategoryCardProps {
   category: CategoryDef;
@@ -34,12 +35,12 @@ export default function CategoryCard({
           pressed && styles.pressed,
         ]}
       >
-        <View style={[styles.rowIcon, { backgroundColor: `${category.color}20`, borderColor: `${category.color}40` }]}>
+        <View style={[styles.rowIcon, { backgroundColor: category.color }]}>
           <Text style={styles.rowEmoji}>{category.emoji}</Text>
         </View>
         <View style={styles.rowContent}>
           <Text style={styles.rowLabel}>{category.label.toUpperCase()}</Text>
-          <Text style={styles.rowCount}>{questionCount} questions</Text>
+          <Text style={styles.rowCount}>{COPY.dilemmaCount(questionCount)}</Text>
         </View>
         <View style={styles.rowRight}>
           {isPremium ? (
@@ -62,7 +63,7 @@ export default function CategoryCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.gridContainer,
-        { borderColor: `${category.color}40`, backgroundColor: `${category.color}12` },
+        { borderColor: `${category.color}50` },
         pressed && styles.pressed,
       ]}
     >
@@ -70,7 +71,7 @@ export default function CategoryCard({
       <Text style={[styles.gridLabel, { color: category.color }]}>
         {category.label.toUpperCase()}
       </Text>
-      <Text style={styles.gridCount}>{questionCount} questions</Text>
+      <Text style={styles.gridCount}>{COPY.dilemmaCount(questionCount)}</Text>
       {isPremium ? (
         <View style={styles.premiumPill}>
           <Text style={styles.premiumPillText}>👑 PREMIUM</Text>
@@ -127,6 +128,7 @@ const styles = StyleSheet.create({
       web: {
         cursor: 'pointer',
         transition: 'all 0.15s ease',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
       },
     }),
   },
@@ -134,7 +136,6 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: RADIUS.md,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

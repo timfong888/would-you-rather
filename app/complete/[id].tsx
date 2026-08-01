@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   upsellCard: {
-    backgroundColor: '#0D0D18',
+    backgroundColor: COLORS.premiumBg,
     borderWidth: 1.5,
     borderColor: COLORS.premium,
     borderRadius: RADIUS.lg,
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
   upsellCtaText: {
-    color: '#0F0F1A',
+    color: COLORS.textOnColor,
     fontSize: FONTS.sizes.sm,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,
