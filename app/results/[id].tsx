@@ -91,19 +91,19 @@ export default function ResultsScreen() {
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
-          await navigator.share({ title, text, url: shareUrl });
+          await navigator.share({ title, text, url: cardUrl });
           return;
         } catch {
           // fall through to clipboard
         }
       }
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+        await navigator.clipboard.writeText(`${text}\n${cardUrl}`);
         setCopyFeedback('Take copied!');
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+      Share.share({ title, message: `${text}\n\n${cardUrl}`, url: cardUrl });
     }
   }, [voted, question, shareUrl, id]);
 
