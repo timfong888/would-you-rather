@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wouldyourather.vercel.app/sitemap.xml

@@ -12,6 +12,8 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { CATEGORIES, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
 import { MOCK_ANSWERED } from '@/constants/mockData';
 import { COPY } from '@/constants/copy';
+import { SEO, SITE_URL } from '@/constants/config';
+import PageHead from '@/components/PageHead';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
 const FEATURED = CATEGORIES.filter((c) => c.featured);
@@ -21,12 +23,20 @@ export default function CategoriesScreen() {
   const router = useRouter();
   const { styles } = useThemedStyles(makeStyles);
 
+  const pageTitle = 'Browse Categories — Would You Rather?';
+  const pageDescription = `Choose from ${CATEGORIES.length} categories of Would You Rather dilemmas — from Moral Compass to Tech Dystopia. Free and premium packs available.`;
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <PageHead
+        title={pageTitle}
+        description={pageDescription}
+        canonicalUrl={`${SITE_URL}/categories`}
+      />
       {/* App Header */}
       <View style={styles.header}>
         <Text style={styles.appTitle}>WOULD YOU RATHER</Text>
