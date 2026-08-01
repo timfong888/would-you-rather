@@ -8,9 +8,11 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
+import { SEO, SITE_URL } from '@/constants/config';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -48,6 +50,20 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <Head>
+        <title>{SEO.defaultTitle}</title>
+        <meta name="description" content={SEO.defaultDescription} />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={SITE_URL} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={SITE_URL} />
+        <meta property="og:title" content={SEO.defaultTitle} />
+        <meta property="og:description" content={SEO.defaultDescription} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content={SEO.twitterHandle} />
+        <meta name="twitter:title" content={SEO.defaultTitle} />
+        <meta name="twitter:description" content={SEO.defaultDescription} />
+      </Head>
       {/* Theme Toggle (floating in top-right for headerless home screen) */}
       <View style={styles.topBar}>
         <ThemeToggle />
