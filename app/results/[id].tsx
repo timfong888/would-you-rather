@@ -9,14 +9,16 @@ import {
   Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
   const router = useRouter();
+  const { styles, colors } = useThemedStyles(makeStyles);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,7 +44,7 @@ export default function ResultsScreen() {
     );
   }
 
-  const catColor = category?.color ?? COLORS.primary;
+  const catColor = category?.color ?? colors.primary;
 
   const votesA = voted === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = voted === 'B' ? question.votesB + 1 : question.votesB;
@@ -52,8 +54,6 @@ export default function ResultsScreen() {
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
 
-  // Build the /p/{id} share URL. On web we read window.location; on native we
-  // fall back to a relative path that resolves once the app has a known host.
   const shareUrl = Platform.select({
     web: typeof window !== 'undefined'
       ? `${window.location.origin}/p/${id}`
@@ -66,8 +66,6 @@ export default function ResultsScreen() {
     const text = `${question?.optionA} — OR — ${question?.optionB}`;
 
     if (Platform.OS === 'web') {
-      // Use the Web Share API on mobile browsers (triggers OS share sheet).
-      // Fall back to clipboard copy on desktop.
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
           await navigator.share({ title, text, url: shareUrl });
@@ -82,7 +80,6 @@ export default function ResultsScreen() {
         copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      // Native — use React Native's built-in share sheet
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
   }, [question, shareUrl]);
@@ -211,12 +208,12 @@ export default function ResultsScreen() {
         {voted && (
           <View style={[
             styles.yourChoice,
-            { borderColor: voted === 'A' ? COLORS.optionA : COLORS.optionB },
+            { borderColor: voted === 'A' ? colors.optionA : colors.optionB },
           ]}>
             <Text style={styles.yourChoiceLabel}>YOUR CHOICE</Text>
             <Text style={[
               styles.yourChoiceOption,
-              { color: voted === 'A' ? COLORS.optionA : COLORS.optionB },
+              { color: voted === 'A' ? colors.optionA : colors.optionB },
             ]}>
               Option {voted} — {voted === 'A' ? question.optionA : question.optionB}
             </Text>
@@ -318,217 +315,219 @@ export default function ResultsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.lg,
-    gap: SPACING.lg,
-    paddingBottom: SPACING.xxl,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.md,
-    backgroundColor: COLORS.background,
-  },
-  errorText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.lg,
-  },
-  homeButton: {
-    backgroundColor: COLORS.magenta,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-  },
-  homeButtonText: {
-    color: COLORS.text,
-    fontWeight: FONTS.weights.bold,
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    alignSelf: 'flex-start',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  categoryEmoji: {
-    fontSize: 14,
-  },
-  categoryLabel: {
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 1,
-  },
-  resultBanner: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  resultEmoji: {
-    fontSize: 40,
-  },
-  resultTitle: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: FONTS.weights.extrabold,
-    textAlign: 'center',
-  },
-  resultSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  questionCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    gap: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  questionLabel: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    fontStyle: 'italic',
-  },
-  voteBars: {
-    gap: SPACING.lg,
-  },
-  voteDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  yourChoice: {
-    borderWidth: 1,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    gap: SPACING.xs,
-  },
-  yourChoiceLabel: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.extrabold,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  yourChoiceOption: {
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.medium,
-    lineHeight: 18,
-  },
-  totalVotes: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    textAlign: 'center',
-  },
-  shareCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.sm,
-  },
-  shareCardHeader: {
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-  shareCardTitle: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.bold,
-  },
-  shareCardSub: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    lineHeight: 16,
-  },
-  shareButton: {
-    backgroundColor: COLORS.magenta,
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  shareButtonText: {
-    color: COLORS.textOnColor,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.bold,
-  },
-  igButton: {
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  igButtonText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.medium,
-  },
-  shareLink: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    textAlign: 'center',
-    marginTop: SPACING.xs,
-  },
-  actions: {
-    gap: SPACING.sm,
-  },
-  nextButton: {
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    ...Platform.select({
-      web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
-    }),
-  },
-  nextButtonText: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
-  },
-  replayButton: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
-  },
-  replayButtonText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.medium,
-  },
-  homeButton2: {
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  homeButton2Text: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.md,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: SPACING.lg,
+      gap: SPACING.lg,
+      paddingBottom: SPACING.xxl,
+    },
+    errorContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.md,
+      backgroundColor: colors.background,
+    },
+    errorText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.lg,
+    },
+    homeButton: {
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+    },
+    homeButtonText: {
+      color: colors.textOnColor,
+      fontWeight: FONTS.weights.bold,
+    },
+    categoryBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.xs,
+      alignSelf: 'flex-start',
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 4,
+      borderRadius: RADIUS.full,
+    },
+    categoryEmoji: {
+      fontSize: 14,
+    },
+    categoryLabel: {
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
+    },
+    resultBanner: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.xl,
+      alignItems: 'center',
+      gap: SPACING.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    resultEmoji: {
+      fontSize: 40,
+    },
+    resultTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.extrabold,
+      textAlign: 'center',
+    },
+    resultSubtitle: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    questionCard: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      gap: SPACING.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    questionLabel: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontStyle: 'italic',
+    },
+    voteBars: {
+      gap: SPACING.lg,
+    },
+    voteDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    yourChoice: {
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+      gap: SPACING.xs,
+    },
+    yourChoiceLabel: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      textTransform: 'uppercase',
+      letterSpacing: 1.5,
+    },
+    yourChoiceOption: {
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+      lineHeight: 18,
+    },
+    totalVotes: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      textAlign: 'center',
+    },
+    shareCard: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: SPACING.sm,
+    },
+    shareCardHeader: {
+      gap: SPACING.xs,
+      marginBottom: SPACING.xs,
+    },
+    shareCardTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    shareCardSub: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      lineHeight: 16,
+    },
+    shareButton: {
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    shareButtonText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    igButton: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    igButtonText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+    },
+    shareLink: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      textAlign: 'center',
+      marginTop: SPACING.xs,
+    },
+    actions: {
+      gap: SPACING.sm,
+    },
+    nextButton: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({
+        web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
+      }),
+    },
+    nextButtonText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.bold,
+    },
+    replayButton: {
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({
+        web: { cursor: 'pointer' },
+      }),
+    },
+    replayButtonText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+    },
+    homeButton2: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    homeButton2Text: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.md,
+    },
+    buttonPressed: {
+      opacity: 0.8,
+      transform: [{ scale: 0.98 }],
+    },
+  });
+}
