@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
@@ -16,6 +17,7 @@ import VoteBar from '@/components/VoteBar';
 export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
   const router = useRouter();
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const question = getQuestionById(id);
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
@@ -40,6 +42,53 @@ export default function ResultsScreen() {
   const userPickedA = voted === 'A';
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
+
+  // Build the /p/{id} share URL. On web we read window.location; on native we
+  // fall back to a relative path that resolves once the app has a known host.
+  const shareUrl = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/p/${id}`
+      : `/p/${id}`,
+    default: `/p/${id}`,
+  }) as string;
+
+  const handleShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}`;
+
+    if (Platform.OS === 'web') {
+      // Use the Web Share API on mobile browsers (triggers OS share sheet).
+      // Fall back to clipboard copy on desktop.
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch {
+          // User cancelled or API unavailable — fall through to clipboard
+        }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopyFeedback('Link copied!');
+        setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      // Native — use React Native's built-in share sheet
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, shareUrl]);
+
+  // Instagram Stories deep link (iOS only). Opens Instagram and passes the
+  // 9:16 card image as the background sticker via URL scheme.
+  const handleInstagramStories = useCallback(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const cardImageUrl = encodeURIComponent(
+      `${window.location.origin}/api/card?id=${id}&ratio=9x16`
+    );
+    // Instagram Stories URL scheme — only works if Instagram is installed on iOS.
+    window.location.href =
+      `instagram-stories://share?backgroundImageURL=${cardImageUrl}`;
+  }, [id]);
 
   const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
   const currentIdx = categoryQuestions.findIndex((q) => q.id === id);
@@ -130,19 +179,36 @@ export default function ResultsScreen() {
         </Text>
       </View>
 
-      {/* Share row */}
-      <View style={styles.shareRow}>
-        <Text style={styles.shareText}>Share this question:</Text>
-        <View style={styles.shareButtons}>
-          {['𝕏', '📋'].map((icon, i) => (
-            <Pressable
-              key={i}
-              style={({ pressed }) => [styles.shareButton, pressed && { opacity: 0.6 }]}
-            >
-              <Text style={styles.shareButtonText}>{icon}</Text>
-            </Pressable>
-          ))}
+      {/* Share card */}
+      <View style={styles.shareCard}>
+        <View style={styles.shareCardHeader}>
+          <Text style={styles.shareCardTitle}>Share this question</Text>
+          <Text style={styles.shareCardSub}>
+            Recipients see a curiosity-gap card — they have to tap to find out the result.
+          </Text>
         </View>
+
+        {/* Primary share button */}
+        <Pressable
+          onPress={handleShare}
+          style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.shareButtonText}>
+            {copyFeedback ?? '🔗  Share Card'}
+          </Text>
+        </Pressable>
+
+        {/* Instagram Stories — only shown in web/iOS context */}
+        {Platform.OS === 'web' && (
+          <Pressable
+            onPress={handleInstagramStories}
+            style={({ pressed }) => [styles.igButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.igButtonText}>📸  Instagram Stories</Text>
+          </Pressable>
+        )}
+
+        <Text style={styles.shareLink} numberOfLines={1}>{shareUrl}</Text>
       </View>
 
       {/* Navigation */}
@@ -310,37 +376,59 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.sm,
     textAlign: 'center',
   },
-  shareRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  shareCard: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
+    padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-  },
-  shareText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-  },
-  shareButtons: {
-    flexDirection: 'row',
     gap: SPACING.sm,
   },
+  shareCardHeader: {
+    gap: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  shareCardTitle: {
+    color: COLORS.text,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.bold,
+  },
+  shareCardSub: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xs,
+    lineHeight: 16,
+  },
   shareButton: {
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.md,
-    width: 36,
-    height: 36,
+    backgroundColor: COLORS.magenta,
+    borderRadius: RADIUS.full,
+    paddingVertical: SPACING.md,
     alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
+    ...Platform.select({ web: { cursor: 'pointer' } }),
   },
   shareButtonText: {
-    fontSize: 16,
+    color: COLORS.textOnColor,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.bold,
+  },
+  igButton: {
+    backgroundColor: COLORS.surfaceLight,
+    borderRadius: RADIUS.full,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...Platform.select({ web: { cursor: 'pointer' } }),
+  },
+  igButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.medium,
+  },
+  shareLink: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xs,
+    textAlign: 'center',
+    marginTop: SPACING.xs,
   },
   actions: {
     gap: SPACING.sm,

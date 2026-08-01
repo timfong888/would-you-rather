@@ -3,21 +3,10 @@
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
-    {
-      "source": "/game/:id",
-      "destination": "/game/[id].html"
-    },
-    {
-      "source": "/results/:id",
-      "destination": "/results/[id].html"
-    },
-    {
-      "source": "/categories/:id",
-      "destination": "/categories/[id].html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/p/:id",           "destination": "/api/p?id=:id" },
+    { "source": "/game/:id",        "destination": "/game/[id].html" },
+    { "source": "/results/:id",     "destination": "/results/[id].html" },
+    { "source": "/categories/:id",  "destination": "/categories/[id].html" },
+    { "source": "/((?!api/).*)",    "destination": "/index.html" }
   ]
 }
