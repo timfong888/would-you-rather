@@ -52,8 +52,8 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           branch=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName -q '.headRefName')
-          # Match SAT-123, BLO-456, ENG-789, etc.
-          issue_id=$(echo "$branch" | grep -oE '[A-Z]{2,6}-[0-9]+' | head -1)
+          # Match SAT-123, blo-456, ENGINEERING-789, etc. (2–10 alpha chars, any case, before numeric ID)
+          issue_id=$(echo "$branch" | grep -oE '[A-Za-z]{2,10}-[0-9]+' | head -1)
           echo "branch=$branch  issue_id=${issue_id:-<none found>}"
           echo "issue_id=$issue_id" >> "$GITHUB_OUTPUT"
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
