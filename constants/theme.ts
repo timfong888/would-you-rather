@@ -27,6 +27,8 @@ export const COLORS = {
   freeBg: '#E8F7EF',
   trialBannerBg: '#F0C5E0',
   trialBannerText: '#6B1A4A',
+  daringAccent: '#C94F87',
+  daringBg: '#FFF0F7',
 };
 
 export const FONTS = {

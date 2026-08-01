@@ -9,11 +9,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId } from '@/constants/questions';
+import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
-
-const FAMILY_FRIENDLY: CategoryId[] = ['moral-compass', 'social-blunders', 'career-climber', 'tech-dystopia'];
-const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-traveler', 'wildest-dreams', 'high-life'];
 
 const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
 const TOTAL_QUESTIONS = QUESTIONS.length;
@@ -21,20 +18,25 @@ const TOTAL_QUESTIONS = QUESTIONS.length;
 export default function HomeScreen() {
   const router = useRouter();
 
-  const handleRandomQuestion = () => {
-    const freeCats = CATEGORIES.filter((c) => c.tier === 'free');
-    const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
-    const questions = getCategoryQuestions(cat.id);
+  const navigateToQuestion = (cat: typeof CATEGORIES[number], questions: ReturnType<typeof getCategoryQuestions>) => {
     const q = questions[Math.floor(Math.random() * questions.length)];
     router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
   };
 
+  const handleRandomQuestion = () => {
+    const freeCats = CATEGORIES.filter((c) => c.tier === 'free');
+    const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
+    const questions = getCategoryQuestions(cat.id);
+    navigateToQuestion(cat, questions);
+  };
+
   const handleQuickPlay = (categoryIds: CategoryId[]) => {
     const cats = CATEGORIES.filter((c) => categoryIds.includes(c.id));
+    if (!cats.length) return;
     const cat = cats[Math.floor(Math.random() * cats.length)];
     const questions = getCategoryQuestions(cat.id);
-    const q = questions[Math.floor(Math.random() * questions.length)];
-    router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
+    if (!questions.length) return;
+    navigateToQuestion(cat, questions);
   };
 
   return (
@@ -267,8 +269,8 @@ const styles = StyleSheet.create({
     }),
   },
   audiencePillDaring: {
-    borderColor: '#C94F87',
-    backgroundColor: '#FFF0F7',
+    borderColor: COLORS.daringAccent,
+    backgroundColor: COLORS.daringBg,
   },
   audiencePillPressed: {
     opacity: 0.75,
