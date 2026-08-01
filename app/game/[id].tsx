@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
@@ -83,6 +84,29 @@ export default function GameScreen() {
   const handleLeaveCategory = () => {
     router.push('/categories');
   };
+
+  const shareUrl = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/p/${id}`
+      : `/p/${id}`,
+    default: `/p/${id}`,
+  }) as string;
+
+  // Voluntary pre-answer challenge: share the question before confirming
+  const handleChallengeShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}`;
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, shareUrl]);
 
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
@@ -195,6 +219,19 @@ export default function GameScreen() {
                 {selected ? 'CONFIRM PREFERENCE' : 'PICK AN OPTION FIRST'}
               </Text>
             </Pressable>
+
+            {/* Contextual challenge invite — shown when user picked but hasn't confirmed */}
+            {selected && (
+              <Pressable
+                onPress={handleChallengeShare}
+                style={({ pressed }) => [
+                  styles.challengeButton,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={styles.challengeText}>💬  Challenge a friend to this question first</Text>
+              </Pressable>
+            )}
 
             {nextQuestion && (
               <Pressable
@@ -404,6 +441,20 @@ const styles = StyleSheet.create({
   },
   confirmButtonTextDisabled: {
     color: COLORS.textMuted,
+  },
+  challengeButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+    ...Platform.select({ web: { cursor: 'pointer' } }),
+  },
+  challengeText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.medium,
   },
   skipButton: {
     alignItems: 'center',

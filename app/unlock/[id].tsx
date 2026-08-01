@@ -16,6 +16,7 @@ import type { CategoryId } from '@/constants/questions';
 const BENEFITS = [
   { icon: '💬', text: '20 exclusive hand-picked dilemmas' },
   { icon: '📊', text: 'Global real-time voter statistics' },
+  { icon: '🤝', text: 'Compare answers with friends — see who agrees' },
   { icon: '♾️', text: 'Permanent library access — own it forever' },
   { icon: '🚫', text: 'Ad-free category experience' },
 ];
@@ -125,6 +126,30 @@ export default function UnlockScreen() {
       >
         <Text style={styles.restoreBtnText}>Restore Purchases</Text>
       </Pressable>
+
+      {/* Social comparison hook */}
+      <View style={styles.socialCard}>
+        <Text style={styles.socialCardTitle}>COMPARE WITH FRIENDS</Text>
+        <Text style={styles.socialCardBody}>
+          Share your result card after each question. When friends tap through
+          and unlock the full pack, you can see every answer side-by-side —
+          who agreed, who disagreed, and on what.
+        </Text>
+        <View style={styles.socialSteps}>
+          <View style={styles.socialStep}>
+            <Text style={styles.socialStepNum}>1</Text>
+            <Text style={styles.socialStepText}>You answer — they see a blurred result card</Text>
+          </View>
+          <View style={styles.socialStep}>
+            <Text style={styles.socialStepNum}>2</Text>
+            <Text style={styles.socialStepText}>They play along and reveal their take</Text>
+          </View>
+          <View style={styles.socialStep}>
+            <Text style={styles.socialStepNum}>3</Text>
+            <Text style={styles.socialStepText}>Compare all 20 answers — sparks real conversation</Text>
+          </View>
+        </View>
+      </View>
 
       {/* Category preview teaser */}
       <View style={styles.teaserSection}>
@@ -329,6 +354,55 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: FONTS.sizes.sm,
     textDecorationLine: 'underline',
+  },
+  socialCard: {
+    width: '100%',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  socialCardTitle: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xs,
+    fontWeight: FONTS.weights.extrabold,
+    letterSpacing: 2,
+  },
+  socialCardBody: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.sm,
+    lineHeight: 20,
+  },
+  socialSteps: {
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  socialStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+  },
+  socialStepNum: {
+    width: 24,
+    height: 24,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primary,
+    color: COLORS.textOnColor,
+    fontSize: FONTS.sizes.xs,
+    fontWeight: FONTS.weights.extrabold,
+    textAlign: 'center',
+    lineHeight: 24,
+    flexShrink: 0,
+    overflow: 'hidden',
+  },
+  socialStepText: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: FONTS.sizes.sm,
+    lineHeight: 20,
+    paddingTop: 2,
   },
   teaserSection: {
     width: '100%',

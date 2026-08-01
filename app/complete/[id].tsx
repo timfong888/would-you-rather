@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Pressable,
   Platform,
   Animated,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
@@ -22,6 +23,7 @@ export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
   const anim = useRef(new Animated.Value(0)).current;
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);
@@ -34,6 +36,50 @@ export default function CompleteScreen() {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  const shareUrl = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/p/${lastQuestion?.id ?? ''}`
+      : `/p/${lastQuestion?.id ?? ''}`,
+    default: `/p/${lastQuestion?.id ?? ''}`,
+  }) as string;
+
+  const handleShareChallenge = useCallback(async () => {
+    if (!lastQuestion) return;
+    const title = 'Would You Rather?';
+    const text = `${lastQuestion.optionA} — OR — ${lastQuestion.optionB}`;
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopyFeedback('Copied!');
+        setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [lastQuestion, shareUrl]);
+
+  const handleShareMyTake = useCallback(async () => {
+    if (!lastQuestion || !voted) return;
+    const myOption = voted === 'A' ? lastQuestion.optionA : lastQuestion.optionB;
+    const title = 'My Would You Rather Take';
+    const text = `I chose: "${myOption}" — do you agree?`;
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+        setCopyFeedback('Copied!');
+        setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [lastQuestion, voted, shareUrl]);
 
   if (!category) {
     return (
@@ -161,16 +207,25 @@ export default function CompleteScreen() {
         )}
 
         {/* Share Row */}
-        <View style={styles.shareRow}>
-          <Text style={styles.shareLabel}>Share this result:</Text>
-          <View style={styles.shareButtons}>
-            <Pressable style={({ pressed }) => [styles.shareBtn, pressed && { opacity: 0.6 }]}>
-              <Text style={styles.shareBtnText}>𝕏</Text>
+        <View style={styles.shareCard}>
+          <Pressable
+            onPress={handleShareChallenge}
+            style={({ pressed }) => [styles.sharePrimaryBtn, pressed && { opacity: 0.8 }]}
+          >
+            <Text style={styles.sharePrimaryBtnText}>
+              {copyFeedback ?? '🔗  Challenge friends'}
+            </Text>
+          </Pressable>
+          {voted && (
+            <Pressable
+              onPress={handleShareMyTake}
+              style={({ pressed }) => [styles.shareSecondaryBtn, pressed && { opacity: 0.8 }]}
+            >
+              <Text style={styles.shareSecondaryBtnText}>
+                {`${withMajority ? '🎯' : '🔥'}  Share my take`}
+              </Text>
             </Pressable>
-            <Pressable style={({ pressed }) => [styles.shareBtn, pressed && { opacity: 0.6 }]}>
-              <Text style={styles.shareBtnText}>📋</Text>
-            </Pressable>
-          </View>
+          )}
         </View>
 
         {/* Premium Upsell Card (loss aversion) */}
@@ -418,37 +473,39 @@ const styles = StyleSheet.create({
     fontWeight: FONTS.weights.semibold,
     lineHeight: 20,
   },
-  shareRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  shareCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-  },
-  shareLabel: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-  },
-  shareButtons: {
-    flexDirection: 'row',
     gap: SPACING.sm,
   },
-  shareBtn: {
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.md,
-    width: 36,
-    height: 36,
+  sharePrimaryBtn: {
+    backgroundColor: COLORS.magenta,
+    borderRadius: RADIUS.full,
+    paddingVertical: SPACING.md,
     alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
+    ...Platform.select({ web: { cursor: 'pointer' } }),
   },
-  shareBtnText: {
-    fontSize: 16,
+  sharePrimaryBtnText: {
+    color: COLORS.textOnColor,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.bold,
+  },
+  shareSecondaryBtn: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.full,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    ...Platform.select({ web: { cursor: 'pointer' } }),
+  },
+  shareSecondaryBtnText: {
+    color: COLORS.primary,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.bold,
   },
   upsellCard: {
     backgroundColor: COLORS.premiumBg,

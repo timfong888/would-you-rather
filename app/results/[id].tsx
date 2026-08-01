@@ -57,8 +57,6 @@ export default function ResultsScreen() {
     const text = `${question?.optionA} — OR — ${question?.optionB}`;
 
     if (Platform.OS === 'web') {
-      // Use the Web Share API on mobile browsers (triggers OS share sheet).
-      // Fall back to clipboard copy on desktop.
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
           await navigator.share({ title, text, url: shareUrl });
@@ -73,10 +71,41 @@ export default function ResultsScreen() {
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      // Native — use React Native's built-in share sheet
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
   }, [question, shareUrl]);
+
+  // "Share my take" — includes voted param so the card shows the user's choice
+  const handleShareMyTake = useCallback(async () => {
+    if (!voted) return;
+    const cardUrl = Platform.select({
+      web: typeof window !== 'undefined'
+        ? `${window.location.origin}/api/card?id=${id}&ratio=1.91x1&voted=${voted}`
+        : `/api/card?id=${id}&ratio=1.91x1&voted=${voted}`,
+      default: `/api/card?id=${id}&ratio=1.91x1&voted=${voted}`,
+    }) as string;
+    const myOption = voted === 'A' ? question?.optionA : question?.optionB;
+    const title = 'My Would You Rather Take';
+    const text = `I chose: "${myOption}" — do you agree?`;
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch {
+          // fall through to clipboard
+        }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+        setCopyFeedback('Take copied!');
+        setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [voted, question, shareUrl, id]);
 
   // Instagram Stories deep link (iOS only). Opens Instagram and passes the
   // 9:16 card image as the background sticker via URL scheme.
@@ -182,21 +211,42 @@ export default function ResultsScreen() {
       {/* Share card */}
       <View style={styles.shareCard}>
         <View style={styles.shareCardHeader}>
-          <Text style={styles.shareCardTitle}>Share this question</Text>
-          <Text style={styles.shareCardSub}>
-            Recipients see a curiosity-gap card — they have to tap to find out the result.
-          </Text>
+          <Text style={styles.shareCardTitle}>Share</Text>
         </View>
 
-        {/* Primary share button */}
+        {/* Primary: Challenge friends (curiosity gap — result is blurred) */}
         <Pressable
           onPress={handleShare}
           style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
         >
           <Text style={styles.shareButtonText}>
-            {copyFeedback ?? '🔗  Share Card'}
+            {copyFeedback === 'Link copied!' ? 'Link copied!' : '🔗  Challenge friends'}
           </Text>
         </Pressable>
+        <Text style={styles.shareButtonHint}>
+          They see the question but the result is hidden — they have to play to find out.
+        </Text>
+
+        {/* Secondary: Share my take (shows user's choice + position) */}
+        {voted && (
+          <>
+            <Pressable
+              onPress={handleShareMyTake}
+              style={({ pressed }) => [styles.myTakeButton, pressed && styles.buttonPressed]}
+            >
+              <Text style={styles.myTakeButtonText}>
+                {copyFeedback === 'Take copied!' ? 'Take copied!' : `${voted === 'A' ? '🎯' : '🔥'}  Share my take`}
+              </Text>
+            </Pressable>
+            <Text style={styles.shareButtonHint}>
+              {totalVotes >= 5
+                ? `Show that you're in the ${(voted === 'A'
+                    ? Math.round((votesA / totalVotes) * 100)
+                    : Math.round((votesB / totalVotes) * 100))}% — prove your point.`
+                : 'Show which side you chose and spark a debate.'}
+            </Text>
+          </>
+        )}
 
         {/* Instagram Stories — only shown in web/iOS context */}
         {Platform.OS === 'web' && (
@@ -407,6 +457,28 @@ const styles = StyleSheet.create({
   },
   shareButtonText: {
     color: COLORS.textOnColor,
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.bold,
+  },
+  shareButtonHint: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.sizes.xs,
+    textAlign: 'center',
+    lineHeight: 16,
+    marginTop: -SPACING.xs,
+  },
+  myTakeButton: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.full,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    marginTop: SPACING.xs,
+    ...Platform.select({ web: { cursor: 'pointer' } }),
+  },
+  myTakeButtonText: {
+    color: COLORS.primary,
     fontSize: FONTS.sizes.md,
     fontWeight: FONTS.weights.bold,
   },

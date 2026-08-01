@@ -42,6 +42,8 @@ export default function handler(req) {
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
   const ratio = url.searchParams.get('ratio') || '9x16';
+  // voted=A|B — when present, renders the "Share my take" card variant
+  const voted = url.searchParams.get('voted');
 
   const question = QUESTIONS.find(q => q.id === id);
   if (!question) {
@@ -59,6 +61,16 @@ export default function handler(req) {
   const majorityPct = Math.max(pctA, pctB);
   const majorityOption = pctA >= pctB ? 'A' : 'B';
   const consensusText = `${majorityPct}% chose Option ${majorityOption}`;
+
+  // "Share my take" mode — user's choice is known, show their position
+  const isMyTakeMode = voted === 'A' || voted === 'B';
+  const myPct = isMyTakeMode ? (voted === 'A' ? pctA : pctB) : 0;
+  const myText = isMyTakeMode ? (voted === 'A' ? question.optionA : question.optionB) : '';
+  const isMajority = isMyTakeMode && (voted === majorityOption);
+  const positionLabel = hasData
+    ? (isMajority ? `I'm with the ${myPct}% majority` : `I'm in the ${myPct}% minority`)
+    : 'I made my choice — where do you stand?';
+  const myTakeCta = 'Do you agree? →';
 
   const baseUrl = new URL(req.url).origin;
   const shareUrl = `${baseUrl}/p/${id}`;
@@ -142,7 +154,62 @@ export default function handler(req) {
     </div>
   );
 
-  const ResultStrip = hasData ? BlurStrip : PlaceholderStrip;
+  // "Share my take" strip — shows the user's position without blur
+  const MyTakeStrip = (
+    <div style={{
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+    }}>
+      {/* Position badge */}
+      <div style={{
+        width: '100%',
+        borderRadius: 14,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        padding: isLandscape ? '12px 18px' : '14px 18px',
+        background: isMajority ? 'rgba(45,158,107,0.20)' : 'rgba(214,51,132,0.18)',
+        border: `1.5px solid ${isMajority ? 'rgba(45,158,107,0.55)' : 'rgba(214,51,132,0.55)'}`,
+      }}>
+        <div style={{ fontSize: isLandscape ? 18 : 16, display: 'flex' }}>
+          {isMajority ? '🎯' : '🔥'}
+        </div>
+        <div style={{
+          color: t.textPrimary,
+          fontSize: isLandscape ? 14 : 13,
+          fontWeight: 700,
+          display: 'flex',
+          textAlign: 'center',
+        }}>
+          {positionLabel}
+        </div>
+      </div>
+      {/* CTA */}
+      <div style={{
+        width: '100%',
+        borderRadius: 14,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: isLandscape ? '10px 18px' : '12px 18px',
+        background: t.blurOverlay,
+      }}>
+        <div style={{
+          color: t.textSecondary,
+          fontSize: isLandscape ? 14 : 13,
+          fontWeight: 600,
+          display: 'flex',
+        }}>
+          {myTakeCta}
+        </div>
+      </div>
+    </div>
+  );
+
+  const ResultStrip = isMyTakeMode ? MyTakeStrip : (hasData ? BlurStrip : PlaceholderStrip);
 
   if (isLandscape) {
     // ── 1200×628 OG / link-preview card ────────────────────────────────────
@@ -190,9 +257,9 @@ export default function handler(req) {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* Option A */}
             <div style={{
-              background: t.optionBg,
+              background: isMyTakeMode && voted === 'A' ? `${t.labelA}22` : t.optionBg,
               borderRadius: 14,
-              border: `1.5px solid ${t.optionBorder}`,
+              border: isMyTakeMode && voted === 'A' ? `2px solid ${t.labelA}` : `1.5px solid ${t.optionBorder}`,
               padding: '18px 22px',
               display: 'flex',
               alignItems: 'flex-start',
@@ -205,7 +272,9 @@ export default function handler(req) {
                 display: 'flex',
                 flexShrink: 0,
               }}>
-                <span style={{ color: '#fff', fontSize: 12, fontWeight: 800 }}>A</span>
+                <span style={{ color: '#fff', fontSize: 12, fontWeight: 800 }}>
+                  {isMyTakeMode && voted === 'A' ? '✓' : 'A'}
+                </span>
               </div>
               <span style={{ color: t.textPrimary, fontSize: 16, lineHeight: 1.45, display: 'flex' }}>
                 {optA}
@@ -221,9 +290,9 @@ export default function handler(req) {
 
             {/* Option B */}
             <div style={{
-              background: t.optionBg,
+              background: isMyTakeMode && voted === 'B' ? `${t.labelB}22` : t.optionBg,
               borderRadius: 14,
-              border: `1.5px solid ${t.optionBorder}`,
+              border: isMyTakeMode && voted === 'B' ? `2px solid ${t.labelB}` : `1.5px solid ${t.optionBorder}`,
               padding: '18px 22px',
               display: 'flex',
               alignItems: 'flex-start',
@@ -236,7 +305,9 @@ export default function handler(req) {
                 display: 'flex',
                 flexShrink: 0,
               }}>
-                <span style={{ color: '#fff', fontSize: 12, fontWeight: 800 }}>B</span>
+                <span style={{ color: '#fff', fontSize: 12, fontWeight: 800 }}>
+                  {isMyTakeMode && voted === 'B' ? '✓' : 'B'}
+                </span>
               </div>
               <span style={{ color: t.textPrimary, fontSize: 16, lineHeight: 1.45, display: 'flex' }}>
                 {optB}
@@ -302,9 +373,9 @@ export default function handler(req) {
       }}>
         {/* Option A */}
         <div style={{
-          background: t.optionBg,
+          background: isMyTakeMode && voted === 'A' ? `${t.labelA}22` : t.optionBg,
           borderRadius: 18,
-          border: `1.5px solid ${t.optionBorder}`,
+          border: isMyTakeMode && voted === 'A' ? `2px solid ${t.labelA}` : `1.5px solid ${t.optionBorder}`,
           padding: '22px 26px',
           display: 'flex',
           flexDirection: 'column',
@@ -317,7 +388,9 @@ export default function handler(req) {
             alignSelf: 'flex-start',
             display: 'flex',
           }}>
-            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>OPTION A</span>
+            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>
+              {isMyTakeMode && voted === 'A' ? 'MY CHOICE' : 'OPTION A'}
+            </span>
           </div>
           <span style={{ color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: 'flex' }}>
             {optA}
@@ -333,9 +406,9 @@ export default function handler(req) {
 
         {/* Option B */}
         <div style={{
-          background: t.optionBg,
+          background: isMyTakeMode && voted === 'B' ? `${t.labelB}22` : t.optionBg,
           borderRadius: 18,
-          border: `1.5px solid ${t.optionBorder}`,
+          border: isMyTakeMode && voted === 'B' ? `2px solid ${t.labelB}` : `1.5px solid ${t.optionBorder}`,
           padding: '22px 26px',
           display: 'flex',
           flexDirection: 'column',
@@ -348,7 +421,9 @@ export default function handler(req) {
             alignSelf: 'flex-start',
             display: 'flex',
           }}>
-            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>OPTION B</span>
+            <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>
+              {isMyTakeMode && voted === 'B' ? 'MY CHOICE' : 'OPTION B'}
+            </span>
           </div>
           <span style={{ color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: 'flex' }}>
             {optB}
