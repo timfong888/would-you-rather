@@ -85,14 +85,14 @@ export default function ResultsScreen() {
     }
   }, [question, shareUrl]);
 
-  // "Share my take" — includes voted param so the card shows the user's choice
+  // "Share my take" — shares /p/:id?voted=A/B so iMessage shows the rich card preview
   const handleShareMyTake = useCallback(async () => {
     if (!voted) return;
-    const cardUrl = Platform.select({
+    const myTakeUrl = Platform.select({
       web: typeof window !== 'undefined'
-        ? `${window.location.origin}/api/card?id=${id}&ratio=1.91x1&voted=${voted}`
-        : `/api/card?id=${id}&ratio=1.91x1&voted=${voted}`,
-      default: `/api/card?id=${id}&ratio=1.91x1&voted=${voted}`,
+        ? `${window.location.origin}/p/${id}?voted=${voted}`
+        : `/p/${id}?voted=${voted}`,
+      default: `/p/${id}?voted=${voted}`,
     }) as string;
     const myOption = voted === 'A' ? question?.optionA : question?.optionB;
     const title = 'My Would You Rather Take';
@@ -101,21 +101,21 @@ export default function ResultsScreen() {
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
-          await navigator.share({ title, text, url: cardUrl });
+          await navigator.share({ title, text, url: myTakeUrl });
           return;
         } catch {
           // fall through to clipboard
         }
       }
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(`${text}\n${cardUrl}`);
+        await navigator.clipboard.writeText(`${text}\n${myTakeUrl}`);
         setCopyFeedback('Take copied!');
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${cardUrl}`, url: cardUrl });
+      Share.share({ title, message: `${text}\n\n${myTakeUrl}`, url: myTakeUrl });
     }
-  }, [voted, question, shareUrl, id]);
+  }, [voted, question, id]);
 
   const cardUrl9x16 = Platform.select({
     web: typeof window !== 'undefined'

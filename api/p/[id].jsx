@@ -1,7 +1,9 @@
 // Vercel Edge Function — dynamic OG landing page for shared prompt links.
 // Rewrite rule in vercel.json maps /p/:id → /api/p/:id.
 // Returns an HTML document with full OG + Twitter Card meta tags, then
-// immediately redirects to /game/:id so the recipient can play along.
+// JS-redirects to /game/:id so the recipient can play along.
+// NOTE: Uses a JS redirect (not meta http-equiv) so OG scrapers (iMessage,
+// WhatsApp, Twitter bots) never follow the redirect and always see the OG tags.
 import { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } from '../_lib/data.js';
 
 export const config = { runtime: 'edge' };
@@ -33,10 +35,13 @@ export default function handler(req) {
   const themeName = THEME_FOR_CATEGORY[question.category] || 'bright';
   const isMoody = themeName === 'moody';
 
+  // voted=A|B passed by the "Share my take" flow — threads through to the card
+  const voted = url.searchParams.get('voted') || '';
+
   const baseUrl = url.origin;
-  const cardUrl = `${baseUrl}/api/card?id=${encodeURIComponent(id)}&ratio=1.91x1`;
+  const cardUrl = `${baseUrl}/api/card?id=${encodeURIComponent(id)}&ratio=1.91x1${voted ? `&voted=${encodeURIComponent(voted)}` : ''}`;
   const appUrl  = `${baseUrl}/game/${id}?cat=${question.category}`;
-  const shareUrl = `${baseUrl}/p/${id}`;
+  const shareUrl = voted ? `${baseUrl}/p/${id}?voted=${voted}` : `${baseUrl}/p/${id}`;
 
   // OG title ≤ 55 chars: "WYR: [optA] or [optB]?"
   const shortA = truncate(question.optionA, 28);
@@ -89,8 +94,8 @@ export default function handler(req) {
   <meta name="twitter:image"       content="${esc(cardUrl)}" />
   <meta name="twitter:image:alt"   content="${esc(ogTitle)}" />
 
-  <!-- Redirect immediately -->
-  <meta http-equiv="refresh" content="0; url=${esc(appUrl)}" />
+  <!-- JS redirect: runs in real browsers but skipped by OG scrapers (iMessage, WhatsApp, etc.) -->
+  <script>window.location.replace(${JSON.stringify(appUrl)});</script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

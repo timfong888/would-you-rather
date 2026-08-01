@@ -1,6 +1,7 @@
 // Vercel Edge Function — generates a branded PNG share card for a question.
-// Routes: GET /api/card?id=<question-id>&ratio=<9x16|1.91x1>
+// Routes: GET /api/card?id=<question-id>&ratio=<9x16|1.91x1>[&voted=<A|B>]
 // Returns a cached PNG image.
+import React from 'react';
 import { ImageResponse } from '@vercel/og';
 import { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } from './_lib/data.js';
 
