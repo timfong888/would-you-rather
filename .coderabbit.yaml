@@ -7,6 +7,11 @@ reviews:
   poem: false
   auto_review:
     enabled: true
+    # Allow reviews for PR authors without a paid seat (e.g. blocksorg[bot]).
+    # Without this, bot-authored PRs are silently skipped by the GitHub App.
+    # The coderabbit-trigger.yml workflow also posts @coderabbitai review via a
+    # human PAT (CR_TRIGGER_TOKEN) as belt-and-suspenders for all non-draft PRs.
+    enable_free_tier: true
     # CodeRabbit only reviews the repository default branch unless base branches
     # are listed here. This repo's default branch is not `main`, and PRs are opened
     # against both `main` and feature branches, so some are silently skipped.
@@ -15,11 +20,6 @@ reviews:
       - ".*"
     # PRs opened by agent sessions start as drafts; CodeRabbit skips drafts by default.
     drafts: true
-    # Note: CodeRabbit silently skips bot-authored PRs (e.g. blocksorg[bot])
-    # regardless of YAML settings. The coderabbit-bot-prs.yml workflow
-    # works around this by posting @coderabbitai review via a human PAT
-    # (CR_TRIGGER_TOKEN secret). There is no YAML option to override
-    # CodeRabbit's author-eligibility check for bot accounts.
   path_filters:
     # Lockfiles are generated and dominate reviews with transitive-dependency CVE noise.
     - "!**/package-lock.json"
