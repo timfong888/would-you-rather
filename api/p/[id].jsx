@@ -1,8 +1,8 @@
 // Vercel Edge Function — dynamic OG landing page for shared prompt links.
-// Rewrite rule in vercel.json maps /p/:id → /api/p?id=:id.
+// Rewrite rule in vercel.json maps /p/:id → /api/p/:id.
 // Returns an HTML document with full OG + Twitter Card meta tags, then
 // immediately redirects to /game/:id so the recipient can play along.
-import { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } from './_lib/data.js';
+import { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } from '../_lib/data.js';
 
 export const config = { runtime: 'edge' };
 
@@ -20,7 +20,9 @@ function truncate(text, max) {
 
 export default function handler(req) {
   const url = new URL(req.url);
-  const id = url.searchParams.get('id');
+  // Read id from the URL path: /api/p/:id → last path segment
+  const pathParts = url.pathname.split('/');
+  const id = pathParts[pathParts.length - 1];
 
   const question = QUESTIONS.find(q => q.id === id);
   if (!question) {
