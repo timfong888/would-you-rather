@@ -30,7 +30,8 @@ export default function ResultsScreen() {
     };
   }, []);
 
-  const question = getQuestionById(id);
+  const question = getQuestionById(id ?? '');
+  const safeVoted = voted === 'A' || voted === 'B' ? voted : null;
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
 
   if (!question) {
@@ -46,11 +47,11 @@ export default function ResultsScreen() {
 
   const catColor = category?.color ?? colors.primary;
 
-  const votesA = voted === 'A' ? question.votesA + 1 : question.votesA;
-  const votesB = voted === 'B' ? question.votesB + 1 : question.votesB;
+  const votesA = safeVoted === 'A' ? question.votesA + 1 : question.votesA;
+  const votesB = safeVoted === 'B' ? question.votesB + 1 : question.votesB;
   const totalVotes = votesA + votesB;
 
-  const userPickedA = voted === 'A';
+  const userPickedA = safeVoted === 'A';
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
 
@@ -160,7 +161,7 @@ export default function ResultsScreen() {
 
       {/* Result banner */}
       <View style={styles.resultBanner}>
-        {voted ? (
+        {safeVoted ? (
           <>
             <Text style={styles.resultEmoji}>
               {withMajority ? '🎯' : '🔥'}
@@ -170,8 +171,8 @@ export default function ResultsScreen() {
             </Text>
             <Text style={styles.resultSubtitle}>
               {withMajority
-                ? `Most people also chose Option ${voted}`
-                : `Most people chose Option ${voted === 'A' ? 'B' : 'A'} — you're unique!`}
+                ? `Most people also chose Option ${safeVoted}`
+                : `Most people chose Option ${safeVoted === 'A' ? 'B' : 'A'} — you're unique!`}
             </Text>
           </>
         ) : (
@@ -193,7 +194,7 @@ export default function ResultsScreen() {
             text={question.optionA}
             votes={votesA}
             totalVotes={totalVotes}
-            userVoted={voted === 'A'}
+            userVoted={safeVoted === 'A'}
           />
           <View style={styles.voteDivider} />
           <VoteBar
@@ -201,21 +202,21 @@ export default function ResultsScreen() {
             text={question.optionB}
             votes={votesB}
             totalVotes={totalVotes}
-            userVoted={voted === 'B'}
+            userVoted={safeVoted === 'B'}
           />
         </View>
 
-        {voted && (
+        {safeVoted && (
           <View style={[
             styles.yourChoice,
-            { borderColor: voted === 'A' ? colors.optionA : colors.optionB },
+            { borderColor: safeVoted === 'A' ? colors.optionA : colors.optionB },
           ]}>
             <Text style={styles.yourChoiceLabel}>YOUR CHOICE</Text>
             <Text style={[
               styles.yourChoiceOption,
-              { color: voted === 'A' ? colors.optionA : colors.optionB },
+              { color: safeVoted === 'A' ? colors.optionA : colors.optionB },
             ]}>
-              Option {voted} — {voted === 'A' ? question.optionA : question.optionB}
+              Option {safeVoted} — {safeVoted === 'A' ? question.optionA : question.optionB}
             </Text>
           </View>
         )}

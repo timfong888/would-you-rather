@@ -6,8 +6,11 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
@@ -15,25 +18,27 @@ import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
-const BENEFITS = [
-  { icon: '💬', text: '20 exclusive hand-picked dilemmas' },
-  { icon: '📊', text: 'Global real-time voter statistics' },
-  { icon: '♾️', text: 'Permanent library access — own it forever' },
-  { icon: '🚫', text: 'Ad-free category experience' },
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+const BENEFITS: { icon: IoniconsName; text: string }[] = [
+  { icon: 'chatbubbles-outline', text: '20 exclusive hand-picked dilemmas' },
+  { icon: 'stats-chart-outline', text: 'Global real-time voter statistics' },
+  { icon: 'infinite-outline', text: 'Permanent library access — own it forever' },
+  { icon: 'ban-outline', text: 'Ad-free category experience' },
 ];
 
 export default function UnlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { unlock } = useUnlocked();
-  const { styles } = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const { styles, colors } = useThemedStyles(makeStyles);
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);
 
   if (!category) {
     return (
-      <View style={styles.errorContainer}>
+      <View style={[styles.errorContainer, { paddingTop: insets.top + SPACING.lg }]}>
         <Text style={styles.errorText}>Category not found</Text>
         <Pressable onPress={() => router.push('/categories')} style={styles.backButton}>
           <Text style={styles.backButtonText}>Browse Categories</Text>
@@ -42,20 +47,33 @@ export default function UnlockScreen() {
     );
   }
 
+  const teaserQuestions = questions.slice(FREE_TRIAL_COUNT, FREE_TRIAL_COUNT + 3);
+  const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
+
   const handleUnlock = () => {
-    unlock(id as CategoryId);
-    const firstLockedQ = questions[FREE_TRIAL_COUNT];
-    if (firstLockedQ) {
-      router.replace(`/game/${firstLockedQ.id}?cat=${id}&idx=${FREE_TRIAL_COUNT}`);
-    } else {
-      router.back();
-    }
+    // RevenueCat integration point: replace with Purchases.purchasePackage()
+    // Price should bind to Package.storeProduct.priceString (not hardcoded)
+    Alert.alert(
+      'Premium Unlock',
+      `Connect RevenueCat to enable real purchases for "${category.label}" ($2.99).`,
+    );
+  };
+
+  const handleRestorePurchases = () => {
+    // RevenueCat integration point: replace with Purchases.restorePurchases()
+    Alert.alert('Restore Purchases', 'Connect RevenueCat to restore prior purchases.');
   };
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: insets.top + SPACING.sm,
+          paddingBottom: insets.bottom + SPACING.xl,
+        },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       {/* Close Button */}
@@ -65,8 +83,11 @@ export default function UnlockScreen() {
           styles.closeBtn,
           pressed && { opacity: 0.6 },
         ]}
+        hitSlop={12}
+        accessibilityLabel="Close"
+        accessibilityRole="button"
       >
-        <Text style={styles.closeBtnText}>✕</Text>
+        <Ionicons name="close" size={20} color={colors.textSecondary} />
       </Pressable>
 
       {/* Premium Badge */}
@@ -92,7 +113,7 @@ export default function UnlockScreen() {
           {' '}has only just begun.
         </Text>
         <Text style={styles.lossAversion}>
-          {questions.length - 3} dilemmas remain locked. Will you leave them unanswered?
+          {questions.length - FREE_TRIAL_COUNT} dilemmas remain locked. Will you leave them unanswered?
         </Text>
       </View>
 
@@ -101,7 +122,12 @@ export default function UnlockScreen() {
         <Text style={styles.benefitsTitle}>WHAT YOU GET</Text>
         {BENEFITS.map((b) => (
           <View key={b.text} style={styles.benefitRow}>
-            <Text style={styles.benefitIcon}>{b.icon}</Text>
+            <Ionicons
+              name={b.icon}
+              size={20}
+              color={colors.textSecondary}
+              style={styles.benefitIconStyle}
+            />
             <Text style={styles.benefitText}>{b.text}</Text>
           </View>
         ))}
@@ -120,16 +146,20 @@ export default function UnlockScreen() {
           { backgroundColor: category.color },
           pressed && styles.btnPressed,
         ]}
+        accessibilityRole="button"
+        accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
       >
         <Text style={styles.unlockBtnText}>UNLOCK {COPY.dilemmaCount(questions.length)} →</Text>
       </Pressable>
 
       <Pressable
-        onPress={() => {}}
+        onPress={handleRestorePurchases}
         style={({ pressed }) => [
           styles.restoreBtn,
           pressed && { opacity: 0.6 },
         ]}
+        accessibilityRole="button"
+        accessibilityLabel="Restore previous purchases"
       >
         <Text style={styles.restoreBtnText}>Restore Purchases</Text>
       </Pressable>
@@ -139,21 +169,22 @@ export default function UnlockScreen() {
         <Text style={styles.teaserLabel}>WHAT AWAITS</Text>
         <Text style={styles.teaserSubtitle}>A glimpse of what remains locked:</Text>
         <View style={styles.teaserList}>
-          {questions.slice(3, 6).map((q, i) => (
+          {teaserQuestions.map((q, i) => (
             <View key={q.id} style={styles.teaserItem}>
-              <Text style={styles.teaserNum}>{i + 4}.</Text>
+              <Text style={styles.teaserNum}>{FREE_TRIAL_COUNT + i + 1}.</Text>
+              <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
               <Text style={styles.teaserText} numberOfLines={1}>
                 {'••••••••••••••••••••'}
               </Text>
             </View>
           ))}
-          <Text style={styles.teaserMore}>
-            + {questions.length - 6} more dilemmas...
-          </Text>
+          {remainingCount > 0 && (
+            <Text style={styles.teaserMore}>
+              + {remainingCount} more dilemmas...
+            </Text>
+          )}
         </View>
       </View>
-
-      <View style={{ height: SPACING.xl }} />
     </ScrollView>
   );
 }
@@ -165,7 +196,7 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
     },
     content: {
-      padding: SPACING.lg,
+      paddingHorizontal: SPACING.lg,
       gap: SPACING.xl,
       alignItems: 'center',
     },
@@ -175,6 +206,7 @@ function makeStyles(colors: ThemeColors) {
       justifyContent: 'center',
       gap: SPACING.md,
       backgroundColor: colors.background,
+      padding: SPACING.lg,
     },
     errorText: {
       color: colors.textSecondary,
@@ -199,11 +231,6 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
       ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    closeBtnText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.bold,
     },
     badgeContainer: {
       alignItems: 'center',
@@ -285,8 +312,7 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'center',
       gap: SPACING.md,
     },
-    benefitIcon: {
-      fontSize: 20,
+    benefitIconStyle: {
       width: 28,
       textAlign: 'center',
     },
@@ -376,6 +402,7 @@ function makeStyles(colors: ThemeColors) {
       color: colors.textMuted,
       fontSize: FONTS.sizes.sm,
       letterSpacing: 4,
+      flex: 1,
     },
     teaserMore: {
       color: colors.premium,
