@@ -53,7 +53,7 @@ export default function OptionButton({
     >
       <View style={styles.topRow}>
         <View style={[styles.labelBadge, { backgroundColor: selected ? baseColor : `${baseColor}20`, borderWidth: selected ? 0 : 1.5, borderColor: baseColor }]}>
-          <Text style={[styles.labelText, { color: selected ? '#FFFFFF' : baseColor }]}>
+          <Text style={[styles.labelText, { color: selected ? COLORS.textOnColor : baseColor }]}>
             {label}
           </Text>
         </View>

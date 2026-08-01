@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 
 const BENEFITS = [
@@ -112,7 +113,7 @@ export default function UnlockScreen() {
           pressed && styles.btnPressed,
         ]}
       >
-        <Text style={styles.unlockBtnText}>UNLOCK {questions.length} DILEMMAS →</Text>
+        <Text style={styles.unlockBtnText}>UNLOCK {COPY.dilemmaCount(questions.length)} →</Text>
       </Pressable>
 
       <Pressable
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
     }),
   },
   unlockBtnText: {
-    color: '#FFFFFF',
+    color: COLORS.textOnColor,
     fontSize: FONTS.sizes.md,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,

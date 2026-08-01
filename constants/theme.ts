@@ -13,6 +13,7 @@ export const COLORS = {
   text: '#1A1A2E',
   textSecondary: '#5A5A7A',
   textMuted: '#9090A8',
+  textOnColor: '#FFFFFF',
   optionA: '#5C54E8',
   optionALight: '#7A74F0',
   optionB: '#E8316A',
@@ -24,6 +25,8 @@ export const COLORS = {
   premiumBg: '#FFF8E7',
   free: '#1F8C5A',
   freeBg: '#E8F7EF',
+  trialBannerBg: '#F0C5E0',
+  trialBannerText: '#6B1A4A',
 };
 
 export const FONTS = {

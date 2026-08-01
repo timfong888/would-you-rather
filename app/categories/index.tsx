@@ -10,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 
 const FEATURED = CATEGORIES.filter((c) => c.featured);
 const ALL = CATEGORIES;
@@ -31,9 +32,7 @@ export default function CategoriesScreen() {
 
       {/* Trial Banner */}
       <View style={styles.trialBanner}>
-        <Text style={styles.trialBannerText}>
-          Every premium category is free to try — play 3 dilemmas before you unlock
-        </Text>
+        <Text style={styles.trialBannerText}>{COPY.freeTrialBanner}</Text>
       </View>
 
       {/* Featured Section */}
@@ -59,9 +58,9 @@ export default function CategoriesScreen() {
                 <Text style={[styles.featuredName, { color: cat.color }]}>
                   {cat.label.toUpperCase()}
                 </Text>
-                <Text style={styles.featuredCount}>{count} DILEMMAS</Text>
+                <Text style={styles.featuredCount}>{COPY.dilemmaCount(count)}</Text>
                 {cat.tier === 'premium' && (
-                  <Text style={styles.featuredFreeHint}>Free to try — first 3 free</Text>
+                  <Text style={styles.featuredFreeHint}>{COPY.freeTrialHint}</Text>
                 )}
               </Pressable>
             );
@@ -91,9 +90,9 @@ export default function CategoriesScreen() {
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowName}>{cat.label.toUpperCase()}</Text>
-                  <Text style={styles.rowCount}>{count} DILEMMAS</Text>
+                  <Text style={styles.rowCount}>{COPY.dilemmaCount(count)}</Text>
                   {isPremium && (
-                    <Text style={styles.rowFreeHint}>Free to try — first 3 dilemmas free</Text>
+                    <Text style={styles.rowFreeHint}>{COPY.freeTrialHint}</Text>
                   )}
                 </View>
                 <View style={styles.rowRight}>
@@ -148,13 +147,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   trialBanner: {
-    backgroundColor: '#F0C5E0',
+    backgroundColor: COLORS.trialBannerBg,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
   },
   trialBannerText: {
-    color: '#6B1A4A',
+    color: COLORS.trialBannerText,
     fontSize: FONTS.sizes.sm,
     fontWeight: FONTS.weights.medium,
     textAlign: 'center',

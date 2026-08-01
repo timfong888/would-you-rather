@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 
 export default function CategoryScreen() {
@@ -52,7 +53,7 @@ export default function CategoryScreen() {
         <Text style={[styles.heroName, { color: category.color }]}>
           {category.label.toUpperCase()}
         </Text>
-        <Text style={styles.heroCount}>{questions.length} DILEMMAS</Text>
+        <Text style={styles.heroCount}>{COPY.dilemmaCount(questions.length)}</Text>
 
         {isPremium && (
           <View style={styles.trialBanner}>
@@ -224,7 +225,7 @@ const styles = StyleSheet.create({
     }),
   },
   playButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.textOnColor,
     fontSize: FONTS.sizes.md,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,

@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
   upsellCtaText: {
-    color: '#FFFFFF',
+    color: COLORS.textOnColor,
     fontSize: FONTS.sizes.sm,
     fontWeight: FONTS.weights.extrabold,
     letterSpacing: 2,

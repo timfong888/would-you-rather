@@ -9,6 +9,7 @@ import {
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import type { CategoryDef } from '@/constants/questions';
 import { FREE_TRIAL_COUNT } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 
 interface CategoryCardProps {
   category: CategoryDef;
@@ -39,7 +40,7 @@ export default function CategoryCard({
         </View>
         <View style={styles.rowContent}>
           <Text style={styles.rowLabel}>{category.label.toUpperCase()}</Text>
-          <Text style={styles.rowCount}>{questionCount} DILEMMAS</Text>
+          <Text style={styles.rowCount}>{COPY.dilemmaCount(questionCount)}</Text>
         </View>
         <View style={styles.rowRight}>
           {isPremium ? (
@@ -70,7 +71,7 @@ export default function CategoryCard({
       <Text style={[styles.gridLabel, { color: category.color }]}>
         {category.label.toUpperCase()}
       </Text>
-      <Text style={styles.gridCount}>{questionCount} DILEMMAS</Text>
+      <Text style={styles.gridCount}>{COPY.dilemmaCount(questionCount)}</Text>
       {isPremium ? (
         <View style={styles.premiumPill}>
           <Text style={styles.premiumPillText}>👑 PREMIUM</Text>
