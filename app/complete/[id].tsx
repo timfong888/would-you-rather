@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,14 +18,13 @@ import {
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
   const { isUnlocked } = useUnlocked();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
 
   const category = getCategoryById(id as CategoryId);

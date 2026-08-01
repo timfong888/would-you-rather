@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   Pressable,
   Text,
@@ -7,7 +7,7 @@ import {
   Platform,
 } from 'react-native';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 interface OptionButtonProps {
   label: 'A' | 'B';
@@ -30,8 +30,7 @@ export default function OptionButton({
   votesB = 0,
   showConsensus = false,
 }: OptionButtonProps) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles, colors } = useThemedStyles(makeStyles);
 
   const isA = label === 'A';
   const baseColor = isA ? colors.optionA : colors.optionB;

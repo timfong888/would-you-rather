@@ -56,3 +56,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme() {
   return useContext(ThemeContext);
 }
+
+export function useThemedStyles<T>(makeStyles: (colors: ThemeColors) => T): { styles: T; colors: ThemeColors } {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  return { styles, colors };
+}

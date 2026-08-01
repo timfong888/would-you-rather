@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { QUESTIONS, CATEGORIES, getCategoryQuestions } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
 const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
@@ -19,8 +19,7 @@ const TOTAL_QUESTIONS = QUESTIONS.length;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles } = useThemedStyles(makeStyles);
 
   const handleRandomQuestion = () => {
     const freeCats = CATEGORIES.filter((c) => c.tier === 'free');

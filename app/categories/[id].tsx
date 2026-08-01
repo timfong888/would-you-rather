@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,13 @@ import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { isUnlocked } = useUnlocked();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles, colors } = useThemedStyles(makeStyles);
 
   const category = CATEGORIES.find((c) => c.id === id);
 

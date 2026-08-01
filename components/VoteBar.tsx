@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 interface VoteBarProps {
   label: 'A' | 'B';
@@ -20,8 +20,7 @@ export default function VoteBar({
   userVoted,
   animate = true,
 }: VoteBarProps) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles, colors } = useThemedStyles(makeStyles);
 
   const isA = label === 'A';
   const color = isA ? colors.optionA : colors.optionB;

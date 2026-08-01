@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/const
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 const BENEFITS = [
   { icon: '💬', text: '20 exclusive hand-picked dilemmas' },
@@ -26,8 +26,7 @@ export default function UnlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { unlock } = useUnlocked();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles } = useThemedStyles(makeStyles);
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);

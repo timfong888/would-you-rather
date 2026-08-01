@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import type { Question } from '@/constants/questions';
 import { CATEGORIES } from '@/constants/questions';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 interface QuestionCardProps {
   question: Question;
@@ -13,8 +13,7 @@ interface QuestionCardProps {
 
 export default function QuestionCard({ question, compact = false }: QuestionCardProps) {
   const router = useRouter();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles, colors } = useThemedStyles(makeStyles);
   const category = CATEGORIES.find((c) => c.id === question.category);
 
   return (

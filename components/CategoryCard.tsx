@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   Pressable,
   Text,
@@ -10,7 +10,7 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import type { CategoryDef } from '@/constants/questions';
 import { FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 interface CategoryCardProps {
   category: CategoryDef;
@@ -25,8 +25,7 @@ export default function CategoryCard({
   onPress,
   variant = 'grid',
 }: CategoryCardProps) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { styles } = useThemedStyles(makeStyles);
   const isPremium = category.tier === 'premium';
 
   if (variant === 'row') {
