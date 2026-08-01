@@ -1,0 +1,34 @@
+name: Trigger CodeRabbit Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize]
+
+jobs:
+  trigger-coderabbit:
+    # Posts @coderabbitai review via a human PAT on every non-draft PR.
+    # CodeRabbit ignores commands from github-actions[bot] to prevent loops,
+    # so CR_TRIGGER_TOKEN must be a classic PAT (repo scope) from a human
+    # collaborator — set it in Settings → Secrets → Actions.
+    # Dependabot is excluded since its PRs are for dependency bumps only.
+    # This replaces the bot-only coderabbit-bot-prs.yml trigger, which covered
+    # blocksorg[bot] PRs but left human-authored PRs relying on CodeRabbit's
+    # native auto-review (which is less reliable). Posting @coderabbitai review
+    # explicitly ensures consistent coverage across all PR authors, matching
+    # Sourcery's behaviour.
+    if: |
+      !github.event.pull_request.draft &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post @coderabbitai review trigger
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CR_TRIGGER_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: '@coderabbitai review'
+            });

@@ -105,6 +105,12 @@ export const CATEGORIES: CategoryDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Quick-play category groups
+// ---------------------------------------------------------------------------
+
+export const FAMILY_FRIENDLY: CategoryId[] = ['moral-compass', 'social-blunders', 'career-climber', 'tech-dystopia'];
+export const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-traveler', 'wildest-dreams', 'high-life'];
+
 // Questions
 // ---------------------------------------------------------------------------
 
