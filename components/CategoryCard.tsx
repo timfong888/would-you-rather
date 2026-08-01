@@ -6,10 +6,11 @@ import {
   View,
   Platform,
 } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import type { CategoryDef } from '@/constants/questions';
 import { FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 interface CategoryCardProps {
   category: CategoryDef;
@@ -24,6 +25,7 @@ export default function CategoryCard({
   onPress,
   variant = 'grid',
 }: CategoryCardProps) {
+  const { styles } = useThemedStyles(makeStyles);
   const isPremium = category.tier === 'premium';
 
   if (variant === 'row') {
@@ -85,122 +87,119 @@ export default function CategoryCard({
   );
 }
 
-const styles = StyleSheet.create({
-  // Grid variant
-  gridContainer: {
-    borderWidth: 1.5,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-    gap: SPACING.xs,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-      },
-    }),
-  },
-  gridEmoji: {
-    fontSize: 28,
-  },
-  gridLabel: {
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.extrabold,
-    textAlign: 'center',
-    letterSpacing: 1,
-  },
-  gridCount: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-  },
-
-  // Row variant
-  rowContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    gap: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-      },
-    }),
-  },
-  rowIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  rowEmoji: {
-    fontSize: 26,
-  },
-  rowContent: {
-    flex: 1,
-    gap: 2,
-  },
-  rowLabel: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 1,
-  },
-  rowCount: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    letterSpacing: 0.5,
-  },
-  rowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    flexShrink: 0,
-  },
-  chevron: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xl,
-    fontWeight: FONTS.weights.bold,
-  },
-
-  // Shared
-  pressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.97 }],
-  },
-  premiumPill: {
-    backgroundColor: COLORS.premiumBg,
-    borderWidth: 1,
-    borderColor: COLORS.premium,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-  },
-  premiumPillText: {
-    color: COLORS.premium,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 0.5,
-  },
-  freePill: {
-    backgroundColor: COLORS.freeBg,
-    borderWidth: 1,
-    borderColor: COLORS.free,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-  },
-  freePillText: {
-    color: COLORS.free,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 0.5,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    gridContainer: {
+      borderWidth: 1.5,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      alignItems: 'center',
+      gap: SPACING.xs,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+        },
+      }),
+    },
+    gridEmoji: {
+      fontSize: 28,
+    },
+    gridLabel: {
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      textAlign: 'center',
+      letterSpacing: 1,
+    },
+    gridCount: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+    },
+    rowContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+        },
+      }),
+    },
+    rowIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: RADIUS.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    rowEmoji: {
+      fontSize: 26,
+    },
+    rowContent: {
+      flex: 1,
+      gap: 2,
+    },
+    rowLabel: {
+      color: colors.text,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
+    },
+    rowCount: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      letterSpacing: 0.5,
+    },
+    rowRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.xs,
+      flexShrink: 0,
+    },
+    chevron: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xl,
+      fontWeight: FONTS.weights.bold,
+    },
+    pressed: {
+      opacity: 0.75,
+      transform: [{ scale: 0.97 }],
+    },
+    premiumPill: {
+      backgroundColor: colors.premiumBg,
+      borderWidth: 1,
+      borderColor: colors.premium,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 2,
+    },
+    premiumPillText: {
+      color: colors.premium,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 0.5,
+    },
+    freePill: {
+      backgroundColor: colors.freeBg,
+      borderWidth: 1,
+      borderColor: colors.free,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 2,
+    },
+    freePillText: {
+      color: colors.free,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 0.5,
+    },
+  });
+}

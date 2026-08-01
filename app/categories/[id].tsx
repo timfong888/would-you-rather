@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,23 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
-import { MOCK_ANSWERED } from '@/constants/mockData';
+import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
+import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
+import { useUnlocked } from '@/contexts/UnlockedContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { answered, refresh } = useAnsweredQuestions();
+  const { isUnlocked } = useUnlocked();
+  const { styles, colors } = useThemedStyles(makeStyles);
+
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const category = CATEGORIES.find((c) => c.id === id);
 
@@ -31,11 +39,13 @@ export default function CategoryScreen() {
   }
 
   const questions = getCategoryQuestions(category.id);
-  const answered = MOCK_ANSWERED[category.id as CategoryId] ?? 0;
-  const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answered;
 
   const isPremium = category.tier === 'premium';
-  const freeCount = isPremium ? FREE_TRIAL_COUNT : questions.length;
+  const categoryUnlocked = isUnlocked(category.id);
+  const freeCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
+
+  const answeredCount = questions.filter((q) => answered[q.id] !== undefined).length;
+  const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answeredCount;
 
   const handlePlay = (startIdx = 0) => {
     if (questions.length === 0) return;
@@ -57,10 +67,38 @@ export default function CategoryScreen() {
         </Text>
         <Text style={styles.heroCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
 
-        {isPremium && (
+        {answeredCount > 0 && (
+          <>
+            <View style={styles.progressPill}>
+              <Text style={styles.progressPillText}>
+                ✓ {answeredCount} OF {questions.length} ANSWERED
+              </Text>
+            </View>
+            <View style={styles.heroProgressTrack}>
+              <View
+                style={[
+                  styles.heroProgressFill,
+                  {
+                    backgroundColor: category.color,
+                    width: `${(answeredCount / questions.length) * 100}%` as any,
+                  },
+                ]}
+              />
+            </View>
+          </>
+        )}
+
+        {isPremium && !categoryUnlocked && (
           <View style={styles.trialBanner}>
             <Text style={styles.trialBannerText}>
               👑 Premium — first {FREE_TRIAL_COUNT} questions are free
+            </Text>
+          </View>
+        )}
+        {isPremium && categoryUnlocked && (
+          <View style={[styles.trialBanner, styles.unlockedBanner]}>
+            <Text style={[styles.trialBannerText, styles.unlockedBannerText]}>
+              🔓 Unlocked — all {questions.length} questions available
             </Text>
           </View>
         )}
@@ -80,7 +118,9 @@ export default function CategoryScreen() {
       {/* Questions List */}
       <View style={styles.list}>
         {questions.map((q, idx) => {
-          const isLocked = isPremium && idx >= FREE_TRIAL_COUNT;
+          const isLocked = isPremium && !categoryUnlocked && idx >= FREE_TRIAL_COUNT;
+          const answeredChoice = answered[q.id];
+          const isAnswered = answeredChoice !== undefined;
 
           return (
             <Pressable
@@ -95,13 +135,20 @@ export default function CategoryScreen() {
               style={({ pressed }) => [
                 styles.questionRow,
                 isLocked && styles.questionRowLocked,
+                isAnswered && styles.questionRowAnswered,
                 pressed && { opacity: 0.8 },
               ]}
             >
               <View style={styles.questionRowLeft}>
-                <Text style={[styles.questionNum, { color: isLocked ? COLORS.textMuted : category.color }]}>
-                  {isLocked ? '🔒' : `${idx + 1}`}
-                </Text>
+                {isLocked ? (
+                  <Text style={[styles.questionNum, { color: colors.textMuted }]}>🔒</Text>
+                ) : isAnswered ? (
+                  <View style={[styles.answeredBadge, { backgroundColor: category.color }]}>
+                    <Text style={styles.answeredBadgeText}>✓</Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.questionNum, { color: category.color }]}>{idx + 1}</Text>
+                )}
               </View>
               <View style={styles.questionRowContent}>
                 <Text style={[styles.questionOptionA, isLocked && styles.textLockedBlur]} numberOfLines={1}>
@@ -111,9 +158,8 @@ export default function CategoryScreen() {
                 <Text style={[styles.questionOptionB, isLocked && styles.textLockedBlur]} numberOfLines={1}>
                   {isLocked ? '••••••••••••••••' : q.optionB}
                 </Text>
-
               </View>
-              {!isLocked && (
+              {!isLocked && !isAnswered && (
                 <Text style={styles.questionChevron}>›</Text>
               )}
               {isLocked && (
@@ -121,12 +167,19 @@ export default function CategoryScreen() {
                   <Text style={styles.unlockHintText}>Unlock</Text>
                 </View>
               )}
+              {isAnswered && (
+                <View style={[styles.answeredTag, { borderColor: category.color }]}>
+                  <Text style={[styles.answeredTagText, { color: category.color }]}>
+                    {answeredChoice}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           );
         })}
       </View>
 
-      {isPremium && (
+      {isPremium && !categoryUnlocked && (
         <Pressable
           onPress={() => router.push(`/unlock/${category.id}`)}
           style={({ pressed }) => [
@@ -148,204 +201,265 @@ export default function CategoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.lg,
-    gap: SPACING.lg,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.md,
-    backgroundColor: COLORS.background,
-  },
-  errorText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.lg,
-  },
-  backButton: {
-    backgroundColor: COLORS.magenta,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-  },
-  backButtonText: {
-    color: COLORS.text,
-    fontWeight: FONTS.weights.bold,
-  },
-  hero: {
-    borderWidth: 1,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  heroEmoji: {
-    fontSize: 48,
-  },
-  heroName: {
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 3,
-    textAlign: 'center',
-  },
-  heroCount: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    letterSpacing: 1.5,
-  },
-  trialBanner: {
-    backgroundColor: COLORS.premiumBg,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.premium,
-    marginTop: SPACING.xs,
-  },
-  trialBannerText: {
-    color: COLORS.premium,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.semibold,
-    textAlign: 'center',
-  },
-  playButton: {
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.xxl,
-    paddingVertical: SPACING.md,
-    marginTop: SPACING.sm,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'opacity 0.15s ease',
-      },
-    }),
-  },
-  playButtonText: {
-    color: COLORS.textOnColor,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 2,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.97 }],
-  },
-  list: {
-    gap: SPACING.sm,
-  },
-  questionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    gap: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-      },
-    }),
-  },
-  questionRowLocked: {
-    opacity: 0.6,
-  },
-  questionRowLeft: {
-    width: 28,
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  questionNum: {
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 0.5,
-  },
-  questionRowContent: {
-    flex: 1,
-    gap: 2,
-  },
-  questionOptionA: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.medium,
-    lineHeight: 18,
-  },
-  questionOr: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontStyle: 'italic',
-  },
-  questionOptionB: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.medium,
-    lineHeight: 18,
-  },
-  textLockedBlur: {
-    color: COLORS.textMuted,
-    letterSpacing: 2,
-  },
-  questionChevron: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xl,
-    flexShrink: 0,
-  },
-  unlockHint: {
-    backgroundColor: COLORS.premiumBg,
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: COLORS.premium,
-    flexShrink: 0,
-  },
-  unlockHintText: {
-    color: COLORS.premium,
-    fontSize: 10,
-    fontWeight: FONTS.weights.bold,
-  },
-  unlockCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.premiumBg,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    gap: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.premium,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-      },
-    }),
-  },
-  unlockCtaEmoji: {
-    fontSize: 24,
-  },
-  unlockCtaText: {
-    flex: 1,
-    gap: 2,
-  },
-  unlockCtaTitle: {
-    color: COLORS.premium,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.bold,
-  },
-  unlockCtaSub: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-  },
-  unlockCtaArrow: {
-    color: COLORS.premium,
-    fontSize: FONTS.sizes.xl,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: SPACING.lg,
+      gap: SPACING.lg,
+    },
+    errorContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.md,
+      backgroundColor: colors.background,
+    },
+    errorText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.lg,
+    },
+    backButton: {
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+    },
+    backButtonText: {
+      color: colors.textOnColor,
+      fontWeight: FONTS.weights.bold,
+    },
+    hero: {
+      borderWidth: 1,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.xl,
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    heroEmoji: {
+      fontSize: 48,
+    },
+    heroName: {
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 3,
+      textAlign: 'center',
+    },
+    heroCount: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      letterSpacing: 1.5,
+    },
+    progressPill: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    progressPillText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 1.5,
+    },
+    heroProgressTrack: {
+      width: '100%',
+      height: 4,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      overflow: 'hidden',
+    },
+    heroProgressFill: {
+      height: '100%',
+      borderRadius: RADIUS.full,
+    },
+    trialBanner: {
+      backgroundColor: colors.premiumBg,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderWidth: 1,
+      borderColor: colors.premium,
+      marginTop: SPACING.xs,
+    },
+    trialBannerText: {
+      color: colors.premium,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.semibold,
+      textAlign: 'center',
+    },
+    unlockedBanner: {
+      backgroundColor: colors.freeBg,
+      borderColor: colors.free,
+    },
+    unlockedBannerText: {
+      color: colors.free,
+    },
+    playButton: {
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.xxl,
+      paddingVertical: SPACING.md,
+      marginTop: SPACING.sm,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'opacity 0.15s ease',
+        },
+      }),
+    },
+    playButtonText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    buttonPressed: {
+      opacity: 0.8,
+      transform: [{ scale: 0.97 }],
+    },
+    list: {
+      gap: SPACING.sm,
+    },
+    questionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        },
+      }),
+    },
+    questionRowLocked: {
+      opacity: 0.6,
+    },
+    questionRowAnswered: {
+      opacity: 0.75,
+    },
+    answeredBadge: {
+      width: 22,
+      height: 22,
+      borderRadius: RADIUS.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    answeredBadgeText: {
+      color: colors.textOnColor,
+      fontSize: 11,
+      fontWeight: FONTS.weights.extrabold,
+    },
+    answeredTag: {
+      borderWidth: 1,
+      borderRadius: RADIUS.sm,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      flexShrink: 0,
+    },
+    answeredTagText: {
+      fontSize: 10,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 0.5,
+    },
+    questionRowLeft: {
+      width: 28,
+      alignItems: 'center',
+      flexShrink: 0,
+    },
+    questionNum: {
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 0.5,
+    },
+    questionRowContent: {
+      flex: 1,
+      gap: 2,
+    },
+    questionOptionA: {
+      color: colors.text,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+      lineHeight: 18,
+    },
+    questionOr: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontStyle: 'italic',
+    },
+    questionOptionB: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+      lineHeight: 18,
+    },
+    textLockedBlur: {
+      color: colors.textMuted,
+      letterSpacing: 2,
+    },
+    questionChevron: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xl,
+      flexShrink: 0,
+    },
+    unlockHint: {
+      backgroundColor: colors.premiumBg,
+      borderRadius: RADIUS.sm,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      borderWidth: 1,
+      borderColor: colors.premium,
+      flexShrink: 0,
+    },
+    unlockHintText: {
+      color: colors.premium,
+      fontSize: 10,
+      fontWeight: FONTS.weights.bold,
+    },
+    unlockCta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.premiumBg,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.premium,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        },
+      }),
+    },
+    unlockCtaEmoji: {
+      fontSize: 24,
+    },
+    unlockCtaText: {
+      flex: 1,
+      gap: 2,
+    },
+    unlockCtaTitle: {
+      color: colors.premium,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    unlockCtaSub: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+    },
+    unlockCtaArrow: {
+      color: colors.premium,
+      fontSize: FONTS.sizes.xl,
+    },
+  });
+}
