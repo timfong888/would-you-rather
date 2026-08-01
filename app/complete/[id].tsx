@@ -17,10 +17,12 @@ import {
   FREE_TRIAL_COUNT,
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
+  const { isUnlocked } = useUnlocked();
   const anim = useRef(new Animated.Value(0)).current;
 
   const category = getCategoryById(id as CategoryId);
@@ -47,9 +49,10 @@ export default function CompleteScreen() {
   }
 
   const catColor = category.color;
-  const completedCount = category.tier === 'premium' ? FREE_TRIAL_COUNT : questions.length;
-  const remaining = questions.length - completedCount;
+  const categoryUnlocked = isUnlocked(id as CategoryId);
   const isPremium = category.tier === 'premium';
+  const completedCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
+  const remaining = questions.length - completedCount;
 
   // Compute final question results
   const votesA = lastQuestion ? (voted === 'A' ? lastQuestion.votesA + 1 : lastQuestion.votesA) : 0;

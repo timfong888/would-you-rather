@@ -13,11 +13,13 @@ import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { answered, refresh } = useAnsweredQuestions();
+  const { isUnlocked } = useUnlocked();
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
@@ -37,7 +39,8 @@ export default function CategoryScreen() {
   const questions = getCategoryQuestions(category.id);
 
   const isPremium = category.tier === 'premium';
-  const freeCount = isPremium ? FREE_TRIAL_COUNT : questions.length;
+  const categoryUnlocked = isUnlocked(category.id);
+  const freeCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
 
   const answeredCount = questions.filter((q) => answered[q.id] !== undefined).length;
 
@@ -82,10 +85,17 @@ export default function CategoryScreen() {
           </>
         )}
 
-        {isPremium && (
+        {isPremium && !categoryUnlocked && (
           <View style={styles.trialBanner}>
             <Text style={styles.trialBannerText}>
               👑 Premium — first {FREE_TRIAL_COUNT} questions are free
+            </Text>
+          </View>
+        )}
+        {isPremium && categoryUnlocked && (
+          <View style={[styles.trialBanner, styles.unlockedBanner]}>
+            <Text style={[styles.trialBannerText, styles.unlockedBannerText]}>
+              🔓 Unlocked — all {questions.length} questions available
             </Text>
           </View>
         )}
@@ -105,7 +115,7 @@ export default function CategoryScreen() {
       {/* Questions List */}
       <View style={styles.list}>
         {questions.map((q, idx) => {
-          const isLocked = isPremium && idx >= FREE_TRIAL_COUNT;
+          const isLocked = isPremium && !categoryUnlocked && idx >= FREE_TRIAL_COUNT;
           const answeredChoice = answered[q.id];
           const isAnswered = answeredChoice !== undefined;
 
@@ -166,7 +176,7 @@ export default function CategoryScreen() {
         })}
       </View>
 
-      {isPremium && (
+      {isPremium && !categoryUnlocked && (
         <Pressable
           onPress={() => router.push(`/unlock/${category.id}`)}
           style={({ pressed }) => [
@@ -278,6 +288,13 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.sm,
     fontWeight: FONTS.weights.semibold,
     textAlign: 'center',
+  },
+  unlockedBanner: {
+    backgroundColor: COLORS.freeBg,
+    borderColor: COLORS.free,
+  },
+  unlockedBannerText: {
+    color: COLORS.free,
   },
   playButton: {
     borderRadius: RADIUS.full,

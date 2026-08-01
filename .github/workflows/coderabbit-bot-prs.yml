@@ -6,8 +6,10 @@ on:
 
 jobs:
   trigger-coderabbit:
-    # CodeRabbit silently skips PRs authored by bot accounts (author eligibility).
-    # This workflow posts @coderabbitai review as a comment to manually trigger it.
+    # CodeRabbit ignores @coderabbitai commands posted by bot accounts (github-actions[bot],
+    # etc.) to prevent infinite bot loops. The comment must come from a human user with
+    # write access. CR_TRIGGER_TOKEN must be a PAT (classic, repo scope) belonging to a
+    # human collaborator — NOT the default GITHUB_TOKEN.
     # Restricted to blocksorg[bot] to avoid firing on Dependabot or other bots.
     # Draft PRs are excluded on `opened`; ready_for_review fires only on draft→ready.
     if: |
@@ -20,6 +22,9 @@ jobs:
       - name: Post @coderabbitai review trigger
         uses: actions/github-script@v7
         with:
+          # Use a human-owned PAT so CodeRabbit accepts the command.
+          # Set CR_TRIGGER_TOKEN in repo Settings → Secrets → Actions.
+          github-token: ${{ secrets.CR_TRIGGER_TOKEN }}
           script: |
             await github.rest.issues.createComment({
               owner: context.repo.owner,
