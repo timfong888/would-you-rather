@@ -1,4 +1,4 @@
-export const COLORS = {
+export const LIGHT_COLORS = {
   background: '#F5E6F0',
   surface: '#FFFFFF',
   surfaceLight: '#EDD5E8',
@@ -28,6 +28,40 @@ export const COLORS = {
   trialBannerBg: '#F0C5E0',
   trialBannerText: '#6B1A4A',
 };
+
+export const DARK_COLORS = {
+  background: '#12121F',
+  surface: '#1E1E32',
+  surfaceLight: '#2A2A45',
+  primary: '#7A74F0',
+  primaryLight: '#9B96F5',
+  secondary: '#F05585',
+  accent: '#4ECDC4',
+  magenta: '#E055A3',
+  magentaLight: '#F07ABA',
+  gold: '#DFC26A',
+  goldLight: '#E8D08A',
+  text: '#F0F0FF',
+  textSecondary: '#B0B0CC',
+  textMuted: '#7070A0',
+  textOnColor: '#FFFFFF',
+  optionA: '#7A74F0',
+  optionALight: '#9B96F5',
+  optionB: '#F05585',
+  optionBLight: '#F585A5',
+  border: '#2E2E50',
+  success: '#3DBF82',
+  warning: '#DFC26A',
+  premium: '#DFC26A',
+  premiumBg: '#2A2000',
+  free: '#3DBF82',
+  freeBg: '#0A2018',
+  trialBannerBg: '#2A0A20',
+  trialBannerText: '#E090C8',
+};
+
+// Keep COLORS as the light palette for backwards compatibility
+export const COLORS = LIGHT_COLORS;
 
 export const FONTS = {
   sizes: {
@@ -65,3 +99,5 @@ export const RADIUS = {
   xl: 24,
   full: 9999,
 };
+
+export type ThemeColors = typeof LIGHT_COLORS;

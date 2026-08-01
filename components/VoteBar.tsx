@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface VoteBarProps {
   label: 'A' | 'B';
@@ -19,8 +20,11 @@ export default function VoteBar({
   userVoted,
   animate = true,
 }: VoteBarProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const isA = label === 'A';
-  const color = isA ? COLORS.optionA : COLORS.optionB;
+  const color = isA ? colors.optionA : colors.optionB;
   const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
   const widthAnim = useRef(new Animated.Value(0)).current;
 
@@ -73,59 +77,61 @@ export default function VoteBar({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: SPACING.sm,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: SPACING.sm,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    flex: 1,
-  },
-  badge: {
-    width: 28,
-    height: 28,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  badgeText: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.bold,
-  },
-  optionText: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.medium,
-    flex: 1,
-    lineHeight: 20,
-  },
-  percentage: {
-    fontSize: FONTS.sizes.xl,
-    fontWeight: FONTS.weights.extrabold,
-    flexShrink: 0,
-  },
-  barTrack: {
-    height: 10,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-  },
-  barFill: {
-    height: '100%',
-    borderRadius: RADIUS.full,
-  },
-  voteCount: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      gap: SPACING.sm,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: SPACING.sm,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      flex: 1,
+    },
+    badge: {
+      width: 28,
+      height: 28,
+      borderRadius: RADIUS.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    badgeText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.bold,
+    },
+    optionText: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+      flex: 1,
+      lineHeight: 20,
+    },
+    percentage: {
+      fontSize: FONTS.sizes.xl,
+      fontWeight: FONTS.weights.extrabold,
+      flexShrink: 0,
+    },
+    barTrack: {
+      height: 10,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      overflow: 'hidden',
+    },
+    barFill: {
+      height: '100%',
+      borderRadius: RADIUS.full,
+    },
+    voteCount: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+    },
+  });
+}

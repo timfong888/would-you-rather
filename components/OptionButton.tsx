@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Pressable,
   Text,
@@ -6,7 +6,8 @@ import {
   View,
   Platform,
 } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface OptionButtonProps {
   label: 'A' | 'B';
@@ -29,9 +30,11 @@ export default function OptionButton({
   votesB = 0,
   showConsensus = false,
 }: OptionButtonProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const isA = label === 'A';
-  const baseColor = isA ? COLORS.optionA : COLORS.optionB;
-  const lightColor = isA ? COLORS.optionALight : COLORS.optionBLight;
+  const baseColor = isA ? colors.optionA : colors.optionB;
 
   const totalVotes = votesA + votesB;
   const percentage = totalVotes > 0
@@ -45,15 +48,15 @@ export default function OptionButton({
       style={({ pressed }) => [
         styles.container,
         {
-          borderColor: selected ? baseColor : COLORS.border,
-          backgroundColor: selected ? `${baseColor}15` : COLORS.surface,
+          borderColor: selected ? baseColor : colors.border,
+          backgroundColor: selected ? `${baseColor}15` : colors.surface,
           transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         },
       ]}
     >
       <View style={styles.topRow}>
         <View style={[styles.labelBadge, { backgroundColor: selected ? baseColor : `${baseColor}20`, borderWidth: selected ? 0 : 1.5, borderColor: baseColor }]}>
-          <Text style={[styles.labelText, { color: selected ? COLORS.textOnColor : baseColor }]}>
+          <Text style={[styles.labelText, { color: selected ? colors.textOnColor : baseColor }]}>
             {label}
           </Text>
         </View>
@@ -72,7 +75,7 @@ export default function OptionButton({
               ]}
             />
           </View>
-          <Text style={[styles.consensusPct, { color: selected ? baseColor : COLORS.textMuted }]}>
+          <Text style={[styles.consensusPct, { color: selected ? baseColor : colors.textMuted }]}>
             {percentage}%
           </Text>
           <Text style={styles.consensusLabel}>VOTER CONSENSUS</Text>
@@ -86,80 +89,82 @@ export default function OptionButton({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderWidth: 2,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    gap: SPACING.sm,
-    overflow: 'hidden',
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-      },
-    }),
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  labelBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  labelText: {
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.extrabold,
-  },
-  optionText: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.medium,
-    lineHeight: 22,
-  },
-  consensusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginTop: 2,
-  },
-  consensusBarTrack: {
-    flex: 1,
-    height: 6,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-  },
-  consensusBarFill: {
-    height: '100%',
-    borderRadius: RADIUS.full,
-  },
-  consensusPct: {
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    minWidth: 32,
-    textAlign: 'right',
-  },
-  consensusLabel: {
-    color: COLORS.textMuted,
-    fontSize: 9,
-    fontWeight: FONTS.weights.semibold,
-    letterSpacing: 0.8,
-  },
-  selectedBar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    borderTopLeftRadius: RADIUS.lg,
-    borderBottomLeftRadius: RADIUS.lg,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      borderWidth: 2,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      gap: SPACING.sm,
+      overflow: 'hidden',
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+        },
+      }),
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+    },
+    labelBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: RADIUS.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    labelText: {
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.extrabold,
+    },
+    optionText: {
+      flex: 1,
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+      lineHeight: 22,
+    },
+    consensusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      marginTop: 2,
+    },
+    consensusBarTrack: {
+      flex: 1,
+      height: 6,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      overflow: 'hidden',
+    },
+    consensusBarFill: {
+      height: '100%',
+      borderRadius: RADIUS.full,
+    },
+    consensusPct: {
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      minWidth: 32,
+      textAlign: 'right',
+    },
+    consensusLabel: {
+      color: colors.textMuted,
+      fontSize: 9,
+      fontWeight: FONTS.weights.semibold,
+      letterSpacing: 0.8,
+    },
+    selectedBar: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 4,
+      borderTopLeftRadius: RADIUS.lg,
+      borderBottomLeftRadius: RADIUS.lg,
+    },
+  });
+}
