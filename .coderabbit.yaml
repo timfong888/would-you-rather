@@ -1,27 +1,2 @@
-# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-language: en-US
 reviews:
-  profile: chill
-  high_level_summary: true
-  review_status: true
-  poem: false
-  auto_review:
-    enabled: true
-    # CodeRabbit only reviews the repository default branch unless base branches
-    # are listed here. This repo's default branch is not `main`, and PRs are opened
-    # against both `main` and feature branches, so some are silently skipped.
-    # `.*` opts every base branch in.
-    base_branches:
-      - ".*"
-    # PRs opened by agent sessions start as drafts; CodeRabbit skips drafts by default.
-    drafts: true
-    # Allow reviews for PR authors without a paid seat (e.g. blocksorg[bot]).
-    # Without this, bot-authored PRs are silently skipped even when all other
-    # eligibility criteria pass (base branch, draft status, repo access).
-    enable_free_tier: true
-  path_filters:
-    # Lockfiles are generated and dominate reviews with transitive-dependency CVE noise.
-    - "!**/package-lock.json"
-    - "!dist/**"
-chat:
-  auto_reply: true
+  review_status: false
