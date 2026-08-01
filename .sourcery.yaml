@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://docs.sourcery.ai/resources/sourcery_yaml_schema.json
+ignore:
+  paths:
+    - "**/package-lock.json"
+    - "dist/**"
+    - "node_modules/**"
+    - "**/*.lock"
+
+rule_settings:
+  enable:
+    - default
+
+coding_assistant:
+  project_description: |
+    A "Would You Rather" mobile app built with React Native / Expo (SDK 51) and TypeScript.
+    Uses expo-router for file-based navigation and targets iOS, Android, and web (via Vercel).
+    Bot-authored PRs are created by blocksorg[bot] via the Blocks AI agent platform.
+    Focus reviews on TypeScript correctness, React/React Native patterns, and component
+    structure. Ignore lockfiles (package-lock.json) and generated build output.
