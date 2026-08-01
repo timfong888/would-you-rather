@@ -9,28 +9,33 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 
-const BENEFITS = [
-  { icon: '💬', text: '20 exclusive hand-picked dilemmas' },
-  { icon: '📊', text: 'Global real-time voter statistics' },
-  { icon: '♾️', text: 'Permanent library access — own it forever' },
-  { icon: '🚫', text: 'Ad-free category experience' },
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+const BENEFITS: { icon: IoniconsName; text: string }[] = [
+  { icon: 'chatbubbles-outline', text: '20 exclusive hand-picked dilemmas' },
+  { icon: 'stats-chart-outline', text: 'Global real-time voter statistics' },
+  { icon: 'infinite-outline', text: 'Permanent library access — own it forever' },
+  { icon: 'ban-outline', text: 'Ad-free category experience' },
 ];
 
 export default function UnlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);
 
   if (!category) {
     return (
-      <View style={styles.errorContainer}>
+      <View style={[styles.errorContainer, { paddingTop: insets.top + SPACING.lg }]}>
         <Text style={styles.errorText}>Category not found</Text>
         <Pressable onPress={() => router.push('/categories')} style={styles.backButton}>
           <Text style={styles.backButtonText}>Browse Categories</Text>
@@ -43,18 +48,29 @@ export default function UnlockScreen() {
   const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
 
   const handleUnlock = () => {
-    // In production this triggers an IAP flow (RevenueCat / App Store)
-    // For web MVP: show confirmation message
+    // RevenueCat integration point: replace with Purchases.purchasePackage()
+    // Price should bind to Package.storeProduct.priceString (not hardcoded)
     Alert.alert(
       'Premium Unlock',
-      `Premium unlock for "${category.label}" would trigger IAP ($2.99). Connect RevenueCat to enable real purchases.`,
+      `Connect RevenueCat to enable real purchases for "${category.label}" ($2.99).`,
     );
+  };
+
+  const handleRestorePurchases = () => {
+    // RevenueCat integration point: replace with Purchases.restorePurchases()
+    Alert.alert('Restore Purchases', 'Connect RevenueCat to restore prior purchases.');
   };
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: insets.top + SPACING.sm,
+          paddingBottom: insets.bottom + SPACING.xl,
+        },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       {/* Close Button */}
@@ -64,8 +80,11 @@ export default function UnlockScreen() {
           styles.closeBtn,
           pressed && { opacity: 0.6 },
         ]}
+        hitSlop={12}
+        accessibilityLabel="Close"
+        accessibilityRole="button"
       >
-        <Text style={styles.closeBtnText}>✕</Text>
+        <Ionicons name="close" size={20} color={COLORS.textSecondary} />
       </Pressable>
 
       {/* Premium Badge */}
@@ -100,7 +119,12 @@ export default function UnlockScreen() {
         <Text style={styles.benefitsTitle}>WHAT YOU GET</Text>
         {BENEFITS.map((b) => (
           <View key={b.text} style={styles.benefitRow}>
-            <Text style={styles.benefitIcon}>{b.icon}</Text>
+            <Ionicons
+              name={b.icon}
+              size={20}
+              color={COLORS.textSecondary}
+              style={styles.benefitIconStyle}
+            />
             <Text style={styles.benefitText}>{b.text}</Text>
           </View>
         ))}
@@ -119,16 +143,20 @@ export default function UnlockScreen() {
           { backgroundColor: category.color },
           pressed && styles.btnPressed,
         ]}
+        accessibilityRole="button"
+        accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
       >
         <Text style={styles.unlockBtnText}>UNLOCK {COPY.dilemmaCount(questions.length)} →</Text>
       </Pressable>
 
       <Pressable
-        onPress={() => {}}
+        onPress={handleRestorePurchases}
         style={({ pressed }) => [
           styles.restoreBtn,
           pressed && { opacity: 0.6 },
         ]}
+        accessibilityRole="button"
+        accessibilityLabel="Restore previous purchases"
       >
         <Text style={styles.restoreBtnText}>Restore Purchases</Text>
       </Pressable>
@@ -141,6 +169,7 @@ export default function UnlockScreen() {
           {teaserQuestions.map((q, i) => (
             <View key={q.id} style={styles.teaserItem}>
               <Text style={styles.teaserNum}>{FREE_TRIAL_COUNT + i + 1}.</Text>
+              <Ionicons name="lock-closed-outline" size={13} color={COLORS.textMuted} />
               <Text style={styles.teaserText} numberOfLines={1}>
                 {'••••••••••••••••••••'}
               </Text>
@@ -153,8 +182,6 @@ export default function UnlockScreen() {
           )}
         </View>
       </View>
-
-      <View style={{ height: SPACING.xl }} />
     </ScrollView>
   );
 }
@@ -165,7 +192,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   content: {
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     gap: SPACING.xl,
     alignItems: 'center',
   },
@@ -175,6 +202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: SPACING.md,
     backgroundColor: COLORS.background,
+    padding: SPACING.lg,
   },
   errorText: {
     color: COLORS.textSecondary,
@@ -199,11 +227,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  closeBtnText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.bold,
   },
   badgeContainer: {
     alignItems: 'center',
@@ -285,8 +308,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.md,
   },
-  benefitIcon: {
-    fontSize: 20,
+  benefitIconStyle: {
     width: 28,
     textAlign: 'center',
   },
@@ -376,6 +398,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: FONTS.sizes.sm,
     letterSpacing: 4,
+    flex: 1,
   },
   teaserMore: {
     color: COLORS.premium,
