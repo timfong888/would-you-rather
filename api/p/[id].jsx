@@ -21,7 +21,7 @@ function truncate(text, max) {
 export default function handler(req) {
   const url = new URL(req.url);
   // Read id from the URL path: /api/p/:id → last path segment
-  const pathParts = url.pathname.split('/');
+  const pathParts = url.pathname.split('/').filter(Boolean);
   const id = pathParts[pathParts.length - 1];
 
   const question = QUESTIONS.find(q => q.id === id);
