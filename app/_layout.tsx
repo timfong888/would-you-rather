@@ -1,27 +1,30 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Platform } from 'react-native';
-import { COLORS } from '@/constants/theme';
 import { UnlockedProvider } from '@/contexts/UnlockedContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import ThemeToggle from '@/components/ThemeToggle';
 
-export default function RootLayout() {
+function AppLayout() {
+  const { colors, isDark } = useTheme();
+
   return (
-    <UnlockedProvider>
-    <View style={styles.root}>
-      <StatusBar style="dark" />
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: COLORS.surface,
+            backgroundColor: colors.surface,
           },
-          headerTintColor: COLORS.text,
+          headerTintColor: colors.text,
           headerTitleStyle: {
             fontWeight: '700',
-            color: COLORS.text,
+            color: colors.text,
           },
           headerShadowVisible: false,
+          headerRight: () => <ThemeToggle />,
           contentStyle: {
-            backgroundColor: COLORS.background,
+            backgroundColor: colors.background,
           },
           animation: Platform.OS === 'web' ? 'none' : 'slide_from_right',
         }}
@@ -71,13 +74,21 @@ export default function RootLayout() {
         />
       </Stack>
     </View>
-    </UnlockedProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <UnlockedProvider>
+        <AppLayout />
+      </UnlockedProvider>
+    </ThemeProvider>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
 });

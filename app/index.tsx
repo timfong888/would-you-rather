@@ -8,15 +8,18 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
+import { useThemedStyles } from '@/contexts/ThemeContext';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
 const TOTAL_QUESTIONS = QUESTIONS.length;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { styles } = useThemedStyles(makeStyles);
 
   const navigateToQuestion = (cat: typeof CATEGORIES[number], questions: ReturnType<typeof getCategoryQuestions>) => {
     const q = questions[Math.floor(Math.random() * questions.length)];
@@ -45,6 +48,11 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      {/* Theme Toggle (floating in top-right for headerless home screen) */}
+      <View style={styles.topBar}>
+        <ThemeToggle />
+      </View>
+
       {/* Hero */}
       <View style={styles.hero}>
         <Text style={styles.appLabel}>The ultimate choice game</Text>
@@ -203,307 +211,313 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xxl,
-  },
-  hero: {
-    gap: SPACING.md,
-    marginBottom: SPACING.xl,
-    alignItems: 'flex-start',
-  },
-  appLabel: {
-    color: COLORS.primary,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  heroTitle: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.xxxl,
-    fontWeight: FONTS.weights.extrabold,
-    lineHeight: 44,
-  },
-  heroSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    lineHeight: 24,
-    maxWidth: 340,
-  },
-  quickPlaySection: {
-    marginTop: SPACING.xs,
-    gap: SPACING.xs,
-  },
-  quickPlayLabel: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 2,
-  },
-  audiencePills: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    flexWrap: 'wrap',
-  },
-  audiencePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 8,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-      },
-    }),
-  },
-  audiencePillDaring: {
-    borderColor: COLORS.daringAccent,
-    backgroundColor: COLORS.daringBg,
-  },
-  audiencePillPressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.96 }],
-  },
-  audiencePillText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.semibold,
-  },
-  audiencePillHint: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-  },
-  heroActions: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginTop: SPACING.sm,
-    flexWrap: 'wrap',
-  },
-  primaryButton: {
-    backgroundColor: COLORS.magenta,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'opacity 0.15s ease',
-      },
-    }),
-  },
-  primaryButtonText: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 2,
-  },
-  buttonEmoji: {
-    fontSize: 16,
-  },
-  secondaryButton: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'opacity 0.15s ease',
-      },
-    }),
-  },
-  secondaryButtonText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.medium,
-  },
-  buttonPressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.97 }],
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.xl,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 2,
-  },
-  statValue: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.xl,
-    fontWeight: FONTS.weights.extrabold,
-  },
-  statLabel: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    letterSpacing: 0.5,
-  },
-  section: {
-    marginBottom: SPACING.xl,
-    gap: SPACING.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 3,
-  },
-  seeAll: {
-    color: COLORS.magenta,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.semibold,
-  },
-  featuredGrid: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  featuredCard: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-    gap: SPACING.xs,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-      },
-    }),
-  },
-  featuredEmoji: {
-    fontSize: 28,
-  },
-  featuredLabel: {
-    fontSize: 10,
-    fontWeight: FONTS.weights.extrabold,
-    textAlign: 'center',
-    letterSpacing: 1,
-  },
-  featuredCount: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-  },
-  featuredPremiumBadge: {
-    backgroundColor: COLORS.premiumBg,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: COLORS.premium,
-  },
-  featuredPremiumText: {
-    color: COLORS.premium,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-  },
-  categoryList: {
-    gap: SPACING.sm,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    gap: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-      },
-    }),
-  },
-  categoryRowIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  categoryRowEmoji: {
-    fontSize: 22,
-  },
-  categoryRowContent: {
-    flex: 1,
-    gap: 2,
-  },
-  categoryRowLabel: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 1,
-  },
-  categoryRowCount: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    letterSpacing: 0.5,
-  },
-  premiumBadge: {
-    backgroundColor: COLORS.premiumBg,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: COLORS.premium,
-  },
-  premiumBadgeText: {
-    color: COLORS.premium,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 0.5,
-  },
-  freeBadge: {
-    backgroundColor: COLORS.freeBg,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: COLORS.free,
-  },
-  freeBadgeText: {
-    color: COLORS.free,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 0.5,
-  },
-  rowChevron: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xl,
-  },
-  bottomPadding: {
-    height: SPACING.xxl,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.lg,
+    },
+    topBar: {
+      alignItems: 'flex-end',
+      marginBottom: SPACING.sm,
+    },
+    hero: {
+      gap: SPACING.md,
+      marginBottom: SPACING.xl,
+      alignItems: 'flex-start',
+    },
+    appLabel: {
+      color: colors.primary,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.semibold,
+      textTransform: 'uppercase',
+      letterSpacing: 1.5,
+    },
+    heroTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.xxxl,
+      fontWeight: FONTS.weights.extrabold,
+      lineHeight: 44,
+    },
+    heroSubtitle: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      lineHeight: 24,
+      maxWidth: 340,
+    },
+    quickPlaySection: {
+      marginTop: SPACING.xs,
+      gap: SPACING.xs,
+    },
+    quickPlayLabel: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 2,
+    },
+    audiencePills: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      flexWrap: 'wrap',
+    },
+    audiencePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.surface,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: 8,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        },
+      }),
+    },
+    audiencePillDaring: {
+      borderColor: colors.daringAccent,
+      backgroundColor: colors.daringBg,
+    },
+    audiencePillPressed: {
+      opacity: 0.75,
+      transform: [{ scale: 0.96 }],
+    },
+    audiencePillText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.semibold,
+    },
+    audiencePillHint: {
+      color: colors.textMuted,
+      fontSize: 10,
+    },
+    heroActions: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      marginTop: SPACING.sm,
+      flexWrap: 'wrap',
+    },
+    primaryButton: {
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'opacity 0.15s ease',
+        },
+      }),
+    },
+    primaryButtonText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    buttonEmoji: {
+      fontSize: 16,
+    },
+    secondaryButton: {
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'opacity 0.15s ease',
+        },
+      }),
+    },
+    secondaryButtonText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+    },
+    buttonPressed: {
+      opacity: 0.75,
+      transform: [{ scale: 0.97 }],
+    },
+    statsRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      marginBottom: SPACING.xl,
+    },
+    statCard: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 2,
+    },
+    statValue: {
+      color: colors.text,
+      fontSize: FONTS.sizes.xl,
+      fontWeight: FONTS.weights.extrabold,
+    },
+    statLabel: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      letterSpacing: 0.5,
+    },
+    section: {
+      marginBottom: SPACING.xl,
+      gap: SPACING.md,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 3,
+    },
+    seeAll: {
+      color: colors.magenta,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.semibold,
+    },
+    featuredGrid: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+    },
+    featuredCard: {
+      flex: 1,
+      borderWidth: 1.5,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      alignItems: 'center',
+      gap: SPACING.xs,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+        },
+      }),
+    },
+    featuredEmoji: {
+      fontSize: 28,
+    },
+    featuredLabel: {
+      fontSize: 10,
+      fontWeight: FONTS.weights.extrabold,
+      textAlign: 'center',
+      letterSpacing: 1,
+    },
+    featuredCount: {
+      color: colors.textMuted,
+      fontSize: 10,
+    },
+    featuredPremiumBadge: {
+      backgroundColor: colors.premiumBg,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderWidth: 1,
+      borderColor: colors.premium,
+    },
+    featuredPremiumText: {
+      color: colors.premium,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+    },
+    categoryList: {
+      gap: SPACING.sm,
+    },
+    categoryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        },
+      }),
+    },
+    categoryRowIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: RADIUS.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    categoryRowEmoji: {
+      fontSize: 22,
+    },
+    categoryRowContent: {
+      flex: 1,
+      gap: 2,
+    },
+    categoryRowLabel: {
+      color: colors.text,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
+    },
+    categoryRowCount: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      letterSpacing: 0.5,
+    },
+    premiumBadge: {
+      backgroundColor: colors.premiumBg,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      borderWidth: 1,
+      borderColor: colors.premium,
+    },
+    premiumBadgeText: {
+      color: colors.premium,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 0.5,
+    },
+    freeBadge: {
+      backgroundColor: colors.freeBg,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      borderWidth: 1,
+      borderColor: colors.free,
+    },
+    freeBadgeText: {
+      color: colors.free,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 0.5,
+    },
+    rowChevron: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xl,
+    },
+    bottomPadding: {
+      height: SPACING.xxl,
+    },
+  });
+}
