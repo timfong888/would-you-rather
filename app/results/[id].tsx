@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,15 @@ export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
   const router = useRouter();
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+      if (igTimerRef.current !== null) clearTimeout(igTimerRef.current);
+    };
+  }, []);
 
   const question = getQuestionById(id);
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
@@ -70,7 +79,7 @@ export default function ResultsScreen() {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(shareUrl);
         setCopyFeedback('Link copied!');
-        setTimeout(() => setCopyFeedback(null), 2000);
+        copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
       // Native — use React Native's built-in share sheet
@@ -86,11 +95,11 @@ export default function ResultsScreen() {
   }) as string;
 
   const handleInstagramStories = useCallback(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return;
     const cardImageUrl = encodeURIComponent(cardUrl9x16);
     window.location.href =
       `instagram-stories://share?backgroundImageURL=${cardImageUrl}`;
-    setTimeout(() => {
+    igTimerRef.current = setTimeout(() => {
       handleShare();
     }, 2500);
   }, [cardUrl9x16, handleShare]);
@@ -123,7 +132,7 @@ export default function ResultsScreen() {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(`${shareUrl}\n\n${hashtags.join(' ')}`);
         setCopyFeedback('Link + hashtags copied!');
-        setTimeout(() => setCopyFeedback(null), 2000);
+        copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
