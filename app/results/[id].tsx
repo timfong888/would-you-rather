@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
@@ -18,6 +19,16 @@ export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+      if (igTimerRef.current !== null) clearTimeout(igTimerRef.current);
+    };
+  }, []);
 
   const question = getQuestionById(id);
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
@@ -42,6 +53,88 @@ export default function ResultsScreen() {
   const userPickedA = voted === 'A';
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
+
+  const shareUrl = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/p/${id}`
+      : `/p/${id}`,
+    default: `/p/${id}`,
+  }) as string;
+
+  const handleShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}`;
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch {
+          // User cancelled or API unavailable — fall through to clipboard
+        }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopyFeedback('Link copied!');
+        copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, shareUrl]);
+
+  const cardUrl9x16 = Platform.select({
+    web: typeof window !== 'undefined'
+      ? `${window.location.origin}/api/card?id=${id}&ratio=9x16`
+      : `/api/card?id=${id}&ratio=9x16`,
+    default: `/api/card?id=${id}&ratio=9x16`,
+  }) as string;
+
+  const handleInstagramStories = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const cardImageUrl = encodeURIComponent(cardUrl9x16);
+    window.location.href =
+      `instagram-stories://share?backgroundImageURL=${cardImageUrl}`;
+    igTimerRef.current = setTimeout(() => {
+      handleShare();
+    }, 2500);
+  }, [cardUrl9x16, handleShare]);
+
+  const categoryHashtags: Record<string, string[]> = {
+    'high-life': ['#WouldYouRather', '#TheHighLife', '#Luxury'],
+    'moral-compass': ['#WouldYouRather', '#MoralCompass', '#Ethics'],
+    'midnight-secrets': ['#WouldYouRather', '#MidnightSecrets', '#DeepQuestions'],
+    'social-blunders': ['#WouldYouRather', '#SocialBlunders', '#Awkward'],
+    'time-traveler': ['#WouldYouRather', '#TimeTraveler', '#WhatIf'],
+    'deep-desires': ['#WouldYouRather', '#DeepDesires', '#LifeChoices'],
+    'career-climber': ['#WouldYouRather', '#CareerClimber', '#WorkLife'],
+    'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
+    'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
+  };
+
+  const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];
+
+  const handleTikTokShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch { /* user cancelled */ }
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(`${shareUrl}\n\n${hashtags.join(' ')}`);
+        setCopyFeedback('Link + hashtags copied!');
+        copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, shareUrl, hashtags]);
 
   const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
   const currentIdx = categoryQuestions.findIndex((q) => q.id === id);
@@ -132,19 +225,44 @@ export default function ResultsScreen() {
         </Text>
       </View>
 
-      {/* Share row */}
-      <View style={styles.shareRow}>
-        <Text style={styles.shareText}>Share this question:</Text>
-        <View style={styles.shareButtons}>
-          {['𝕏', '📋'].map((icon, i) => (
-            <Pressable
-              key={i}
-              style={({ pressed }) => [styles.shareButton, pressed && { opacity: 0.6 }]}
-            >
-              <Text style={styles.shareButtonText}>{icon}</Text>
-            </Pressable>
-          ))}
+      {/* Share card */}
+      <View style={styles.shareCard}>
+        <View style={styles.shareCardHeader}>
+          <Text style={styles.shareCardTitle}>Share this question</Text>
+          <Text style={styles.shareCardSub}>
+            Recipients see a curiosity-gap card — they have to tap to find out the result.
+          </Text>
         </View>
+
+        {/* Primary share button */}
+        <Pressable
+          onPress={handleShare}
+          style={({ pressed }) => [styles.shareButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.shareButtonText}>
+            {copyFeedback ?? '🔗  Share Card'}
+          </Text>
+        </Pressable>
+
+        {/* Instagram Stories */}
+        {Platform.OS === 'web' && (
+          <Pressable
+            onPress={handleInstagramStories}
+            style={({ pressed }) => [styles.igButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.igButtonText}>📸  Instagram Stories</Text>
+          </Pressable>
+        )}
+
+        {/* TikTok share — includes category hashtags */}
+        <Pressable
+          onPress={handleTikTokShare}
+          style={({ pressed }) => [styles.igButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.igButtonText}>🎵  TikTok</Text>
+        </Pressable>
+
+        <Text style={styles.shareLink} numberOfLines={1}>{shareUrl}</Text>
       </View>
 
       {/* Navigation */}
@@ -313,37 +431,59 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.sm,
       textAlign: 'center',
     },
-    shareRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+    shareCard: {
       backgroundColor: colors.surface,
       borderRadius: RADIUS.lg,
-      padding: SPACING.md,
+      padding: SPACING.lg,
       borderWidth: 1,
       borderColor: colors.border,
-    },
-    shareText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.sm,
-    },
-    shareButtons: {
-      flexDirection: 'row',
       gap: SPACING.sm,
     },
+    shareCardHeader: {
+      gap: SPACING.xs,
+      marginBottom: SPACING.xs,
+    },
+    shareCardTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    shareCardSub: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      lineHeight: 16,
+    },
     shareButton: {
-      backgroundColor: colors.surfaceLight,
-      borderRadius: RADIUS.md,
-      width: 36,
-      height: 36,
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
       alignItems: 'center',
-      justifyContent: 'center',
-      ...Platform.select({
-        web: { cursor: 'pointer' },
-      }),
+      ...Platform.select({ web: { cursor: 'pointer' } }),
     },
     shareButtonText: {
-      fontSize: 16,
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    igButton: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    igButtonText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+    },
+    shareLink: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      textAlign: 'center',
+      marginTop: SPACING.xs,
     },
     actions: {
       gap: SPACING.sm,
