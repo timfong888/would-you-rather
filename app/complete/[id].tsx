@@ -23,8 +23,9 @@ export default function CompleteScreen() {
   const router = useRouter();
   const anim = useRef(new Animated.Value(0)).current;
 
-  const category = getCategoryById(id as CategoryId);
-  const questions = getCategoryQuestions(id as CategoryId);
+  const category = getCategoryById((id ?? '') as CategoryId);
+  const questions = getCategoryQuestions((id ?? '') as CategoryId);
+  const safeVoted = voted === 'A' || voted === 'B' ? voted : null;
   const lastQuestion = q ? getQuestionById(q) : questions[questions.length - 1];
 
   useEffect(() => {
@@ -52,12 +53,12 @@ export default function CompleteScreen() {
   const isPremium = category.tier === 'premium';
 
   // Compute final question results
-  const votesA = lastQuestion ? (voted === 'A' ? lastQuestion.votesA + 1 : lastQuestion.votesA) : 0;
-  const votesB = lastQuestion ? (voted === 'B' ? lastQuestion.votesB + 1 : lastQuestion.votesB) : 0;
+  const votesA = lastQuestion ? (safeVoted === 'A' ? lastQuestion.votesA + 1 : lastQuestion.votesA) : 0;
+  const votesB = lastQuestion ? (safeVoted === 'B' ? lastQuestion.votesB + 1 : lastQuestion.votesB) : 0;
   const totalVotes = votesA + votesB;
   const pctA = totalVotes > 0 ? Math.round((votesA / totalVotes) * 100) : 50;
   const pctB = 100 - pctA;
-  const myChoice = voted;
+  const myChoice = safeVoted;
   const myVotes = myChoice === 'A' ? votesA : votesB;
   const myPct = myChoice === 'A' ? pctA : pctB;
   const withMajority = myVotes >= (totalVotes / 2);
@@ -154,7 +155,7 @@ export default function CompleteScreen() {
               <Text style={[styles.verdictText, { color: withMajority ? COLORS.success : COLORS.secondary }]}>
                 {withMajority
                   ? `You're with the majority! (${myPct}% agreed)`
-                  : `You're in the minority — uniquely you! (${myPct}% chose Option ${myChoice})`}
+                  : `You're in the minority — uniquely you!${myChoice ? ` (${myPct}% chose Option ${myChoice})` : ''}`}
               </Text>
             </View>
           </View>

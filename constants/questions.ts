@@ -1590,10 +1590,6 @@ export const QUESTIONS: Question[] = [
 // Helper functions
 // ---------------------------------------------------------------------------
 
-export function getQuestionsByCategory(category: CategoryId): Question[] {
-  return QUESTIONS.filter((q) => q.category === category);
-}
-
 export function getQuestionById(id: string): Question | undefined {
   return QUESTIONS.find((q) => q.id === id);
 }

@@ -6,10 +6,11 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
-import { getCategoryById, getCategoryQuestions } from '@/constants/questions';
+import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 
 const BENEFITS = [
@@ -37,10 +38,16 @@ export default function UnlockScreen() {
     );
   }
 
+  const teaserQuestions = questions.slice(FREE_TRIAL_COUNT, FREE_TRIAL_COUNT + 3);
+  const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
+
   const handleUnlock = () => {
     // In production this triggers an IAP flow (RevenueCat / App Store)
     // For web MVP: show confirmation message
-    alert(`Premium unlock for "${category.label}" would trigger IAP ($2.99). Connect RevenueCat to enable real purchases.`);
+    Alert.alert(
+      'Premium Unlock',
+      `Premium unlock for "${category.label}" would trigger IAP ($2.99). Connect RevenueCat to enable real purchases.`,
+    );
   };
 
   return (
@@ -83,7 +90,7 @@ export default function UnlockScreen() {
           {' '}has only just begun.
         </Text>
         <Text style={styles.lossAversion}>
-          {questions.length - 3} questions remain locked. Will you leave them unanswered?
+          {questions.length - FREE_TRIAL_COUNT} questions remain locked. Will you leave them unanswered?
         </Text>
       </View>
 
@@ -130,17 +137,19 @@ export default function UnlockScreen() {
         <Text style={styles.teaserLabel}>WHAT AWAITS</Text>
         <Text style={styles.teaserSubtitle}>A glimpse of what remains locked:</Text>
         <View style={styles.teaserList}>
-          {questions.slice(3, 6).map((q, i) => (
+          {teaserQuestions.map((q, i) => (
             <View key={q.id} style={styles.teaserItem}>
-              <Text style={styles.teaserNum}>{i + 4}.</Text>
+              <Text style={styles.teaserNum}>{FREE_TRIAL_COUNT + i + 1}.</Text>
               <Text style={styles.teaserText} numberOfLines={1}>
                 {'••••••••••••••••••••'}
               </Text>
             </View>
           ))}
-          <Text style={styles.teaserMore}>
-            + {questions.length - 6} more questions...
-          </Text>
+          {remainingCount > 0 && (
+            <Text style={styles.teaserMore}>
+              + {remainingCount} more questions...
+            </Text>
+          )}
         </View>
       </View>
 

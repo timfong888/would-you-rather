@@ -196,8 +196,8 @@ export default function GameScreen() {
             <View style={[styles.resultBanner, { borderColor: `${catColor}40` }]}>
               <Text style={styles.resultBannerEmoji}>
                 {selected === 'A'
-                  ? (question.votesA > question.votesB ? '🎯' : '🔥')
-                  : (question.votesB > question.votesA ? '🎯' : '🔥')}
+                  ? (votesA > votesB ? '🎯' : '🔥')
+                  : (votesB > votesA ? '🎯' : '🔥')}
               </Text>
               <View style={styles.resultBannerText}>
                 <Text style={styles.resultBannerTitle}>
