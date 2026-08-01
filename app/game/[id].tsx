@@ -8,14 +8,18 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import OptionButton from '@/components/OptionButton';
+import { useUnlocked } from '@/contexts/UnlockedContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function GameScreen() {
   const { id, cat, idx } = useLocalSearchParams<{ id: string; cat: string; idx: string }>();
   const router = useRouter();
+  const { isUnlocked } = useUnlocked();
+  const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -36,7 +40,7 @@ export default function GameScreen() {
     );
   }
 
-  const catColor = category?.color ?? COLORS.magenta;
+  const catColor = category?.color ?? colors.magenta;
   const isLastInCategory = cat ? currentIdx >= totalInCategory - 1 : false;
   const nextIdx = currentIdx + 1;
   const nextQuestion = cat && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
@@ -55,9 +59,8 @@ export default function GameScreen() {
     }
 
     if (nextQuestion && cat) {
-      // Check premium gate
       const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT) {
+      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
         router.push(`/unlock/${cat}`);
         return;
       }
@@ -70,7 +73,7 @@ export default function GameScreen() {
   const handleSkip = () => {
     if (nextQuestion && cat) {
       const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT) {
+      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
         router.push(`/unlock/${cat}`);
         return;
       }
@@ -184,7 +187,7 @@ export default function GameScreen() {
               disabled={!selected}
               style={({ pressed }) => [
                 styles.confirmButton,
-                { backgroundColor: selected ? catColor : COLORS.surfaceLight },
+                { backgroundColor: selected ? catColor : colors.surfaceLight },
                 pressed && selected && styles.buttonPressed,
               ]}
             >
@@ -223,7 +226,6 @@ export default function GameScreen() {
           </>
         ) : (
           <>
-            {/* Post-confirmation state */}
             <View style={[styles.resultBanner, { borderColor: `${catColor}40` }]}>
               <Text style={styles.resultBannerEmoji}>
                 {selected === 'A'
@@ -280,228 +282,230 @@ export default function GameScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.lg,
-    gap: SPACING.lg,
-    flexGrow: 1,
-    paddingBottom: SPACING.xxl,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.md,
-    backgroundColor: COLORS.background,
-  },
-  errorText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.lg,
-  },
-  backButton: {
-    backgroundColor: COLORS.magenta,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-  },
-  backButtonText: {
-    color: COLORS.text,
-    fontWeight: FONTS.weights.bold,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  categoryEmoji: {
-    fontSize: 14,
-  },
-  categoryLabel: {
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 1,
-  },
-  progressText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 1.5,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: RADIUS.full,
-  },
-  wyrLabel: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-    fontStyle: 'italic',
-    fontWeight: FONTS.weights.medium,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  options: {
-    gap: SPACING.md,
-  },
-  orDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  heartBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.full,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heartText: {
-    fontSize: 18,
-  },
-  actions: {
-    gap: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-  confirmButton: {
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-      },
-    }),
-  },
-  confirmButtonText: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 2,
-  },
-  confirmButtonTextDisabled: {
-    color: COLORS.textMuted,
-  },
-  skipButton: {
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-      },
-    }),
-  },
-  skipText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.md,
-  },
-  resultBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    gap: SPACING.md,
-    borderWidth: 1,
-  },
-  resultBannerEmoji: {
-    fontSize: 32,
-  },
-  resultBannerText: {
-    flex: 1,
-    gap: 2,
-  },
-  resultBannerTitle: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.extrabold,
-  },
-  resultBannerSub: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-  },
-  nextButton: {
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'opacity 0.15s ease',
-      },
-    }),
-  },
-  nextButtonText: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 2,
-  },
-  replayButton: {
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-      },
-    }),
-  },
-  replayText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.98 }],
-  },
-  hint: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  leaveActionText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.medium,
-    letterSpacing: 0.3,
-  },
-  leaveTopButton: {
-    alignSelf: 'flex-start',
-    paddingVertical: SPACING.xs,
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
-  },
-  leaveBottomButton: {
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    marginTop: SPACING.xs,
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: SPACING.lg,
+      gap: SPACING.lg,
+      flexGrow: 1,
+      paddingBottom: SPACING.xxl,
+    },
+    errorContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.md,
+      backgroundColor: colors.background,
+    },
+    errorText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.lg,
+    },
+    backButton: {
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+    },
+    backButtonText: {
+      color: colors.textOnColor,
+      fontWeight: FONTS.weights.bold,
+    },
+    progressHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    categoryBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.xs,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 4,
+      borderRadius: RADIUS.full,
+    },
+    categoryEmoji: {
+      fontSize: 14,
+    },
+    categoryLabel: {
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
+    },
+    progressText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 1.5,
+    },
+    progressBar: {
+      height: 4,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: RADIUS.full,
+    },
+    wyrLabel: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontStyle: 'italic',
+      fontWeight: FONTS.weights.medium,
+      textAlign: 'center',
+      letterSpacing: 0.5,
+    },
+    options: {
+      gap: SPACING.md,
+    },
+    orDivider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    heartBadge: {
+      width: 40,
+      height: 40,
+      borderRadius: RADIUS.full,
+      borderWidth: 1.5,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heartText: {
+      fontSize: 18,
+    },
+    actions: {
+      gap: SPACING.sm,
+      marginTop: SPACING.sm,
+    },
+    confirmButton: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        },
+      }),
+    },
+    confirmButtonText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    confirmButtonTextDisabled: {
+      color: colors.textMuted,
+    },
+    skipButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+        },
+      }),
+    },
+    skipText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.md,
+    },
+    resultBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      gap: SPACING.md,
+      borderWidth: 1,
+    },
+    resultBannerEmoji: {
+      fontSize: 32,
+    },
+    resultBannerText: {
+      flex: 1,
+      gap: 2,
+    },
+    resultBannerTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.extrabold,
+    },
+    resultBannerSub: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+    },
+    nextButton: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'opacity 0.15s ease',
+        },
+      }),
+    },
+    nextButtonText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    replayButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+        },
+      }),
+    },
+    replayText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+    },
+    buttonPressed: {
+      opacity: 0.8,
+      transform: [{ scale: 0.98 }],
+    },
+    hint: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      textAlign: 'center',
+      fontStyle: 'italic',
+    },
+    leaveActionText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+      letterSpacing: 0.3,
+    },
+    leaveTopButton: {
+      alignSelf: 'flex-start',
+      paddingVertical: SPACING.xs,
+      ...Platform.select({
+        web: { cursor: 'pointer' },
+      }),
+    },
+    leaveBottomButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      marginTop: SPACING.xs,
+      ...Platform.select({
+        web: { cursor: 'pointer' },
+      }),
+    },
+  });
+}

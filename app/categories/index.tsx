@@ -8,15 +8,17 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 const FEATURED = CATEGORIES.filter((c) => c.featured);
 const ALL = CATEGORIES;
 
 export default function CategoriesScreen() {
   const router = useRouter();
+  const { styles } = useThemedStyles(makeStyles);
 
   return (
     <ScrollView
@@ -118,194 +120,196 @@ export default function CategoriesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.lg,
-    gap: SPACING.lg,
-  },
-  header: {
-    alignItems: 'center',
-    gap: SPACING.xs,
-    paddingTop: SPACING.md,
-  },
-  appTitle: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: FONTS.weights.black,
-    letterSpacing: 4,
-    textAlign: 'center',
-  },
-  screenTitle: {
-    color: COLORS.magenta,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 2,
-    textAlign: 'center',
-  },
-  trialBanner: {
-    backgroundColor: COLORS.trialBannerBg,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  trialBannerText: {
-    color: COLORS.trialBannerText,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.medium,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  section: {
-    gap: SPACING.md,
-  },
-  sectionLabel: {
-    color: COLORS.magenta,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 3,
-    textAlign: 'center',
-  },
-  featuredRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  featuredCard: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-    gap: SPACING.xs,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-      },
-    }),
-  },
-  featuredIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featuredEmoji: {
-    fontSize: 24,
-  },
-  featuredName: {
-    fontSize: 10,
-    fontWeight: FONTS.weights.extrabold,
-    textAlign: 'center',
-    letterSpacing: 1,
-  },
-  featuredCount: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: FONTS.weights.semibold,
-    letterSpacing: 0.5,
-  },
-  featuredFreeHint: {
-    color: COLORS.magenta,
-    fontSize: 9,
-    textAlign: 'center',
-    lineHeight: 14,
-  },
-  allList: {
-    gap: SPACING.sm,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    gap: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...Platform.select({
-      web: {
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-      },
-    }),
-  },
-  rowIconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  rowEmoji: {
-    fontSize: 26,
-  },
-  rowText: {
-    flex: 1,
-    gap: 2,
-  },
-  rowName: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 1,
-  },
-  rowCount: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.semibold,
-    letterSpacing: 0.5,
-  },
-  rowFreeHint: {
-    color: COLORS.magenta,
-    fontSize: 10,
-    marginTop: 2,
-  },
-  rowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    flexShrink: 0,
-  },
-  chevron: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xl,
-    fontWeight: FONTS.weights.bold,
-  },
-  premiumPill: {
-    backgroundColor: COLORS.premiumBg,
-    borderWidth: 1,
-    borderColor: COLORS.premium,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-  },
-  premiumPillText: {
-    color: COLORS.premium,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 0.5,
-  },
-  freePill: {
-    backgroundColor: COLORS.freeBg,
-    borderWidth: 1,
-    borderColor: COLORS.free,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-  },
-  freePillText: {
-    color: COLORS.free,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 0.5,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: SPACING.lg,
+      gap: SPACING.lg,
+    },
+    header: {
+      alignItems: 'center',
+      gap: SPACING.xs,
+      paddingTop: SPACING.md,
+    },
+    appTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.black,
+      letterSpacing: 4,
+      textAlign: 'center',
+    },
+    screenTitle: {
+      color: colors.magenta,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 2,
+      textAlign: 'center',
+    },
+    trialBanner: {
+      backgroundColor: colors.trialBannerBg,
+      borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+    },
+    trialBannerText: {
+      color: colors.trialBannerText,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    section: {
+      gap: SPACING.md,
+    },
+    sectionLabel: {
+      color: colors.magenta,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 3,
+      textAlign: 'center',
+    },
+    featuredRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+    },
+    featuredCard: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1.5,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      alignItems: 'center',
+      gap: SPACING.xs,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        },
+      }),
+    },
+    featuredIconBox: {
+      width: 48,
+      height: 48,
+      borderRadius: RADIUS.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    featuredEmoji: {
+      fontSize: 24,
+    },
+    featuredName: {
+      fontSize: 10,
+      fontWeight: FONTS.weights.extrabold,
+      textAlign: 'center',
+      letterSpacing: 1,
+    },
+    featuredCount: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: FONTS.weights.semibold,
+      letterSpacing: 0.5,
+    },
+    featuredFreeHint: {
+      color: colors.magenta,
+      fontSize: 9,
+      textAlign: 'center',
+      lineHeight: 14,
+    },
+    allList: {
+      gap: SPACING.sm,
+    },
+    categoryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.md,
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+        },
+      }),
+    },
+    rowIconBox: {
+      width: 52,
+      height: 52,
+      borderRadius: RADIUS.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    rowEmoji: {
+      fontSize: 26,
+    },
+    rowText: {
+      flex: 1,
+      gap: 2,
+    },
+    rowName: {
+      color: colors.text,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
+    },
+    rowCount: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.semibold,
+      letterSpacing: 0.5,
+    },
+    rowFreeHint: {
+      color: colors.magenta,
+      fontSize: 10,
+      marginTop: 2,
+    },
+    rowRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.xs,
+      flexShrink: 0,
+    },
+    chevron: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xl,
+      fontWeight: FONTS.weights.bold,
+    },
+    premiumPill: {
+      backgroundColor: colors.premiumBg,
+      borderWidth: 1,
+      borderColor: colors.premium,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 2,
+    },
+    premiumPillText: {
+      color: colors.premium,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 0.5,
+    },
+    freePill: {
+      backgroundColor: colors.freeBg,
+      borderWidth: 1,
+      borderColor: colors.free,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 2,
+    },
+    freePillText: {
+      color: colors.free,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 0.5,
+    },
+  });
+}

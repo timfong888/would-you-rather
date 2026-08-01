@@ -9,7 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
+import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import {
   getCategoryById,
   getCategoryQuestions,
@@ -17,10 +17,14 @@ import {
   FREE_TRIAL_COUNT,
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
+import { useUnlocked } from '@/contexts/UnlockedContext';
+import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
+  const { isUnlocked } = useUnlocked();
+  const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
 
   const category = getCategoryById(id as CategoryId);
@@ -47,11 +51,11 @@ export default function CompleteScreen() {
   }
 
   const catColor = category.color;
-  const completedCount = category.tier === 'premium' ? FREE_TRIAL_COUNT : questions.length;
-  const remaining = questions.length - completedCount;
+  const categoryUnlocked = isUnlocked(id as CategoryId);
   const isPremium = category.tier === 'premium';
+  const completedCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
+  const remaining = questions.length - completedCount;
 
-  // Compute final question results
   const votesA = lastQuestion ? (voted === 'A' ? lastQuestion.votesA + 1 : lastQuestion.votesA) : 0;
   const votesB = lastQuestion ? (voted === 'B' ? lastQuestion.votesB + 1 : lastQuestion.votesB) : 0;
   const totalVotes = votesA + votesB;
@@ -89,10 +93,10 @@ export default function CompleteScreen() {
             {/* Option A */}
             <View style={[
               styles.resultOption,
-              myChoice === 'A' && { borderColor: COLORS.optionA, backgroundColor: `${COLORS.optionA}15` },
+              myChoice === 'A' && { borderColor: colors.optionA, backgroundColor: `${colors.optionA}15` },
             ]}>
               <View style={styles.resultOptionTop}>
-                <View style={[styles.optionBadge, { backgroundColor: COLORS.optionA }]}>
+                <View style={[styles.optionBadge, { backgroundColor: colors.optionA }]}>
                   <Text style={styles.optionBadgeText}>A</Text>
                 </View>
                 <Text style={styles.resultOptionText} numberOfLines={2}>
@@ -105,11 +109,11 @@ export default function CompleteScreen() {
                     <Text style={styles.yourChoiceTagText}>YOUR CHOICE</Text>
                   </View>
                 )}
-                <Text style={[styles.resultPct, { color: COLORS.optionA }]}>{pctA}%</Text>
+                <Text style={[styles.resultPct, { color: colors.optionA }]}>{pctA}%</Text>
                 <Text style={styles.globalVoteLabel}>GLOBAL VOTE</Text>
               </View>
               <View style={styles.resultBar}>
-                <View style={[styles.resultBarFill, { backgroundColor: COLORS.optionA, width: `${pctA}%` as any }]} />
+                <View style={[styles.resultBarFill, { backgroundColor: colors.optionA, width: `${pctA}%` as any }]} />
               </View>
             </View>
 
@@ -122,10 +126,10 @@ export default function CompleteScreen() {
             {/* Option B */}
             <View style={[
               styles.resultOption,
-              myChoice === 'B' && { borderColor: COLORS.optionB, backgroundColor: `${COLORS.optionB}15` },
+              myChoice === 'B' && { borderColor: colors.optionB, backgroundColor: `${colors.optionB}15` },
             ]}>
               <View style={styles.resultOptionTop}>
-                <View style={[styles.optionBadge, { backgroundColor: COLORS.optionB }]}>
+                <View style={[styles.optionBadge, { backgroundColor: colors.optionB }]}>
                   <Text style={styles.optionBadgeText}>B</Text>
                 </View>
                 <Text style={styles.resultOptionText} numberOfLines={2}>
@@ -134,24 +138,24 @@ export default function CompleteScreen() {
               </View>
               <View style={styles.resultStats}>
                 {myChoice === 'B' && (
-                  <View style={[styles.yourChoiceTag, { borderColor: COLORS.optionB }]}>
-                    <Text style={[styles.yourChoiceTagText, { color: COLORS.optionB }]}>YOUR CHOICE</Text>
+                  <View style={[styles.yourChoiceTag, { borderColor: colors.optionB }]}>
+                    <Text style={[styles.yourChoiceTagText, { color: colors.optionB }]}>YOUR CHOICE</Text>
                   </View>
                 )}
-                <Text style={[styles.resultPct, { color: COLORS.optionB }]}>{pctB}%</Text>
+                <Text style={[styles.resultPct, { color: colors.optionB }]}>{pctB}%</Text>
                 <Text style={styles.globalVoteLabel}>GLOBAL VOTE</Text>
               </View>
               <View style={styles.resultBar}>
-                <View style={[styles.resultBarFill, { backgroundColor: COLORS.optionB, width: `${pctB}%` as any }]} />
+                <View style={[styles.resultBarFill, { backgroundColor: colors.optionB, width: `${pctB}%` as any }]} />
               </View>
             </View>
 
             <Text style={styles.totalVotesText}>{totalVotes.toLocaleString()} total votes</Text>
 
             {/* Majority verdict */}
-            <View style={[styles.verdictRow, { borderColor: withMajority ? COLORS.success : COLORS.secondary }]}>
+            <View style={[styles.verdictRow, { borderColor: withMajority ? colors.success : colors.secondary }]}>
               <Text style={styles.verdictEmoji}>{withMajority ? '🎯' : '🔥'}</Text>
-              <Text style={[styles.verdictText, { color: withMajority ? COLORS.success : COLORS.secondary }]}>
+              <Text style={[styles.verdictText, { color: withMajority ? colors.success : colors.secondary }]}>
                 {withMajority
                   ? `You're with the majority! (${myPct}% agreed)`
                   : `You're in the minority — uniquely you! (${myPct}% chose Option ${myChoice})`}
@@ -173,7 +177,7 @@ export default function CompleteScreen() {
           </View>
         </View>
 
-        {/* Premium Upsell Card (loss aversion) */}
+        {/* Premium Upsell Card */}
         {isPremium && remaining > 0 && (
           <Pressable
             onPress={() => router.push(`/unlock/${id}`)}
@@ -242,300 +246,302 @@ export default function CompleteScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.lg,
-    gap: SPACING.lg,
-    paddingBottom: SPACING.xxl,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.md,
-    backgroundColor: COLORS.background,
-  },
-  errorText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.lg,
-  },
-  homeButton: {
-    backgroundColor: COLORS.magenta,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-  },
-  homeButtonText: {
-    color: COLORS.text,
-    fontWeight: FONTS.weights.bold,
-  },
-  completionHeader: {
-    borderWidth: 1,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  completionEmoji: {
-    fontSize: 48,
-  },
-  completionTitle: {
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 3,
-    textAlign: 'center',
-  },
-  completionSubtitle: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    letterSpacing: 2,
-    fontWeight: FONTS.weights.bold,
-  },
-  resultsCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    gap: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  resultsCardLabel: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-    fontStyle: 'italic',
-    letterSpacing: 0.5,
-  },
-  resultOption: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    gap: SPACING.sm,
-  },
-  resultOptionTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  optionBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  optionBadgeText: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-  },
-  resultOptionText: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.medium,
-    lineHeight: 20,
-  },
-  resultStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  yourChoiceTag: {
-    borderWidth: 1,
-    borderColor: COLORS.optionA,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-  },
-  yourChoiceTagText: {
-    color: COLORS.optionA,
-    fontSize: 9,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 1,
-  },
-  resultPct: {
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: FONTS.weights.extrabold,
-    marginLeft: 'auto' as any,
-  },
-  globalVoteLabel: {
-    color: COLORS.textMuted,
-    fontSize: 9,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 1,
-  },
-  resultBar: {
-    height: 6,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-  },
-  resultBarFill: {
-    height: '100%',
-    borderRadius: RADIUS.full,
-  },
-  orRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  orText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.bold,
-    letterSpacing: 2,
-  },
-  totalVotesText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-    textAlign: 'center',
-  },
-  verdictRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-  },
-  verdictEmoji: {
-    fontSize: 24,
-  },
-  verdictText: {
-    flex: 1,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.semibold,
-    lineHeight: 20,
-  },
-  shareRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  shareLabel: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-  },
-  shareButtons: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  shareBtn: {
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: RADIUS.md,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
-  },
-  shareBtnText: {
-    fontSize: 16,
-  },
-  upsellCard: {
-    backgroundColor: COLORS.premiumBg,
-    borderWidth: 1.5,
-    borderColor: COLORS.premium,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    gap: SPACING.md,
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
-  },
-  upsellTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.md,
-  },
-  upsellIcon: {
-    fontSize: 32,
-  },
-  upsellTextBlock: {
-    flex: 1,
-    gap: SPACING.xs,
-  },
-  upsellTitle: {
-    color: COLORS.premium,
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 2,
-  },
-  upsellHook: {
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.semibold,
-    lineHeight: 22,
-  },
-  upsellDesc: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.sm,
-    lineHeight: 20,
-  },
-  upsellCta: {
-    backgroundColor: COLORS.premium,
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    marginTop: SPACING.xs,
-  },
-  upsellCtaText: {
-    color: COLORS.textOnColor,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 2,
-  },
-  actions: {
-    gap: SPACING.sm,
-  },
-  exploreCta: {
-    borderWidth: 1.5,
-    borderRadius: RADIUS.full,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    ...Platform.select({
-      web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
-    }),
-  },
-  exploreCtaText: {
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.extrabold,
-    letterSpacing: 2,
-  },
-  replayLink: {
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  replayLinkText: {
-    color: COLORS.textSecondary,
-    fontSize: FONTS.sizes.md,
-  },
-  homeLink: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xs,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  homeLinkText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.sizes.sm,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: SPACING.lg,
+      gap: SPACING.lg,
+      paddingBottom: SPACING.xxl,
+    },
+    errorContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.md,
+      backgroundColor: colors.background,
+    },
+    errorText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.lg,
+    },
+    homeButton: {
+      backgroundColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.xl,
+      paddingVertical: SPACING.md,
+    },
+    homeButtonText: {
+      color: colors.textOnColor,
+      fontWeight: FONTS.weights.bold,
+    },
+    completionHeader: {
+      borderWidth: 1,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.xl,
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    completionEmoji: {
+      fontSize: 48,
+    },
+    completionTitle: {
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 3,
+      textAlign: 'center',
+    },
+    completionSubtitle: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      letterSpacing: 2,
+      fontWeight: FONTS.weights.bold,
+    },
+    resultsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      gap: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    resultsCardLabel: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+      fontStyle: 'italic',
+      letterSpacing: 0.5,
+    },
+    resultOption: {
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+      gap: SPACING.sm,
+    },
+    resultOptionTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    optionBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: RADIUS.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    optionBadgeText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+    },
+    resultOptionText: {
+      flex: 1,
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.medium,
+      lineHeight: 20,
+    },
+    resultStats: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    yourChoiceTag: {
+      borderWidth: 1,
+      borderColor: colors.optionA,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 2,
+    },
+    yourChoiceTagText: {
+      color: colors.optionA,
+      fontSize: 9,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
+    },
+    resultPct: {
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.extrabold,
+      marginLeft: 'auto' as any,
+    },
+    globalVoteLabel: {
+      color: colors.textMuted,
+      fontSize: 9,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 1,
+    },
+    resultBar: {
+      height: 6,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.full,
+      overflow: 'hidden',
+    },
+    resultBarFill: {
+      height: '100%',
+      borderRadius: RADIUS.full,
+    },
+    orRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    orText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 2,
+    },
+    totalVotesText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      textAlign: 'center',
+    },
+    verdictRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+    },
+    verdictEmoji: {
+      fontSize: 24,
+    },
+    verdictText: {
+      flex: 1,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.semibold,
+      lineHeight: 20,
+    },
+    shareRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    shareLabel: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+    },
+    shareButtons: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+    },
+    shareBtn: {
+      backgroundColor: colors.surfaceLight,
+      borderRadius: RADIUS.md,
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...Platform.select({
+        web: { cursor: 'pointer' },
+      }),
+    },
+    shareBtnText: {
+      fontSize: 16,
+    },
+    upsellCard: {
+      backgroundColor: colors.premiumBg,
+      borderWidth: 1.5,
+      borderColor: colors.premium,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      gap: SPACING.md,
+      ...Platform.select({
+        web: { cursor: 'pointer' },
+      }),
+    },
+    upsellTop: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: SPACING.md,
+    },
+    upsellIcon: {
+      fontSize: 32,
+    },
+    upsellTextBlock: {
+      flex: 1,
+      gap: SPACING.xs,
+    },
+    upsellTitle: {
+      color: colors.premium,
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    upsellHook: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.semibold,
+      lineHeight: 22,
+    },
+    upsellDesc: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+      lineHeight: 20,
+    },
+    upsellCta: {
+      backgroundColor: colors.premium,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      marginTop: SPACING.xs,
+    },
+    upsellCtaText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    actions: {
+      gap: SPACING.sm,
+    },
+    exploreCta: {
+      borderWidth: 1.5,
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({
+        web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
+      }),
+    },
+    exploreCtaText: {
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    replayLink: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    replayLinkText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+    },
+    homeLink: {
+      alignItems: 'center',
+      paddingVertical: SPACING.xs,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    homeLinkText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+    },
+  });
+}
