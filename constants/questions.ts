@@ -12,6 +12,7 @@ export type CategoryId =
 export type CategoryTier = 'free' | 'premium';
 
 export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
+export const TOTAL_QUESTIONS_PER_CATEGORY = 20;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -1595,10 +1596,6 @@ export const QUESTIONS: Question[] = [
 // ---------------------------------------------------------------------------
 // Helper functions
 // ---------------------------------------------------------------------------
-
-export function getQuestionsByCategory(category: CategoryId): Question[] {
-  return QUESTIONS.filter((q) => q.category === category);
-}
 
 export function getQuestionById(id: string): Question | undefined {
   return QUESTIONS.find((q) => q.id === id);
