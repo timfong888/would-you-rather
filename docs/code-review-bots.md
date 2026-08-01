@@ -1,5 +1,22 @@
 # AI code review bots
 
+## How CodeRabbit auto-review is triggered (SAT-702)
+
+`coderabbit-trigger.yml` fires on every non-draft PR (all authors except
+`dependabot[bot]`) and posts `@coderabbitai review` via a human PAT
+(`CR_TRIGGER_TOKEN` secret). This makes CodeRabbit as consistent as Sourcery —
+every PR gets reviewed regardless of who opened it or which branch it targets.
+
+Two layers work together:
+
+| Layer | What it does |
+| --- | --- |
+| `coderabbit-trigger.yml` | Posts `@coderabbitai review` via `CR_TRIGGER_TOKEN` PAT on all non-draft PRs. Explicit trigger; always fires. |
+| `.coderabbit.yaml` `enable_free_tier: true` | Allows the GitHub App to auto-review bot-authored PRs without a paid seat. Belt-and-suspenders if the PAT trigger is absent. |
+
+`CR_TRIGGER_TOKEN` must be a classic PAT (repo scope) from a human collaborator
+set under **Settings → Secrets → Actions**.
+
 ## Why CodeRabbit was not reviewing PRs — issue 1 (resolved PR #4)
 
 All times 2026-07-31 UTC. This repo's default branch is
@@ -115,7 +132,7 @@ documented way to exclude specific authors.
 | --- | --- |
 | `auto_review.base_branches: [".*"]` | Review PRs against any base branch, not just the default one. |
 | `auto_review.drafts: true` | Review agent-opened draft PRs. |
-| `auto_review.enable_free_tier: true` | Allow reviews for PR authors without a paid seat (e.g. `blocksorg[bot]`). Without this, bot-authored PRs are silently skipped. |
+| `auto_review.enable_free_tier: true` | Allow reviews for PR authors without a paid seat (e.g. `blocksorg[bot]`). Without this, bot-authored PRs are silently skipped by the GitHub App. Added in SAT-702. |
 | `path_filters: ["!**/package-lock.json", "!dist/**"]` | 18 of Sourcery's 20 comments on PR #1 were transitive-dependency CVEs in the lockfile. Excludes lockfiles and build output; keeps reviews on hand-written code. |
 | `profile: chill` | Fewer nitpicks than `assertive`. |
 | `poem: false` | Trim review boilerplate. |
