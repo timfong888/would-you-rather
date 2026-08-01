@@ -2,9 +2,11 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Platform } from 'react-native';
 import { COLORS } from '@/constants/theme';
+import { UnlockedProvider } from '@/contexts/UnlockedContext';
 
 export default function RootLayout() {
   return (
+    <UnlockedProvider>
     <View style={styles.root}>
       <StatusBar style="dark" />
       <Stack
@@ -69,6 +71,7 @@ export default function RootLayout() {
         />
       </Stack>
     </View>
+    </UnlockedProvider>
   );
 }
 

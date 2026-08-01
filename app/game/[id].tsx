@@ -12,10 +12,12 @@ import { COLORS, FONTS, SPACING, RADIUS } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import OptionButton from '@/components/OptionButton';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 
 export default function GameScreen() {
   const { id, cat, idx } = useLocalSearchParams<{ id: string; cat: string; idx: string }>();
   const router = useRouter();
+  const { isUnlocked } = useUnlocked();
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -55,9 +57,9 @@ export default function GameScreen() {
     }
 
     if (nextQuestion && cat) {
-      // Check premium gate
+      // Check premium gate (skip if category is unlocked)
       const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT) {
+      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
         router.push(`/unlock/${cat}`);
         return;
       }
@@ -70,7 +72,7 @@ export default function GameScreen() {
   const handleSkip = () => {
     if (nextQuestion && cat) {
       const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT) {
+      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
         router.push(`/unlock/${cat}`);
         return;
       }
