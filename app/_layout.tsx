@@ -72,6 +72,13 @@ function AppLayout() {
             headerBackTitle: 'Categories',
           }}
         />
+        <Stack.Screen
+          name="feed/index"
+          options={{
+            title: 'Discover',
+            headerBackTitle: 'Home',
+          }}
+        />
       </Stack>
     </View>
   );
