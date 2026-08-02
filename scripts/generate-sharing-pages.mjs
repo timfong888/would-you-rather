@@ -18,7 +18,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } =
   await import('../api/_lib/data.js');
 
-const BASE_URL = 'https://wyr-prod.vercel.app';
+const BASE_URL =
+  process.env.BASE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://wyr-prod.vercel.app');
 const OUT_DIR = join(__dirname, '../dist/p');
 
 function esc(str) {
