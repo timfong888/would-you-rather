@@ -530,7 +530,7 @@ export default function FeedScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
-      stickyHeaderIndices={[1]}
+      stickyHeaderIndices={[2]}
     >
       <PageHead
         title="Discover — Would You Rather?"
