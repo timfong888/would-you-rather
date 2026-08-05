@@ -166,26 +166,29 @@ export default function UnlockScreen() {
 
       {/* Social comparison hook */}
       <View style={styles.socialCard}>
-        <Text style={styles.socialCardTitle}>COMPARE WITH FRIENDS</Text>
+        <Text style={styles.socialCardTitle}>CHALLENGE YOUR FRIENDS</Text>
         <Text style={styles.socialCardBody}>
-          Share your result card after each question. When friends tap through
-          and unlock the full pack, you can see every answer side-by-side —
-          who agreed, who disagreed, and on what.
+          After you vote, share a link. Friends see the question — but not
+          your answer or the vote split. They have to play along to find out
+          what you chose and where the world stands.
         </Text>
         <View style={styles.socialSteps}>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>1</Text>
-            <Text style={styles.socialStepText}>You answer — they see a blurred result card</Text>
+            <Text style={styles.socialStepText}>You vote — your result stays hidden until they play</Text>
           </View>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>2</Text>
-            <Text style={styles.socialStepText}>They play along and reveal their take</Text>
+            <Text style={styles.socialStepText}>They tap your link and pick their own answer</Text>
           </View>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>3</Text>
-            <Text style={styles.socialStepText}>Compare all 20 answers — sparks real conversation</Text>
+            <Text style={styles.socialStepText}>Both of you see the vote split — then compare your takes</Text>
           </View>
         </View>
+        <Text style={styles.socialCardFooter}>
+          Unlock all 20 dilemmas and you'll both have a full conversation's worth of takes to debate.
+        </Text>
       </View>
 
       {/* Category preview teaser */}
@@ -408,6 +411,13 @@ function makeStyles(colors: ThemeColors) {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.sm,
       lineHeight: 20,
+    },
+    socialCardFooter: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      lineHeight: 18,
+      fontStyle: 'italic',
+      marginTop: SPACING.xs,
     },
     socialSteps: {
       gap: SPACING.sm,
