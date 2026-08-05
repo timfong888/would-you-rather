@@ -8,7 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "export:web": "expo export --platform web",
-    "build:web": "expo export --platform web",
+    "build:web": "expo export --platform web && node scripts/generate-sharing-pages.mjs",
     "generate:sitemap": "tsx scripts/generate-sitemap.ts"
   },
   "dependencies": {
