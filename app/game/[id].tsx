@@ -12,6 +12,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
+import { SITE_URL } from '@/constants/config';
+import PageHead from '@/components/PageHead';
 import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
@@ -122,12 +124,24 @@ export default function GameScreen() {
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
 
+  const pageTitle = `Would You Rather: ${question.optionA} — or — ${question.optionB}?`;
+  const truncatedTitle = pageTitle.length > 100
+    ? `Would You Rather? ${category ? `[${category.label}]` : ''} — Play Now`
+    : pageTitle;
+  const pageDescription = `Would you rather ${question.optionA.toLowerCase()} — or — ${question.optionB.toLowerCase()}? Cast your vote and see how others answered.`;
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <PageHead
+        title={truncatedTitle}
+        description={pageDescription.slice(0, 200)}
+        canonicalUrl={`${SITE_URL}/game/${question.id}`}
+        twitterCard="summary_large_image"
+      />
       {/* Leave Category Link */}
       {category && (
         <Pressable

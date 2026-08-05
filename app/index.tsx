@@ -11,6 +11,8 @@ import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
+import { SEO, SITE_URL } from '@/constants/config';
+import PageHead from '@/components/PageHead';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -48,6 +50,12 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <PageHead
+        title={SEO.defaultTitle}
+        description={SEO.defaultDescription}
+        canonicalUrl={SITE_URL}
+        twitterCard="summary_large_image"
+      />
       {/* Theme Toggle (floating in top-right for headerless home screen) */}
       <View style={styles.topBar}>
         <ThemeToggle />

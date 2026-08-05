@@ -12,6 +12,8 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
+import { SITE_URL } from '@/constants/config';
+import PageHead from '@/components/PageHead';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -53,12 +55,20 @@ export default function CategoryScreen() {
     router.push(`/game/${q.id}?cat=${category.id}&idx=${startIdx}`);
   };
 
+  const pageTitle = `${category.label} — Would You Rather? ${category.emoji}`;
+  const pageDescription = `${questions.length} Would You Rather dilemmas in the ${category.label} category. ${isPremium ? 'First 3 questions free.' : 'Free to play.'} See how your answers compare.`;
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <PageHead
+        title={pageTitle}
+        description={pageDescription}
+        canonicalUrl={`${SITE_URL}/categories/${category.id}`}
+      />
       {/* Category Hero */}
       <View style={[styles.hero, { borderColor: `${category.color}30`, backgroundColor: `${category.color}10` }]}>
         <Text style={styles.heroEmoji}>{category.emoji}</Text>
