@@ -227,6 +227,19 @@ export default function handler(req) {
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+          {/* App logo mark */}
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, #EC4899 0%, #7C3AED 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <span style={{ color: '#fff', fontSize: 13, fontWeight: 900, letterSpacing: -0.5, display: 'flex' }}>WYR</span>
+          </div>
           <div style={{
             background: t.badgeBg,
             borderRadius: 9999,
@@ -348,6 +361,19 @@ export default function handler(req) {
     }}>
       {/* Top branding */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48 }}>
+        {/* App logo mark */}
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          background: 'linear-gradient(135deg, #EC4899 0%, #7C3AED 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <span style={{ color: '#fff', fontSize: 14, fontWeight: 900, letterSpacing: -0.5, display: 'flex' }}>WYR</span>
+        </div>
         <div style={{
           background: t.badgeBg,
           borderRadius: 9999,

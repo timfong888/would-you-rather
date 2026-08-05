@@ -140,6 +140,7 @@ export default function GameScreen() {
         title={truncatedTitle}
         description={pageDescription.slice(0, 200)}
         canonicalUrl={`${SITE_URL}/game/${question.id}`}
+        imageUrl={`${SITE_URL}/api/card?id=${encodeURIComponent(question.id)}&ratio=1.91x1`}
         twitterCard="summary_large_image"
       />
       {/* Leave Category Link */}
