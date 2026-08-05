@@ -1,5 +1,5 @@
 export const COPY = {
   dilemmaCount: (n: number) => `${n} DILEMMAS`,
-  freeTrialHint: 'Free to try — first 3 dilemmas free',
-  freeTrialBanner: 'Every premium category is free to try — play 3 dilemmas before you unlock',
+  freeTrialHint: 'Try free — no commitment, just great conversation',
+  freeTrialBanner: 'Try any premium pack free — 3 questions to spark the conversation before you decide',
 };
