@@ -1,12 +1,14 @@
 {
-  "buildCommand": "npm run build:web",
-  "outputDirectory": "dist",
+  "buildCommand": "npm run build:web && cp -r dist/. public/",
+  "outputDirectory": "public",
   "framework": null,
   "rewrites": [
     { "source": "/p/:id",          "destination": "/p/:id.html" },
     { "source": "/game/:id",       "destination": "/game/[id].html" },
     { "source": "/results/:id",    "destination": "/results/[id].html" },
     { "source": "/categories/:id", "destination": "/categories/[id].html" },
+    { "source": "/complete/:id",   "destination": "/complete/[id].html" },
+    { "source": "/unlock/:id",     "destination": "/unlock/[id].html" },
     { "source": "/((?!api/).*)",   "destination": "/index.html" }
   ]
 }
