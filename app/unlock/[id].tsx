@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,8 @@ import {
   ScrollView,
   Pressable,
   Platform,
-  Alert,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +20,10 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
+
+const PAYMENT_MS = 1800;
+const RESTORE_MS = 1400;
 
 const BENEFITS: { icon: IoniconsName; text: string }[] = [
   { icon: 'chatbubbles-outline', text: '20 exclusive hand-picked dilemmas' },
@@ -32,9 +37,60 @@ export default function UnlockScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { styles, colors } = useThemedStyles(makeStyles);
+  const { isUnlocked, unlock } = useUnlocked();
+
+  const [paymentState, setPaymentState] = useState<PaymentState>('idle');
+  const [useApplePay, setUseApplePay] = useState(true);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const checkAnim = useRef(new Animated.Value(0)).current;
+  const sheetAnim = useRef(new Animated.Value(400)).current;
+  const spinLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);
+
+  useEffect(() => {
+    if (paymentState === 'processing') {
+      spinLoopRef.current = Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      spinLoopRef.current.start();
+    } else {
+      spinLoopRef.current?.stop();
+      spinAnim.setValue(0);
+    }
+  }, [paymentState, spinAnim]);
+
+  useEffect(() => {
+    if (paymentState === 'success') {
+      checkAnim.setValue(0);
+      Animated.spring(checkAnim, {
+        toValue: 1,
+        tension: 80,
+        friction: 6,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [paymentState, checkAnim]);
+
+  useEffect(() => {
+    if (paymentState === 'sheet') {
+      sheetAnim.setValue(400);
+      Animated.spring(sheetAnim, {
+        toValue: 0,
+        tension: 70,
+        friction: 11,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [paymentState, sheetAnim]);
 
   if (!category) {
     return (
@@ -50,171 +106,400 @@ export default function UnlockScreen() {
   const teaserQuestions = questions.slice(FREE_TRIAL_COUNT, FREE_TRIAL_COUNT + 3);
   const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
 
-  const handleUnlock = () => {
-    // RevenueCat integration point: replace with Purchases.purchasePackage()
-    // Price should bind to Package.storeProduct.priceString (not hardcoded)
-    Alert.alert(
-      'Premium Unlock',
-      `Connect RevenueCat to enable real purchases for "${category.label}" ($2.99).`,
-    );
+  const handlePay = async () => {
+    setPaymentState('processing');
+    await new Promise<void>((r) => setTimeout(r, PAYMENT_MS));
+    unlock(id as CategoryId);
+    setPaymentState('success');
   };
 
-  const handleRestorePurchases = () => {
-    // RevenueCat integration point: replace with Purchases.restorePurchases()
-    Alert.alert('Restore Purchases', 'Connect RevenueCat to restore prior purchases.');
+  const handleRestorePurchases = async () => {
+    setRestoreMsg(null);
+    setPaymentState('processing');
+    await new Promise<void>((r) => setTimeout(r, RESTORE_MS));
+    if (isUnlocked(id as CategoryId)) {
+      setPaymentState('success');
+    } else {
+      setRestoreMsg('No previous purchases found for this account.');
+      setPaymentState('idle');
+    }
   };
+
+  const handleStartPlaying = () => {
+    const firstPremiumQ = questions[FREE_TRIAL_COUNT];
+    if (firstPremiumQ) {
+      router.replace(`/game/${firstPremiumQ.id}?cat=${id}&idx=${FREE_TRIAL_COUNT}`);
+    } else {
+      router.replace(`/categories/${id as string}`);
+    }
+  };
+
+  const spinRotate = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingTop: insets.top + SPACING.sm,
-          paddingBottom: insets.bottom + SPACING.xl,
-        },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Close Button */}
-      <Pressable
-        onPress={() => router.back()}
-        style={({ pressed }) => [
-          styles.closeBtn,
-          pressed && { opacity: 0.6 },
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {/* ── Main Scroll Content ── */}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + SPACING.sm,
+            paddingBottom: insets.bottom + SPACING.xl,
+          },
         ]}
-        hitSlop={12}
-        accessibilityLabel="Close"
-        accessibilityRole="button"
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={paymentState === 'idle'}
       >
-        <Ionicons name="close" size={20} color={colors.textSecondary} />
-      </Pressable>
+        {/* Close Button */}
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [
+            styles.closeBtn,
+            pressed && { opacity: 0.6 },
+          ]}
+          hitSlop={12}
+          accessibilityLabel="Close"
+          accessibilityRole="button"
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </Pressable>
 
-      {/* Premium Badge */}
-      <View style={styles.badgeContainer}>
-        <View style={[styles.diamondFrame, { borderColor: category.color }]}>
-          <Text style={styles.badgeEmoji}>👑</Text>
+        {/* Premium Badge */}
+        <View style={styles.badgeContainer}>
+          <View style={[styles.diamondFrame, { borderColor: category.color }]}>
+            <Text style={styles.badgeEmoji}>👑</Text>
+          </View>
+          <View style={[styles.premiumLabel, { borderColor: category.color }]}>
+            <Text style={[styles.premiumLabelText, { color: category.color }]}>
+              PREMIUM ACCESS
+            </Text>
+          </View>
         </View>
-        <View style={[styles.premiumLabel, { borderColor: category.color }]}>
-          <Text style={[styles.premiumLabelText, { color: category.color }]}>
-            PREMIUM ACCESS
+
+        {/* Headline */}
+        <View style={styles.headlineBlock}>
+          <Text style={styles.headline}>UNFOLD THE FULL COLLECTION</Text>
+          <Text style={styles.subheadline}>
+            You've tasted the first three. The journey into{' '}
+            <Text style={[styles.categoryNameInline, { color: category.color }]}>
+              "{category.label}"
+            </Text>
+            {' '}has only just begun.
+          </Text>
+          <Text style={styles.lossAversion}>
+            {questions.length - FREE_TRIAL_COUNT} dilemmas remain locked. Will you leave them unanswered?
           </Text>
         </View>
-      </View>
 
-      {/* Headline */}
-      <View style={styles.headlineBlock}>
-        <Text style={styles.headline}>UNFOLD THE FULL COLLECTION</Text>
-        <Text style={styles.subheadline}>
-          You've tasted the first three. The journey into{' '}
-          <Text style={[styles.categoryNameInline, { color: category.color }]}>
-            "{category.label}"
-          </Text>
-          {' '}has only just begun.
-        </Text>
-        <Text style={styles.lossAversion}>
-          {questions.length - FREE_TRIAL_COUNT} dilemmas remain locked. Will you leave them unanswered?
-        </Text>
-      </View>
-
-      {/* Benefits */}
-      <View style={styles.benefitsCard}>
-        <Text style={styles.benefitsTitle}>WHAT YOU GET</Text>
-        {BENEFITS.map((b) => (
-          <View key={b.text} style={styles.benefitRow}>
-            <Ionicons
-              name={b.icon}
-              size={20}
-              color={colors.textSecondary}
-              style={styles.benefitIconStyle}
-            />
-            <Text style={styles.benefitText}>{b.text}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Price + CTA */}
-      <View style={styles.priceBlock}>
-        <Text style={styles.price}>$2.99</Text>
-        <Text style={styles.priceNote}>ONE-TIME CATEGORY UNLOCK · NO SUBSCRIPTION</Text>
-      </View>
-
-      <Pressable
-        onPress={handleUnlock}
-        style={({ pressed }) => [
-          styles.unlockBtn,
-          { backgroundColor: category.color },
-          pressed && styles.btnPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
-      >
-        <Text style={styles.unlockBtnText}>UNLOCK {COPY.dilemmaCount(questions.length)} →</Text>
-      </Pressable>
-
-      <Pressable
-        onPress={handleRestorePurchases}
-        style={({ pressed }) => [
-          styles.restoreBtn,
-          pressed && { opacity: 0.6 },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Restore previous purchases"
-      >
-        <Text style={styles.restoreBtnText}>Restore Purchases</Text>
-      </Pressable>
-
-      {/* Social comparison hook */}
-      <View style={styles.socialCard}>
-        <Text style={styles.socialCardTitle}>COMPARE WITH FRIENDS</Text>
-        <Text style={styles.socialCardBody}>
-          Share your result card after each question. When friends tap through
-          and unlock the full pack, you can see every answer side-by-side —
-          who agreed, who disagreed, and on what.
-        </Text>
-        <View style={styles.socialSteps}>
-          <View style={styles.socialStep}>
-            <Text style={styles.socialStepNum}>1</Text>
-            <Text style={styles.socialStepText}>You answer — they see a blurred result card</Text>
-          </View>
-          <View style={styles.socialStep}>
-            <Text style={styles.socialStepNum}>2</Text>
-            <Text style={styles.socialStepText}>They play along and reveal their take</Text>
-          </View>
-          <View style={styles.socialStep}>
-            <Text style={styles.socialStepNum}>3</Text>
-            <Text style={styles.socialStepText}>Compare all 20 answers — sparks real conversation</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Category preview teaser */}
-      <View style={styles.teaserSection}>
-        <Text style={styles.teaserLabel}>WHAT AWAITS</Text>
-        <Text style={styles.teaserSubtitle}>A glimpse of what remains locked:</Text>
-        <View style={styles.teaserList}>
-          {teaserQuestions.map((q, i) => (
-            <View key={q.id} style={styles.teaserItem}>
-              <Text style={styles.teaserNum}>{FREE_TRIAL_COUNT + i + 1}.</Text>
-              <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
-              <Text style={styles.teaserText} numberOfLines={1}>
-                {'••••••••••••••••••••'}
-              </Text>
+        {/* Benefits */}
+        <View style={styles.benefitsCard}>
+          <Text style={styles.benefitsTitle}>WHAT YOU GET</Text>
+          {BENEFITS.map((b) => (
+            <View key={b.text} style={styles.benefitRow}>
+              <Ionicons
+                name={b.icon}
+                size={20}
+                color={colors.textSecondary}
+                style={styles.benefitIconStyle}
+              />
+              <Text style={styles.benefitText}>{b.text}</Text>
             </View>
           ))}
-          {remainingCount > 0 && (
-            <Text style={styles.teaserMore}>
-              + {remainingCount} more dilemmas...
-            </Text>
-          )}
         </View>
-      </View>
-    </ScrollView>
+
+        {/* Price + CTA */}
+        <View style={styles.priceBlock}>
+          <Text style={styles.price}>$2.99</Text>
+          <Text style={styles.priceNote}>ONE-TIME CATEGORY UNLOCK · NO SUBSCRIPTION</Text>
+        </View>
+
+        <Pressable
+          onPress={() => { setRestoreMsg(null); setPaymentState('sheet'); }}
+          style={({ pressed }) => [
+            styles.unlockBtn,
+            { backgroundColor: category.color },
+            pressed && styles.btnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
+        >
+          <Text style={styles.unlockBtnText}>UNLOCK {COPY.dilemmaCount(questions.length)} →</Text>
+        </Pressable>
+
+        {restoreMsg !== null && (
+          <Text style={styles.restoreMsg}>{restoreMsg}</Text>
+        )}
+
+        <Pressable
+          onPress={handleRestorePurchases}
+          style={({ pressed }) => [
+            styles.restoreBtn,
+            pressed && { opacity: 0.6 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Restore previous purchases"
+        >
+          <Text style={styles.restoreBtnText}>Restore Purchases</Text>
+        </Pressable>
+
+        {/* Social comparison hook */}
+        <View style={styles.socialCard}>
+          <Text style={styles.socialCardTitle}>COMPARE WITH FRIENDS</Text>
+          <Text style={styles.socialCardBody}>
+            Share your result card after each question. When friends tap through
+            and unlock the full pack, you can see every answer side-by-side —
+            who agreed, who disagreed, and on what.
+          </Text>
+          <View style={styles.socialSteps}>
+            {[
+              'You answer — they see a blurred result card',
+              'They play along and reveal their take',
+              'Compare all 20 answers — sparks real conversation',
+            ].map((step, i) => (
+              <View key={i} style={styles.socialStep}>
+                <Text style={styles.socialStepNum}>{i + 1}</Text>
+                <Text style={styles.socialStepText}>{step}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Category preview teaser */}
+        <View style={styles.teaserSection}>
+          <Text style={styles.teaserLabel}>WHAT AWAITS</Text>
+          <Text style={styles.teaserSubtitle}>A glimpse of what remains locked:</Text>
+          <View style={styles.teaserList}>
+            {teaserQuestions.map((q, i) => (
+              <View key={q.id} style={styles.teaserItem}>
+                <Text style={styles.teaserNum}>{FREE_TRIAL_COUNT + i + 1}.</Text>
+                <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
+                <Text style={styles.teaserText} numberOfLines={1}>
+                  {'••••••••••••••••••••'}
+                </Text>
+              </View>
+            ))}
+            {remainingCount > 0 && (
+              <Text style={styles.teaserMore}>
+                + {remainingCount} more dilemmas...
+              </Text>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* ── Payment Sheet ── */}
+      {paymentState === 'sheet' && (
+        <View style={styles.overlayWrap}>
+          {/* Backdrop — tapping closes the sheet */}
+          <Pressable
+            style={styles.backdrop}
+            onPress={() => setPaymentState('idle')}
+            accessibilityLabel="Close payment sheet"
+          />
+
+          {/* Sheet slides up from bottom */}
+          <Animated.View
+            style={[
+              styles.paymentSheet,
+              { paddingBottom: Math.max(insets.bottom, SPACING.md) + SPACING.lg },
+              { transform: [{ translateY: sheetAnim }] },
+            ]}
+          >
+            <View style={styles.sheetHandle} />
+
+            <Text style={styles.sheetTitle}>Complete Your Purchase</Text>
+
+            {/* Product summary row */}
+            <View style={[styles.productCard, { borderColor: `${category.color}30` }]}>
+              <View style={[styles.productIconBg, { backgroundColor: `${category.color}18` }]}>
+                <Text style={styles.productIcon}>{category.emoji}</Text>
+              </View>
+              <View style={styles.productInfo}>
+                <Text style={styles.productName}>{category.label}</Text>
+                <Text style={styles.productDesc}>
+                  Premium Pack · {questions.length} dilemmas
+                </Text>
+              </View>
+              <Text style={[styles.productPrice, { color: category.color }]}>$2.99</Text>
+            </View>
+
+            {/* Payment method selector */}
+            <View style={styles.methodRow}>
+              <Pressable
+                onPress={() => setUseApplePay(true)}
+                style={[
+                  styles.methodBtn,
+                  useApplePay && {
+                    borderColor: category.color,
+                    backgroundColor: `${category.color}0D`,
+                  },
+                ]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: useApplePay }}
+                accessibilityLabel="Pay with Apple Pay"
+              >
+                <Ionicons name="logo-apple" size={17} color={colors.text} />
+                <Text style={[styles.methodLabel, { color: colors.text }]}>Apple Pay</Text>
+                {useApplePay && (
+                  <Ionicons name="checkmark-circle" size={16} color={category.color} />
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => setUseApplePay(false)}
+                style={[
+                  styles.methodBtn,
+                  !useApplePay && {
+                    borderColor: category.color,
+                    backgroundColor: `${category.color}0D`,
+                  },
+                ]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: !useApplePay }}
+                accessibilityLabel="Pay with card"
+              >
+                <Ionicons name="card-outline" size={17} color={colors.text} />
+                <Text style={[styles.methodLabel, { color: colors.text }]}>Card</Text>
+                {!useApplePay && (
+                  <Ionicons name="checkmark-circle" size={16} color={category.color} />
+                )}
+              </Pressable>
+            </View>
+
+            {/* Pay CTA */}
+            {useApplePay ? (
+              <Pressable
+                onPress={handlePay}
+                style={({ pressed }) => [
+                  styles.applePayBtn,
+                  pressed && styles.btnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Pay $2.99 with Apple Pay"
+              >
+                <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+                <Text style={styles.applePayBtnText}>Pay  $2.99</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={handlePay}
+                style={({ pressed }) => [
+                  styles.payBtn,
+                  { backgroundColor: category.color },
+                  pressed && styles.btnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Pay $2.99 with card"
+              >
+                <Text style={styles.payBtnText}>PAY $2.99</Text>
+              </Pressable>
+            )}
+
+            <Text style={styles.legalText}>
+              By completing this purchase you agree to our Terms of Service.
+              {'\n'}Payments are processed securely. Non-refundable.
+            </Text>
+
+            <Pressable
+              onPress={() => setPaymentState('idle')}
+              style={({ pressed }) => [
+                styles.cancelBtn,
+                pressed && { opacity: 0.6 },
+              ]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </Pressable>
+          </Animated.View>
+        </View>
+      )}
+
+      {/* ── Processing Overlay ── */}
+      {paymentState === 'processing' && (
+        <View style={[styles.fullOverlay, { backgroundColor: colors.background }]}>
+          <View style={[styles.processingIconBg, { backgroundColor: `${category.color}15` }]}>
+            <Text style={styles.processingEmoji}>{category.emoji}</Text>
+          </View>
+
+          <Animated.View
+            style={[
+              styles.spinner,
+              { borderColor: colors.border, borderTopColor: category.color },
+              { transform: [{ rotate: spinRotate }] },
+            ]}
+          />
+
+          <Text style={[styles.processingTitle, { color: colors.text }]}>Authorizing…</Text>
+          <Text style={[styles.processingSubtitle, { color: colors.textSecondary }]}>
+            Securely processing your payment
+          </Text>
+        </View>
+      )}
+
+      {/* ── Success Overlay ── */}
+      {paymentState === 'success' && (
+        <View
+          style={[
+            styles.fullOverlay,
+            {
+              backgroundColor: colors.background,
+              paddingTop: insets.top + SPACING.xl,
+              paddingBottom: insets.bottom + SPACING.xl,
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.checkCircle,
+              {
+                borderColor: `${colors.success}50`,
+                backgroundColor: `${colors.success}15`,
+              },
+              { transform: [{ scale: checkAnim }] },
+            ]}
+          >
+            <Ionicons name="checkmark" size={52} color={colors.success} />
+          </Animated.View>
+
+          <View style={styles.successTextBlock}>
+            <Text style={[styles.successTitle, { color: colors.text }]}>
+              Category Unlocked!
+            </Text>
+            <Text style={[styles.successCategory, { color: category.color }]}>
+              {category.emoji}  {category.label}
+            </Text>
+            <Text style={[styles.successBody, { color: colors.textSecondary }]}>
+              All {questions.length} dilemmas are now yours to explore.
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={handleStartPlaying}
+            style={({ pressed }) => [
+              styles.startPlayingBtn,
+              { backgroundColor: category.color },
+              pressed && styles.btnPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Start playing the unlocked category"
+          >
+            <Text style={styles.startPlayingBtnText}>START PLAYING →</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
 }
 
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    root: {
+      flex: 1,
+    },
     container: {
       flex: 1,
       backgroundColor: colors.background,
@@ -380,6 +665,12 @@ function makeStyles(colors: ThemeColors) {
       opacity: 0.85,
       transform: [{ scale: 0.98 }],
     },
+    restoreMsg: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      textAlign: 'center',
+      fontStyle: 'italic',
+    },
     restoreBtn: {
       paddingVertical: SPACING.sm,
       ...Platform.select({ web: { cursor: 'pointer' } }),
@@ -483,6 +774,234 @@ function makeStyles(colors: ThemeColors) {
       fontStyle: 'italic',
       textAlign: 'center',
       marginTop: SPACING.xs,
+    },
+
+    // ── Payment sheet overlay ──────────────────────────────────────
+    overlayWrap: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'flex-end',
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    paymentSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: RADIUS.xl,
+      borderTopRightRadius: RADIUS.xl,
+      paddingHorizontal: SPACING.lg,
+      paddingTop: SPACING.md,
+      gap: SPACING.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      elevation: 12,
+    },
+    sheetHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: RADIUS.full,
+      backgroundColor: colors.border,
+      alignSelf: 'center',
+      marginBottom: SPACING.xs,
+    },
+    sheetTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.extrabold,
+      textAlign: 'center',
+      letterSpacing: 0.5,
+    },
+    productCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      backgroundColor: colors.background,
+      borderRadius: RADIUS.md,
+      padding: SPACING.md,
+      borderWidth: 1,
+    },
+    productIconBg: {
+      width: 48,
+      height: 48,
+      borderRadius: RADIUS.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    productIcon: {
+      fontSize: 26,
+    },
+    productInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    productName: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    productDesc: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      letterSpacing: 0.3,
+    },
+    productPrice: {
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.extrabold,
+      flexShrink: 0,
+    },
+    methodRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+    },
+    methodBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.sm,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.sm + 2,
+      paddingHorizontal: SPACING.sm,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    methodLabel: {
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.semibold,
+      flex: 1,
+    },
+    applePayBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.xs,
+      backgroundColor: '#000000',
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      ...Platform.select({
+        web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
+      }),
+    },
+    applePayBtnText: {
+      color: '#FFFFFF',
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+      letterSpacing: 0.5,
+    },
+    payBtn: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({
+        web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
+      }),
+    },
+    payBtnText: {
+      color: '#FFFFFF',
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    legalText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    cancelBtn: {
+      alignSelf: 'center',
+      paddingVertical: SPACING.sm,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    cancelBtnText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+    },
+
+    // ── Processing overlay ────────────────────────────────────────
+    fullOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.lg,
+      paddingHorizontal: SPACING.xl,
+    },
+    processingIconBg: {
+      width: 80,
+      height: 80,
+      borderRadius: RADIUS.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    processingEmoji: {
+      fontSize: 38,
+    },
+    spinner: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      borderWidth: 3,
+    },
+    processingTitle: {
+      fontSize: FONTS.sizes.xl,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
+    },
+    processingSubtitle: {
+      fontSize: FONTS.sizes.sm,
+      textAlign: 'center',
+    },
+
+    // ── Success overlay ───────────────────────────────────────────
+    checkCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    successTextBlock: {
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    successTitle: {
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.extrabold,
+      textAlign: 'center',
+      letterSpacing: 1,
+    },
+    successCategory: {
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.bold,
+      textAlign: 'center',
+    },
+    successBody: {
+      fontSize: FONTS.sizes.md,
+      textAlign: 'center',
+      lineHeight: 24,
+      maxWidth: 280,
+    },
+    startPlayingBtn: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.xl,
+      alignItems: 'center',
+      marginTop: SPACING.sm,
+      ...Platform.select({
+        web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
+      }),
+    },
+    startPlayingBtnText: {
+      color: '#FFFFFF',
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
     },
   });
 }
