@@ -59,7 +59,7 @@ for (const question of QUESTIONS) {
 
   const shareUrl = `${BASE_URL}/p/${id}`;
   const cardUrl = `${BASE_URL}/api/card?id=${encodeURIComponent(id)}&ratio=1.91x1`;
-  const appUrl = `${BASE_URL}/game/${id}?cat=${encodeURIComponent(question.category)}`;
+  const appUrl = `/game/${encodeURIComponent(id)}?cat=${encodeURIComponent(question.category)}`;
 
   const displayOptA = truncate(question.optionA, 200);
   const displayOptB = truncate(question.optionB, 200);
