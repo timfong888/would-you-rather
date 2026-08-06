@@ -63,11 +63,11 @@ export default function HomeScreen() {
 
       {/* Hero */}
       <View style={styles.hero}>
-        <Text style={styles.appLabel}>The ultimate choice game</Text>
+        <Text style={styles.appLabel}>Turn boredom into real conversation</Text>
         <Text style={styles.heroTitle}>Would You{'\n'}Rather?</Text>
         <Text style={styles.heroSubtitle}>
-          Pick your preference, see how others voted.{'\n'}
-          No wrong answers — only interesting ones.
+          One question. Instant debate. The kind of fun that{'\n'}
+          actually brings people closer.
         </Text>
 
         <View style={styles.quickPlaySection}>
@@ -80,7 +80,7 @@ export default function HomeScreen() {
                 pressed && styles.audiencePillPressed,
               ]}
             >
-              <Text style={styles.audiencePillText}>👨‍👧 Parents & Kids</Text>
+              <Text style={styles.audiencePillText}>👨‍👧 Bond with Kids</Text>
               <Text style={styles.audiencePillHint}>▶</Text>
             </Pressable>
             <Pressable

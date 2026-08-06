@@ -243,19 +243,19 @@ export default function CompleteScreen() {
             ]}
           >
             <View style={styles.upsellTop}>
-              <Text style={styles.upsellIcon}>👑</Text>
+              <Text style={styles.upsellIcon}>💬</Text>
               <View style={styles.upsellTextBlock}>
-                <Text style={styles.upsellTitle}>THE DEPTHS AWAIT</Text>
+                <Text style={styles.upsellTitle}>YOUR BEST CONVERSATIONS AHEAD</Text>
                 <Text style={styles.upsellHook}>
-                  {remaining} questions remain unfinished in {category.label}
+                  {remaining} more questions in {category.label} — the ones that go deeper
                 </Text>
               </View>
             </View>
             <Text style={styles.upsellDesc}>
-              You've only scratched the surface. Unlock the full collection and see how the world truly divides.
+              Keep the fun going. Every unlocked question is another moment of connection — the kind that doesn't come from scrolling.
             </Text>
             <View style={styles.upsellCta}>
-              <Text style={styles.upsellCtaText}>EXTEND COLLECTION · $2.99</Text>
+              <Text style={styles.upsellCtaText}>KEEP CONNECTING · $2.99</Text>
             </View>
           </Pressable>
         )}

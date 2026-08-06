@@ -4,8 +4,8 @@ export const APP_NAME = 'WOULD YOU RATHER';
 export const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? 'https://wouldyourather.vercel.app';
 
 export const SEO = {
-  defaultTitle: 'Would You Rather? — The Ultimate Choice Game',
+  defaultTitle: 'Would You Rather? — Spark Real Conversations',
   defaultDescription:
-    'Play Would You Rather with friends and family. 180+ thought-provoking dilemmas across 9 categories. See how your choices compare to thousands of others.',
+    'Turn any moment into a real conversation. Would You Rather turns boredom into fun, helps parents bond with kids, and sparks the debates people actually remember. 180+ dilemmas across 9 categories.',
   twitterHandle: '@wouldyourather',
 };

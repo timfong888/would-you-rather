@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
-import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -21,10 +20,10 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 const BENEFITS: { icon: IoniconsName; text: string }[] = [
-  { icon: 'chatbubbles-outline', text: '20 exclusive hand-picked dilemmas' },
-  { icon: 'stats-chart-outline', text: 'Global real-time voter statistics' },
-  { icon: 'infinite-outline', text: 'Permanent library access — own it forever' },
-  { icon: 'ban-outline', text: 'Ad-free category experience' },
+  { icon: 'chatbubbles-outline', text: 'Spark 20 conversations you won\'t see coming' },
+  { icon: 'people-outline', text: 'Discover what the world chooses — then debate why' },
+  { icon: 'infinite-outline', text: 'Beat boredom anywhere: road trips, dinners, downtime' },
+  { icon: 'heart-outline', text: 'Nothing interrupts the moment — completely ad-free' },
 ];
 
 export default function UnlockScreen() {
@@ -104,16 +103,16 @@ export default function UnlockScreen() {
 
       {/* Headline */}
       <View style={styles.headlineBlock}>
-        <Text style={styles.headline}>UNFOLD THE FULL COLLECTION</Text>
+        <Text style={styles.headline}>KEEP THE CONVERSATION GOING</Text>
         <Text style={styles.subheadline}>
-          You've tasted the first three. The journey into{' '}
+          You've had a taste of{' '}
           <Text style={[styles.categoryNameInline, { color: category.color }]}>
             "{category.label}"
           </Text>
-          {' '}has only just begun.
+          {' '}— the questions that make people lean in, laugh, and reveal what they really think.
         </Text>
         <Text style={styles.lossAversion}>
-          {questions.length - FREE_TRIAL_COUNT} dilemmas remain locked. Will you leave them unanswered?
+          {questions.length - FREE_TRIAL_COUNT} more conversations waiting. Don't leave them on the table.
         </Text>
       </View>
 
@@ -149,7 +148,7 @@ export default function UnlockScreen() {
         accessibilityRole="button"
         accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
       >
-        <Text style={styles.unlockBtnText}>UNLOCK {COPY.dilemmaCount(questions.length)} →</Text>
+        <Text style={styles.unlockBtnText}>START {questions.length - FREE_TRIAL_COUNT} MORE CONVERSATIONS →</Text>
       </Pressable>
 
       <Pressable
@@ -166,26 +165,39 @@ export default function UnlockScreen() {
 
       {/* Social comparison hook */}
       <View style={styles.socialCard}>
-        <Text style={styles.socialCardTitle}>COMPARE WITH FRIENDS</Text>
+        <Text style={styles.socialCardTitle}>BUILD REAL CONNECTIONS</Text>
         <Text style={styles.socialCardBody}>
-          Share your result card after each question. When friends tap through
-          and unlock the full pack, you can see every answer side-by-side —
-          who agreed, who disagreed, and on what.
+          Share a question with family or friends and watch opinions fly.
+          Parents: this is the easiest way to get kids talking — no screens
+          required, just real back-and-forth that builds lasting closeness.
         </Text>
         <View style={styles.socialSteps}>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>1</Text>
-            <Text style={styles.socialStepText}>You answer — they see a blurred result card</Text>
+            <Text style={styles.socialStepText}>You answer — share the question to challenge them</Text>
           </View>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>2</Text>
-            <Text style={styles.socialStepText}>They play along and reveal their take</Text>
+            <Text style={styles.socialStepText}>They reveal their choice and the debate begins</Text>
           </View>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>3</Text>
-            <Text style={styles.socialStepText}>Compare all 20 answers — sparks real conversation</Text>
+            <Text style={styles.socialStepText}>20 rounds of the kind of talk that actually matters</Text>
           </View>
         </View>
+      </View>
+
+      {/* Research-backed callout */}
+      <View style={styles.researchCard}>
+        <Text style={styles.researchCardTitle}>WHY IT WORKS</Text>
+        <Text style={styles.researchCardBody}>
+          Research from Harvard's Center on the Developing Child shows that
+          back-and-forth conversations between parents and children build stronger
+          brain connections and emotional resilience. The Search Institute lists
+          "daily meaningful conversations" as one of the 40 key assets for
+          healthy adolescent development. Every Would You Rather question is a
+          conversation waiting to happen.
+        </Text>
       </View>
 
       {/* Category preview teaser */}
@@ -437,6 +449,26 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.sm,
       lineHeight: 20,
       paddingTop: 2,
+    },
+    researchCard: {
+      width: '100%',
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      gap: SPACING.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    researchCardTitle: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+    },
+    researchCardBody: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+      lineHeight: 20,
     },
     teaserSection: {
       width: '100%',
