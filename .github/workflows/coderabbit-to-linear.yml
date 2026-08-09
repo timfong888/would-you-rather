@@ -5,6 +5,11 @@ name: Forward CodeRabbit review to Linear
 # @blocks so the agent picks it up.  The agent then implements the fixes and
 # replies on the Linear issue with the PR link when done — closing the loop.
 #
+# Template: timfong888/global-config .claude/skills/coderabbit-linear-handoff/SKILL.md
+# For new repos, use the reusable workflow:
+#   timfong888/global-config/.github/workflows/coderabbit-to-linear-reusable.yml
+# This file uses the standalone pattern to support full review body forwarding.
+#
 # Required secret: LINEAR_API_KEY  (a Linear personal API key, repo scope)
 # Optional:        LINEAR_BLOCKS_USER_ID  (Linear UUID for @blocks; if set, the
 #                  comment also assigns the issue to blocks)
@@ -122,14 +127,16 @@ jobs:
                   return json.loads(r.read())
 
           # 1. Resolve identifier → internal UUID
+          # Linear's issue() query accepts `id` for both UUID and human-readable identifier (e.g. SAT-765)
           resp = gql({
-              "query": "query ($key: String!) { issue(key: $key) { id title } }",
-              "variables": {"key": issue_id},
+              "query": "query ($id: String!) { issue(id: $id) { id title } }",
+              "variables": {"id": issue_id},
           })
-          if resp.get("errors") or not (resp.get("data") or {}).get("issue"):
+          data = resp.get("data") or {}
+          if resp.get("errors") or not data.get("issue"):
               print(f"Could not resolve Linear issue {issue_id}: {resp}", file=sys.stderr)
               sys.exit(1)
-          internal_id = resp["data"]["issue"]["id"]
+          internal_id = data["issue"]["id"]
           print(f"Resolved {issue_id} → {internal_id}")
 
           # 2. Post the forwarded review comment
