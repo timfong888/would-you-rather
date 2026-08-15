@@ -56,9 +56,18 @@ export default function HomeScreen() {
         canonicalUrl={SITE_URL}
         twitterCard="summary_large_image"
       />
-      {/* Theme Toggle (floating in top-right for headerless home screen) */}
+      {/* Top bar for headerless home screen */}
       <View style={styles.topBar}>
         <ThemeToggle />
+        <Pressable
+          onPress={() => router.push('/settings')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={({ pressed }) => [styles.settingsButton, pressed && { opacity: 0.6 }]}
+          accessibilityLabel="Open settings"
+          accessibilityRole="button"
+        >
+          <Text style={styles.settingsIcon}>⚙️</Text>
+        </Pressable>
       </View>
 
       {/* Hero */}
@@ -240,8 +249,20 @@ function makeStyles(colors: ThemeColors) {
       paddingTop: SPACING.lg,
     },
     topBar: {
-      alignItems: 'flex-end',
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: SPACING.xs,
       marginBottom: SPACING.sm,
+    },
+    settingsButton: {
+      padding: 4,
+      ...Platform.select({
+        web: { cursor: 'pointer' },
+      }),
+    },
+    settingsIcon: {
+      fontSize: 20,
     },
     hero: {
       gap: SPACING.md,

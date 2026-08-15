@@ -8,7 +8,7 @@ import {
   Platform,
   Share,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
@@ -28,7 +28,8 @@ export default function GameScreen() {
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const { markAnswered } = useAnsweredQuestions();
+  const { markAnswered, refresh } = useAnsweredQuestions();
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
