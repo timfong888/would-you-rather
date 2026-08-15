@@ -31,7 +31,11 @@ function getClient(): PostHog | null {
 type Props = Record<string, string | number | boolean | null | undefined>;
 
 export function identify(distinctId: string, properties?: Props): void {
-  getClient()?.identify(distinctId, properties as any);
+  try {
+    getClient()?.identify(distinctId, properties as any);
+  } catch (e) {
+    if (DEBUG) console.warn('[analytics] identify error', e);
+  }
 }
 
 export function track(event: string, props?: Props): void {

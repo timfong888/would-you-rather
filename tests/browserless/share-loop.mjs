@@ -29,7 +29,7 @@ export default async function ({ page, context }) {
   await page.goto(`${HOST}/game/${QUESTION_ID}`, { waitUntil: 'networkidle' });
 
   // Pick option A
-  const optionA = await page.$('[data-testid="option-A"], text=A');
+  const optionA = await page.$('[data-testid="option-A"]') || await page.$('text=Option A');
   if (optionA) await optionA.click();
   else {
     // Fallback: click first pressable option button
@@ -83,12 +83,13 @@ export default async function ({ page, context }) {
       assert(false, `Profile A: captured URL is parseable (got: ${capturedShareUrl})`);
     }
   } else {
-    // Navigator.share not available — construct expected URL to verify profile B flow
+    // Neither clipboard intercept nor copy feedback fired — test is inconclusive for Profile A share.
+    // We still open a synthetic link to exercise Profile B's attribution logic.
     const origin = HOST;
     capturedShareUrl = `${origin}/p/${QUESTION_ID}?link_id=test-link-id-aaa&gen=1`;
     linkIdA = 'test-link-id-aaa';
     genA = '1';
-    assert(true, 'Profile A: share URL constructed for downstream test (navigator.share unavailable)');
+    results.assertions.push({ label: 'Profile A: share URL not capturable — downstream test uses synthetic URL (SKIPPED)', passed: null });
   }
 
   // ── Profile B: open the shared link ──────────────────────────────────────
@@ -111,7 +112,7 @@ export default async function ({ page, context }) {
   );
 
   // Profile B answers the question
-  const optionAB = await pageB.$('[data-testid="option-A"], text=A');
+  const optionAB = await pageB.$('[data-testid="option-A"]') || await pageB.$('text=Option A');
   if (optionAB) {
     await optionAB.click();
     await pageB.waitForTimeout(200);
@@ -157,7 +158,7 @@ export default async function ({ page, context }) {
       assert(false, `Profile B: re-share URL is parseable (got: ${capturedShareUrlB})`);
     }
   } else {
-    assert(true, 'Profile B: re-share clipboard intercept not available — flow completed without error');
+    results.assertions.push({ label: 'Profile B: re-share clipboard intercept not available — flow completed without crash (SKIPPED)', passed: null });
   }
 
   await pageB.close();
