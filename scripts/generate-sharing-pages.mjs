@@ -9,7 +9,7 @@
  * The vercel.json rewrite `/p/:id` → `/p/:id.html` serves these files.
  */
 
-import { writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -18,9 +18,27 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } =
   await import('../api/_lib/data.js');
 
-const BASE_URL =
-  process.env.BASE_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://wyr-prod.vercel.app');
+// Single source of truth: mirrors constants/config.ts SITE_URL.
+// Set EXPO_PUBLIC_SITE_URL in Vercel env vars for the canonical prod domain.
+// Never use VERCEL_URL here — it is per-deployment and causes link rot.
+const BASE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? 'https://wouldyourather.vercel.app';
+
+// Build-time guard: og:url host must match every host in sitemap.xml.
+const sitemapXml = await readFile(join(__dirname, '../public/sitemap.xml'), 'utf-8');
+const sitemapLocs = [...sitemapXml.matchAll(/<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/g)].map(([, loc]) => loc);
+if (sitemapLocs.length === 0) {
+  console.error('generate-sharing-pages: could not find a <loc> URL in public/sitemap.xml');
+  process.exit(1);
+}
+const baseUrlHost = new URL(BASE_URL).host;
+const mismatchedLoc = sitemapLocs.find((loc) => new URL(loc).host !== baseUrlHost);
+if (mismatchedLoc) {
+  console.error(
+    `generate-sharing-pages: host mismatch — BASE_URL "${baseUrlHost}" ≠ sitemap.xml entry "${mismatchedLoc}". ` +
+    `Set EXPO_PUBLIC_SITE_URL to match, or regenerate sitemap.xml first.`
+  );
+  process.exit(1);
+}
 const OUT_DIR = join(__dirname, '../dist/p');
 
 function esc(str) {
@@ -99,8 +117,17 @@ for (const question of QUESTIONS) {
   <meta name="twitter:image:alt"   content="${esc(ogTitle)}" />
 
   <!-- JS redirect: real browsers jump immediately; OG scrapers (iMessage, WhatsApp)
-       don't execute JS, so they read the meta tags above. -->
-  <script>window.location.replace(${JSON.stringify(appUrl)});</script>
+       don't execute JS, so they read the meta tags above.
+       link_id and gen are forwarded so share-loop attribution survives the redirect. -->
+  <script>
+    (function() {
+      var dst = new URL(${JSON.stringify(appUrl)}, location.origin);
+      var src = new URLSearchParams(location.search);
+      if (src.get('link_id')) dst.searchParams.set('link_id', src.get('link_id'));
+      if (src.get('gen')) dst.searchParams.set('gen', src.get('gen'));
+      window.location.replace(dst.toString());
+    })();
+  </script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

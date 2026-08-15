@@ -127,6 +127,16 @@ export default function HomeScreen() {
           >
             <Text style={styles.secondaryButtonText}>Browse Categories</Text>
           </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/feed')}
+            style={({ pressed }) => [
+              styles.discoverButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.discoverButtonText}>✨ Discover Feed</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -378,6 +388,24 @@ function makeStyles(colors: ThemeColors) {
     buttonPressed: {
       opacity: 0.75,
       transform: [{ scale: 0.97 }],
+    },
+    discoverButton: {
+      borderWidth: 1.5,
+      borderColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'opacity 0.15s ease',
+        },
+      }),
+    },
+    discoverButtonText: {
+      color: colors.magenta,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.semibold,
     },
     statsRow: {
       flexDirection: 'row',

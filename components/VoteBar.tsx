@@ -51,7 +51,14 @@ export default function VoteBar({
             {text}
           </Text>
         </View>
-        <Text style={[styles.percentage, { color }]}>{percentage}%</Text>
+        <View style={styles.rightCol}>
+          <Text style={[styles.percentage, { color }]}>{percentage}%</Text>
+          {userVoted && (
+            <View style={[styles.yourChoicePill, { borderColor: color }]}>
+              <Text style={[styles.yourChoiceText, { color }]}>YOUR CHOICE</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.barTrack}>
@@ -70,7 +77,7 @@ export default function VoteBar({
       </View>
 
       <Text style={styles.voteCount}>
-        {votes.toLocaleString()} votes
+        GLOBAL VOTE · {votes.toLocaleString()} votes
       </Text>
     </View>
   );
@@ -113,10 +120,25 @@ function makeStyles(colors: ThemeColors) {
       flex: 1,
       lineHeight: 20,
     },
+    rightCol: {
+      alignItems: 'flex-end',
+      gap: 4,
+      flexShrink: 0,
+    },
     percentage: {
       fontSize: FONTS.sizes.xl,
       fontWeight: FONTS.weights.extrabold,
-      flexShrink: 0,
+    },
+    yourChoicePill: {
+      borderWidth: 1,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 2,
+    },
+    yourChoiceText: {
+      fontSize: 9,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
     },
     barTrack: {
       height: 10,
