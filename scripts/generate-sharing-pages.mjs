@@ -23,18 +23,18 @@ const { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } =
 // Never use VERCEL_URL here — it is per-deployment and causes link rot.
 const BASE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? 'https://wouldyourather.vercel.app';
 
-// Build-time guard: og:url host must match sitemap.xml host.
+// Build-time guard: og:url host must match every host in sitemap.xml.
 const sitemapXml = await readFile(join(__dirname, '../public/sitemap.xml'), 'utf-8');
-const sitemapLocMatch = sitemapXml.match(/<loc>(https?:\/\/[^/<]+)/);
-if (!sitemapLocMatch) {
+const sitemapLocs = [...sitemapXml.matchAll(/<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/g)].map(([, loc]) => loc);
+if (sitemapLocs.length === 0) {
   console.error('generate-sharing-pages: could not find a <loc> URL in public/sitemap.xml');
   process.exit(1);
 }
-const sitemapHost = new URL(sitemapLocMatch[1]).host;
 const baseUrlHost = new URL(BASE_URL).host;
-if (sitemapHost !== baseUrlHost) {
+const mismatchedLoc = sitemapLocs.find((loc) => new URL(loc).host !== baseUrlHost);
+if (mismatchedLoc) {
   console.error(
-    `generate-sharing-pages: host mismatch — BASE_URL "${baseUrlHost}" ≠ sitemap.xml "${sitemapHost}". ` +
+    `generate-sharing-pages: host mismatch — BASE_URL "${baseUrlHost}" ≠ sitemap.xml entry "${mismatchedLoc}". ` +
     `Set EXPO_PUBLIC_SITE_URL to match, or regenerate sitemap.xml first.`
   );
   process.exit(1);
