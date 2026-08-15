@@ -21,6 +21,8 @@ import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import VoteBar from '@/components/VoteBar';
+import { useAnalytics } from '@/contexts/AnalyticsContext';
+import { track, buildShareUrl } from '@/lib/analytics';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
@@ -29,6 +31,7 @@ export default function CompleteScreen() {
   const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
   const category = getCategoryById((id ?? '') as CategoryId);
   const questions = getCategoryQuestions((id ?? '') as CategoryId);
@@ -43,17 +46,27 @@ export default function CompleteScreen() {
     }).start();
   }, []);
 
-  const shareUrl = Platform.select({
-    web: typeof window !== 'undefined'
-      ? `${window.location.origin}/p/${lastQuestion?.id ?? ''}`
-      : `/p/${lastQuestion?.id ?? ''}`,
-    default: `/p/${lastQuestion?.id ?? ''}`,
-  }) as string;
-
   const handleShareChallenge = useCallback(async () => {
     if (!lastQuestion) return;
     const title = 'Would You Rather?';
     const text = `${lastQuestion.optionA} — OR — ${lastQuestion.optionB}`;
+    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
+
+    track('share_clicked', {
+      question_id: lastQuestion.id,
+      surface: 'complete_challenge',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
+
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
@@ -66,13 +79,30 @@ export default function CompleteScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [lastQuestion, shareUrl]);
+  }, [lastQuestion, incomingGeneration, incomingLinkId, visitorId]);
 
   const handleShareMyTake = useCallback(async () => {
     if (!lastQuestion || !voted) return;
     const myOption = voted === 'A' ? lastQuestion.optionA : lastQuestion.optionB;
     const title = 'My Would You Rather Take';
     const text = `I chose: "${myOption}" — do you agree?`;
+    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
+
+    track('share_clicked', {
+      question_id: lastQuestion.id,
+      surface: 'complete_my_take',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
+
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
@@ -85,7 +115,7 @@ export default function CompleteScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [lastQuestion, voted, shareUrl]);
+  }, [lastQuestion, voted, incomingGeneration, incomingLinkId, visitorId]);
 
   if (!category) {
     return (
