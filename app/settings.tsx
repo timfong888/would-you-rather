@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Switch,
+  Alert,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -43,8 +44,6 @@ export default function SettingsScreen() {
         doReset();
       }
     } else {
-      // On native, import Alert lazily to avoid web bundle issues
-      const { Alert } = require('react-native');
       Alert.alert(
         'Reset Progress',
         'This will clear your answered questions and unlocked packs.',

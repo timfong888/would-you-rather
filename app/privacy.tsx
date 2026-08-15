@@ -13,7 +13,7 @@ export default function PrivacyPolicyScreen() {
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Privacy Policy</Text>
-      <Text style={styles.updated}>Last updated: August 2025</Text>
+      <Text style={styles.updated}>Last updated: August 2026</Text>
 
       <Text style={styles.body}>
         Would You Rather? is a locally-run game that stores all data on your
