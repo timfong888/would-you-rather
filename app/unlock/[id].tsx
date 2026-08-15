@@ -18,6 +18,7 @@ import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import analytics from '@/utils/analytics';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
@@ -92,6 +93,11 @@ export default function UnlockScreen() {
     }
   }, [paymentState, sheetAnim]);
 
+  useEffect(() => {
+    analytics.track('paywall_viewed', { category_id: id });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!category) {
     return (
       <View style={[styles.errorContainer, { paddingTop: insets.top + SPACING.lg }]}>
@@ -107,6 +113,10 @@ export default function UnlockScreen() {
   const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
 
   const handlePay = async () => {
+    analytics.track('paywall_cta_clicked', {
+      category_id: id,
+      payment_method: useApplePay ? 'apple_pay' : 'card',
+    });
     setPaymentState('processing');
     await new Promise<void>((r) => setTimeout(r, PAYMENT_MS));
     unlock(id as CategoryId);
