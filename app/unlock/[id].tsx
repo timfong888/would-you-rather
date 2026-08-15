@@ -66,6 +66,10 @@ export default function UnlockScreen() {
       spinLoopRef.current?.stop();
       spinAnim.setValue(0);
     }
+    return () => {
+      spinLoopRef.current?.stop();
+      spinLoopRef.current = null;
+    };
   }, [paymentState, spinAnim]);
 
   useEffect(() => {
@@ -112,6 +116,7 @@ export default function UnlockScreen() {
   const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
 
   const handlePay = async () => {
+    if (paymentState !== 'sheet') return;
     analytics.track('paywall_cta_clicked', {
       category_id: id,
       payment_method: useApplePay ? 'apple_pay' : 'card',
@@ -317,11 +322,12 @@ export default function UnlockScreen() {
 
       {/* ── Payment Sheet ── */}
       {paymentState === 'sheet' && (
-        <View style={styles.overlayWrap}>
+        <View style={styles.overlayWrap} accessibilityViewIsModal>
           {/* Backdrop — tapping closes the sheet */}
           <Pressable
             style={styles.backdrop}
             onPress={() => setPaymentState('idle')}
+            accessibilityRole="button"
             accessibilityLabel="Close payment sheet"
           />
 
