@@ -16,7 +16,7 @@ import VoteBar from '@/components/VoteBar';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function ResultsScreen() {
-  const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
+  const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
