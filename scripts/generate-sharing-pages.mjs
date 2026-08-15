@@ -117,8 +117,17 @@ for (const question of QUESTIONS) {
   <meta name="twitter:image:alt"   content="${esc(ogTitle)}" />
 
   <!-- JS redirect: real browsers jump immediately; OG scrapers (iMessage, WhatsApp)
-       don't execute JS, so they read the meta tags above. -->
-  <script>window.location.replace(${JSON.stringify(appUrl)});</script>
+       don't execute JS, so they read the meta tags above.
+       link_id and gen are forwarded so share-loop attribution survives the redirect. -->
+  <script>
+    (function() {
+      var dst = new URL(${JSON.stringify(appUrl)}, location.origin);
+      var src = new URLSearchParams(location.search);
+      if (src.get('link_id')) dst.searchParams.set('link_id', src.get('link_id'));
+      if (src.get('gen')) dst.searchParams.set('gen', src.get('gen'));
+      window.location.replace(dst.toString());
+    })();
+  </script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

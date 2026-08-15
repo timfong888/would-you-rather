@@ -14,6 +14,8 @@ import { getQuestionById, getCategoryById, getCategoryQuestions } from '@/consta
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import { useAnalytics } from '@/contexts/AnalyticsContext';
+import { track, buildShareUrl } from '@/lib/analytics';
 
 export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
@@ -22,6 +24,7 @@ export default function ResultsScreen() {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
   useEffect(() => {
     return () => {
@@ -55,16 +58,25 @@ export default function ResultsScreen() {
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
 
-  const shareUrl = Platform.select({
-    web: typeof window !== 'undefined'
-      ? `${window.location.origin}/p/${id}`
-      : `/p/${id}`,
-    default: `/p/${id}`,
-  }) as string;
-
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
     const text = `${question?.optionA} — OR — ${question?.optionB}`;
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+
+    track('share_clicked', {
+      question_id: id,
+      surface: 'results_challenge',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
 
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
@@ -83,20 +95,31 @@ export default function ResultsScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [question, shareUrl]);
+  }, [question, id, incomingGeneration, incomingLinkId, visitorId]);
 
   // "Share my take" — shares /p/:id?voted=A/B so iMessage shows the rich card preview
   const handleShareMyTake = useCallback(async () => {
     if (!voted) return;
-    const myTakeUrl = Platform.select({
-      web: typeof window !== 'undefined'
-        ? `${window.location.origin}/p/${id}?voted=${voted}`
-        : `/p/${id}?voted=${voted}`,
-      default: `/p/${id}?voted=${voted}`,
-    }) as string;
+    const { url: baseUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+    const myTakeUrl = `${baseUrl}&voted=${voted}`;
     const myOption = voted === 'A' ? question?.optionA : question?.optionB;
     const title = 'My Would You Rather Take';
     const text = `I chose: "${myOption}" — do you agree?`;
+
+    track('share_clicked', {
+      question_id: id,
+      surface: 'results_my_take',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
 
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
@@ -115,7 +138,7 @@ export default function ResultsScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${myTakeUrl}`, url: myTakeUrl });
     }
-  }, [voted, question, id]);
+  }, [voted, question, id, incomingGeneration, incomingLinkId, visitorId]);
 
   const cardUrl9x16 = Platform.select({
     web: typeof window !== 'undefined'
@@ -152,6 +175,22 @@ export default function ResultsScreen() {
   const handleTikTokShare = useCallback(async () => {
     const title = 'Would You Rather?';
     const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+
+    track('share_clicked', {
+      question_id: id,
+      surface: 'results_tiktok',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
 
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
@@ -168,7 +207,7 @@ export default function ResultsScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [question, shareUrl, hashtags]);
+  }, [question, id, incomingGeneration, incomingLinkId, visitorId, hashtags]);
 
   const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
   const currentIdx = categoryQuestions.findIndex((q) => q.id === id);
@@ -320,7 +359,11 @@ export default function ResultsScreen() {
           <Text style={styles.igButtonText}>🎵  TikTok</Text>
         </Pressable>
 
-        <Text style={styles.shareLink} numberOfLines={1}>{shareUrl}</Text>
+        <Text style={styles.shareLink} numberOfLines={1}>
+          {Platform.OS === 'web' && typeof window !== 'undefined'
+            ? `${window.location.origin}/p/${id}`
+            : `https://wouldyourather.vercel.app/p/${id}`}
+        </Text>
       </View>
 
       {/* Navigation */}
