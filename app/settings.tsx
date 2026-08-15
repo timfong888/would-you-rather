@@ -12,15 +12,15 @@ import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useTheme, useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
+import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { CATEGORIES } from '@/constants/questions';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-
-const ANSWERED_STORAGE_KEY = 'wyr_answered_questions';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { isDark, toggleTheme } = useTheme();
   const { isUnlocked, reset: resetUnlocked } = useUnlocked();
+  const { reset: resetAnswered } = useAnsweredQuestions();
   const { styles, colors } = useThemedStyles(makeStyles);
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
@@ -30,12 +30,8 @@ export default function SettingsScreen() {
 
   const handleResetProgress = () => {
     const doReset = () => {
-      try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.removeItem(ANSWERED_STORAGE_KEY);
-        }
-        resetUnlocked();
-      } catch {}
+      resetAnswered();
+      resetUnlocked();
     };
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
