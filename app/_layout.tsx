@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Platform } from 'react-native';
 import { UnlockedProvider } from '@/contexts/UnlockedContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { AnalyticsProvider } from '@/contexts/AnalyticsContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
 function AppLayout() {
@@ -80,9 +81,11 @@ function AppLayout() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <UnlockedProvider>
-        <AppLayout />
-      </UnlockedProvider>
+      <AnalyticsProvider>
+        <UnlockedProvider>
+          <AppLayout />
+        </UnlockedProvider>
+      </AnalyticsProvider>
     </ThemeProvider>
   );
 }
