@@ -72,6 +72,27 @@ function AppLayout() {
             headerBackTitle: 'Categories',
           }}
         />
+        <Stack.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            headerBackTitle: 'Back',
+          }}
+        />
+        <Stack.Screen
+          name="privacy"
+          options={{
+            title: 'Privacy Policy',
+            headerBackTitle: 'Settings',
+          }}
+        />
+        <Stack.Screen
+          name="terms"
+          options={{
+            title: 'Terms of Service',
+            headerBackTitle: 'Settings',
+          }}
+        />
       </Stack>
     </View>
   );
