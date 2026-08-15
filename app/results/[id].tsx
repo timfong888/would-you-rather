@@ -16,7 +16,7 @@ import VoteBar from '@/components/VoteBar';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function ResultsScreen() {
-  const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: 'A' | 'B' | undefined; cat: string }>();
+  const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -262,7 +262,10 @@ export default function ResultsScreen() {
       {/* Share card */}
       <View style={styles.shareCard}>
         <View style={styles.shareCardHeader}>
-          <Text style={styles.shareCardTitle}>Share</Text>
+          <Text style={styles.shareCardTitle}>Share & Challenge</Text>
+          <Text style={styles.shareCardSub}>
+            Friends see the question but not the results — they have to play to find out.
+          </Text>
         </View>
 
         {/* Primary: Challenge friends (curiosity gap — result is blurred) */}
