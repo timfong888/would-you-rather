@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useTheme, useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { CATEGORIES } from '@/constants/questions';
@@ -21,6 +22,7 @@ export default function SettingsScreen() {
   const { isDark, toggleTheme } = useTheme();
   const { isUnlocked, reset: resetUnlocked } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
+  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
   const unlockedPacks = CATEGORIES.filter(
     (cat) => cat.tier === 'premium' && isUnlocked(cat.id)
@@ -142,7 +144,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.bottomPadding} />
+      <Text style={styles.version}>VERSION {appVersion}</Text>
     </ScrollView>
   );
 }
@@ -219,8 +221,12 @@ function makeStyles(colors: ThemeColors) {
       fontWeight: FONTS.weights.bold,
       letterSpacing: 0.5,
     },
-    bottomPadding: {
-      height: SPACING.xl,
+    version: {
+      textAlign: 'center',
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      letterSpacing: 1.5,
+      paddingVertical: SPACING.xl,
     },
   });
 }
