@@ -165,26 +165,29 @@ export default function UnlockScreen() {
 
       {/* Social comparison hook */}
       <View style={styles.socialCard}>
-        <Text style={styles.socialCardTitle}>BUILD REAL CONNECTIONS</Text>
+        <Text style={styles.socialCardTitle}>CHALLENGE YOUR FRIENDS</Text>
         <Text style={styles.socialCardBody}>
-          Share a question with family or friends and watch opinions fly.
-          Parents: this is the easiest way to get kids talking — no screens
-          required, just real back-and-forth that builds lasting closeness.
+          After you vote, share a link. Friends see the question — but not
+          your answer or the vote split. They have to play along to find out
+          what you chose and where the world stands.
         </Text>
         <View style={styles.socialSteps}>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>1</Text>
-            <Text style={styles.socialStepText}>You answer — share the question to challenge them</Text>
+            <Text style={styles.socialStepText}>You vote — your result stays hidden until they play</Text>
           </View>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>2</Text>
-            <Text style={styles.socialStepText}>They reveal their choice and the debate begins</Text>
+            <Text style={styles.socialStepText}>They tap your link and pick their own answer</Text>
           </View>
           <View style={styles.socialStep}>
             <Text style={styles.socialStepNum}>3</Text>
-            <Text style={styles.socialStepText}>20 rounds of the kind of talk that actually matters</Text>
+            <Text style={styles.socialStepText}>Both of you see the vote split — then compare your takes</Text>
           </View>
         </View>
+        <Text style={styles.socialCardFooter}>
+          Unlock all 20 dilemmas and you'll both have a full conversation's worth of takes to debate.
+        </Text>
       </View>
 
       {/* Research-backed callout */}
@@ -420,6 +423,13 @@ function makeStyles(colors: ThemeColors) {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.sm,
       lineHeight: 20,
+    },
+    socialCardFooter: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
+      lineHeight: 18,
+      fontStyle: 'italic',
+      marginTop: SPACING.xs,
     },
     socialSteps: {
       gap: SPACING.sm,

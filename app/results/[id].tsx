@@ -262,7 +262,10 @@ export default function ResultsScreen() {
       {/* Share card */}
       <View style={styles.shareCard}>
         <View style={styles.shareCardHeader}>
-          <Text style={styles.shareCardTitle}>Share</Text>
+          <Text style={styles.shareCardTitle}>Share & Challenge</Text>
+          <Text style={styles.shareCardSub}>
+            Friends see the question but not the results — they have to play to find out.
+          </Text>
         </View>
 
         {/* Primary: Challenge friends (curiosity gap — result is blurred) */}
