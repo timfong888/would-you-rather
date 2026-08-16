@@ -75,6 +75,9 @@ export default function handler(req) {
 
   const baseUrl = new URL(req.url).origin;
   const shareUrl = `${baseUrl}/p/${id}`;
+  const voteCountLabel = totalVotes >= 1000
+    ? `${(totalVotes / 1000).toFixed(1)}k`
+    : totalVotes.toLocaleString();
 
   const isLandscape = ratio === '1.91x1';
   const width = isLandscape ? 1200 : 540;
@@ -83,74 +86,62 @@ export default function handler(req) {
   const optA = truncate(question.optionA, isLandscape ? 90 : 130);
   const optB = truncate(question.optionB, isLandscape ? 90 : 130);
 
-  // ── Blurred consensus strip (shared by both layouts) ──────────────────────
-  // Satori doesn't support CSS filter:blur, so we simulate frosted glass by:
-  //   1. showing the consensus text at near-invisible opacity (the "ghost")
-  //   2. overlaying a semi-opaque panel with a 🔒 CTA
-  const BlurStrip = (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: isLandscape ? 64 : 72,
-        borderRadius: 14,
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: t.blurBg,
-      }}
-    >
-      {/* Ghost text — visible but illegible */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'rgba(255,255,255,0.11)',
-        fontSize: isLandscape ? 22 : 20,
-        fontWeight: 800,
-        letterSpacing: 10,
-      }}>
-        {consensusText}
-      </div>
-
-      {/* Frosted overlay */}
-      <div style={{
-        position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: t.blurOverlay,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        borderRadius: 14,
-      }}>
-        <div style={{ fontSize: isLandscape ? 18 : 16, display: 'flex' }}>🔒</div>
+  // ── Compelling vote CTA strip (shared by both layouts) ────────────────────
+  const VoteCta = (
+    <div style={{
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: isLandscape ? 8 : 10,
+    }}>
+      {/* Social proof — only shown when there are real votes */}
+      {hasData && (
         <div style={{
-          color: t.textSecondary,
-          fontSize: isLandscape ? 15 : 14,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 7,
+        }}>
+          <div style={{ fontSize: isLandscape ? 13 : 12, display: 'flex' }}>🔥</div>
+          <div style={{
+            color: t.textSecondary,
+            fontSize: isLandscape ? 12 : 11,
+            fontWeight: 600,
+            display: 'flex',
+          }}>
+            {voteCountLabel} people voted — where do you stand?
+          </div>
+        </div>
+      )}
+      {/* Primary CTA button */}
+      <div style={{
+        width: '100%',
+        borderRadius: isLandscape ? 14 : 18,
+        background: 'linear-gradient(135deg, #EC4899 0%, #7C3AED 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: isLandscape ? '15px 18px' : '20px 24px',
+        gap: 5,
+      }}>
+        <div style={{
+          color: '#FFFFFF',
+          fontSize: isLandscape ? 17 : 16,
+          fontWeight: 900,
+          letterSpacing: 1,
+          display: 'flex',
+        }}>
+          VOTE NOW →
+        </div>
+        <div style={{
+          color: 'rgba(255,255,255,0.82)',
+          fontSize: isLandscape ? 12 : 11,
           fontWeight: 600,
           display: 'flex',
         }}>
-          Tap the link to see results
+          {hasData ? 'Unlock the full breakdown' : 'Be first to weigh in'}
         </div>
-      </div>
-    </div>
-  );
-
-  const PlaceholderStrip = (
-    <div style={{
-      width: '100%',
-      height: isLandscape ? 64 : 72,
-      borderRadius: 14,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: t.optionBg,
-      border: `1.5px solid ${t.optionBorder}`,
-    }}>
-      <div style={{ color: t.textSecondary, fontSize: 16, fontWeight: 600, display: 'flex' }}>
-        See what others chose →
       </div>
     </div>
   );
@@ -210,7 +201,7 @@ export default function handler(req) {
     </div>
   );
 
-  const ResultStrip = isMyTakeMode ? MyTakeStrip : (hasData ? BlurStrip : PlaceholderStrip);
+  const ResultStrip = isMyTakeMode ? MyTakeStrip : VoteCta;
 
   if (isLandscape) {
     // ── 1200×628 OG / link-preview card ────────────────────────────────────
@@ -290,7 +281,7 @@ export default function handler(req) {
                   {isMyTakeMode && voted === 'A' ? '✓' : 'A'}
                 </span>
               </div>
-              <span style={{ color: t.textPrimary, fontSize: 16, lineHeight: 1.45, display: 'flex' }}>
+              <span style={{ color: t.textPrimary, fontSize: 18, lineHeight: 1.45, display: 'flex' }}>
                 {optA}
               </span>
             </div>
@@ -323,7 +314,7 @@ export default function handler(req) {
                   {isMyTakeMode && voted === 'B' ? '✓' : 'B'}
                 </span>
               </div>
-              <span style={{ color: t.textPrimary, fontSize: 16, lineHeight: 1.45, display: 'flex' }}>
+              <span style={{ color: t.textPrimary, fontSize: 18, lineHeight: 1.45, display: 'flex' }}>
                 {optB}
               </span>
             </div>
@@ -343,7 +334,11 @@ export default function handler(req) {
           </div>
         </div>
       </div>,
-      { width, height }
+      {
+        width,
+        height,
+        headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800' },
+      }
     );
   }
 
@@ -474,6 +469,10 @@ export default function handler(req) {
         <span style={{ color: t.textMuted, fontSize: 13, display: 'flex' }}>{shareUrl}</span>
       </div>
     </div>,
-    { width, height }
+    {
+      width,
+      height,
+      headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800' },
+    }
   );
 }
