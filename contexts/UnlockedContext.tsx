@@ -5,11 +5,13 @@ import type { CategoryId } from '@/constants/questions';
 interface UnlockedContextValue {
   isUnlocked: (id: CategoryId) => boolean;
   unlock: (id: CategoryId) => void;
+  reset: () => void;
 }
 
 const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
   unlock: () => {},
+  reset: () => {},
 });
 
 const STORAGE_KEY = 'wyr_unlocked_categories';
@@ -46,8 +48,16 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const reset = useCallback(() => {
+    setUnlocked(() => {
+      const empty = new Set<string>();
+      saveToStorage(empty);
+      return empty;
+    });
+  }, []);
+
   return (
-    <UnlockedContext.Provider value={{ isUnlocked, unlock }}>
+    <UnlockedContext.Provider value={{ isUnlocked, unlock, reset }}>
       {children}
     </UnlockedContext.Provider>
   );

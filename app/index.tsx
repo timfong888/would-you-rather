@@ -56,18 +56,27 @@ export default function HomeScreen() {
         canonicalUrl={SITE_URL}
         twitterCard="summary_large_image"
       />
-      {/* Theme Toggle (floating in top-right for headerless home screen) */}
+      {/* Top bar for headerless home screen */}
       <View style={styles.topBar}>
         <ThemeToggle />
+        <Pressable
+          onPress={() => router.push('/settings')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={({ pressed }) => [styles.settingsButton, pressed && { opacity: 0.6 }]}
+          accessibilityLabel="Open settings"
+          accessibilityRole="button"
+        >
+          <Text style={styles.settingsIcon}>⚙️</Text>
+        </Pressable>
       </View>
 
       {/* Hero */}
       <View style={styles.hero}>
-        <Text style={styles.appLabel}>The ultimate choice game</Text>
+        <Text style={styles.appLabel}>Turn boredom into real conversation</Text>
         <Text style={styles.heroTitle}>Would You{'\n'}Rather?</Text>
         <Text style={styles.heroSubtitle}>
-          Pick your preference, see how others voted.{'\n'}
-          No wrong answers — only interesting ones.
+          One question. Instant debate. The kind of fun that{'\n'}
+          actually brings people closer.
         </Text>
 
         <View style={styles.quickPlaySection}>
@@ -80,7 +89,7 @@ export default function HomeScreen() {
                 pressed && styles.audiencePillPressed,
               ]}
             >
-              <Text style={styles.audiencePillText}>👨‍👧 Parents & Kids</Text>
+              <Text style={styles.audiencePillText}>👨‍👧 Bond with Kids</Text>
               <Text style={styles.audiencePillHint}>▶</Text>
             </Pressable>
             <Pressable
@@ -117,6 +126,16 @@ export default function HomeScreen() {
             ]}
           >
             <Text style={styles.secondaryButtonText}>Browse Categories</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/feed')}
+            style={({ pressed }) => [
+              styles.discoverButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.discoverButtonText}>✨ Discover Feed</Text>
           </Pressable>
         </View>
       </View>
@@ -230,8 +249,20 @@ function makeStyles(colors: ThemeColors) {
       paddingTop: SPACING.lg,
     },
     topBar: {
-      alignItems: 'flex-end',
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: SPACING.xs,
       marginBottom: SPACING.sm,
+    },
+    settingsButton: {
+      padding: 4,
+      ...Platform.select({
+        web: { cursor: 'pointer' },
+      }),
+    },
+    settingsIcon: {
+      fontSize: 20,
     },
     hero: {
       gap: SPACING.md,
@@ -357,6 +388,24 @@ function makeStyles(colors: ThemeColors) {
     buttonPressed: {
       opacity: 0.75,
       transform: [{ scale: 0.97 }],
+    },
+    discoverButton: {
+      borderWidth: 1.5,
+      borderColor: colors.magenta,
+      borderRadius: RADIUS.full,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      ...Platform.select({
+        web: {
+          cursor: 'pointer',
+          transition: 'opacity 0.15s ease',
+        },
+      }),
+    },
+    discoverButtonText: {
+      color: colors.magenta,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.semibold,
     },
     statsRow: {
       flexDirection: 'row',

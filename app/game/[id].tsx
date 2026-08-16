@@ -8,7 +8,7 @@ import {
   Platform,
   Share,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
@@ -18,6 +18,8 @@ import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import { useAnalytics } from '@/contexts/AnalyticsContext';
+import { track, buildShareUrl } from '@/lib/analytics';
 
 export default function GameScreen() {
   const { id, cat, idx } = useLocalSearchParams<{ id: string; cat: string; idx: string }>();
@@ -26,8 +28,10 @@ export default function GameScreen() {
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const { markAnswered } = useAnsweredQuestions();
+  const { markAnswered, refresh } = useAnsweredQuestions();
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
   const question = getQuestionById(id);
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
@@ -55,6 +59,19 @@ export default function GameScreen() {
     if (!selected) return;
     setConfirmed(true);
     markAnswered(question!.id, selected);
+    track('question_answered', {
+      question_id: question!.id,
+      category: cat ?? undefined,
+      choice: selected,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_answered_after_link', {
+        link_id: incomingLinkId,
+        question_id: question!.id,
+        visitor_id: visitorId,
+      });
+    }
   };
 
   const handleNext = () => {
@@ -94,17 +111,27 @@ export default function GameScreen() {
     router.push('/categories');
   };
 
-  const shareUrl = Platform.select({
-    web: typeof window !== 'undefined'
-      ? `${window.location.origin}/p/${id}`
-      : `/p/${id}`,
-    default: `/p/${id}`,
-  }) as string;
-
   // Voluntary pre-answer challenge: share the question before confirming
   const handleChallengeShare = useCallback(async () => {
     const title = 'Would You Rather?';
     const text = `${question?.optionA} — OR — ${question?.optionB}`;
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+
+    track('share_clicked', {
+      question_id: id,
+      surface: 'game_challenge',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
+
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
@@ -119,7 +146,7 @@ export default function GameScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [question, shareUrl, setCopyFeedback]);
+  }, [question, id, incomingGeneration, incomingLinkId, visitorId, setCopyFeedback]);
 
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;

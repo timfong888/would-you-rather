@@ -39,5 +39,12 @@ export function useAnsweredQuestions() {
     setAnswered(loadAnswered());
   }, []);
 
-  return { answered, markAnswered, refresh };
+  const reset = useCallback(() => {
+    if (Platform.OS === 'web') {
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    }
+    setAnswered({});
+  }, []);
+
+  return { answered, markAnswered, refresh, reset };
 }

@@ -20,6 +20,9 @@ import {
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import VoteBar from '@/components/VoteBar';
+import { useAnalytics } from '@/contexts/AnalyticsContext';
+import { track, buildShareUrl } from '@/lib/analytics';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
@@ -28,6 +31,7 @@ export default function CompleteScreen() {
   const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
   const category = getCategoryById((id ?? '') as CategoryId);
   const questions = getCategoryQuestions((id ?? '') as CategoryId);
@@ -42,17 +46,27 @@ export default function CompleteScreen() {
     }).start();
   }, []);
 
-  const shareUrl = Platform.select({
-    web: typeof window !== 'undefined'
-      ? `${window.location.origin}/p/${lastQuestion?.id ?? ''}`
-      : `/p/${lastQuestion?.id ?? ''}`,
-    default: `/p/${lastQuestion?.id ?? ''}`,
-  }) as string;
-
   const handleShareChallenge = useCallback(async () => {
     if (!lastQuestion) return;
     const title = 'Would You Rather?';
     const text = `${lastQuestion.optionA} — OR — ${lastQuestion.optionB}`;
+    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
+
+    track('share_clicked', {
+      question_id: lastQuestion.id,
+      surface: 'complete_challenge',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
+
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
@@ -65,13 +79,30 @@ export default function CompleteScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [lastQuestion, shareUrl]);
+  }, [lastQuestion, incomingGeneration, incomingLinkId, visitorId]);
 
   const handleShareMyTake = useCallback(async () => {
     if (!lastQuestion || !voted) return;
     const myOption = voted === 'A' ? lastQuestion.optionA : lastQuestion.optionB;
     const title = 'My Would You Rather Take';
     const text = `I chose: "${myOption}" — do you agree?`;
+    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
+
+    track('share_clicked', {
+      question_id: lastQuestion.id,
+      surface: 'complete_my_take',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
+
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
@@ -84,7 +115,7 @@ export default function CompleteScreen() {
     } else {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
-  }, [lastQuestion, voted, shareUrl]);
+  }, [lastQuestion, voted, incomingGeneration, incomingLinkId, visitorId]);
 
   if (!category) {
     return (
@@ -137,32 +168,13 @@ export default function CompleteScreen() {
           <View style={styles.resultsCard}>
             <Text style={styles.resultsCardLabel}>WOULD YOU RATHER...</Text>
 
-            {/* Option A */}
-            <View style={[
-              styles.resultOption,
-              myChoice === 'A' && { borderColor: colors.optionA, backgroundColor: `${colors.optionA}15` },
-            ]}>
-              <View style={styles.resultOptionTop}>
-                <View style={[styles.optionBadge, { backgroundColor: colors.optionA }]}>
-                  <Text style={styles.optionBadgeText}>A</Text>
-                </View>
-                <Text style={styles.resultOptionText} numberOfLines={2}>
-                  {lastQuestion.optionA}
-                </Text>
-              </View>
-              <View style={styles.resultStats}>
-                {myChoice === 'A' && (
-                  <View style={styles.yourChoiceTag}>
-                    <Text style={styles.yourChoiceTagText}>YOUR CHOICE</Text>
-                  </View>
-                )}
-                <Text style={[styles.resultPct, { color: colors.optionA }]}>{pctA}%</Text>
-                <Text style={styles.globalVoteLabel}>GLOBAL VOTE</Text>
-              </View>
-              <View style={styles.resultBar}>
-                <View style={[styles.resultBarFill, { backgroundColor: colors.optionA, width: `${pctA}%` as any }]} />
-              </View>
-            </View>
+            <VoteBar
+              label="A"
+              text={lastQuestion.optionA}
+              votes={votesA}
+              totalVotes={totalVotes}
+              userVoted={myChoice === 'A'}
+            />
 
             <View style={styles.orRow}>
               <View style={styles.dividerLine} />
@@ -170,32 +182,13 @@ export default function CompleteScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Option B */}
-            <View style={[
-              styles.resultOption,
-              myChoice === 'B' && { borderColor: colors.optionB, backgroundColor: `${colors.optionB}15` },
-            ]}>
-              <View style={styles.resultOptionTop}>
-                <View style={[styles.optionBadge, { backgroundColor: colors.optionB }]}>
-                  <Text style={styles.optionBadgeText}>B</Text>
-                </View>
-                <Text style={styles.resultOptionText} numberOfLines={2}>
-                  {lastQuestion.optionB}
-                </Text>
-              </View>
-              <View style={styles.resultStats}>
-                {myChoice === 'B' && (
-                  <View style={[styles.yourChoiceTag, { borderColor: colors.optionB }]}>
-                    <Text style={[styles.yourChoiceTagText, { color: colors.optionB }]}>YOUR CHOICE</Text>
-                  </View>
-                )}
-                <Text style={[styles.resultPct, { color: colors.optionB }]}>{pctB}%</Text>
-                <Text style={styles.globalVoteLabel}>GLOBAL VOTE</Text>
-              </View>
-              <View style={styles.resultBar}>
-                <View style={[styles.resultBarFill, { backgroundColor: colors.optionB, width: `${pctB}%` as any }]} />
-              </View>
-            </View>
+            <VoteBar
+              label="B"
+              text={lastQuestion.optionB}
+              votes={votesB}
+              totalVotes={totalVotes}
+              userVoted={myChoice === 'B'}
+            />
 
             <Text style={styles.totalVotesText}>{totalVotes.toLocaleString()} total votes</Text>
 
@@ -243,16 +236,16 @@ export default function CompleteScreen() {
             ]}
           >
             <View style={styles.upsellTop}>
-              <Text style={styles.upsellIcon}>👑</Text>
+              <Text style={styles.upsellIcon}>🔓</Text>
               <View style={styles.upsellTextBlock}>
                 <Text style={styles.upsellTitle}>THE DEPTHS AWAIT</Text>
                 <Text style={styles.upsellHook}>
-                  {remaining} questions remain unfinished in {category.label}
+                  Unlock {remaining} more {category.label} dilemmas — the ones that spark real debate
                 </Text>
               </View>
             </View>
             <Text style={styles.upsellDesc}>
-              You've only scratched the surface. Unlock the full collection and see how the world truly divides.
+              You've only scratched the surface. The questions that reveal who people really are are waiting.
             </Text>
             <View style={styles.upsellCta}>
               <Text style={styles.upsellCtaText}>EXTEND COLLECTION · $2.99</Text>
@@ -369,77 +362,6 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.sm,
       fontStyle: 'italic',
       letterSpacing: 0.5,
-    },
-    resultOption: {
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: RADIUS.md,
-      padding: SPACING.md,
-      gap: SPACING.sm,
-    },
-    resultOptionTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: SPACING.sm,
-    },
-    optionBadge: {
-      width: 28,
-      height: 28,
-      borderRadius: RADIUS.full,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    optionBadgeText: {
-      color: colors.textOnColor,
-      fontSize: FONTS.sizes.sm,
-      fontWeight: FONTS.weights.extrabold,
-    },
-    resultOptionText: {
-      flex: 1,
-      color: colors.text,
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.medium,
-      lineHeight: 20,
-    },
-    resultStats: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: SPACING.sm,
-    },
-    yourChoiceTag: {
-      borderWidth: 1,
-      borderColor: colors.optionA,
-      borderRadius: RADIUS.full,
-      paddingHorizontal: SPACING.sm,
-      paddingVertical: 2,
-    },
-    yourChoiceTagText: {
-      color: colors.optionA,
-      fontSize: 9,
-      fontWeight: FONTS.weights.extrabold,
-      letterSpacing: 1,
-    },
-    resultPct: {
-      fontSize: FONTS.sizes.xxl,
-      fontWeight: FONTS.weights.extrabold,
-      marginLeft: 'auto' as any,
-    },
-    globalVoteLabel: {
-      color: colors.textMuted,
-      fontSize: 9,
-      fontWeight: FONTS.weights.bold,
-      letterSpacing: 1,
-    },
-    resultBar: {
-      height: 6,
-      backgroundColor: colors.surfaceLight,
-      borderRadius: RADIUS.full,
-      overflow: 'hidden',
-    },
-    resultBarFill: {
-      height: '100%',
-      borderRadius: RADIUS.full,
     },
     orRow: {
       flexDirection: 'row',
