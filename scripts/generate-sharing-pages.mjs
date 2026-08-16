@@ -21,7 +21,7 @@ const { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } =
 // Single source of truth: mirrors constants/config.ts SITE_URL.
 // Set EXPO_PUBLIC_SITE_URL in Vercel env vars for the canonical prod domain.
 // Never use VERCEL_URL here — it is per-deployment and causes link rot.
-const BASE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? 'https://wyr-timfong888.vercel.app';
+const BASE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? 'https://wyr-prod.vercel.app';
 
 // Build-time guard: og:url host must match every host in sitemap.xml.
 const sitemapXml = await readFile(join(__dirname, '../public/sitemap.xml'), 'utf-8');
