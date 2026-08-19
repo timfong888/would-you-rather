@@ -16,6 +16,7 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
+import { purchasePremiumPack, restoreRevenueCatPurchases } from '@/lib/purchases';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import analytics from '@/utils/analytics';
 
@@ -37,7 +38,7 @@ export default function UnlockScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked, unlock } = useUnlocked();
+  const { isUnlocked, unlock, unlockAll } = useUnlocked();
 
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [useApplePay, setUseApplePay] = useState(true);
@@ -122,19 +123,39 @@ export default function UnlockScreen() {
       payment_method: useApplePay ? 'apple_pay' : 'card',
     });
     setPaymentState('processing');
-    await new Promise<void>((r) => setTimeout(r, PAYMENT_MS));
-    unlock(id as CategoryId);
-    setPaymentState('success');
+    try {
+      const granted = await purchasePremiumPack();
+      if (granted) {
+        unlockAll();
+        setPaymentState('success');
+      } else {
+        setPaymentState('idle');
+      }
+    } catch (err: unknown) {
+      const cancelled = err && typeof err === 'object' && 'userCancelled' in err
+        ? (err as { userCancelled: boolean }).userCancelled
+        : false;
+      if (!cancelled) {
+        setRestoreMsg('Purchase failed. Please try again.');
+      }
+      setPaymentState('idle');
+    }
   };
 
   const handleRestorePurchases = async () => {
     setRestoreMsg(null);
     setPaymentState('processing');
-    await new Promise<void>((r) => setTimeout(r, RESTORE_MS));
-    if (isUnlocked(id as CategoryId)) {
-      setPaymentState('success');
-    } else {
-      setRestoreMsg('No previous purchases found for this account.');
+    try {
+      const granted = await restoreRevenueCatPurchases();
+      if (granted) {
+        unlockAll();
+        setPaymentState('success');
+      } else {
+        setRestoreMsg('No previous purchases found for this account.');
+        setPaymentState('idle');
+      }
+    } catch {
+      setRestoreMsg('Restore failed. Please try again.');
       setPaymentState('idle');
     }
   };
