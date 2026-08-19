@@ -735,9 +735,8 @@ function makeStyles(colors: ThemeColors) {
     },
     socialCardFooter: {
       color: colors.textMuted,
-      fontSize: FONTS.sizes.xs,
-      lineHeight: 18,
-      fontStyle: 'italic',
+      fontSize: FONTS.sizes.sm,
+      lineHeight: 20,
       marginTop: SPACING.xs,
     },
     socialSteps: {
