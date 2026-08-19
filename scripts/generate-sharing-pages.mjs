@@ -62,18 +62,21 @@ for (const question of QUESTIONS) {
   const themeName = THEME_FOR_CATEGORY[question.category] || 'bright';
   const isMoody = themeName === 'moody';
 
-  const shortA = truncate(question.optionA, 28);
-  const shortB = truncate(question.optionB, 28);
+  const shortA = truncate(question.optionA, 22);
+  const shortB = truncate(question.optionB, 22);
   const rawTitle = `WYR: ${shortA} or ${shortB}?`;
-  const ogTitle = truncate(rawTitle, 55);
+  const ogTitle = truncate(rawTitle, 60);
 
   const totalVotes = question.votesA + question.votesB;
   const pctA = totalVotes > 0 ? Math.round((question.votesA / totalVotes) * 100) : 0;
   const pctB = 100 - pctA;
+  const voteCountLabel = totalVotes >= 1000
+    ? `${(totalVotes / 1000).toFixed(1)}k`
+    : String(totalVotes);
   const ogDescription =
     totalVotes >= 5
-      ? `${pctA}% vs ${pctB}% — where do YOU stand? Answer the question to see the full breakdown.`
-      : `Where do YOU stand? Play along and see what others chose.`;
+      ? `🔥 ${voteCountLabel} people voted — ${pctA}% vs ${pctB}%. Which side are YOU on? Tap to vote and unlock the full breakdown.`
+      : `🤔 Your turn — cast your vote and see what everyone else chose!`;
 
   const shareUrl = `${BASE_URL}/p/${id}`;
   const cardUrl = `${BASE_URL}/api/card?id=${encodeURIComponent(id)}&ratio=1.91x1`;
