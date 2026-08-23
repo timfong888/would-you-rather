@@ -23,7 +23,6 @@ interface SeoLandingPageProps {
   questions: Question[];
   categories: CategoryDef[];
   ctaLabel?: string;
-  ctaCategory?: string;
 }
 
 export default function SeoLandingPage({
@@ -35,7 +34,6 @@ export default function SeoLandingPage({
   questions,
   categories,
   ctaLabel = 'Play Free Now →',
-  ctaCategory,
 }: SeoLandingPageProps) {
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);

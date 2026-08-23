@@ -1,10 +1,13 @@
 import React from 'react';
-import { QUESTIONS, CATEGORIES, DARING } from '@/constants/questions';
+import { QUESTIONS, CATEGORIES, DARING, FREE_TRIAL_COUNT } from '@/constants/questions';
 import SeoLandingPage from '@/components/SeoLandingPage';
 
-const DEEP_QUESTIONS = QUESTIONS
-  .filter((q) => DARING.includes(q.category as any))
-  .slice(0, 20);
+const deepCounts: Record<string, number> = {};
+const DEEP_QUESTIONS = QUESTIONS.filter((q) => {
+  if (!DARING.includes(q.category)) return false;
+  deepCounts[q.category] = (deepCounts[q.category] ?? 0) + 1;
+  return deepCounts[q.category] <= FREE_TRIAL_COUNT;
+});
 
 export default function DeepWouldYouRatherQuestionsPage() {
   return (

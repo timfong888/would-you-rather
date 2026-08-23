@@ -2,10 +2,16 @@ import React from 'react';
 import { QUESTIONS, CATEGORIES } from '@/constants/questions';
 import SeoLandingPage from '@/components/SeoLandingPage';
 
-const COUPLES_CATEGORIES = ['midnight-secrets', 'deep-desires', 'moral-compass'];
-
+const COUPLES_CATEGORIES = ['moral-compass', 'midnight-secrets', 'deep-desires'];
+const couplesCounts: Record<string, number> = {};
 const COUPLES_QUESTIONS = QUESTIONS
   .filter((q) => COUPLES_CATEGORIES.includes(q.category))
+  .filter((q) => {
+    const cat = CATEGORIES.find((c) => c.id === q.category);
+    if (!cat || cat.tier === 'free') return true;
+    couplesCounts[q.category] = (couplesCounts[q.category] ?? 0) + 1;
+    return couplesCounts[q.category] <= 3;
+  })
   .slice(0, 20);
 
 export default function QuestionsForCouplesPage() {
