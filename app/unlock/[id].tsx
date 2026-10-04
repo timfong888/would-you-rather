@@ -293,7 +293,9 @@ export default function UnlockScreen() {
             </View>
           </View>
           <Text style={styles.socialCardFooter}>
-            Unlock all {questions.length} dilemmas and you'll both have a full conversation's worth of takes to debate.
+            {isExpansion
+              ? `Unlock ${lockedCount} more dilemmas and you'll both have a full conversation's worth of takes to debate.`
+              : `Unlock all ${questions.length} dilemmas and you'll both have a full conversation's worth of takes to debate.`}
           </Text>
         </View>
 
