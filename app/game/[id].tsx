@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, isQuestionLocked } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -93,7 +93,14 @@ export default function GameScreen() {
   // Finishing the free set of a free category is a real milestone: celebrate
   // it on the complete screen (which carries the expansion upsell) instead of
   // dropping straight onto the paywall. Premium trials keep the direct paywall.
-  const endsFreeSet = nextLocked && category?.tier === 'free';
+  // Only the exact last-free → first-locked step counts: someone who arrived
+  // via a share link on an expansion question and continues goes to the
+  // paywall, not to a "you finished the free set" screen they never played.
+  const endsFreeSet =
+    nextLocked &&
+    category !== undefined &&
+    category.tier === 'free' &&
+    currentIdx + 1 === getFreeQuestionCount(category);
 
   const handleConfirm = () => {
     if (!selected) return;
