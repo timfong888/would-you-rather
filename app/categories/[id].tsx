@@ -149,8 +149,9 @@ export default function CategoryScreen() {
           const isLocked = isQuestionLocked(category, idx, categoryUnlocked);
           const answeredChoice = answered[q.id];
           const isAnswered = answeredChoice !== undefined;
-          // Header above the first question that is beyond the free set.
-          const showPackHeader = idx === freeCount && idx > 0 && idx < total;
+          // Header above the first question beyond the free set — only while locked,
+          // so paying / owner-access users never see an upsell divider.
+          const showPackHeader = idx === freeCount && idx > 0 && idx < total && !categoryUnlocked;
 
           return (
             <React.Fragment key={q.id}>
