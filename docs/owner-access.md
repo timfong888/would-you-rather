@@ -54,3 +54,17 @@ painted-door conversion test.
   creator-gifting program (SAT-628).
 - Rotating the code is one env var change plus a redeploy. Devices that
   already redeemed keep access until they revoke or clear storage.
+
+## Related client-side gating limits
+
+The same "no backend" caveat applies to the question gate itself:
+
+- The game screen bounces direct URLs to locked questions, but a visitor
+  arriving via a share link (`?link_id=<v4 uuid>`) may play that one shared
+  question. That is the hook of the share loop and is intentional. Link ids
+  are generated client-side, so a forged UUID also passes; the format check
+  only removes the trivial `?link_id=x` route.
+- Unlock state and owner access live in `localStorage`.
+
+Both become real only once entitlements are checked server-side
+(RevenueCat, SAT-926).

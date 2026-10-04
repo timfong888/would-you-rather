@@ -21,6 +21,9 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 
+// Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
+const SHARE_LINK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default function GameScreen() {
   const { id, cat, idx, link_id } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string }>();
   const router = useRouter();
@@ -49,7 +52,13 @@ export default function GameScreen() {
   // Exception: arriving via a share link (link_id) — the shared question is
   // intentionally playable as the hook of the share loop; the gate still
   // applies the moment they try to continue.
-  const arrivedViaShare = typeof link_id === 'string' && link_id.length > 0;
+  //
+  // Known client-side limitation: link_ids are generated client-side
+  // (lib/analytics buildShareUrl) and there is no server to validate them
+  // against, so a forged v4 UUID also passes. Requiring the exact shape the
+  // share system produces removes the trivial "?link_id=x" route; real
+  // enforcement needs server-side entitlements (see docs/owner-access.md).
+  const arrivedViaShare = typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id);
   const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
   const mustRedirect = currentLocked && !arrivedViaShare;
   // On a cold deep link the root navigator may not be mounted on first render;
