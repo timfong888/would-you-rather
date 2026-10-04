@@ -53,11 +53,13 @@ export default function GameScreen() {
   // intentionally playable as the hook of the share loop; the gate still
   // applies the moment they try to continue.
   //
-  // Known client-side limitation: link_ids are generated client-side
-  // (lib/analytics buildShareUrl) and there is no server to validate them
-  // against, so a forged v4 UUID also passes. Requiring the exact shape the
-  // share system produces removes the trivial "?link_id=x" route; real
-  // enforcement needs server-side entitlements (see docs/owner-access.md).
+  // This exception is NOT a security gate. It is intentionally permissive
+  // for the sharing UX: link_ids are generated client-side (lib/analytics
+  // buildShareUrl) with no server to validate against, so anyone can forge a
+  // v4 UUID (e.g. 00000000-0000-4000-8000-000000000000) and play one locked
+  // question per URL. The shape check only keeps accidental or malformed
+  // params from triggering the exception. Real enforcement needs server-side
+  // entitlements (see docs/owner-access.md, "Related client-side gating limits").
   const arrivedViaShare = typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id);
   const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
   const mustRedirect = currentLocked && !arrivedViaShare;
