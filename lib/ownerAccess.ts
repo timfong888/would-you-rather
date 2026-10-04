@@ -35,11 +35,17 @@ async function sha256Hex(input: string): Promise<string | null> {
   const subtle =
     typeof globalThis.crypto !== 'undefined' ? globalThis.crypto.subtle : undefined;
   if (!subtle || typeof TextEncoder === 'undefined') return null;
-  const bytes = new TextEncoder().encode(input);
-  const digest = await subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+  try {
+    const bytes = new TextEncoder().encode(input);
+    const digest = await subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    // e.g. a SecurityError in a restricted context: same contract as
+    // "crypto unavailable" — the caller treats null as a failed verification.
+    return null;
+  }
 }
 
 /**

@@ -55,7 +55,13 @@ export default function UnlockScreen() {
   const handleRedeemCode = async () => {
     if (!code.trim() || codeState === 'checking') return;
     setCodeState('checking');
-    const ok = await grantOwnerAccess(code);
+    let ok = false;
+    try {
+      ok = await grantOwnerAccess(code);
+    } catch {
+      // Never leave the input stuck on "Checking…" if verification throws.
+      ok = false;
+    }
     if (!ok) {
       setCodeState('invalid');
       return;
