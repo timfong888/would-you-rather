@@ -54,6 +54,13 @@ export async function verifyOwnerAccessCode(code: string): Promise<boolean> {
   return digest !== null && digest === OWNER_ACCESS_SHA256;
 }
 
+// Persistence is web-only on purpose, matching every other store in the app
+// (purchased unlocks in UnlockedContext, answered questions, visitor id all
+// use localStorage behind the same Platform.OS === 'web' guard). The product
+// is web-first (SAT-630); when the EAS/native build lands, owner access
+// should move to a RevenueCat granted entitlement rather than a second
+// local store (see docs/owner-access.md). Until then, on native the grant
+// lasts for the session only.
 export function loadOwnerAccess(): boolean {
   if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
     try {
