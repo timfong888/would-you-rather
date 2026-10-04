@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   Platform,
   Share,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
@@ -22,7 +22,7 @@ import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 
 export default function GameScreen() {
-  const { id, cat, idx } = useLocalSearchParams<{ id: string; cat: string; idx: string }>();
+  const { id, cat, idx, link_id } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string }>();
   const router = useRouter();
   const { isUnlocked } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
@@ -34,10 +34,30 @@ export default function GameScreen() {
   const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
   const question = getQuestionById(id);
-  const category = cat ? getCategoryById(cat as CategoryId) : undefined;
-  const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
-  const currentIdx = idx !== undefined ? parseInt(idx, 10) : 0;
+  // The category always comes from the question itself (the URL's `cat` is a
+  // hint, never a source of truth), so a bare /game/:id link still gates.
+  const catId = (question?.category ?? (cat as CategoryId | undefined)) as CategoryId | undefined;
+  const category = catId ? getCategoryById(catId) : undefined;
+  const categoryQuestions = catId ? getCategoryQuestions(catId) : [];
+  // Likewise the index is the question's real position, not the URL's `idx`.
+  const realIdx = question ? categoryQuestions.findIndex((q) => q.id === question.id) : -1;
+  const currentIdx = realIdx >= 0 ? realIdx : (idx !== undefined ? parseInt(idx, 10) || 0 : 0);
   const totalInCategory = categoryQuestions.length;
+
+  // Self-guard: a locked question reached by typing a URL is bounced to the
+  // category page (which shows it locked with an Unlock affordance).
+  // Exception: arriving via a share link (link_id) — the shared question is
+  // intentionally playable as the hook of the share loop; the gate still
+  // applies the moment they try to continue.
+  const arrivedViaShare = typeof link_id === 'string' && link_id.length > 0;
+  const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
+  const mustRedirect = currentLocked && !arrivedViaShare;
+  // On a cold deep link the root navigator may not be mounted on first render;
+  // navigating before it is ready throws, so wait for the root state key.
+  const navReady = !!useRootNavigationState()?.key;
+  useEffect(() => {
+    if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
+  }, [mustRedirect, category, navReady, router]);
 
   if (!question) {
     return (
@@ -50,10 +70,12 @@ export default function GameScreen() {
     );
   }
 
+  if (mustRedirect) return null;
+
   const catColor = category?.color ?? colors.magenta;
-  const isLastInCategory = cat ? currentIdx >= totalInCategory - 1 : false;
+  const isLastInCategory = catId ? currentIdx >= totalInCategory - 1 : false;
   const nextIdx = currentIdx + 1;
-  const nextQuestion = cat && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
+  const nextQuestion = catId && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
   // Is the next question behind the unlock? (premium trial ended, or the free
   // set of a free category is finished and the expansion pack starts.)
   const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, isUnlocked(category.id)));
@@ -68,7 +90,7 @@ export default function GameScreen() {
     markAnswered(question!.id, selected);
     track('question_answered', {
       question_id: question!.id,
-      category: cat ?? undefined,
+      category: catId ?? undefined,
       choice: selected,
       visitor_id: visitorId,
     });
@@ -84,33 +106,33 @@ export default function GameScreen() {
   const handleNext = () => {
     if (!selected) return;
 
-    if (isLastInCategory && cat) {
-      router.push(`/complete/${cat}?voted=${selected}&q=${id}`);
+    if (isLastInCategory && catId) {
+      router.push(`/complete/${catId}?voted=${selected}&q=${id}`);
       return;
     }
 
-    if (nextQuestion && cat) {
+    if (nextQuestion && catId) {
       if (endsFreeSet) {
-        router.push(`/complete/${cat}?voted=${selected}&q=${id}`);
+        router.push(`/complete/${catId}?voted=${selected}&q=${id}`);
         return;
       }
       if (nextLocked) {
-        router.push(`/unlock/${cat}`);
+        router.push(`/unlock/${catId}`);
         return;
       }
-      router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${nextIdx}`);
+      router.push(`/game/${nextQuestion.id}?cat=${catId}&idx=${nextIdx}`);
     } else {
       router.push('/');
     }
   };
 
   const handleSkip = () => {
-    if (nextQuestion && cat) {
+    if (nextQuestion && catId) {
       if (nextLocked) {
-        router.push(`/unlock/${cat}`);
+        router.push(`/unlock/${catId}`);
         return;
       }
-      router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${nextIdx}`);
+      router.push(`/game/${nextQuestion.id}?cat=${catId}&idx=${nextIdx}`);
     } else {
       router.push('/categories');
     }
