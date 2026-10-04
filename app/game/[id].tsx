@@ -135,8 +135,14 @@ export default function GameScreen() {
     }
   };
 
+  // Skip is hidden in the UI when the next question is locked, but keep the
+  // routing consistent with handleNext in case that changes.
   const handleSkip = () => {
     if (nextQuestion && catId) {
+      if (endsFreeSet) {
+        router.push(`/complete/${catId}?q=${id}`);
+        return;
+      }
       if (nextLocked) {
         router.push(`/unlock/${catId}`);
         return;
