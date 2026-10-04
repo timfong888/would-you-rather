@@ -90,6 +90,10 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     const ok = await verifyOwnerAccessCode(code);
     if (ok) {
       saveOwnerAccess(true);
+      // Flip the analytics flag synchronously so the very next event (the
+      // caller's owner_access_granted) is already tagged; the effect below
+      // would only catch up on the next render.
+      setOwnerAccessFlag(true);
       setOwnerAccess(true);
     }
     return ok;
@@ -97,6 +101,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
 
   const revokeOwnerAccess = useCallback(() => {
     saveOwnerAccess(false);
+    setOwnerAccessFlag(false);
     setOwnerAccess(false);
   }, []);
 
