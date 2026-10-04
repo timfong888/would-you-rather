@@ -1,8 +1,9 @@
 # Owner access (bypass the paywall for the owner and testers)
 
-Owner access unlocks every paid pack on a device without going through the
-payment flow. It exists so the owner can QA premium content and expansion
-packs, and so tester activity does not pollute paywall metrics.
+Owner access unlocks every paid pack on a device without paying. It exists so
+the owner can QA premium content and expansion packs, and so tester activity
+does not pollute paywall metrics. It is redeemed from the payment sheet
+itself ("Have a code?"), so there is no hidden gesture to remember.
 
 ## One-time setup
 
@@ -19,20 +20,24 @@ packs, and so tester activity does not pollute paywall metrics.
    environment variables (Production and Preview) and redeploy. For local dev,
    put the same line in `.env`.
 
-If the variable is not set, the owner-access UI never appears and no code can
-work. There is no default code.
+If the variable is not set, the "Have a code?" link never appears and no code
+can work. There is no default code.
 
 ## Using it
 
-1. Open **Settings**.
-2. Tap the `VERSION x.y.z` line at the bottom **7 times**.
-3. An **Owner access** section appears. Enter the code and tap **Unlock
-   everything**.
+1. Open any locked pack and tap the unlock button to open the payment sheet.
+2. Tap **Have a code?** (shown under the legal text; it only appears when a
+   digest is configured for the build).
+3. Enter the code and tap **Apply code**.
 
-Every category, including expansion packs, is now playable on this device.
-Settings shows an "Owner access active" banner with a **Revoke** button.
+The pack unlocks immediately and, because the code grants owner access,
+every other category and expansion pack is now playable on this device too.
+**Settings** shows an "Owner access active" banner with a **Revoke** button.
 "Reset progress" clears answers and purchased unlocks but leaves owner access
 in place; use Revoke to turn it off.
+
+The same field is the intended home for creator gift codes (SAT-628) once
+entitlements are server-side; today it only accepts the owner code.
 
 ## What it does to analytics
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   Switch,
   Alert,
   Platform,
-  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -19,9 +18,6 @@ import { CATEGORIES, hasPaidContent } from '@/constants/questions';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { track } from '@/lib/analytics';
 
-// Tap the version label this many times to reveal the owner-access panel.
-// No intermediate feedback on purpose: a countdown would guide discovery.
-const OWNER_TAPS_TO_REVEAL = 7;
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -30,48 +26,16 @@ export default function SettingsScreen() {
     isUnlocked,
     reset: resetUnlocked,
     ownerAccess,
-    ownerAccessAvailable,
-    grantOwnerAccess,
     revokeOwnerAccess,
   } = useUnlocked();
   const { reset: resetAnswered } = useAnsweredQuestions();
   const { styles, colors } = useThemedStyles(makeStyles);
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
-  // ── Owner access (hidden until the version label is tapped 7×) ──
-  const [versionTaps, setVersionTaps] = useState(0);
-  const [ownerPanelOpen, setOwnerPanelOpen] = useState(false);
-  const [ownerCode, setOwnerCode] = useState('');
-  const [ownerCodeState, setOwnerCodeState] = useState<'idle' | 'checking' | 'invalid'>('idle');
-
-  const handleVersionTap = () => {
-    if (ownerPanelOpen || ownerAccess) return;
-    const next = versionTaps + 1;
-    if (next >= OWNER_TAPS_TO_REVEAL) {
-      setVersionTaps(0);
-      setOwnerPanelOpen(true);
-    } else {
-      setVersionTaps(next);
-    }
-  };
-
-  const handleRedeemOwnerCode = async () => {
-    if (!ownerCode.trim() || ownerCodeState === 'checking') return;
-    setOwnerCodeState('checking');
-    const ok = await grantOwnerAccess(ownerCode);
-    if (ok) {
-      setOwnerCode('');
-      setOwnerCodeState('idle');
-      setOwnerPanelOpen(false);
-      track('owner_access_granted');
-    } else {
-      setOwnerCodeState('invalid');
-    }
-  };
-
+  // Owner access is redeemed on the payment sheet ("Have a code?" on the
+  // unlock screen). Settings only shows status and lets the owner revoke it.
   const handleRevokeOwnerAccess = () => {
     revokeOwnerAccess();
-    setOwnerPanelOpen(false);
     track('owner_access_revoked');
   };
 
@@ -141,93 +105,30 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      {/* Owner access — only rendered once revealed or active */}
-      {(ownerAccess || ownerPanelOpen) && (
+      {/* Owner access — status + revoke only; redeemed via "Have a code?" on the paywall */}
+      {ownerAccess && (
         <>
           <Text style={styles.sectionHeader}>OWNER ACCESS</Text>
           <View style={styles.section}>
-            {ownerAccess ? (
-              <View style={styles.ownerBlock}>
-                <View style={styles.ownerBanner}>
-                  <Text style={styles.ownerBannerIcon}>🔑</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.ownerBannerTitle}>Owner access active</Text>
-                    <Text style={styles.ownerBannerBody}>
-                      Every pack and expansion is unlocked on this device. Analytics events
-                      from this device are tagged so they stay out of paywall metrics.
-                    </Text>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={handleRevokeOwnerAccess}
-                  style={({ pressed }) => [styles.ownerSecondaryBtn, pressed && { opacity: 0.7 }]}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.ownerSecondaryBtnText}>Revoke owner access</Text>
-                </Pressable>
-              </View>
-            ) : ownerAccessAvailable ? (
-              <View style={styles.ownerBlock}>
-                <Text style={styles.ownerHelp}>
-                  Enter the owner access code to unlock every pack without going through
-                  the payment flow.
-                </Text>
-                <TextInput
-                  value={ownerCode}
-                  onChangeText={(t) => { setOwnerCode(t); if (ownerCodeState === 'invalid') setOwnerCodeState('idle'); }}
-                  onSubmitEditing={handleRedeemOwnerCode}
-                  placeholder="Access code"
-                  placeholderTextColor={colors.textMuted}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="go"
-                  style={[
-                    styles.ownerInput,
-                    ownerCodeState === 'invalid' && { borderColor: colors.secondary },
-                  ]}
-                  accessibilityLabel="Owner access code"
-                />
-                {ownerCodeState === 'invalid' && (
-                  <Text style={styles.ownerError}>That code didn't match. Check for extra spaces and try again.</Text>
-                )}
-                <Pressable
-                  onPress={handleRedeemOwnerCode}
-                  disabled={!ownerCode.trim() || ownerCodeState === 'checking'}
-                  style={({ pressed }) => [
-                    styles.ownerPrimaryBtn,
-                    (!ownerCode.trim() || ownerCodeState === 'checking') && { opacity: 0.5 },
-                    pressed && { opacity: 0.8 },
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.ownerPrimaryBtnText}>
-                    {ownerCodeState === 'checking' ? 'CHECKING…' : 'UNLOCK EVERYTHING'}
+            <View style={styles.ownerBlock}>
+              <View style={styles.ownerBanner}>
+                <Text style={styles.ownerBannerIcon}>🔑</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ownerBannerTitle}>Owner access active</Text>
+                  <Text style={styles.ownerBannerBody}>
+                    Every pack and expansion is unlocked on this device. Analytics events
+                    from this device are tagged so they stay out of paywall metrics.
                   </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => { setOwnerPanelOpen(false); setOwnerCode(''); setOwnerCodeState('idle'); }}
-                  style={({ pressed }) => [styles.ownerSecondaryBtn, pressed && { opacity: 0.7 }]}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.ownerSecondaryBtnText}>Cancel</Text>
-                </Pressable>
+                </View>
               </View>
-            ) : (
-              <View style={styles.ownerBlock}>
-                <Text style={styles.ownerHelp}>
-                  Owner access isn't configured for this build. Set
-                  EXPO_PUBLIC_OWNER_ACCESS_SHA256 and redeploy — see docs/owner-access.md.
-                </Text>
-                <Pressable
-                  onPress={() => setOwnerPanelOpen(false)}
-                  style={({ pressed }) => [styles.ownerSecondaryBtn, pressed && { opacity: 0.7 }]}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.ownerSecondaryBtnText}>Close</Text>
-                </Pressable>
-              </View>
-            )}
+              <Pressable
+                onPress={handleRevokeOwnerAccess}
+                style={({ pressed }) => [styles.ownerSecondaryBtn, pressed && { opacity: 0.7 }]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.ownerSecondaryBtnText}>Revoke owner access</Text>
+              </Pressable>
+            </View>
           </View>
         </>
       )}
@@ -282,9 +183,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <Pressable onPress={handleVersionTap} hitSlop={12} accessibilityLabel={`Version ${appVersion}`}>
-        <Text style={styles.version}>VERSION {appVersion}</Text>
-      </Pressable>
+      <Text style={styles.version}>VERSION {appVersion}</Text>
     </ScrollView>
   );
 }
@@ -388,37 +287,6 @@ function makeStyles(colors: ThemeColors) {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.xs,
       marginTop: 2,
-    },
-    ownerHelp: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.sm,
-    },
-    ownerInput: {
-      color: colors.text,
-      backgroundColor: colors.background,
-      borderColor: colors.border,
-      borderWidth: 1,
-      borderRadius: RADIUS.md,
-      paddingHorizontal: SPACING.md,
-      paddingVertical: SPACING.sm,
-      fontSize: FONTS.sizes.md,
-    },
-    ownerError: {
-      color: colors.secondary,
-      fontSize: FONTS.sizes.xs,
-    },
-    ownerPrimaryBtn: {
-      backgroundColor: colors.premium,
-      borderRadius: RADIUS.full,
-      paddingVertical: SPACING.sm,
-      alignItems: 'center',
-      ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    ownerPrimaryBtnText: {
-      color: colors.textOnColor,
-      fontSize: FONTS.sizes.sm,
-      fontWeight: FONTS.weights.extrabold,
-      letterSpacing: 1,
     },
     ownerSecondaryBtn: {
       alignItems: 'center',

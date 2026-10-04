@@ -8,6 +8,7 @@ import {
   Platform,
   Animated,
   Easing,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,11 +40,32 @@ export default function UnlockScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked, unlock } = useUnlocked();
+  const { isUnlocked, unlock, ownerAccessAvailable, grantOwnerAccess } = useUnlocked();
 
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [useApplePay, setUseApplePay] = useState(true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+
+  // "Have a code?" on the payment sheet. Redeeming the owner code grants
+  // owner access (every pack), which also completes this unlock.
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeState, setCodeState] = useState<'idle' | 'checking' | 'invalid'>('idle');
+
+  const handleRedeemCode = async () => {
+    if (!code.trim() || codeState === 'checking') return;
+    setCodeState('checking');
+    const ok = await grantOwnerAccess(code);
+    if (!ok) {
+      setCodeState('invalid');
+      return;
+    }
+    track('owner_access_granted', { surface: 'paywall', category_id: id });
+    setCode('');
+    setCodeState('idle');
+    setCodeOpen(false);
+    setPaymentState('success');
+  };
 
   const spinAnim = useRef(new Animated.Value(0)).current;
   const checkAnim = useRef(new Animated.Value(0)).current;
@@ -450,6 +472,70 @@ export default function UnlockScreen() {
               By completing this purchase you agree to our Terms of Service.
               {'\n'}Payments are processed securely. Non-refundable.
             </Text>
+
+            {/* Access code (owner / gifted). Only offered when a code is configured
+                for this build, and collapsed by default so it doesn't pull
+                attention from the purchase. */}
+            {ownerAccessAvailable && (
+              codeOpen ? (
+                <View style={styles.codeBlock}>
+                  <TextInput
+                    value={code}
+                    onChangeText={(t) => { setCode(t); if (codeState === 'invalid') setCodeState('idle'); }}
+                    onSubmitEditing={handleRedeemCode}
+                    placeholder="Access code"
+                    placeholderTextColor={colors.textMuted}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus
+                    returnKeyType="go"
+                    style={[
+                      styles.codeInput,
+                      codeState === 'invalid' && { borderColor: colors.secondary },
+                    ]}
+                    accessibilityLabel="Access code"
+                  />
+                  {codeState === 'invalid' && (
+                    <Text style={styles.codeError}>That code didn't match. Check for extra spaces and try again.</Text>
+                  )}
+                  <View style={styles.codeActions}>
+                    <Pressable
+                      onPress={() => { setCodeOpen(false); setCode(''); setCodeState('idle'); }}
+                      style={({ pressed }) => [styles.codeSecondaryBtn, pressed && { opacity: 0.6 }]}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.codeSecondaryBtnText}>Never mind</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleRedeemCode}
+                      disabled={!code.trim() || codeState === 'checking'}
+                      style={({ pressed }) => [
+                        styles.codeApplyBtn,
+                        { backgroundColor: category.color },
+                        (!code.trim() || codeState === 'checking') && { opacity: 0.5 },
+                        pressed && styles.btnPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Apply access code"
+                    >
+                      <Text style={styles.codeApplyBtnText}>
+                        {codeState === 'checking' ? 'CHECKING…' : 'APPLY CODE'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setCodeOpen(true)}
+                  style={({ pressed }) => [styles.codeLink, pressed && { opacity: 0.6 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Have a code?"
+                >
+                  <Text style={styles.codeLinkText}>Have a code?</Text>
+                </Pressable>
+              )
+            )}
 
             <Pressable
               onPress={() => setPaymentState('idle')}
@@ -984,6 +1070,60 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.xs,
       textAlign: 'center',
       lineHeight: 18,
+    },
+    codeLink: {
+      alignSelf: 'center',
+      paddingVertical: SPACING.xs,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    codeLinkText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      textDecorationLine: 'underline',
+    },
+    codeBlock: {
+      gap: SPACING.sm,
+      marginTop: SPACING.xs,
+    },
+    codeInput: {
+      color: colors.text,
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      fontSize: FONTS.sizes.md,
+    },
+    codeError: {
+      color: colors.secondary,
+      fontSize: FONTS.sizes.xs,
+    },
+    codeActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: SPACING.sm,
+    },
+    codeSecondaryBtn: {
+      paddingVertical: SPACING.xs,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    codeSecondaryBtnText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+    },
+    codeApplyBtn: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.lg,
+      ...Platform.select({ web: { cursor: 'pointer', transition: 'opacity 0.15s ease' } }),
+    },
+    codeApplyBtnText: {
+      color: '#FFFFFF',
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
     },
     cancelBtn: {
       alignSelf: 'center',
