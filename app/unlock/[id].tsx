@@ -249,7 +249,7 @@ export default function UnlockScreen() {
             pressed && styles.btnPressed,
           ]}
           accessibilityRole="button"
-          accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
+          accessibilityLabel={`Unlock ${lockedCount} more dilemmas for $2.99`}
         >
           <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
         </Pressable>
