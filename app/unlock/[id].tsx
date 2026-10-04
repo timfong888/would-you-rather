@@ -13,11 +13,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
-import analytics from '@/utils/analytics';
+import { track } from '@/lib/analytics';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
@@ -25,12 +25,14 @@ type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
 const PAYMENT_MS = 1800;
 const RESTORE_MS = 1400;
 
-const BENEFITS: { icon: IoniconsName; text: string }[] = [
-  { icon: 'chatbubbles-outline', text: 'Spark 20 conversations you won\'t see coming' },
-  { icon: 'people-outline', text: 'Discover what the world chooses — then debate why' },
-  { icon: 'infinite-outline', text: 'Beat boredom anywhere: road trips, dinners, downtime' },
-  { icon: 'heart-outline', text: 'Nothing interrupts the moment — completely ad-free' },
-];
+function benefitsFor(lockedCount: number): { icon: IoniconsName; text: string }[] {
+  return [
+    { icon: 'chatbubbles-outline', text: `Spark ${lockedCount} conversations you won't see coming` },
+    { icon: 'people-outline', text: 'Discover what the world chooses — then debate why' },
+    { icon: 'infinite-outline', text: 'Beat boredom anywhere: road trips, dinners, downtime' },
+    { icon: 'heart-outline', text: 'Nothing interrupts the moment — completely ad-free' },
+  ];
+}
 
 export default function UnlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,6 +52,11 @@ export default function UnlockScreen() {
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);
+  const freeCount = category ? getFreeQuestionCount(category) : 0;
+  const lockedCount = category ? getLockedQuestionCount(category) : 0;
+  // A free category sells an expansion pack; a premium category sells the rest of itself.
+  const isExpansion = category?.tier === 'free';
+  const BENEFITS = benefitsFor(lockedCount);
 
   useEffect(() => {
     if (paymentState === 'processing') {
@@ -97,7 +104,7 @@ export default function UnlockScreen() {
   }, [paymentState, sheetAnim]);
 
   useEffect(() => {
-    analytics.track('paywall_viewed', { category_id: id });
+    track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -112,13 +119,14 @@ export default function UnlockScreen() {
     );
   }
 
-  const teaserQuestions = questions.slice(FREE_TRIAL_COUNT, FREE_TRIAL_COUNT + 3);
-  const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
+  const teaserQuestions = questions.slice(freeCount, freeCount + 3);
+  const remainingCount = Math.max(questions.length - (freeCount + teaserQuestions.length), 0);
 
   const handlePay = async () => {
     if (paymentState !== 'sheet') return;
-    analytics.track('paywall_cta_clicked', {
+    track('paywall_cta_clicked', {
       category_id: id,
+      pack_type: isExpansion ? 'expansion' : 'premium',
       payment_method: useApplePay ? 'apple_pay' : 'card',
     });
     setPaymentState('processing');
@@ -140,9 +148,9 @@ export default function UnlockScreen() {
   };
 
   const handleStartPlaying = () => {
-    const firstPremiumQ = questions[FREE_TRIAL_COUNT];
-    if (firstPremiumQ) {
-      router.replace(`/game/${firstPremiumQ.id}?cat=${id}&idx=${FREE_TRIAL_COUNT}`);
+    const firstLockedQ = questions[freeCount];
+    if (firstLockedQ) {
+      router.replace(`/game/${firstLockedQ.id}?cat=${id}&idx=${freeCount}`);
     } else {
       router.replace(`/categories/${id as string}`);
     }
@@ -189,7 +197,7 @@ export default function UnlockScreen() {
           </View>
           <View style={[styles.premiumLabel, { borderColor: category.color }]}>
             <Text style={[styles.premiumLabelText, { color: category.color }]}>
-              PREMIUM ACCESS
+              {isExpansion ? 'EXPANSION PACK' : 'PREMIUM ACCESS'}
             </Text>
           </View>
         </View>
@@ -198,14 +206,16 @@ export default function UnlockScreen() {
         <View style={styles.headlineBlock}>
           <Text style={styles.headline}>KEEP THE CONVERSATION GOING</Text>
           <Text style={styles.subheadline}>
-            You've had a taste of{' '}
+            {isExpansion ? "You've played every free dilemma in " : "You've had a taste of "}
             <Text style={[styles.categoryNameInline, { color: category.color }]}>
               "{category.label}"
             </Text>
-            {' '}— the questions that make people lean in, laugh, and reveal what they really think.
+            {isExpansion
+              ? ' — and the best debates are the ones you haven\'t had yet.'
+              : ' — the questions that make people lean in, laugh, and reveal what they really think.'}
           </Text>
           <Text style={styles.lossAversion}>
-            {questions.length - FREE_TRIAL_COUNT} more conversations waiting. Don't leave them on the table.
+            {lockedCount} more conversations waiting. Don't leave them on the table.
           </Text>
         </View>
 
@@ -241,7 +251,7 @@ export default function UnlockScreen() {
           accessibilityRole="button"
           accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
         >
-          <Text style={styles.unlockBtnText}>START {questions.length - FREE_TRIAL_COUNT} MORE CONVERSATIONS →</Text>
+          <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
         </Pressable>
 
         {restoreMsg !== null && (
@@ -283,7 +293,7 @@ export default function UnlockScreen() {
             </View>
           </View>
           <Text style={styles.socialCardFooter}>
-            Unlock all 20 dilemmas and you'll both have a full conversation's worth of takes to debate.
+            Unlock all {questions.length} dilemmas and you'll both have a full conversation's worth of takes to debate.
           </Text>
         </View>
 
@@ -307,7 +317,7 @@ export default function UnlockScreen() {
           <View style={styles.teaserList}>
             {teaserQuestions.map((q, i) => (
               <View key={q.id} style={styles.teaserItem}>
-                <Text style={styles.teaserNum}>{FREE_TRIAL_COUNT + i + 1}.</Text>
+                <Text style={styles.teaserNum}>{freeCount + i + 1}.</Text>
                 <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
                 <Text style={styles.teaserText} numberOfLines={1}>
                   {'••••••••••••••••••••'}
@@ -354,7 +364,9 @@ export default function UnlockScreen() {
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{category.label}</Text>
                 <Text style={styles.productDesc}>
-                  Premium Pack · {questions.length} dilemmas
+                  {isExpansion
+                    ? `Expansion Pack · ${lockedCount} more dilemmas`
+                    : `Premium Pack · ${questions.length} dilemmas`}
                 </Text>
               </View>
               <Text style={[styles.productPrice, { color: category.color }]}>$2.99</Text>

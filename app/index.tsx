@@ -9,11 +9,12 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
+import { QUESTIONS, CATEGORIES, getCategoryQuestions, getAccessibleQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
 const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
@@ -22,8 +23,14 @@ const TOTAL_QUESTIONS = QUESTIONS.length;
 export default function HomeScreen() {
   const router = useRouter();
   const { styles } = useThemedStyles(makeStyles);
+  const { isUnlocked } = useUnlocked();
 
-  const navigateToQuestion = (cat: typeof CATEGORIES[number], questions: ReturnType<typeof getCategoryQuestions>) => {
+  // Random play only ever lands on a question the user can actually play.
+  // Accessible questions are a prefix of the category list, so indexOf is the
+  // category index the game screen expects.
+  const navigateToQuestion = (cat: typeof CATEGORIES[number]) => {
+    const questions = getAccessibleQuestions(cat, isUnlocked(cat.id));
+    if (!questions.length) return;
     const q = questions[Math.floor(Math.random() * questions.length)];
     router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
   };
@@ -31,17 +38,14 @@ export default function HomeScreen() {
   const handleRandomQuestion = () => {
     const freeCats = CATEGORIES.filter((c) => c.tier === 'free');
     const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
-    const questions = getCategoryQuestions(cat.id);
-    navigateToQuestion(cat, questions);
+    navigateToQuestion(cat);
   };
 
   const handleQuickPlay = (categoryIds: CategoryId[]) => {
     const cats = CATEGORIES.filter((c) => categoryIds.includes(c.id));
     if (!cats.length) return;
     const cat = cats[Math.floor(Math.random() * cats.length)];
-    const questions = getCategoryQuestions(cat.id);
-    if (!questions.length) return;
-    navigateToQuestion(cat, questions);
+    navigateToQuestion(cat);
   };
 
   return (

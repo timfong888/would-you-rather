@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -54,6 +54,13 @@ export default function GameScreen() {
   const isLastInCategory = cat ? currentIdx >= totalInCategory - 1 : false;
   const nextIdx = currentIdx + 1;
   const nextQuestion = cat && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
+  // Is the next question behind the unlock? (premium trial ended, or the free
+  // set of a free category is finished and the expansion pack starts.)
+  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, isUnlocked(category.id)));
+  // Finishing the free set of a free category is a real milestone: celebrate
+  // it on the complete screen (which carries the expansion upsell) instead of
+  // dropping straight onto the paywall. Premium trials keep the direct paywall.
+  const endsFreeSet = nextLocked && category?.tier === 'free';
 
   const handleConfirm = () => {
     if (!selected) return;
@@ -83,8 +90,11 @@ export default function GameScreen() {
     }
 
     if (nextQuestion && cat) {
-      const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
+      if (endsFreeSet) {
+        router.push(`/complete/${cat}?voted=${selected}&q=${id}`);
+        return;
+      }
+      if (nextLocked) {
         router.push(`/unlock/${cat}`);
         return;
       }
@@ -96,8 +106,7 @@ export default function GameScreen() {
 
   const handleSkip = () => {
     if (nextQuestion && cat) {
-      const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
+      if (nextLocked) {
         router.push(`/unlock/${cat}`);
         return;
       }
@@ -286,7 +295,7 @@ export default function GameScreen() {
               </Pressable>
             )}
 
-            {nextQuestion && (
+            {nextQuestion && !nextLocked && (
               <Pressable
                 onPress={handleSkip}
                 style={({ pressed }) => [
@@ -342,7 +351,7 @@ export default function GameScreen() {
               ]}
             >
               <Text style={styles.nextButtonText}>
-                {isLastInCategory ? 'SEE RESULTS →' : 'NEXT QUESTION →'}
+                {isLastInCategory || endsFreeSet ? 'SEE RESULTS →' : 'NEXT QUESTION →'}
               </Text>
             </Pressable>
 
