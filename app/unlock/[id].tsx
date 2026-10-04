@@ -126,6 +126,9 @@ export default function UnlockScreen() {
   }, [paymentState, sheetAnim]);
 
   useEffect(() => {
+    // Someone who already has this category (purchased or owner access) landing
+    // here by URL is not a paywall view; counting it would deflate conversion.
+    if (isUnlocked(id as CategoryId)) return;
     track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
