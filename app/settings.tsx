@@ -20,6 +20,7 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { track } from '@/lib/analytics';
 
 // Tap the version label this many times to reveal the owner-access panel.
+// No intermediate feedback on purpose: a countdown would guide discovery.
 const OWNER_TAPS_TO_REVEAL = 7;
 
 export default function SettingsScreen() {
@@ -282,12 +283,7 @@ export default function SettingsScreen() {
       </View>
 
       <Pressable onPress={handleVersionTap} hitSlop={12} accessibilityLabel={`Version ${appVersion}`}>
-        <Text style={styles.version}>
-          VERSION {appVersion}
-          {versionTaps >= 3 && versionTaps < OWNER_TAPS_TO_REVEAL
-            ? `  ·  ${OWNER_TAPS_TO_REVEAL - versionTaps} more`
-            : ''}
-        </Text>
+        <Text style={styles.version}>VERSION {appVersion}</Text>
       </Pressable>
     </ScrollView>
   );
