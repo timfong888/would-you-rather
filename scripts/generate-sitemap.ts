@@ -6,14 +6,10 @@
 
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { CATEGORIES, TOTAL_QUESTIONS_PER_CATEGORY } from '../constants/questions';
+import { CATEGORIES, QUESTIONS } from '../constants/questions';
 import { SITE_URL } from '../constants/config';
 
 const TODAY = new Date().toISOString().split('T')[0];
-
-function categoryPrefix(id: string): string {
-  return id.split('-').map((w) => w[0]).join('');
-}
 
 function url(loc: string, priority: string, changefreq = 'monthly'): string {
   return `  <url>
@@ -33,10 +29,10 @@ for (const cat of CATEGORIES) {
   urls.push(url(`/categories/${cat.id}`, '0.8'));
 }
 
+// One entry per real question id, in category order (covers expansion packs too).
 for (const cat of CATEGORIES) {
-  const prefix = categoryPrefix(cat.id);
-  for (let i = 1; i <= TOTAL_QUESTIONS_PER_CATEGORY; i++) {
-    urls.push(url(`/game/${prefix}-${i}`, '0.6'));
+  for (const q of QUESTIONS.filter((x) => x.category === cat.id)) {
+    urls.push(url(`/game/${q.id}`, '0.6'));
   }
 }
 
