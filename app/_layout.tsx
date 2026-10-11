@@ -5,6 +5,7 @@ import { UnlockedProvider } from '@/contexts/UnlockedContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AnalyticsProvider } from '@/contexts/AnalyticsContext';
 import ThemeToggle from '@/components/ThemeToggle';
+import { Analytics } from '@vercel/analytics/react';
 
 function HeaderActions() {
   const router = useRouter();
@@ -131,6 +132,7 @@ export default function RootLayout() {
       <AnalyticsProvider>
         <UnlockedProvider>
           <AppLayout />
+          {Platform.OS === 'web' && <Analytics />}
         </UnlockedProvider>
       </AnalyticsProvider>
     </ThemeProvider>
