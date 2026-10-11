@@ -6,22 +6,23 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
+import { QUESTIONS, CATEGORIES, getCategoryQuestions } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
-const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
 const TOTAL_QUESTIONS = QUESTIONS.length;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { styles } = useThemedStyles(makeStyles);
+  const { width } = useWindowDimensions();
+  const { styles } = useThemedStyles((colors) => makeStyles(colors, width));
 
   const navigateToQuestion = (cat: typeof CATEGORIES[number], questions: ReturnType<typeof getCategoryQuestions>) => {
     const q = questions[Math.floor(Math.random() * questions.length)];
@@ -114,7 +115,7 @@ export default function HomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.primaryButtonText}>PLAY NOW</Text>
+            <Text style={styles.primaryButtonText}>START PLAYING</Text>
             <Text style={styles.buttonEmoji}>🎲</Text>
           </Pressable>
 
@@ -125,18 +126,9 @@ export default function HomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.secondaryButtonText}>Browse Categories</Text>
+              <Text style={styles.secondaryButtonText}>Choose a vibe</Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => router.push('/feed')}
-            style={({ pressed }) => [
-              styles.discoverButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.discoverButtonText}>✨ Discover Feed</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -154,11 +146,8 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {/* Featured Categories */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>FEATURED</Text>
-        </View>
+      {/* Explore all questions through one clear category entry point. */}
+
         <View style={styles.featuredGrid}>
           {FEATURED_CATEGORIES.map((cat) => {
             const count = getCategoryQuestions(cat.id).length;
@@ -238,15 +227,21 @@ export default function HomeScreen() {
   );
 }
 
-function makeStyles(colors: ThemeColors) {
+function makeStyles(colors: ThemeColors, viewportWidth: number) {
+  const isNarrow = viewportWidth < 600;
+  const horizontalPadding = isNarrow ? SPACING.md : SPACING.xl;
+
   return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
     },
     content: {
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,
+      width: '100%',
+      maxWidth: 960,
+      alignSelf: 'center',
+      paddingHorizontal: horizontalPadding,
+      paddingTop: isNarrow ? SPACING.md : SPACING.lg,
     },
     topBar: {
       flexDirection: 'row',
@@ -338,7 +333,8 @@ function makeStyles(colors: ThemeColors) {
       fontSize: 10,
     },
     heroActions: {
-      flexDirection: 'row',
+      flexDirection: isNarrow ? 'column' : 'row',
+      alignItems: isNarrow ? 'stretch' : 'flex-start',
       gap: SPACING.sm,
       marginTop: SPACING.sm,
       flexWrap: 'wrap',
@@ -455,9 +451,12 @@ function makeStyles(colors: ThemeColors) {
     featuredGrid: {
       flexDirection: 'row',
       gap: SPACING.sm,
+      flexWrap: 'wrap',
     },
     featuredCard: {
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: isNarrow ? '46%' : '30%',
+      minWidth: isNarrow ? 140 : 180,
       borderWidth: 1.5,
       borderRadius: RADIUS.lg,
       padding: SPACING.md,
