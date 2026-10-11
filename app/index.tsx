@@ -36,15 +36,6 @@ export default function HomeScreen() {
     navigateToQuestion(cat, questions);
   };
 
-  const handleQuickPlay = (categoryIds: CategoryId[]) => {
-    const cats = CATEGORIES.filter((c) => categoryIds.includes(c.id));
-    if (!cats.length) return;
-    const cat = cats[Math.floor(Math.random() * cats.length)];
-    const questions = getCategoryQuestions(cat.id);
-    if (!questions.length) return;
-    navigateToQuestion(cat, questions);
-  };
-
   return (
     <ScrollView
       style={styles.container}
@@ -79,33 +70,6 @@ export default function HomeScreen() {
           One question. Instant debate. The kind of fun that{'\n'}
           actually brings people closer.
         </Text>
-
-        <View style={styles.quickPlaySection}>
-          <Text style={styles.quickPlayLabel}>QUICK PLAY</Text>
-          <View style={styles.audiencePills}>
-            <Pressable
-              onPress={() => handleQuickPlay(FAMILY_FRIENDLY)}
-              style={({ pressed }) => [
-                styles.audiencePill,
-                pressed && styles.audiencePillPressed,
-              ]}
-            >
-              <Text style={styles.audiencePillText}>👨‍👧 Bond with Kids</Text>
-              <Text style={styles.audiencePillHint}>▶</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handleQuickPlay(DARING)}
-              style={({ pressed }) => [
-                styles.audiencePill,
-                styles.audiencePillDaring,
-                pressed && styles.audiencePillPressed,
-              ]}
-            >
-              <Text style={styles.audiencePillText}>🔥 Daring</Text>
-              <Text style={styles.audiencePillHint}>▶</Text>
-            </Pressable>
-          </View>
-        </View>
 
         <View style={styles.heroActions}>
           <Pressable
@@ -146,36 +110,6 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {/* Explore all questions through one clear category entry point. */}
-
-        <View style={styles.featuredGrid}>
-          {FEATURED_CATEGORIES.map((cat) => {
-            const count = getCategoryQuestions(cat.id).length;
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => router.push(`/categories/${cat.id}`)}
-                style={({ pressed }) => [
-                  styles.featuredCard,
-                  { borderColor: `${cat.color}50`, backgroundColor: `${cat.color}12` },
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text style={styles.featuredEmoji}>{cat.emoji}</Text>
-                <Text style={[styles.featuredLabel, { color: cat.color }]}>
-                  {cat.label.toUpperCase()}
-                </Text>
-                <Text style={styles.featuredCount}>{COPY.dilemmaCount(count)}</Text>
-                {cat.tier === 'premium' && (
-                  <View style={styles.featuredPremiumBadge}>
-                    <Text style={styles.featuredPremiumText}>3 FREE</Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
 
       {/* All Categories CTA */}
       <View style={styles.section}>
