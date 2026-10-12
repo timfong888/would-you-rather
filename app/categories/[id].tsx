@@ -9,7 +9,14 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { CATEGORIES, getCategoryQuestions, FREE_TRIAL_COUNT, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
+import {
+  CATEGORIES,
+  getCategoryQuestions,
+  getFreeQuestionCount,
+  getLockedQuestionCount,
+  hasPaidContent,
+  isQuestionLocked,
+} from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
@@ -44,10 +51,13 @@ export default function CategoryScreen() {
 
   const isPremium = category.tier === 'premium';
   const categoryUnlocked = isUnlocked(category.id);
-  const freeCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
+  const paid = hasPaidContent(category);
+  const freeCount = getFreeQuestionCount(category);
+  const lockedCount = getLockedQuestionCount(category);
+  const total = questions.length;
 
   const answeredCount = questions.filter((q) => answered[q.id] !== undefined).length;
-  const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answeredCount;
+  const unanswered = total - answeredCount;
 
   const handlePlay = (startIdx = 0) => {
     if (questions.length === 0) return;
@@ -56,7 +66,13 @@ export default function CategoryScreen() {
   };
 
   const pageTitle = `${category.label} — Would You Rather? ${category.emoji}`;
-  const pageDescription = `${questions.length} Would You Rather dilemmas in the ${category.label} category. ${isPremium ? 'First 3 questions free.' : 'Free to play.'} See how your answers compare.`;
+  const pageDescription = `${total} Would You Rather dilemmas in the ${category.label} category. ${
+    isPremium
+      ? `First ${freeCount} questions free.`
+      : lockedCount > 0
+        ? `${freeCount} free to play, plus a ${lockedCount}-question expansion pack.`
+        : 'Free to play.'
+  } See how your answers compare.`;
 
   return (
     <ScrollView
@@ -75,13 +91,13 @@ export default function CategoryScreen() {
         <Text style={[styles.heroName, { color: category.color }]}>
           {category.label.toUpperCase()}
         </Text>
-        <Text style={styles.heroCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
+        <Text style={styles.heroCount}>{unanswered} of {total} unanswered</Text>
 
         {answeredCount > 0 && (
           <>
             <View style={styles.progressPill}>
               <Text style={styles.progressPillText}>
-                ✓ {answeredCount} OF {questions.length} ANSWERED
+                ✓ {answeredCount} OF {total} ANSWERED
               </Text>
             </View>
             <View style={styles.heroProgressTrack}>
@@ -98,17 +114,19 @@ export default function CategoryScreen() {
           </>
         )}
 
-        {isPremium && !categoryUnlocked && (
+        {paid && !categoryUnlocked && (
           <View style={styles.trialBanner}>
             <Text style={styles.trialBannerText}>
-              👑 Premium — first {FREE_TRIAL_COUNT} questions are free
+              {isPremium
+                ? `👑 Premium — first ${freeCount} questions are free`
+                : COPY.expansionBanner(freeCount, lockedCount)}
             </Text>
           </View>
         )}
-        {isPremium && categoryUnlocked && (
+        {paid && categoryUnlocked && (
           <View style={[styles.trialBanner, styles.unlockedBanner]}>
             <Text style={[styles.trialBannerText, styles.unlockedBannerText]}>
-              🔓 Unlocked — all {questions.length} questions available
+              🔓 Unlocked — all {total} questions available
             </Text>
           </View>
         )}
@@ -128,13 +146,30 @@ export default function CategoryScreen() {
       {/* Questions List */}
       <View style={styles.list}>
         {questions.map((q, idx) => {
-          const isLocked = isPremium && !categoryUnlocked && idx >= FREE_TRIAL_COUNT;
+          const isLocked = isQuestionLocked(category, idx, categoryUnlocked);
           const answeredChoice = answered[q.id];
           const isAnswered = answeredChoice !== undefined;
+          // Header above the first question beyond the free set — only while locked,
+          // so paying / owner-access users never see an upsell divider.
+          const showPackHeader = idx === freeCount && idx > 0 && idx < total && !categoryUnlocked;
 
           return (
+            <React.Fragment key={q.id}>
+            {showPackHeader && (
+              <View style={styles.packHeader}>
+                <Text style={[styles.packHeaderText, { color: category.color }]}>
+                  {isPremium ? '👑 PREMIUM' : '👑 EXPANSION PACK'} · {lockedCount} MORE DILEMMAS
+                </Text>
+                {!categoryUnlocked && (
+                  <Text style={styles.packHeaderSub}>
+                    {isPremium
+                      ? 'Unlock the category to keep playing'
+                      : `You've played the ${freeCount} free ones — unlock to keep the conversation going`}
+                  </Text>
+                )}
+              </View>
+            )}
             <Pressable
-              key={q.id}
               onPress={() => {
                 if (isLocked) {
                   router.push(`/unlock/${category.id}`);
@@ -185,11 +220,12 @@ export default function CategoryScreen() {
                 </View>
               )}
             </Pressable>
+            </React.Fragment>
           );
         })}
       </View>
 
-      {isPremium && !categoryUnlocked && (
+      {paid && !categoryUnlocked && (
         <Pressable
           onPress={() => router.push(`/unlock/${category.id}`)}
           style={({ pressed }) => [
@@ -199,7 +235,9 @@ export default function CategoryScreen() {
         >
           <Text style={styles.unlockCtaEmoji}>👑</Text>
           <View style={styles.unlockCtaText}>
-            <Text style={styles.unlockCtaTitle}>Unlock All {questions.length} Dilemmas</Text>
+            <Text style={styles.unlockCtaTitle}>
+              {isPremium ? `Unlock All ${total} Dilemmas` : `Unlock ${lockedCount} More Dilemmas`}
+            </Text>
             <Text style={styles.unlockCtaSub}>One-time category unlock · $2.99</Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>
@@ -334,6 +372,21 @@ function makeStyles(colors: ThemeColors) {
     },
     list: {
       gap: SPACING.sm,
+    },
+    packHeader: {
+      paddingTop: SPACING.md,
+      paddingBottom: SPACING.xs,
+      paddingHorizontal: SPACING.xs,
+      gap: 2,
+    },
+    packHeaderText: {
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1.5,
+    },
+    packHeaderSub: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.xs,
     },
     questionRow: {
       flexDirection: 'row',

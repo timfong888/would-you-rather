@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 
@@ -21,6 +22,7 @@ export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
+  const { isUnlocked } = useUnlocked();
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -214,6 +216,23 @@ export default function ResultsScreen() {
   const nextQuestion = currentIdx >= 0 && currentIdx < categoryQuestions.length - 1
     ? categoryQuestions[currentIdx + 1]
     : null;
+  // Same routing rule as the game screen: a locked next question goes to the
+  // paywall, except the last-free → first-locked step of a free category,
+  // which celebrates on the complete screen (with the expansion upsell).
+  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, currentIdx + 1, isUnlocked(category.id)));
+  const endsFreeSet = nextLocked && !!category && category.tier === 'free' && currentIdx + 1 === getFreeQuestionCount(category);
+  const handleNextQuestion = () => {
+    if (!nextQuestion || !cat) return;
+    if (endsFreeSet) {
+      router.push(`/complete/${cat}?q=${id}${safeVoted ? `&voted=${safeVoted}` : ''}`);
+      return;
+    }
+    if (nextLocked) {
+      router.push(`/unlock/${cat}`);
+      return;
+    }
+    router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${currentIdx + 1}`);
+  };
 
   return (
     <ScrollView
@@ -370,14 +389,14 @@ export default function ResultsScreen() {
       <View style={styles.actions}>
         {nextQuestion && cat ? (
           <Pressable
-            onPress={() => router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${currentIdx + 1}`)}
+            onPress={handleNextQuestion}
             style={({ pressed }) => [
               styles.nextButton,
               { backgroundColor: catColor },
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.nextButtonText}>Next Question →</Text>
+            <Text style={styles.nextButtonText}>{endsFreeSet ? 'See Results →' : 'Next Question →'}</Text>
           </Pressable>
         ) : (
           <Pressable

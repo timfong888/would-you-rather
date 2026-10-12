@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,9 @@ import {
   Platform,
   Share,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -21,8 +21,11 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 
+// Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
+const SHARE_LINK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default function GameScreen() {
-  const { id, cat, idx } = useLocalSearchParams<{ id: string; cat: string; idx: string }>();
+  const { id, cat, idx, link_id } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string }>();
   const router = useRouter();
   const { isUnlocked } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
@@ -34,83 +37,42 @@ export default function GameScreen() {
   const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
   const question = getQuestionById(id);
-  const category = cat ? getCategoryById(cat as CategoryId) : undefined;
-  const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
-  const currentIdx = idx !== undefined ? parseInt(idx, 10) : 0;
+  // The category always comes from the question itself (the URL's `cat` is a
+  // hint, never a source of truth), so a bare /game/:id link still gates.
+  const catId = (question?.category ?? (cat as CategoryId | undefined)) as CategoryId | undefined;
+  const category = catId ? getCategoryById(catId) : undefined;
+  const categoryQuestions = catId ? getCategoryQuestions(catId) : [];
+  // Likewise the index is the question's real position, not the URL's `idx`.
+  const realIdx = question ? categoryQuestions.findIndex((q) => q.id === question.id) : -1;
+  const currentIdx = realIdx >= 0 ? realIdx : (idx !== undefined ? parseInt(idx, 10) || 0 : 0);
   const totalInCategory = categoryQuestions.length;
 
-  if (!question) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Question not found</Text>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  // Self-guard: a locked question reached by typing a URL is bounced to the
+  // category page (which shows it locked with an Unlock affordance).
+  // Exception: arriving via a share link (link_id) — the shared question is
+  // intentionally playable as the hook of the share loop; the gate still
+  // applies the moment they try to continue.
+  //
+  // This exception is NOT a security gate. It is intentionally permissive
+  // for the sharing UX: link_ids are generated client-side (lib/analytics
+  // buildShareUrl) with no server to validate against, so anyone can forge a
+  // v4 UUID (e.g. 00000000-0000-4000-8000-000000000000) and play one locked
+  // question per URL. The shape check only keeps accidental or malformed
+  // params from triggering the exception. Real enforcement needs server-side
+  // entitlements (see docs/owner-access.md, "Related client-side gating limits").
+  const arrivedViaShare = typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id);
+  const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
+  const mustRedirect = currentLocked && !arrivedViaShare;
+  // On a cold deep link the root navigator may not be mounted on first render;
+  // navigating before it is ready throws, so wait for the root state key.
+  const navReady = !!useRootNavigationState()?.key;
+  useEffect(() => {
+    if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
+  }, [mustRedirect, category, navReady, router]);
 
-  const catColor = category?.color ?? colors.magenta;
-  const isLastInCategory = cat ? currentIdx >= totalInCategory - 1 : false;
-  const nextIdx = currentIdx + 1;
-  const nextQuestion = cat && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
-
-  const handleConfirm = () => {
-    if (!selected) return;
-    setConfirmed(true);
-    markAnswered(question!.id, selected);
-    track('question_answered', {
-      question_id: question!.id,
-      category: cat ?? undefined,
-      choice: selected,
-      visitor_id: visitorId,
-    });
-    if (incomingLinkId) {
-      track('visitor_answered_after_link', {
-        link_id: incomingLinkId,
-        question_id: question!.id,
-        visitor_id: visitorId,
-      });
-    }
-  };
-
-  const handleNext = () => {
-    if (!selected) return;
-
-    if (isLastInCategory && cat) {
-      router.push(`/complete/${cat}?voted=${selected}&q=${id}`);
-      return;
-    }
-
-    if (nextQuestion && cat) {
-      const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
-        router.push(`/unlock/${cat}`);
-        return;
-      }
-      router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${nextIdx}`);
-    } else {
-      router.push('/');
-    }
-  };
-
-  const handleSkip = () => {
-    if (nextQuestion && cat) {
-      const catDef = getCategoryById(cat as CategoryId);
-      if (catDef?.tier === 'premium' && nextIdx >= FREE_TRIAL_COUNT && !isUnlocked(cat as CategoryId)) {
-        router.push(`/unlock/${cat}`);
-        return;
-      }
-      router.push(`/game/${nextQuestion.id}?cat=${cat}&idx=${nextIdx}`);
-    } else {
-      router.push('/categories');
-    }
-  };
-
-  const handleLeaveCategory = () => {
-    router.push('/categories');
-  };
-
+  // Every hook must run before the early returns below: revoking owner access
+  // while this screen is mounted flips `mustRedirect` and the next render
+  // returns early, which would otherwise render fewer hooks and throw.
   // Voluntary pre-answer challenge: share the question before confirming
   const handleChallengeShare = useCallback(async () => {
     const title = 'Would You Rather?';
@@ -147,6 +109,102 @@ export default function GameScreen() {
       Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
     }
   }, [question, id, incomingGeneration, incomingLinkId, visitorId, setCopyFeedback]);
+
+  if (!question) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Question not found</Text>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (mustRedirect) return null;
+
+  const catColor = category?.color ?? colors.magenta;
+  const isLastInCategory = catId ? currentIdx >= totalInCategory - 1 : false;
+  const nextIdx = currentIdx + 1;
+  const nextQuestion = catId && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
+  // Is the next question behind the unlock? (premium trial ended, or the free
+  // set of a free category is finished and the expansion pack starts.)
+  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, isUnlocked(category.id)));
+  // Finishing the free set of a free category is a real milestone: celebrate
+  // it on the complete screen (which carries the expansion upsell) instead of
+  // dropping straight onto the paywall. Premium trials keep the direct paywall.
+  // Only the exact last-free → first-locked step counts: someone who arrived
+  // via a share link on an expansion question and continues goes to the
+  // paywall, not to a "you finished the free set" screen they never played.
+  const endsFreeSet =
+    nextLocked &&
+    category !== undefined &&
+    category.tier === 'free' &&
+    currentIdx + 1 === getFreeQuestionCount(category);
+
+  const handleConfirm = () => {
+    if (!selected) return;
+    setConfirmed(true);
+    markAnswered(question!.id, selected);
+    track('question_answered', {
+      question_id: question!.id,
+      category: catId ?? undefined,
+      choice: selected,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_answered_after_link', {
+        link_id: incomingLinkId,
+        question_id: question!.id,
+        visitor_id: visitorId,
+      });
+    }
+  };
+
+  const handleNext = () => {
+    if (!selected) return;
+
+    if (isLastInCategory && catId) {
+      router.push(`/complete/${catId}?voted=${selected}&q=${id}`);
+      return;
+    }
+
+    if (nextQuestion && catId) {
+      if (endsFreeSet) {
+        router.push(`/complete/${catId}?voted=${selected}&q=${id}`);
+        return;
+      }
+      if (nextLocked) {
+        router.push(`/unlock/${catId}`);
+        return;
+      }
+      router.push(`/game/${nextQuestion.id}?cat=${catId}&idx=${nextIdx}`);
+    } else {
+      router.push('/');
+    }
+  };
+
+  // Skip is hidden in the UI when the next question is locked, but keep the
+  // routing consistent with handleNext in case that changes.
+  const handleSkip = () => {
+    if (nextQuestion && catId) {
+      if (endsFreeSet) {
+        router.push(`/complete/${catId}?q=${id}`);
+        return;
+      }
+      if (nextLocked) {
+        router.push(`/unlock/${catId}`);
+        return;
+      }
+      router.push(`/game/${nextQuestion.id}?cat=${catId}&idx=${nextIdx}`);
+    } else {
+      router.push('/categories');
+    }
+  };
+
+  const handleLeaveCategory = () => {
+    router.push('/categories');
+  };
 
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
@@ -286,7 +344,7 @@ export default function GameScreen() {
               </Pressable>
             )}
 
-            {nextQuestion && (
+            {nextQuestion && !nextLocked && (
               <Pressable
                 onPress={handleSkip}
                 style={({ pressed }) => [
@@ -342,7 +400,7 @@ export default function GameScreen() {
               ]}
             >
               <Text style={styles.nextButtonText}>
-                {isLastInCategory ? 'SEE RESULTS →' : 'NEXT QUESTION →'}
+                {isLastInCategory || endsFreeSet ? 'SEE RESULTS →' : 'NEXT QUESTION →'}
               </Text>
             </Pressable>
 
