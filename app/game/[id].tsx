@@ -70,6 +70,46 @@ export default function GameScreen() {
     if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
   }, [mustRedirect, category, navReady, router]);
 
+  // Every hook must run before the early returns below: revoking owner access
+  // while this screen is mounted flips `mustRedirect` and the next render
+  // returns early, which would otherwise render fewer hooks and throw.
+  // Voluntary pre-answer challenge: share the question before confirming
+  const handleChallengeShare = useCallback(async () => {
+    const title = 'Would You Rather?';
+    const text = `${question?.optionA} — OR — ${question?.optionB}`;
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+
+    track('share_clicked', {
+      question_id: id,
+      surface: 'game_challenge',
+      link_id: linkId,
+      visitor_id: visitorId,
+    });
+    if (incomingLinkId) {
+      track('visitor_shared_after_link', {
+        link_id: incomingLinkId,
+        generation: incomingGeneration,
+        new_link_id: linkId,
+        visitor_id: visitorId,
+      });
+    }
+
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          setCopyFeedback('Link copied!');
+          setTimeout(() => setCopyFeedback(null), 2000);
+        } catch {}
+      }
+    } else {
+      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    }
+  }, [question, id, incomingGeneration, incomingLinkId, visitorId, setCopyFeedback]);
+
   if (!question) {
     return (
       <View style={styles.errorContainer}>
@@ -165,43 +205,6 @@ export default function GameScreen() {
   const handleLeaveCategory = () => {
     router.push('/categories');
   };
-
-  // Voluntary pre-answer challenge: share the question before confirming
-  const handleChallengeShare = useCallback(async () => {
-    const title = 'Would You Rather?';
-    const text = `${question?.optionA} — OR — ${question?.optionB}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
-
-    track('share_clicked', {
-      question_id: id,
-      surface: 'game_challenge',
-      link_id: linkId,
-      visitor_id: visitorId,
-    });
-    if (incomingLinkId) {
-      track('visitor_shared_after_link', {
-        link_id: incomingLinkId,
-        generation: incomingGeneration,
-        new_link_id: linkId,
-        visitor_id: visitorId,
-      });
-    }
-
-    if (Platform.OS === 'web') {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
-      }
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          setCopyFeedback('Link copied!');
-          setTimeout(() => setCopyFeedback(null), 2000);
-        } catch {}
-      }
-    } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
-    }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId, setCopyFeedback]);
 
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;

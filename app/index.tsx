@@ -23,7 +23,7 @@ const TOTAL_QUESTIONS = QUESTIONS.length;
 export default function HomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { styles } = useThemedStyles((colors) => makeStyles(colors, width));
+  const { styles } = useThemedStyles((colors) => makeStyles(colors, width), [width]);
   const { isUnlocked } = useUnlocked();
 
   // Random play only ever lands on a question the user can actually play.

@@ -57,8 +57,14 @@ export function useTheme() {
   return useContext(ThemeContext);
 }
 
-export function useThemedStyles<T>(makeStyles: (colors: ThemeColors) => T): { styles: T; colors: ThemeColors } {
+export function useThemedStyles<T>(
+  makeStyles: (colors: ThemeColors) => T,
+  // Anything `makeStyles` closes over besides the theme (e.g. window width)
+  // must be listed here, or the cached styles go stale when it changes.
+  deps: readonly unknown[] = [],
+): { styles: T; colors: ThemeColors } {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const styles = useMemo(() => makeStyles(colors), [colors, ...deps]);
   return { styles, colors };
 }
