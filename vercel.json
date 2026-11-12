@@ -9,6 +9,11 @@
     { "source": "/categories/:id", "destination": "/categories/[id].html" },
     { "source": "/complete/:id",   "destination": "/complete/[id].html" },
     { "source": "/unlock/:id",     "destination": "/unlock/[id].html" },
+    { "source": "/categories",     "destination": "/categories.html" },
+    { "source": "/would-you-rather-questions-for-kids", "destination": "/would-you-rather-questions-for-kids.html" },
+    { "source": "/dinner-table-conversation-starters",  "destination": "/dinner-table-conversation-starters.html" },
+    { "source": "/deep-would-you-rather-questions",     "destination": "/deep-would-you-rather-questions.html" },
+    { "source": "/questions-for-couples",               "destination": "/questions-for-couples.html" },
     { "source": "/((?!api/).*)",   "destination": "/index.html" }
   ]
 }
