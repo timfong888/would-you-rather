@@ -1,4 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
+import { SEO_PAGES } from '@/constants/seoPages';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { UnlockedProvider } from '@/contexts/UnlockedContext';
@@ -49,6 +50,10 @@ function AppLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        {/* SEO landing pages carry their own hero and <h1>; the default header would add a second <h1> with the raw slug. */}
+        {SEO_PAGES.map((p) => (
+          <Stack.Screen key={p.slug} name={p.slug} options={{ headerShown: false }} />
+        ))}
         <Stack.Screen
           name="game/[id]"
           options={{

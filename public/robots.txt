@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://wouldyourather.vercel.app/sitemap.xml
+Sitemap: https://wyr-timfong888.vercel.app/sitemap.xml

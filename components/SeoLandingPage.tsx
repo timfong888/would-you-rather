@@ -7,36 +7,35 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { type Question, type CategoryDef } from '@/constants/questions';
+import { CATEGORIES, QUESTIONS, type Question } from '@/constants/questions';
+import { SEO_PAGES, getSeoPage, getSeoPageQuestions } from '@/constants/seoPages';
 import { SITE_URL } from '@/constants/config';
+import { landingPageJsonLd } from '@/lib/seo';
 import PageHead from '@/components/PageHead';
+import JsonLd from '@/components/JsonLd';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
+// react-native-web turns role="heading" + aria-level into a real <h1>/<h2>;
+// the prop is not in React Native's own Text types.
+const h1 = { role: 'heading', 'aria-level': 1 } as object;
+const h2 = { role: 'heading', 'aria-level': 2 } as object;
+
 interface SeoLandingPageProps {
+  /** Key into SEO_PAGES (constants/seoPages.ts). Everything else comes from there. */
   slug: string;
-  pageTitle: string;
-  pageDescription: string;
-  headline: string;
-  subheadline: string;
-  questions: Question[];
-  categories: CategoryDef[];
-  ctaLabel?: string;
 }
 
-export default function SeoLandingPage({
-  slug,
-  pageTitle,
-  pageDescription,
-  headline,
-  subheadline,
-  questions,
-  categories,
-  ctaLabel = 'Play Free Now →',
-}: SeoLandingPageProps) {
+export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
   const router = useRouter();
-  const { styles, colors } = useThemedStyles(makeStyles);
+  const { styles } = useThemedStyles(makeStyles);
+
+  const page = getSeoPage(slug);
+  if (!page) return null;
+  const questions = getSeoPageQuestions(page);
+  const otherPages = SEO_PAGES.filter((p) => p.slug !== page.slug);
+  const dilemmaCount = `${Math.floor(QUESTIONS.length / 10) * 10}+`;
 
   const handlePlay = (question: Question) => {
     router.push(`/game/${question.id}?cat=${question.category}`);
@@ -49,10 +48,10 @@ export default function SeoLandingPage({
   };
 
   const getCategoryLabel = (catId: string) =>
-    categories.find((c) => c.id === catId)?.label ?? '';
+    CATEGORIES.find((c) => c.id === catId)?.label ?? '';
 
   const getCategoryEmoji = (catId: string) =>
-    categories.find((c) => c.id === catId)?.emoji ?? '🎲';
+    CATEGORIES.find((c) => c.id === catId)?.emoji ?? '🎲';
 
   return (
     <ScrollView
@@ -61,29 +60,30 @@ export default function SeoLandingPage({
       showsVerticalScrollIndicator={false}
     >
       <PageHead
-        title={pageTitle}
-        description={pageDescription}
-        canonicalUrl={`${SITE_URL}/${slug}`}
+        title={page.title}
+        description={page.description}
+        canonicalUrl={`${SITE_URL}/${page.slug}`}
       />
+      <JsonLd data={landingPageJsonLd(page, questions)} />
 
       {/* Hero */}
       <View style={styles.hero}>
-        <Text style={styles.appLabel}>Would You Rather?</Text>
-        <Text style={styles.heroTitle}>{headline}</Text>
-        <Text style={styles.heroSub}>{subheadline}</Text>
+        <Link href="/" style={styles.appLabel}>Would You Rather?</Link>
+        <Text style={styles.heroTitle} {...h1}>{page.headline}</Text>
+        <Text style={styles.heroSub}>{page.subheadline}</Text>
         <Pressable
           style={({ pressed }) => [styles.heroCta, pressed && { opacity: 0.85 }]}
           onPress={handleCtaPlay}
           accessibilityRole="button"
-          accessibilityLabel={ctaLabel}
+          accessibilityLabel={page.ctaLabel}
         >
-          <Text style={styles.heroCtaText}>{ctaLabel}</Text>
+          <Text style={styles.heroCtaText}>{page.ctaLabel}</Text>
         </Pressable>
       </View>
 
       {/* Question List */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>SAMPLE QUESTIONS</Text>
+        <Text style={styles.sectionLabel} {...h2}>SAMPLE QUESTIONS</Text>
         {questions.map((q, i) => {
           const totalVotes = q.votesA + q.votesB;
           const pctA = totalVotes > 0 ? Math.round((q.votesA / totalVotes) * 100) : 0;
@@ -126,7 +126,9 @@ export default function SeoLandingPage({
 
       {/* Bottom CTA */}
       <View style={styles.bottomCta}>
-        <Text style={styles.bottomCtaTitle}>180+ Dilemmas Across 9 Categories</Text>
+        <Text style={styles.bottomCtaTitle} {...h2}>
+          {dilemmaCount} Dilemmas Across {CATEGORIES.length} Categories
+        </Text>
         <Text style={styles.bottomCtaDesc}>
           Family-friendly packs, daring conversation starters for couples,
           and everything in between. Free to start, no account required.
@@ -138,6 +140,16 @@ export default function SeoLandingPage({
         >
           <Text style={styles.heroCtaText}>Explore All Categories →</Text>
         </Pressable>
+      </View>
+
+      {/* Real <a href> links between the landing pages, so crawlers can find them. */}
+      <View style={styles.relatedWrap}>
+        <Text style={styles.relatedLabel} {...h2}>MORE QUESTION LISTS</Text>
+        {otherPages.map((p) => (
+          <Link key={p.slug} href={`/${p.slug}`} style={styles.relatedLink}>
+            {p.headline}
+          </Link>
+        ))}
       </View>
     </ScrollView>
   );
@@ -278,6 +290,24 @@ function makeStyles(colors: ThemeColors) {
       color: colors.text,
       textAlign: 'center',
       marginBottom: SPACING.sm,
+    },
+    relatedWrap: {
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.lg,
+      alignItems: 'center',
+    },
+    relatedLabel: {
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+      color: colors.textMuted,
+      marginBottom: SPACING.sm,
+    },
+    relatedLink: {
+      fontSize: FONTS.sizes.sm,
+      color: colors.primary,
+      fontWeight: FONTS.weights.semibold,
+      paddingVertical: SPACING.xs,
     },
     bottomCtaDesc: {
       fontSize: FONTS.sizes.sm,
