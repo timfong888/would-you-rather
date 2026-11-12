@@ -16,7 +16,7 @@ import { resolve } from 'path';
 import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getSeoPageQuestions } from '../constants/seoPages';
-import { categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
+import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
 const ROOT = resolve(__dirname, '..');
 const withDist = process.argv.includes('--dist');
@@ -129,14 +129,25 @@ if (withDist) {
       h1: true,
       expected: homeJsonLd(SEO.defaultDescription),
     },
+    {
+      // Its title/description are set in the screen; check they exist, not their wording.
+      file: 'dist/categories.html',
+      canonical: `${SITE_URL}/categories`,
+      title: undefined as string | undefined,
+      description: undefined as string | undefined,
+      h1: false,
+      expected: categoriesIndexJsonLd(CATEGORIES),
+    },
   ];
 
   for (const p of pages) {
     if (!existsSync(resolve(ROOT, p.file))) { fail(`dist: ${p.file} was not exported`); continue; }
     const html = read(p.file);
     const label = p.file;
-    if (unescape(tag(html, /<title[^>]*>([^<]*)<\/title>/)) !== p.title) fail(`${label}: <title> is not "${p.title}"`);
-    if (unescape(tag(html, /<meta[^>]*name="description"[^>]*content="([^"]*)"/)) !== p.description) fail(`${label}: meta description does not match`);
+    const gotTitle = unescape(tag(html, /<title[^>]*>([^<]*)<\/title>/));
+    const gotDescription = unescape(tag(html, /<meta[^>]*name="description"[^>]*content="([^"]*)"/));
+    if (p.title === undefined ? !gotTitle : gotTitle !== p.title) fail(`${label}: <title> is ${gotTitle ? `"${gotTitle}"` : 'empty'}${p.title ? `, expected "${p.title}"` : ''}`);
+    if (p.description === undefined ? !gotDescription : gotDescription !== p.description) fail(`${label}: meta description ${gotDescription ? 'does not match' : 'is missing'}`);
     if (tag(html, /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== p.canonical) fail(`${label}: canonical is not ${p.canonical}`);
     if (!/<meta[^>]*name="robots"[^>]*content="index, follow"/.test(html)) fail(`${label}: robots is not "index, follow"`);
     const h1s = (html.match(/<h1[\s>]/g) ?? []).length;

@@ -14,6 +14,8 @@ import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
+import JsonLd from '@/components/JsonLd';
+import { categoriesIndexJsonLd } from '@/lib/seo';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
 const FEATURED = CATEGORIES.filter((c) => c.featured);
@@ -46,6 +48,7 @@ export default function CategoriesScreen() {
         description={pageDescription}
         canonicalUrl={`${SITE_URL}/categories`}
       />
+      <JsonLd data={categoriesIndexJsonLd(CATEGORIES)} />
       {/* App Header */}
       <View style={styles.header}>
         <Text style={styles.appTitle}>WOULD YOU RATHER</Text>

@@ -102,6 +102,44 @@ export function landingPageJsonLd(page: SeoPageDef, questions: Question[]): Json
   };
 }
 
+/** The /categories index: a collection of the category pages. */
+export function categoriesIndexJsonLd(categories: CategoryDef[]): JsonLd {
+  const url = abs('/categories');
+  return {
+    '@context': CONTEXT,
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': `${url}#webpage`,
+        url,
+        name: 'Browse Would You Rather Categories',
+        inLanguage: 'en',
+        isPartOf: { '@id': websiteId() },
+        breadcrumb: { '@id': `${url}#breadcrumb` },
+        mainEntity: { '@id': `${url}#categories` },
+      },
+      {
+        '@type': 'ItemList',
+        '@id': `${url}#categories`,
+        name: 'Would You Rather categories',
+        itemListOrder: 'https://schema.org/ItemListUnordered',
+        numberOfItems: categories.length,
+        itemListElement: categories.map((c, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: c.label,
+          url: abs(`/categories/${c.id}`),
+        })),
+      },
+      breadcrumbNode(url, [
+        { name: 'Home', path: '/' },
+        { name: 'Categories', path: '/categories' },
+      ]),
+      websiteNode(),
+    ],
+  };
+}
+
 /** A category page. `freeQuestions` must be the free list (never locked text). */
 export function categoryJsonLd(category: CategoryDef, freeQuestions: Question[]): JsonLd {
   const url = abs(`/categories/${category.id}`);
