@@ -65,10 +65,9 @@ export default function HomeScreen() {
       {/* Hero */}
       <View style={styles.hero}>
         <Text style={styles.appLabel}>Turn boredom into real conversation</Text>
-        <Text style={styles.heroTitle}>Would You{'\n'}Rather?</Text>
+        <Text style={styles.heroTitle}>Would You Rather?</Text>
         <Text style={styles.heroSubtitle}>
-          One question. Instant debate. The kind of fun that{'\n'}
-          actually brings people closer.
+          One question. Instant debate. The kind of fun that actually brings people closer.
         </Text>
 
         <View style={styles.heroActions}>
