@@ -15,8 +15,10 @@ import {
   getCategoryById,
   type Question,
   type CategoryId,
+  isQuestionLocked,
 } from '@/constants/questions';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 import PageHead from '@/components/PageHead';
 import { SEO, SITE_URL } from '@/constants/config';
 
@@ -484,6 +486,7 @@ function makeCardStyles(colors: ThemeColors) {
 export default function FeedScreen() {
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
+  const { isUnlocked } = useUnlocked();
   const [activeTab, setActiveTab] = useState<FeedTab>('for-you');
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
 
@@ -515,8 +518,13 @@ export default function FeedScreen() {
   const handlePlay = (item: FeedItem) => {
     const q = item.question;
     const catQuestions = QUESTIONS.filter((x) => x.category === q.category);
-    const idx = catQuestions.findIndex((x) => x.id === q.id);
-    router.push(`/game/${q.id}?cat=${q.category}&idx=${Math.max(0, idx)}`);
+    const idx = Math.max(0, catQuestions.findIndex((x) => x.id === q.id));
+    const cat = getCategoryById(q.category);
+    if (cat && isQuestionLocked(cat, idx, isUnlocked(cat.id))) {
+      router.push(`/unlock/${q.category}`);
+      return;
+    }
+    router.push(`/game/${q.id}?cat=${q.category}&idx=${idx}`);
   };
 
   const getFilterColor = (id: FilterId) => {

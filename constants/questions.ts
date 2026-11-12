@@ -12,7 +12,6 @@ export type CategoryId =
 export type CategoryTier = 'free' | 'premium';
 
 export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
-export const TOTAL_QUESTIONS_PER_CATEGORY = 20;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -30,6 +29,12 @@ export interface Question {
   optionB: string;
   votesA: number;
   votesB: number;
+  /**
+   * Content volume. Volume 1 is the original set; volume 2+ are expansion
+   * packs. Free categories give away all of volume 1 and gate the rest.
+   * Omitted means volume 1.
+   */
+  volume?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -1591,6 +1596,108 @@ export const QUESTIONS: Question[] = [
     votesA: 594,
     votesB: 806,
   },
+
+  // =========================================================================
+  // EXPANSION PACKS (volume 2)
+  // Paid continuation for the free categories. Free categories give away all
+  // of volume 1; everything with volume >= 2 is unlocked with the category.
+  // =========================================================================
+
+  // -------------------------------------------------------------------------
+  // Moral Compass — Expansion Pack (mc-21 through mc-40)
+  // -------------------------------------------------------------------------
+  { id: 'mc-21', category: 'moral-compass', volume: 2, optionA: 'Find twenty dollars on the playground and hand it to a teacher', optionB: 'Keep it, since nobody saw you pick it up', votesA: 912, votesB: 388 },
+  { id: 'mc-22', category: 'moral-compass', volume: 2, optionA: 'Admit you broke the window and lose your allowance for a month', optionB: 'Stay quiet and let everyone think the wind did it', votesA: 843, votesB: 457 },
+  { id: 'mc-23', category: 'moral-compass', volume: 2, optionA: 'Share your lunch with a classmate who forgot theirs and go a little hungry', optionB: 'Eat your whole lunch because you need the energy for practice', votesA: 1021, votesB: 379 },
+  { id: 'mc-24', category: 'moral-compass', volume: 2, optionA: 'Tell your friend their drawing needs work when they ask for honest feedback', optionB: 'Say it is perfect so they feel great today', votesA: 764, votesB: 636 },
+  { id: 'mc-25', category: 'moral-compass', volume: 2, optionA: 'Give the last seat on the bus to an older person and stand the whole ride', optionB: 'Keep the seat because you got there first', votesA: 1133, votesB: 267 },
+  { id: 'mc-26', category: 'moral-compass', volume: 2, optionA: 'Win a game because the referee missed your foul and say nothing', optionB: 'Tell the referee and risk losing the game', votesA: 418, votesB: 982 },
+  { id: 'mc-27', category: 'moral-compass', volume: 2, optionA: 'Stick up for the new kid being teased, even if your friends get annoyed', optionB: 'Stay quiet so you do not lose your friends', votesA: 1094, votesB: 306 },
+  { id: 'mc-28', category: 'moral-compass', volume: 2, optionA: 'Return the extra toy the store accidentally put in your bag', optionB: 'Keep it since it was the store\'s mistake', votesA: 871, votesB: 529 },
+  { id: 'mc-29', category: 'moral-compass', volume: 2, optionA: 'Tell your parents your sibling broke the rule they asked you about', optionB: 'Cover for your sibling and take the blame yourself', votesA: 603, votesB: 797 },
+  { id: 'mc-30', category: 'moral-compass', volume: 2, optionA: 'Give your birthday money to an animal shelter', optionB: 'Save it for the game you have wanted all year', votesA: 487, votesB: 913 },
+  { id: 'mc-31', category: 'moral-compass', volume: 2, optionA: 'Let a teammate who tried hard take the final shot even if they might miss', optionB: 'Take the shot yourself because you are more likely to make it', votesA: 652, votesB: 748 },
+  { id: 'mc-32', category: 'moral-compass', volume: 2, optionA: 'Tell the truth and get a friend in trouble', optionB: 'Tell a small lie and keep your friend out of trouble', votesA: 538, votesB: 862 },
+  { id: 'mc-33', category: 'moral-compass', volume: 2, optionA: 'Clean up a mess you did not make because the room needs to be ready', optionB: 'Leave it and let the person who made it deal with it', votesA: 804, votesB: 596 },
+  { id: 'mc-34', category: 'moral-compass', volume: 2, optionA: 'Get a trophy you did not really earn', optionB: 'Get no trophy but know you played your very best', votesA: 312, votesB: 1088 },
+  { id: 'mc-35', category: 'moral-compass', volume: 2, optionA: 'Invite the kid nobody invites to your party', optionB: 'Only invite your closest friends so everyone is comfortable', votesA: 931, votesB: 469 },
+  { id: 'mc-36', category: 'moral-compass', volume: 2, optionA: 'Say sorry first even when you think the fight was not your fault', optionB: 'Wait for the other person to apologize first', votesA: 712, votesB: 688 },
+  { id: 'mc-37', category: 'moral-compass', volume: 2, optionA: 'Use your one wish to fix something for your family', optionB: 'Use your one wish to fix something for the whole world', votesA: 456, votesB: 944 },
+  { id: 'mc-38', category: 'moral-compass', volume: 2, optionA: 'Spend your Saturday helping a neighbor move', optionB: 'Spend your Saturday doing exactly what you want', votesA: 571, votesB: 829 },
+  { id: 'mc-39', category: 'moral-compass', volume: 2, optionA: 'Tell a grown-up about a friend who is being hurt, even if they begged you not to', optionB: 'Keep the promise you made to your friend', votesA: 1067, votesB: 333 },
+  { id: 'mc-40', category: 'moral-compass', volume: 2, optionA: 'Forgive someone who never says sorry', optionB: 'Stay upset until they finally apologize', votesA: 689, votesB: 711 },
+
+  // -------------------------------------------------------------------------
+  // Social Blunders — Expansion Pack (sb-21 through sb-40)
+  // -------------------------------------------------------------------------
+  { id: 'sb-21', category: 'social-blunders', volume: 2, optionA: 'Wave enthusiastically at someone who was waving at the person behind you', optionB: 'Call your teacher "Mom" in front of the whole class', votesA: 623, votesB: 777 },
+  { id: 'sb-22', category: 'social-blunders', volume: 2, optionA: 'Have your stomach growl loudly during the quietest moment of a test', optionB: 'Sneeze so hard your glasses fly across the room', votesA: 841, votesB: 559 },
+  { id: 'sb-23', category: 'social-blunders', volume: 2, optionA: 'Trip and fall on stage at the school play', optionB: 'Forget every one of your lines but stay standing', votesA: 512, votesB: 888 },
+  { id: 'sb-24', category: 'social-blunders', volume: 2, optionA: 'Walk around all day with spinach in your teeth and nobody tells you', optionB: 'Walk around all day with your shirt on inside out', votesA: 402, votesB: 998 },
+  { id: 'sb-25', category: 'social-blunders', volume: 2, optionA: 'Laugh so hard that milk comes out of your nose at a fancy dinner', optionB: 'Hiccup nonstop through your best friend\'s birthday speech', votesA: 734, votesB: 666 },
+  { id: 'sb-26', category: 'social-blunders', volume: 2, optionA: 'Accidentally send a silly selfie to the whole class group chat', optionB: 'Accidentally like a photo from five years ago on someone\'s profile', votesA: 587, votesB: 813 },
+  { id: 'sb-27', category: 'social-blunders', volume: 2, optionA: 'Sing happy birthday loudly to the wrong person', optionB: 'Give a hug to someone who was only reaching for a handshake', votesA: 655, votesB: 745 },
+  { id: 'sb-28', category: 'social-blunders', volume: 2, optionA: 'Show up to a costume party in full costume when nobody else dressed up', optionB: 'Show up in normal clothes when everyone else is in costume', votesA: 923, votesB: 477 },
+  { id: 'sb-29', category: 'social-blunders', volume: 2, optionA: 'Have your voice crack in the middle of your class presentation', optionB: 'Have your phone go off with an embarrassing ringtone during it', votesA: 698, votesB: 702 },
+  { id: 'sb-30', category: 'social-blunders', volume: 2, optionA: 'Get caught talking to yourself in the mirror', optionB: 'Get caught dancing alone in the kitchen', votesA: 561, votesB: 839 },
+  { id: 'sb-31', category: 'social-blunders', volume: 2, optionA: 'Forget the name of someone you have met five times', optionB: 'Call someone by the wrong name all year long', votesA: 1012, votesB: 388 },
+  { id: 'sb-32', category: 'social-blunders', volume: 2, optionA: 'Push on a door that clearly says PULL while people watch', optionB: 'Say "you too" when the waiter tells you to enjoy your meal', votesA: 476, votesB: 924 },
+  { id: 'sb-33', category: 'social-blunders', volume: 2, optionA: 'Spill a whole tray of food in the busy cafeteria', optionB: 'Sit down at the wrong lunch table and only notice after a full minute', votesA: 389, votesB: 1011 },
+  { id: 'sb-34', category: 'social-blunders', volume: 2, optionA: 'Have a sneeze turn into a very loud honk', optionB: 'Have a yawn turn into a very loud roar', votesA: 744, votesB: 656 },
+  { id: 'sb-35', category: 'social-blunders', volume: 2, optionA: 'Tell a joke and get complete silence', optionB: 'Laugh loudly at a joke before realizing it was not a joke', votesA: 532, votesB: 868 },
+  { id: 'sb-36', category: 'social-blunders', volume: 2, optionA: 'Wear two different shoes to school and notice at lunch', optionB: 'Wear pajama pants to school and notice at the front door', votesA: 806, votesB: 594 },
+  { id: 'sb-37', category: 'social-blunders', volume: 2, optionA: 'Get stuck in a hug that goes on way too long', optionB: 'Get stuck in a handshake neither of you knows how to end', votesA: 611, votesB: 789 },
+  { id: 'sb-38', category: 'social-blunders', volume: 2, optionA: 'Reply "haha" to serious news because you did not read it properly', optionB: 'Send a message meant for your friend to your grandparent', votesA: 457, votesB: 943 },
+  { id: 'sb-39', category: 'social-blunders', volume: 2, optionA: 'Burp loudly during a moment of silence', optionB: 'Fall asleep and snore during a movie with friends', votesA: 568, votesB: 832 },
+  { id: 'sb-40', category: 'social-blunders', volume: 2, optionA: 'Realize you have been pronouncing a common word wrong your whole life', optionB: 'Realize you have been singing the wrong lyrics to your favorite song for years', votesA: 889, votesB: 511 },
+
+  // -------------------------------------------------------------------------
+  // Career Climber — Expansion Pack (cc-21 through cc-40)
+  // -------------------------------------------------------------------------
+  { id: 'cc-21', category: 'career-climber', volume: 2, optionA: 'Be the captain of a team that usually loses', optionB: 'Be a regular player on a team that always wins', votesA: 584, votesB: 816 },
+  { id: 'cc-22', category: 'career-climber', volume: 2, optionA: 'Be a famous chef who works every night and weekend', optionB: 'Be an unknown chef with every evening free for family', votesA: 377, votesB: 1023 },
+  { id: 'cc-23', category: 'career-climber', volume: 2, optionA: 'Have a job where you travel to a new country every month', optionB: 'Have a job where you work from home and never commute', votesA: 742, votesB: 658 },
+  { id: 'cc-24', category: 'career-climber', volume: 2, optionA: 'Be the smartest person in the room but nobody listens to you', optionB: 'Be average but everyone listens to what you say', votesA: 318, votesB: 1082 },
+  { id: 'cc-25', category: 'career-climber', volume: 2, optionA: 'Invent something that helps millions but nobody knows your name', optionB: 'Be famous for something small that fades in a year', votesA: 1104, votesB: 296 },
+  { id: 'cc-26', category: 'career-climber', volume: 2, optionA: 'Be a veterinarian who sometimes gets bitten', optionB: 'Be a zookeeper who sometimes gets sprayed', votesA: 703, votesB: 697 },
+  { id: 'cc-27', category: 'career-climber', volume: 2, optionA: 'Be the boss and make every hard decision', optionB: 'Be the trusted expert whose advice the boss always follows', votesA: 466, votesB: 934 },
+  { id: 'cc-28', category: 'career-climber', volume: 2, optionA: 'Work four long days a week with three-day weekends', optionB: 'Work five short days a week with every afternoon free', votesA: 812, votesB: 588 },
+  { id: 'cc-29', category: 'career-climber', volume: 2, optionA: 'Be an astronaut who spends a year away from everyone you love', optionB: 'Be the mission controller who stays home but never leaves Earth', votesA: 621, votesB: 779 },
+  { id: 'cc-30', category: 'career-climber', volume: 2, optionA: 'Start your own small business that might fail', optionB: 'Take a safe job at a big company that will never be exciting', votesA: 834, votesB: 566 },
+  { id: 'cc-31', category: 'career-climber', volume: 2, optionA: 'Be a teacher who changes one student\'s life every year', optionB: 'Be an author whose book is read by a million people once', votesA: 756, votesB: 644 },
+  { id: 'cc-32', category: 'career-climber', volume: 2, optionA: 'Give a speech to a thousand people', optionB: 'Write a report that a thousand people must read', votesA: 592, votesB: 808 },
+  { id: 'cc-33', category: 'career-climber', volume: 2, optionA: 'Be the best at a job you find boring', optionB: 'Be merely okay at a job you absolutely love', votesA: 283, votesB: 1117 },
+  { id: 'cc-34', category: 'career-climber', volume: 2, optionA: 'Work with your best friend and risk the friendship', optionB: 'Work with strangers and keep the friendship separate', votesA: 517, votesB: 883 },
+  { id: 'cc-35', category: 'career-climber', volume: 2, optionA: 'Be a professional athlete for ten years then retire', optionB: 'Be a doctor for forty years', votesA: 668, votesB: 732 },
+  { id: 'cc-36', category: 'career-climber', volume: 2, optionA: 'Get a promotion but have to move far from home', optionB: 'Stay in your current role near everyone you know', votesA: 541, votesB: 859 },
+  { id: 'cc-37', category: 'career-climber', volume: 2, optionA: 'Be the first person to do something new and risky', optionB: 'Be the person who makes something good even better', votesA: 729, votesB: 671 },
+  { id: 'cc-38', category: 'career-climber', volume: 2, optionA: 'Build video games for a living but never have time to play them', optionB: 'Play video games every evening but build spreadsheets all day', votesA: 788, votesB: 612 },
+  { id: 'cc-39', category: 'career-climber', volume: 2, optionA: 'Be a scientist who discovers something in fifty years', optionB: 'Be a firefighter who saves someone this year', votesA: 433, votesB: 967 },
+  { id: 'cc-40', category: 'career-climber', volume: 2, optionA: 'Have a mentor who is tough but makes you great', optionB: 'Have a mentor who is kind but lets you coast', votesA: 1049, votesB: 351 },
+
+  // -------------------------------------------------------------------------
+  // Tech Dystopia — Expansion Pack (td-21 through td-40)
+  // -------------------------------------------------------------------------
+  { id: 'td-21', category: 'tech-dystopia', volume: 2, optionA: 'Have a robot that does all your homework but you learn nothing', optionB: 'Have a robot that quizzes you nonstop until you know everything', votesA: 492, votesB: 908 },
+  { id: 'td-22', category: 'tech-dystopia', volume: 2, optionA: 'Live in a house that knows exactly what you want before you ask', optionB: 'Live in a house that cannot hear or see you at all', votesA: 761, votesB: 639 },
+  { id: 'td-23', category: 'tech-dystopia', volume: 2, optionA: 'Give up video games forever', optionB: 'Give up watching videos forever', votesA: 648, votesB: 752 },
+  { id: 'td-24', category: 'tech-dystopia', volume: 2, optionA: 'Have a phone that only works for one hour a day', optionB: 'Have a phone that works all day but everyone can see your screen', votesA: 1012, votesB: 388 },
+  { id: 'td-25', category: 'tech-dystopia', volume: 2, optionA: 'Ride in a self-driving car that is never wrong but never fun', optionB: 'Drive yourself and sometimes get lost', votesA: 577, votesB: 823 },
+  { id: 'td-26', category: 'tech-dystopia', volume: 2, optionA: 'Have a robot pet that never gets sick but never really loves you', optionB: 'Have a real pet that needs care and sometimes gets sick', votesA: 231, votesB: 1169 },
+  { id: 'td-27', category: 'tech-dystopia', volume: 2, optionA: 'Learn any skill instantly by downloading it to your brain', optionB: 'Learn every skill the slow way but remember it forever', votesA: 844, votesB: 556 },
+  { id: 'td-28', category: 'tech-dystopia', volume: 2, optionA: 'Have a watch that tells you exactly how long every task will take', optionB: 'Have a watch that tells you exactly how someone feels about you', votesA: 702, votesB: 698 },
+  { id: 'td-29', category: 'tech-dystopia', volume: 2, optionA: 'Go to school in virtual reality from your bedroom', optionB: 'Go to a real school with no screens allowed anywhere', votesA: 609, votesB: 791 },
+  { id: 'td-30', category: 'tech-dystopia', volume: 2, optionA: 'Have a drone deliver anything you want in ten minutes', optionB: 'Have a 3D printer that makes anything you want in an hour', votesA: 683, votesB: 717 },
+  { id: 'td-31', category: 'tech-dystopia', volume: 2, optionA: 'Have a translator in your ear so you understand every language', optionB: 'Have a device that lets you talk to animals', votesA: 418, votesB: 982 },
+  { id: 'td-32', category: 'tech-dystopia', volume: 2, optionA: 'Have a robot friend who agrees with everything you say', optionB: 'Have a robot friend who argues with you about everything', votesA: 356, votesB: 1044 },
+  { id: 'td-33', category: 'tech-dystopia', volume: 2, optionA: 'Have a map that shows where everyone you know is right now', optionB: 'Have a map that shows where everyone you know will be tomorrow', votesA: 727, votesB: 673 },
+  { id: 'td-34', category: 'tech-dystopia', volume: 2, optionA: 'Never have to charge any device ever again', optionB: 'Never have to wait for anything to load ever again', votesA: 864, votesB: 536 },
+  { id: 'td-35', category: 'tech-dystopia', volume: 2, optionA: 'Have a camera that records your whole life so you never forget anything', optionB: 'Have no camera at all and keep only the memories in your head', votesA: 471, votesB: 929 },
+  { id: 'td-36', category: 'tech-dystopia', volume: 2, optionA: 'Have a robot that cooks perfect meals but picks what you eat', optionB: 'Cook your own meals and eat whatever you want', votesA: 388, votesB: 1012 },
+  { id: 'td-37', category: 'tech-dystopia', volume: 2, optionA: 'Have an app that tells you when anyone is lying', optionB: 'Have an app that tells you when anyone is sad', votesA: 801, votesB: 599 },
+  { id: 'td-38', category: 'tech-dystopia', volume: 2, optionA: 'Live in a city with no cars, only flying buses', optionB: 'Live in a city with no buses, only tiny personal pods', votesA: 639, votesB: 761 },
+  { id: 'td-39', category: 'tech-dystopia', volume: 2, optionA: 'Have a hologram of your favorite musician perform in your living room', optionB: 'Have a robot that can play any instrument teach you to play', votesA: 554, votesB: 846 },
+  { id: 'td-40', category: 'tech-dystopia', volume: 2, optionA: 'Have a screen-free day every single week', optionB: 'Have unlimited screen time but only on Sundays', votesA: 743, votesB: 657 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1609,6 +1716,65 @@ export function getCategoryQuestions(categoryId: CategoryId): Question[] {
   return QUESTIONS.filter((q) => q.category === categoryId);
 }
 
+// ---------------------------------------------------------------------------
+// Access / gating helpers
+//
+// Every screen must decide "is this question playable?" the same way, so the
+// rule lives here and nowhere else:
+//   - premium category: first FREE_TRIAL_COUNT questions are free
+//   - free category:    all of volume 1 is free; expansion volumes are paid
+//   - unlocking a category (purchase or owner access) opens everything in it
+// ---------------------------------------------------------------------------
+
+export function getQuestionVolume(q: Question): number {
+  return q.volume ?? 1;
+}
+
+/** Number of questions at the start of the category that are free to play. */
+export function getFreeQuestionCount(category: CategoryDef): number {
+  const questions = getCategoryQuestions(category.id);
+  if (category.tier === 'premium') {
+    return Math.min(FREE_TRIAL_COUNT, questions.length);
+  }
+  return questions.filter((q) => getQuestionVolume(q) === 1).length;
+}
+
+/** Number of questions in the category that sit behind the unlock. */
+export function getLockedQuestionCount(category: CategoryDef): number {
+  return getCategoryQuestions(category.id).length - getFreeQuestionCount(category);
+}
+
+/** True when the category has anything to sell (premium, or has an expansion pack). */
+export function hasPaidContent(category: CategoryDef): boolean {
+  return getLockedQuestionCount(category) > 0;
+}
+
+/** Expansion-pack questions (volume >= 2) for a category. */
+export function getExpansionQuestions(categoryId: CategoryId): Question[] {
+  return getCategoryQuestions(categoryId).filter((q) => getQuestionVolume(q) >= 2);
+}
+
+/**
+ * Whether the question at `questionIndex` (position within the category's
+ * ordered question list) is locked for a user who has / has not unlocked it.
+ */
+export function isQuestionLocked(
+  category: CategoryDef,
+  questionIndex: number,
+  categoryUnlocked: boolean,
+): boolean {
+  if (categoryUnlocked) return false;
+  return questionIndex >= getFreeQuestionCount(category);
+}
+
+/** Questions the user can play right now, in category order. */
+export function getAccessibleQuestions(category: CategoryDef, categoryUnlocked: boolean): Question[] {
+  const questions = getCategoryQuestions(category.id);
+  if (categoryUnlocked) return questions;
+  return questions.slice(0, getFreeQuestionCount(category));
+}
+
+/** @deprecated use isQuestionLocked — kept for callers on older branches. */
 export function isPremiumGated(category: CategoryDef, questionIndex: number): boolean {
-  return category.tier === 'premium' && questionIndex >= FREE_TRIAL_COUNT;
+  return isQuestionLocked(category, questionIndex, false);
 }

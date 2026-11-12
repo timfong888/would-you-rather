@@ -14,19 +14,35 @@ import Constants from 'expo-constants';
 import { useTheme, useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
-import { CATEGORIES } from '@/constants/questions';
+import { CATEGORIES, hasPaidContent } from '@/constants/questions';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
+import { track } from '@/lib/analytics';
+
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { isDark, toggleTheme } = useTheme();
-  const { isUnlocked, reset: resetUnlocked } = useUnlocked();
+  const {
+    isUnlocked,
+    reset: resetUnlocked,
+    ownerAccess,
+    revokeOwnerAccess,
+  } = useUnlocked();
   const { reset: resetAnswered } = useAnsweredQuestions();
   const { styles, colors } = useThemedStyles(makeStyles);
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
+  // Owner access is redeemed on the payment sheet ("Have a code?" on the
+  // unlock screen). Settings only shows status and lets the owner revoke it.
+  const handleRevokeOwnerAccess = () => {
+    revokeOwnerAccess();
+    track('owner_access_revoked');
+  };
+
+  // Packs with paid content (premium categories + free categories with an
+  // expansion pack) that this device can fully play.
   const unlockedPacks = CATEGORIES.filter(
-    (cat) => cat.tier === 'premium' && isUnlocked(cat.id)
+    (cat) => hasPaidContent(cat) && isUnlocked(cat.id)
   );
 
   const handleResetProgress = () => {
@@ -88,6 +104,34 @@ export default function SettingsScreen() {
           <Text style={styles.rowChevron}>›</Text>
         </Pressable>
       </View>
+
+      {/* Owner access — status + revoke only; redeemed via "Have a code?" on the paywall */}
+      {ownerAccess && (
+        <>
+          <Text style={styles.sectionHeader}>OWNER ACCESS</Text>
+          <View style={styles.section}>
+            <View style={styles.ownerBlock}>
+              <View style={styles.ownerBanner}>
+                <Text style={styles.ownerBannerIcon}>🔑</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ownerBannerTitle}>Owner access active</Text>
+                  <Text style={styles.ownerBannerBody}>
+                    Every pack and expansion is unlocked on this device. Analytics events
+                    from this device are tagged so they stay out of paywall metrics.
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={handleRevokeOwnerAccess}
+                style={({ pressed }) => [styles.ownerSecondaryBtn, pressed && { opacity: 0.7 }]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.ownerSecondaryBtnText}>Revoke owner access</Text>
+              </Pressable>
+            </View>
+          </View>
+        </>
+      )}
 
       {/* Unlocked Packs */}
       <Text style={styles.sectionHeader}>UNLOCKED PACKS</Text>
@@ -176,7 +220,7 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: SPACING.md,
       gap: SPACING.sm,
       ...Platform.select({
-        web: { cursor: 'default' },
+        web: { cursor: 'auto' },
       }),
     },
     rowPressed: {
@@ -215,6 +259,43 @@ function makeStyles(colors: ThemeColors) {
       fontSize: 9,
       fontWeight: FONTS.weights.bold,
       letterSpacing: 0.5,
+    },
+    ownerBlock: {
+      padding: SPACING.md,
+      gap: SPACING.sm,
+    },
+    ownerBanner: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+      alignItems: 'flex-start',
+      backgroundColor: colors.premiumBg,
+      borderColor: colors.premium,
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      padding: SPACING.sm,
+    },
+    ownerBannerIcon: {
+      fontSize: 20,
+    },
+    ownerBannerTitle: {
+      color: colors.premium,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 0.5,
+    },
+    ownerBannerBody: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.xs,
+      marginTop: 2,
+    },
+    ownerSecondaryBtn: {
+      alignItems: 'center',
+      paddingVertical: SPACING.xs,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    ownerSecondaryBtnText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
     },
     version: {
       textAlign: 'center',

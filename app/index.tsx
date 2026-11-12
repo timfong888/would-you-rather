@@ -6,24 +6,32 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getCategoryQuestions, CategoryId, FAMILY_FRIENDLY, DARING } from '@/constants/questions';
+import { QUESTIONS, CATEGORIES, getCategoryQuestions, getAccessibleQuestions } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
-const FEATURED_CATEGORIES = CATEGORIES.filter((c) => c.featured);
 const TOTAL_QUESTIONS = QUESTIONS.length;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { styles } = useThemedStyles(makeStyles);
+  const { width } = useWindowDimensions();
+  const { styles } = useThemedStyles((colors) => makeStyles(colors, width), [width]);
+  const { isUnlocked } = useUnlocked();
 
-  const navigateToQuestion = (cat: typeof CATEGORIES[number], questions: ReturnType<typeof getCategoryQuestions>) => {
+  // Random play only ever lands on a question the user can actually play.
+  // Accessible questions are a prefix of the category list, so indexOf is the
+  // category index the game screen expects.
+  const navigateToQuestion = (cat: typeof CATEGORIES[number]) => {
+    const questions = getAccessibleQuestions(cat, isUnlocked(cat.id));
+    if (!questions.length) return;
     const q = questions[Math.floor(Math.random() * questions.length)];
     router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
   };
@@ -31,17 +39,7 @@ export default function HomeScreen() {
   const handleRandomQuestion = () => {
     const freeCats = CATEGORIES.filter((c) => c.tier === 'free');
     const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
-    const questions = getCategoryQuestions(cat.id);
-    navigateToQuestion(cat, questions);
-  };
-
-  const handleQuickPlay = (categoryIds: CategoryId[]) => {
-    const cats = CATEGORIES.filter((c) => categoryIds.includes(c.id));
-    if (!cats.length) return;
-    const cat = cats[Math.floor(Math.random() * cats.length)];
-    const questions = getCategoryQuestions(cat.id);
-    if (!questions.length) return;
-    navigateToQuestion(cat, questions);
+    navigateToQuestion(cat);
   };
 
   return (
@@ -79,33 +77,6 @@ export default function HomeScreen() {
           actually brings people closer.
         </Text>
 
-        <View style={styles.quickPlaySection}>
-          <Text style={styles.quickPlayLabel}>QUICK PLAY</Text>
-          <View style={styles.audiencePills}>
-            <Pressable
-              onPress={() => handleQuickPlay(FAMILY_FRIENDLY)}
-              style={({ pressed }) => [
-                styles.audiencePill,
-                pressed && styles.audiencePillPressed,
-              ]}
-            >
-              <Text style={styles.audiencePillText}>👨‍👧 Bond with Kids</Text>
-              <Text style={styles.audiencePillHint}>▶</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handleQuickPlay(DARING)}
-              style={({ pressed }) => [
-                styles.audiencePill,
-                styles.audiencePillDaring,
-                pressed && styles.audiencePillPressed,
-              ]}
-            >
-              <Text style={styles.audiencePillText}>🔥 Daring</Text>
-              <Text style={styles.audiencePillHint}>▶</Text>
-            </Pressable>
-          </View>
-        </View>
-
         <View style={styles.heroActions}>
           <Pressable
             onPress={handleRandomQuestion}
@@ -114,7 +85,7 @@ export default function HomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.primaryButtonText}>PLAY NOW</Text>
+            <Text style={styles.primaryButtonText}>START PLAYING</Text>
             <Text style={styles.buttonEmoji}>🎲</Text>
           </Pressable>
 
@@ -125,18 +96,9 @@ export default function HomeScreen() {
               pressed && styles.buttonPressed,
             ]}
           >
-            <Text style={styles.secondaryButtonText}>Browse Categories</Text>
+              <Text style={styles.secondaryButtonText}>Choose a vibe</Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => router.push('/feed')}
-            style={({ pressed }) => [
-              styles.discoverButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.discoverButtonText}>✨ Discover Feed</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -154,39 +116,6 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {/* Featured Categories */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>FEATURED</Text>
-        </View>
-        <View style={styles.featuredGrid}>
-          {FEATURED_CATEGORIES.map((cat) => {
-            const count = getCategoryQuestions(cat.id).length;
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => router.push(`/categories/${cat.id}`)}
-                style={({ pressed }) => [
-                  styles.featuredCard,
-                  { borderColor: `${cat.color}50`, backgroundColor: `${cat.color}12` },
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text style={styles.featuredEmoji}>{cat.emoji}</Text>
-                <Text style={[styles.featuredLabel, { color: cat.color }]}>
-                  {cat.label.toUpperCase()}
-                </Text>
-                <Text style={styles.featuredCount}>{COPY.dilemmaCount(count)}</Text>
-                {cat.tier === 'premium' && (
-                  <View style={styles.featuredPremiumBadge}>
-                    <Text style={styles.featuredPremiumText}>3 FREE</Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
 
       {/* All Categories CTA */}
       <View style={styles.section}>
@@ -238,15 +167,21 @@ export default function HomeScreen() {
   );
 }
 
-function makeStyles(colors: ThemeColors) {
+function makeStyles(colors: ThemeColors, viewportWidth: number) {
+  const isNarrow = viewportWidth < 600;
+  const horizontalPadding = isNarrow ? SPACING.md : SPACING.xl;
+
   return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
     },
     content: {
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,
+      width: '100%',
+      maxWidth: 960,
+      alignSelf: 'center',
+      paddingHorizontal: horizontalPadding,
+      paddingTop: isNarrow ? SPACING.md : SPACING.lg,
     },
     topBar: {
       flexDirection: 'row',
@@ -338,7 +273,8 @@ function makeStyles(colors: ThemeColors) {
       fontSize: 10,
     },
     heroActions: {
-      flexDirection: 'row',
+      flexDirection: isNarrow ? 'column' : 'row',
+      alignItems: isNarrow ? 'stretch' : 'flex-start',
       gap: SPACING.sm,
       marginTop: SPACING.sm,
       flexWrap: 'wrap',
@@ -455,9 +391,12 @@ function makeStyles(colors: ThemeColors) {
     featuredGrid: {
       flexDirection: 'row',
       gap: SPACING.sm,
+      flexWrap: 'wrap',
     },
     featuredCard: {
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: isNarrow ? '46%' : '30%',
+      minWidth: isNarrow ? 140 : 180,
       borderWidth: 1.5,
       borderRadius: RADIUS.lg,
       padding: SPACING.md,

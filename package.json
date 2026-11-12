@@ -8,8 +8,10 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "export:web": "expo export --platform web",
-    "build:web": "expo export --platform web && node scripts/generate-sharing-pages.mjs",
-    "generate:sitemap": "tsx scripts/generate-sitemap.ts"
+    "build:web": "npm run verify:data && expo export --platform web && node scripts/generate-sharing-pages.mjs",
+    "generate:sitemap": "tsx scripts/generate-sitemap.ts",
+    "verify:data": "tsx scripts/verify-questions.ts",
+    "owner:hash": "node scripts/owner-code-hash.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.1",

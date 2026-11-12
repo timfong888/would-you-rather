@@ -6,14 +6,10 @@
 
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { CATEGORIES, TOTAL_QUESTIONS_PER_CATEGORY } from '../constants/questions';
+import { CATEGORIES, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
 import { SITE_URL } from '../constants/config';
 
 const TODAY = new Date().toISOString().split('T')[0];
-
-function categoryPrefix(id: string): string {
-  return id.split('-').map((w) => w[0]).join('');
-}
 
 function url(loc: string, priority: string, changefreq = 'monthly'): string {
   return `  <url>
@@ -33,11 +29,13 @@ for (const cat of CATEGORIES) {
   urls.push(url(`/categories/${cat.id}`, '0.8'));
 }
 
+// One entry per question a first-time visitor can actually play. Locked
+// questions (premium beyond the trial, expansion packs) redirect to their
+// category page, so listing them would hand crawlers redirects.
 for (const cat of CATEGORIES) {
-  const prefix = categoryPrefix(cat.id);
-  for (let i = 1; i <= TOTAL_QUESTIONS_PER_CATEGORY; i++) {
-    urls.push(url(`/game/${prefix}-${i}`, '0.6'));
-  }
+  getCategoryQuestions(cat.id).forEach((q, i) => {
+    if (!isQuestionLocked(cat, i, false)) urls.push(url(`/game/${q.id}`, '0.6'));
+  });
 }
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>

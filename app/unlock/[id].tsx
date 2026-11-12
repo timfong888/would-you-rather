@@ -8,16 +8,17 @@ import {
   Platform,
   Animated,
   Easing,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getCategoryById, getCategoryQuestions, FREE_TRIAL_COUNT } from '@/constants/questions';
+import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
-import analytics from '@/utils/analytics';
+import { track } from '@/lib/analytics';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
@@ -25,23 +26,52 @@ type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
 const PAYMENT_MS = 1800;
 const RESTORE_MS = 1400;
 
-const BENEFITS: { icon: IoniconsName; text: string }[] = [
-  { icon: 'chatbubbles-outline', text: 'Spark 20 conversations you won\'t see coming' },
-  { icon: 'people-outline', text: 'Discover what the world chooses — then debate why' },
-  { icon: 'infinite-outline', text: 'Beat boredom anywhere: road trips, dinners, downtime' },
-  { icon: 'heart-outline', text: 'Nothing interrupts the moment — completely ad-free' },
-];
+function benefitsFor(lockedCount: number): { icon: IoniconsName; text: string }[] {
+  return [
+    { icon: 'chatbubbles-outline', text: `Spark ${lockedCount} conversations you won't see coming` },
+    { icon: 'people-outline', text: 'Discover what the world chooses — then debate why' },
+    { icon: 'infinite-outline', text: 'Beat boredom anywhere: road trips, dinners, downtime' },
+    { icon: 'heart-outline', text: 'Nothing interrupts the moment — completely ad-free' },
+  ];
+}
 
 export default function UnlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked, unlock } = useUnlocked();
+  const { isUnlocked, unlock, ownerAccessAvailable, grantOwnerAccess } = useUnlocked();
 
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [useApplePay, setUseApplePay] = useState(true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+
+  // "Have a code?" on the payment sheet. Redeeming the owner code grants
+  // owner access (every pack), which also completes this unlock.
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeState, setCodeState] = useState<'idle' | 'checking' | 'invalid'>('idle');
+
+  const handleRedeemCode = async () => {
+    if (!code.trim() || codeState === 'checking') return;
+    setCodeState('checking');
+    let ok = false;
+    try {
+      ok = await grantOwnerAccess(code);
+    } catch {
+      // Never leave the input stuck on "Checking…" if verification throws.
+      ok = false;
+    }
+    if (!ok) {
+      setCodeState('invalid');
+      return;
+    }
+    track('owner_access_granted', { surface: 'paywall', category_id: id });
+    setCode('');
+    setCodeState('idle');
+    setCodeOpen(false);
+    setPaymentState('success');
+  };
 
   const spinAnim = useRef(new Animated.Value(0)).current;
   const checkAnim = useRef(new Animated.Value(0)).current;
@@ -50,6 +80,11 @@ export default function UnlockScreen() {
 
   const category = getCategoryById(id as CategoryId);
   const questions = getCategoryQuestions(id as CategoryId);
+  const freeCount = category ? getFreeQuestionCount(category) : 0;
+  const lockedCount = category ? getLockedQuestionCount(category) : 0;
+  // A free category sells an expansion pack; a premium category sells the rest of itself.
+  const isExpansion = category?.tier === 'free';
+  const BENEFITS = benefitsFor(lockedCount);
 
   useEffect(() => {
     if (paymentState === 'processing') {
@@ -97,7 +132,10 @@ export default function UnlockScreen() {
   }, [paymentState, sheetAnim]);
 
   useEffect(() => {
-    analytics.track('paywall_viewed', { category_id: id });
+    // Someone who already has this category (purchased or owner access) landing
+    // here by URL is not a paywall view; counting it would deflate conversion.
+    if (isUnlocked(id as CategoryId)) return;
+    track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -112,13 +150,14 @@ export default function UnlockScreen() {
     );
   }
 
-  const teaserQuestions = questions.slice(FREE_TRIAL_COUNT, FREE_TRIAL_COUNT + 3);
-  const remainingCount = Math.max(questions.length - (FREE_TRIAL_COUNT + teaserQuestions.length), 0);
+  const teaserQuestions = questions.slice(freeCount, freeCount + 3);
+  const remainingCount = Math.max(questions.length - (freeCount + teaserQuestions.length), 0);
 
   const handlePay = async () => {
     if (paymentState !== 'sheet') return;
-    analytics.track('paywall_cta_clicked', {
+    track('paywall_cta_clicked', {
       category_id: id,
+      pack_type: isExpansion ? 'expansion' : 'premium',
       payment_method: useApplePay ? 'apple_pay' : 'card',
     });
     setPaymentState('processing');
@@ -140,9 +179,9 @@ export default function UnlockScreen() {
   };
 
   const handleStartPlaying = () => {
-    const firstPremiumQ = questions[FREE_TRIAL_COUNT];
-    if (firstPremiumQ) {
-      router.replace(`/game/${firstPremiumQ.id}?cat=${id}&idx=${FREE_TRIAL_COUNT}`);
+    const firstLockedQ = questions[freeCount];
+    if (firstLockedQ) {
+      router.replace(`/game/${firstLockedQ.id}?cat=${id}&idx=${freeCount}`);
     } else {
       router.replace(`/categories/${id as string}`);
     }
@@ -189,7 +228,7 @@ export default function UnlockScreen() {
           </View>
           <View style={[styles.premiumLabel, { borderColor: category.color }]}>
             <Text style={[styles.premiumLabelText, { color: category.color }]}>
-              PREMIUM ACCESS
+              {isExpansion ? 'EXPANSION PACK' : 'PREMIUM ACCESS'}
             </Text>
           </View>
         </View>
@@ -198,14 +237,16 @@ export default function UnlockScreen() {
         <View style={styles.headlineBlock}>
           <Text style={styles.headline}>KEEP THE CONVERSATION GOING</Text>
           <Text style={styles.subheadline}>
-            You've had a taste of{' '}
+            {isExpansion ? "You've played every free dilemma in " : "You've had a taste of "}
             <Text style={[styles.categoryNameInline, { color: category.color }]}>
               "{category.label}"
             </Text>
-            {' '}— the questions that make people lean in, laugh, and reveal what they really think.
+            {isExpansion
+              ? ' — and the best debates are the ones you haven\'t had yet.'
+              : ' — the questions that make people lean in, laugh, and reveal what they really think.'}
           </Text>
           <Text style={styles.lossAversion}>
-            {questions.length - FREE_TRIAL_COUNT} more conversations waiting. Don't leave them on the table.
+            {lockedCount} more conversations waiting. Don't leave them on the table.
           </Text>
         </View>
 
@@ -239,9 +280,9 @@ export default function UnlockScreen() {
             pressed && styles.btnPressed,
           ]}
           accessibilityRole="button"
-          accessibilityLabel={`Unlock ${questions.length} dilemmas for $2.99`}
+          accessibilityLabel={`Unlock ${lockedCount} more dilemmas for $2.99`}
         >
-          <Text style={styles.unlockBtnText}>START {questions.length - FREE_TRIAL_COUNT} MORE CONVERSATIONS →</Text>
+          <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
         </Pressable>
 
         {restoreMsg !== null && (
@@ -283,7 +324,9 @@ export default function UnlockScreen() {
             </View>
           </View>
           <Text style={styles.socialCardFooter}>
-            Unlock all 20 dilemmas and you'll both have a full conversation's worth of takes to debate.
+            {isExpansion
+              ? `Unlock ${lockedCount} more dilemmas and you'll both have a full conversation's worth of takes to debate.`
+              : `Unlock all ${questions.length} dilemmas and you'll both have a full conversation's worth of takes to debate.`}
           </Text>
         </View>
 
@@ -307,7 +350,7 @@ export default function UnlockScreen() {
           <View style={styles.teaserList}>
             {teaserQuestions.map((q, i) => (
               <View key={q.id} style={styles.teaserItem}>
-                <Text style={styles.teaserNum}>{FREE_TRIAL_COUNT + i + 1}.</Text>
+                <Text style={styles.teaserNum}>{freeCount + i + 1}.</Text>
                 <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
                 <Text style={styles.teaserText} numberOfLines={1}>
                   {'••••••••••••••••••••'}
@@ -354,7 +397,9 @@ export default function UnlockScreen() {
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{category.label}</Text>
                 <Text style={styles.productDesc}>
-                  Premium Pack · {questions.length} dilemmas
+                  {isExpansion
+                    ? `Expansion Pack · ${lockedCount} more dilemmas`
+                    : `Premium Pack · ${questions.length} dilemmas`}
                 </Text>
               </View>
               <Text style={[styles.productPrice, { color: category.color }]}>$2.99</Text>
@@ -436,6 +481,70 @@ export default function UnlockScreen() {
               By completing this purchase you agree to our Terms of Service.
               {'\n'}Payments are processed securely. Non-refundable.
             </Text>
+
+            {/* Access code (owner / gifted). Only offered when a code is configured
+                for this build, and collapsed by default so it doesn't pull
+                attention from the purchase. */}
+            {ownerAccessAvailable && (
+              codeOpen ? (
+                <View style={styles.codeBlock}>
+                  <TextInput
+                    value={code}
+                    onChangeText={(t) => { setCode(t); if (codeState === 'invalid') setCodeState('idle'); }}
+                    onSubmitEditing={handleRedeemCode}
+                    placeholder="Access code"
+                    placeholderTextColor={colors.textMuted}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus
+                    returnKeyType="go"
+                    style={[
+                      styles.codeInput,
+                      codeState === 'invalid' && { borderColor: colors.secondary },
+                    ]}
+                    accessibilityLabel="Access code"
+                  />
+                  {codeState === 'invalid' && (
+                    <Text style={styles.codeError}>That code didn't match. Check for extra spaces and try again.</Text>
+                  )}
+                  <View style={styles.codeActions}>
+                    <Pressable
+                      onPress={() => { setCodeOpen(false); setCode(''); setCodeState('idle'); }}
+                      style={({ pressed }) => [styles.codeSecondaryBtn, pressed && { opacity: 0.6 }]}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.codeSecondaryBtnText}>Never mind</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleRedeemCode}
+                      disabled={!code.trim() || codeState === 'checking'}
+                      style={({ pressed }) => [
+                        styles.codeApplyBtn,
+                        { backgroundColor: category.color },
+                        (!code.trim() || codeState === 'checking') && { opacity: 0.5 },
+                        pressed && styles.btnPressed,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Apply access code"
+                    >
+                      <Text style={styles.codeApplyBtnText}>
+                        {codeState === 'checking' ? 'CHECKING…' : 'APPLY CODE'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => setCodeOpen(true)}
+                  style={({ pressed }) => [styles.codeLink, pressed && { opacity: 0.6 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Have a code?"
+                >
+                  <Text style={styles.codeLinkText}>Have a code?</Text>
+                </Pressable>
+              )
+            )}
 
             <Pressable
               onPress={() => setPaymentState('idle')}
@@ -970,6 +1079,60 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.xs,
       textAlign: 'center',
       lineHeight: 18,
+    },
+    codeLink: {
+      alignSelf: 'center',
+      paddingVertical: SPACING.xs,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    codeLinkText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      textDecorationLine: 'underline',
+    },
+    codeBlock: {
+      gap: SPACING.sm,
+      marginTop: SPACING.xs,
+    },
+    codeInput: {
+      color: colors.text,
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      fontSize: FONTS.sizes.md,
+    },
+    codeError: {
+      color: colors.secondary,
+      fontSize: FONTS.sizes.xs,
+    },
+    codeActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: SPACING.sm,
+    },
+    codeSecondaryBtn: {
+      paddingVertical: SPACING.xs,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    codeSecondaryBtnText: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+    },
+    codeApplyBtn: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.lg,
+      ...Platform.select({ web: { cursor: 'pointer', transition: 'opacity 0.15s ease' } }),
+    },
+    codeApplyBtnText: {
+      color: '#FFFFFF',
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1,
     },
     cancelBtn: {
       alignSelf: 'center',

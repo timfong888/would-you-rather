@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,10 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { CATEGORIES, TOTAL_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
-import { MOCK_ANSWERED } from '@/constants/mockData';
+import { CATEGORIES, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount, hasPaidContent } from '@/constants/questions';
+import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -22,6 +22,15 @@ const ALL = CATEGORIES;
 export default function CategoriesScreen() {
   const router = useRouter();
   const { styles } = useThemedStyles(makeStyles);
+  const { answered, refresh } = useAnsweredQuestions();
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+
+  // Real per-category progress (this screen previously showed mock numbers).
+  const progressFor = (catId: (typeof CATEGORIES)[number]['id']) => {
+    const qs = getCategoryQuestions(catId);
+    const answeredCount = qs.filter((q) => answered[q.id] !== undefined).length;
+    return { total: qs.length, unanswered: qs.length - answeredCount };
+  };
 
   const pageTitle = 'Browse Categories — Would You Rather?';
   const pageDescription = `Choose from ${CATEGORIES.length} categories of Would You Rather dilemmas — from Moral Compass to Tech Dystopia. Free and premium packs available.`;
@@ -54,8 +63,7 @@ export default function CategoriesScreen() {
 
         <View style={styles.featuredRow}>
           {FEATURED.map((cat) => {
-            const answered = MOCK_ANSWERED[cat.id] ?? 0;
-            const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answered;
+            const { total, unanswered } = progressFor(cat.id);
             return (
               <Pressable
                 key={cat.id}
@@ -72,10 +80,14 @@ export default function CategoriesScreen() {
                 <Text style={[styles.featuredName, { color: cat.color }]}>
                   {cat.label.toUpperCase()}
                 </Text>
-                <Text style={styles.featuredCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
-                {cat.tier === 'premium' && (
+                <Text style={styles.featuredCount}>{unanswered} of {total} unanswered</Text>
+                {cat.tier === 'premium' ? (
                   <Text style={styles.featuredFreeHint}>{COPY.freeTrialHint}</Text>
-                )}
+                ) : hasPaidContent(cat) ? (
+                  <Text style={styles.featuredFreeHint}>
+                    {COPY.expansionHint(getFreeQuestionCount(cat), getLockedQuestionCount(cat))}
+                  </Text>
+                ) : null}
               </Pressable>
             );
           })}
@@ -88,8 +100,7 @@ export default function CategoriesScreen() {
 
         <View style={styles.allList}>
           {ALL.map((cat) => {
-            const answered = MOCK_ANSWERED[cat.id] ?? 0;
-            const unanswered = TOTAL_QUESTIONS_PER_CATEGORY - answered;
+            const { total, unanswered } = progressFor(cat.id);
             const isPremium = cat.tier === 'premium';
             return (
               <Pressable
@@ -105,10 +116,14 @@ export default function CategoriesScreen() {
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowName}>{cat.label.toUpperCase()}</Text>
-                  <Text style={styles.rowCount}>{unanswered} of {TOTAL_QUESTIONS_PER_CATEGORY} unanswered</Text>
-                  {isPremium && (
+                  <Text style={styles.rowCount}>{unanswered} of {total} unanswered</Text>
+                  {isPremium ? (
                     <Text style={styles.rowFreeHint}>{COPY.freeTrialHint}</Text>
-                  )}
+                  ) : hasPaidContent(cat) ? (
+                    <Text style={styles.rowFreeHint}>
+                      {COPY.expansionHint(getFreeQuestionCount(cat), getLockedQuestionCount(cat))}
+                    </Text>
+                  ) : null}
                 </View>
                 <View style={styles.rowRight}>
                   {isPremium ? (

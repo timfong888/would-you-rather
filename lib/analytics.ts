@@ -30,6 +30,20 @@ function getClient(): PostHog | null {
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 
+// ── owner access flag ───────────────────────────────────────────────────────
+// Set by UnlockedProvider. While true, every event carries owner_access: true
+// so the owner's / testers' activity can be filtered out of paywall funnels.
+let _ownerAccess = false;
+
+export function setOwnerAccessFlag(active: boolean): void {
+  _ownerAccess = active;
+}
+
+function withGlobalProps(props?: Props): Props | undefined {
+  if (!_ownerAccess) return props;
+  return { ...(props ?? {}), owner_access: true };
+}
+
 export function identify(distinctId: string, properties?: Props): void {
   try {
     getClient()?.identify(distinctId, properties as any);
@@ -39,11 +53,12 @@ export function identify(distinctId: string, properties?: Props): void {
 }
 
 export function track(event: string, props?: Props): void {
+  const finalProps = withGlobalProps(props);
   if (DEBUG) {
-    console.log('[analytics]', event, props);
+    console.log('[analytics]', event, finalProps);
   }
   try {
-    getClient()?.capture(event, props as any);
+    getClient()?.capture(event, finalProps as any);
   } catch (e) {
     if (DEBUG) console.warn('[analytics] capture error', e);
   }

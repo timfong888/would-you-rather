@@ -15,7 +15,7 @@ import {
   getCategoryById,
   getCategoryQuestions,
   getQuestionById,
-  FREE_TRIAL_COUNT,
+  getAccessibleQuestions,
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
@@ -131,8 +131,11 @@ export default function CompleteScreen() {
   const catColor = category.color;
   const categoryUnlocked = isUnlocked(id as CategoryId);
   const isPremium = category.tier === 'premium';
-  const completedCount = isPremium && !categoryUnlocked ? FREE_TRIAL_COUNT : questions.length;
+  // Everything the user could play without paying counts as "completed" here;
+  // what's left is the upsell (premium remainder or the expansion pack).
+  const completedCount = getAccessibleQuestions(category, categoryUnlocked).length;
   const remaining = questions.length - completedCount;
+  const isExpansionUpsell = !isPremium && remaining > 0;
 
   const votesA = lastQuestion ? (safeVoted === 'A' ? lastQuestion.votesA + 1 : lastQuestion.votesA) : 0;
   const votesB = lastQuestion ? (safeVoted === 'B' ? lastQuestion.votesB + 1 : lastQuestion.votesB) : 0;
@@ -226,8 +229,8 @@ export default function CompleteScreen() {
           )}
         </View>
 
-        {/* Premium Upsell Card */}
-        {isPremium && remaining > 0 && (
+        {/* Upsell Card — premium remainder, or the expansion pack for a free category */}
+        {remaining > 0 && (
           <Pressable
             onPress={() => router.push(`/unlock/${id}`)}
             style={({ pressed }) => [
@@ -238,17 +241,25 @@ export default function CompleteScreen() {
             <View style={styles.upsellTop}>
               <Text style={styles.upsellIcon}>🔓</Text>
               <View style={styles.upsellTextBlock}>
-                <Text style={styles.upsellTitle}>THE DEPTHS AWAIT</Text>
+                <Text style={styles.upsellTitle}>
+                  {isExpansionUpsell ? 'KEEP THE CONVERSATION GOING' : 'THE DEPTHS AWAIT'}
+                </Text>
                 <Text style={styles.upsellHook}>
-                  Unlock {remaining} more {category.label} dilemmas — the ones that spark real debate
+                  {isExpansionUpsell
+                    ? `You've played all ${completedCount} free ${category.label} dilemmas. ${remaining} more are waiting in the expansion pack.`
+                    : `Unlock ${remaining} more ${category.label} dilemmas — the ones that spark real debate`}
                 </Text>
               </View>
             </View>
             <Text style={styles.upsellDesc}>
-              You've only scratched the surface. The questions that reveal who people really are are waiting.
+              {isExpansionUpsell
+                ? 'Your favorite topic doesn\'t have to end here. Fresh dilemmas, same category, brand-new debates.'
+                : 'You\'ve only scratched the surface. The questions that reveal who people really are are waiting.'}
             </Text>
             <View style={styles.upsellCta}>
-              <Text style={styles.upsellCtaText}>EXTEND COLLECTION · $2.99</Text>
+              <Text style={styles.upsellCtaText}>
+                {isExpansionUpsell ? `UNLOCK ${remaining} MORE · $2.99` : 'EXTEND COLLECTION · $2.99'}
+              </Text>
             </View>
           </Pressable>
         )}
