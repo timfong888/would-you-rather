@@ -1,0 +1,4 @@
+{
+  "autoReview": ["open"],
+  "excludeAuthors": ["dependabot[bot]", "renovate[bot]", "vercel[bot]"]
+}
