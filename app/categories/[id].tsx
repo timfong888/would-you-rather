@@ -16,11 +16,14 @@ import {
   getLockedQuestionCount,
   hasPaidContent,
   isQuestionLocked,
+  getAccessibleQuestions,
 } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
+import JsonLd from '@/components/JsonLd';
+import { categoryJsonLd } from '@/lib/seo';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -85,6 +88,8 @@ export default function CategoryScreen() {
         description={pageDescription}
         canonicalUrl={`${SITE_URL}/categories/${category.id}`}
       />
+      {/* Schema lists only the free questions, never locked text. */}
+      <JsonLd data={categoryJsonLd(category, getAccessibleQuestions(category, false))} />
       {/* Category Hero */}
       <View style={[styles.hero, { borderColor: `${category.color}30`, backgroundColor: `${category.color}10` }]}>
         <Text style={styles.heroEmoji}>{category.emoji}</Text>

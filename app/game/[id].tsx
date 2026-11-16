@@ -14,6 +14,8 @@ import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestion
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
+import JsonLd from '@/components/JsonLd';
+import { questionPageJsonLd } from '@/lib/seo';
 import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
@@ -228,6 +230,7 @@ export default function GameScreen() {
         imageUrl={`${SITE_URL}/api/card?id=${encodeURIComponent(question.id)}&ratio=1.91x1`}
         twitterCard="summary_large_image"
       />
+      <JsonLd data={questionPageJsonLd(question, category)} />
       {/* Leave Category Link */}
       {category && (
         <Pressable

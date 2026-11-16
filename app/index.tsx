@@ -8,15 +8,22 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { QUESTIONS, CATEGORIES, getCategoryQuestions, getAccessibleQuestions } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
+import JsonLd from '@/components/JsonLd';
+import { SEO_PAGES } from '@/constants/seoPages';
+import { homeJsonLd } from '@/lib/seo';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
+
+// react-native-web turns role="heading" + aria-level into a real <h1>/<h2>.
+const h1 = { role: 'heading', 'aria-level': 1 } as object;
+const h2 = { role: 'heading', 'aria-level': 2 } as object;
 
 const TOTAL_QUESTIONS = QUESTIONS.length;
 
@@ -54,6 +61,7 @@ export default function HomeScreen() {
         canonicalUrl={SITE_URL}
         twitterCard="summary_large_image"
       />
+      <JsonLd data={homeJsonLd(SEO.defaultDescription)} />
       {/* Top bar for headerless home screen */}
       <View style={styles.topBar}>
         <ThemeToggle />
@@ -71,7 +79,7 @@ export default function HomeScreen() {
       {/* Hero */}
       <View style={styles.hero}>
         <Text style={styles.appLabel}>Turn boredom into real conversation</Text>
-        <Text style={styles.heroTitle}>Would You Rather?</Text>
+        <Text style={styles.heroTitle} {...h1}>Would You Rather?</Text>
         <Text style={styles.heroSubtitle}>
           One question. Instant debate. The kind of fun that actually brings people closer.
         </Text>
@@ -119,7 +127,7 @@ export default function HomeScreen() {
       {/* All Categories CTA */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>ALL CATEGORIES</Text>
+          <Text style={styles.sectionTitle} {...h2}>ALL CATEGORIES</Text>
           <Pressable onPress={() => router.push('/categories')}>
             <Text style={styles.seeAll}>See all →</Text>
           </Pressable>
@@ -159,6 +167,16 @@ export default function HomeScreen() {
             );
           })}
         </View>
+      </View>
+
+      {/* Crawlable links to the SEO landing pages (real <a href>). */}
+      <View style={styles.exploreWrap}>
+        <Text style={styles.exploreLabel} {...h2}>POPULAR QUESTION LISTS</Text>
+        {SEO_PAGES.map((p) => (
+          <Link key={p.slug} href={`/${p.slug}`} style={styles.exploreLink}>
+            {p.headline}
+          </Link>
+        ))}
       </View>
 
       <View style={styles.bottomPadding} />
@@ -375,6 +393,22 @@ function makeStyles(colors: ThemeColors, viewportWidth: number) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+    },
+    exploreWrap: {
+      alignItems: 'center',
+      marginTop: SPACING.lg,
+    },
+    exploreLabel: {
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 2,
+      color: colors.textMuted,
+      marginBottom: SPACING.sm,
+    },
+    exploreLink: {
+      fontSize: FONTS.sizes.sm,
+      color: colors.textSecondary,
+      paddingVertical: SPACING.xs,
     },
     sectionTitle: {
       color: colors.text,
