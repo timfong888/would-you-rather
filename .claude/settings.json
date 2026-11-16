@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Vercel__list_toolbar_threads",
+      "mcp__Vercel__get_toolbar_thread",
+      "mcp__Vercel__reply_to_toolbar_thread",
+      "mcp__Vercel__change_toolbar_thread_resolve_status",
+      "mcp__Vercel__add_toolbar_reaction"
+    ]
+  }
+}
