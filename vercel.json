@@ -24,6 +24,17 @@
     { "source": "/would-you-rather-questions-for-family",               "destination": "/would-you-rather-questions-for-family.html" },
     { "source": "/road-trip-would-you-rather-questions",                "destination": "/road-trip-would-you-rather-questions.html" },
     { "source": "/would-you-rather-app",                                "destination": "/would-you-rather-app.html" },
+    { "source": "/questions-to-ask-your-partner",                       "destination": "/questions-to-ask-your-partner.html" },
+    { "source": "/first-date-questions",                                "destination": "/first-date-questions.html" },
+    { "source": "/couples-games",                                       "destination": "/couples-games.html" },
+    { "source": "/would-you-rather-questions-for-adults",               "destination": "/would-you-rather-questions-for-adults.html" },
+    { "source": "/would-you-rather-questions",                          "destination": "/would-you-rather-questions.html" },
+    { "source": "/funny-would-you-rather-questions",                    "destination": "/funny-would-you-rather-questions.html" },
+    { "source": "/hard-would-you-rather-questions",                     "destination": "/hard-would-you-rather-questions.html" },
+    { "source": "/would-you-rather-questions-for-teens",                "destination": "/would-you-rather-questions-for-teens.html" },
+    { "source": "/would-you-rather-questions-for-work",                 "destination": "/would-you-rather-questions-for-work.html" },
+    { "source": "/would-you-rather-generator",                          "destination": "/would-you-rather-generator.html" },
+    { "source": "/questions-to-ask-your-kids",                          "destination": "/questions-to-ask-your-kids.html" },
     { "source": "/((?!api/).*)",                                        "destination": "/index.html" }
   ]
 }

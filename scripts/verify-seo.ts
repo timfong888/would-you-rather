@@ -95,7 +95,11 @@ for (const page of SEO_PAGES) {
   // Route file, rewrite.
   if (!existsSync(resolve(ROOT, `app/${page.slug}.tsx`))) fail(`route: app/${page.slug}.tsx is missing`);
 
-  if (page.updated && !/^\d{4}-\d{2}-\d{2}$/.test(page.updated)) fail(`registry: "${page.slug}" updated must be YYYY-MM-DD`);
+  if (page.updated) {
+    const [y, m, d] = page.updated.split('-').map(Number);
+    const real = /^\d{4}-\d{2}-\d{2}$/.test(page.updated) && m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate();
+    if (!real) fail(`registry: "${page.slug}" updated must be a real YYYY-MM-DD date`);
+  }
 
   // Not a thin page: pages written to a question bank must carry their own copy.
   if (page.questionTag && (!page.intro?.length || !page.tips?.length)) {

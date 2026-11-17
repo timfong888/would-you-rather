@@ -66,6 +66,8 @@ export interface SeoPageDef {
   intro?: string[];
   /** How-to-play and parent tips. Unique per page. */
   tips?: SeoTip[];
+  /** Show the random-question generator widget above the list. */
+  generator?: boolean;
   /** Section heading above the question list. */
   listHeading?: string;
   /**
@@ -497,11 +499,11 @@ export const SEO_PAGES: SeoPageDef[] = [
     questionTag: 'app',
     categoryIds: ['kids-family'],
     limit: 10,
-    keywords: ['would you rather app', 'would you rather game online', 'free would you rather game'],
+    keywords: ['would you rather app', 'would you rather online', 'would you rather game online'],
   },
 
   // ======================================================================
-  // Persona: couples / adults (pre-batch pages from PR #43; next batch)
+  // Persona: couples / adults (batch 2; deep page from PR #43)
   // ======================================================================
   {
     slug: 'deep-would-you-rather-questions',
@@ -521,20 +523,414 @@ export const SEO_PAGES: SeoPageDef[] = [
   },
   {
     slug: 'questions-for-couples',
-    title: 'Would You Rather Questions for Couples — Deepen Your Connection',
+    title: 'Would You Rather Questions for Couples (20 to Play)',
     description:
-      "Would You Rather questions for couples that reveal how you really think. Ideal for date nights and long conversations. Free to start, no account needed.",
-    headline: 'Would You Rather for Couples',
-    subheadline:
-      'You think you know each other. These questions will surprise you. Share a question, compare answers, and see where you actually stand.',
+      '20 would you rather questions for couples: weekend trips, tiny houses, matching tattoos. Play them together and find out where you really agree.',
+    headline: 'Would You Rather Questions for Couples',
+    subheadline: 'Twenty questions to play together, not just read. Pick at the same time, then compare.',
     ctaLabel: 'Play Together →',
     persona: 'couples',
     funnel: 'tofu',
     audienceType: 'Couples',
-    // Not midnight-secrets / deep-desires: the deep page lists those (one page per question).
-    categoryIds: ['moral-compass'],
+    bestFor: 'Couples · date night · long drives · lazy Sundays',
+    answerQuestion: 'What are good would you rather questions for couples?',
+    answer:
+      'Good would you rather questions for couples reveal how you each think about the life you share: a spontaneous trip or a planned one, a tiny house together or a mansion with separate wings, a love letter or a surprise trip. Both pick at the same time, then explain. The disagreements make the best conversations.',
+    faq: [
+      { q: 'How do couples play would you rather?', a: 'Read a question, count to three and both say your answer at once so neither copies the other. Then each explains why. Disagreeing is the fun part, not a problem.' },
+      { q: 'Are these would you rather questions for couples clean?', a: 'Yes. They are playful and personal but not explicit, so they work at dinner, on a road trip or with friends around.' },
+    ],
+    intro: [
+      'Most couples lists are a hundred questions to read at each other. Would you rather is different because it is a game: both of you pick, and the interesting part is when you don’t pick the same thing.',
+      'These twenty cover the everyday stuff that actually shapes a relationship: plans, money, families, habits and what feels romantic to each of you.',
+    ],
+    tips: [
+      { title: 'Answer at the same time', body: 'Count to three and say it together. If one person always answers first, the other quietly agrees.' },
+      { title: 'Ask "what would change your mind?"', body: 'It turns a disagreement into a conversation about what each of you values.' },
+      { title: 'Play across a distance', body: 'Long-distance? Send one question a day with the share button and compare answers on your next call.' },
+    ],
+    listHeading: '20 Would You Rather Questions for Couples',
+    questionTag: 'couples',
+    categoryIds: ['date-night'],
     limit: 20,
-    keywords: ['would you rather questions for couples', 'date night questions', 'couples conversation starters'],
+    keywords: ['would you rather questions for couples', 'would you rather couple', 'couples would you rather'],
+  },
+  {
+    slug: 'questions-to-ask-your-partner',
+    title: 'Questions to Ask Your Partner: 20 Would You Rather Picks',
+    description:
+      '20 questions to ask your partner, as would you rather choices: money, families, holidays, the future. Easier to answer than "where is this going?"',
+    headline: 'Questions to Ask Your Partner',
+    subheadline: 'The big conversations, made easier: twenty either-or questions about the life you are building.',
+    ctaLabel: 'Ask the First One →',
+    persona: 'couples',
+    funnel: 'tofu',
+    audienceType: 'Couples in a relationship',
+    bestFor: 'Couples · new relationships · engaged · long-term',
+    answerQuestion: 'What are good questions to ask your partner?',
+    answer:
+      'Good questions to ask your partner touch the things couples rarely discuss directly: how you handle money, holidays with family, fights, kids and where you want to live. Framing them as would you rather choices, like saving for a house or traveling while young, makes them easier to answer honestly and less likely to feel like a test.',
+    faq: [
+      { q: 'What should couples talk about early in a relationship?', a: 'Values more than details: how you like to spend free time, how you handle conflict, how close you are to family, and what you want the next few years to look like.' },
+      { q: 'How do you ask your partner deep questions without it feeling awkward?', a: 'Make it a game. An either-or question gives both of you an easy starting point, and the "why" that follows does the deep work.' },
+    ],
+    intro: [
+      '"So where do you see this going?" is a hard question to answer. "Would you rather save for a house or travel while we’re young?" is easy, and it leads to the same conversation.',
+      'These twenty questions cover the topics that matter most in a long relationship: money, family, fights, the future and how you each like to feel loved.',
+    ],
+    tips: [
+      { title: 'One a night', body: 'Pick one question at dinner. A single good question beats a twenty-question interview.' },
+      { title: 'No wrong answers', body: 'Agree up front that answers are information, not tests. You are learning, not grading.' },
+    ],
+    listHeading: '20 Questions to Ask Your Partner',
+    questionTag: 'partner',
+    categoryIds: ['date-night'],
+    limit: 20,
+    keywords: ['questions to ask your partner', 'questions for couples', 'relationship questions'],
+  },
+  {
+    slug: 'first-date-questions',
+    title: 'First Date Questions: Play a Game Instead of an Interview',
+    description:
+      '20 first date questions as a would you rather game: coffee or mini-golf, dog or cat, festival or cabin. Fun to answer, easy to follow up, no awkward silence.',
+    headline: 'First Date Questions (That Feel Like a Game)',
+    subheadline: 'Skip the job-interview questions. Play would you rather and the conversation takes care of itself.',
+    ctaLabel: 'Play on Your Date →',
+    persona: 'couples',
+    funnel: 'mofu',
+    audienceType: 'Adults dating',
+    bestFor: 'First dates · second dates · dating-app chats',
+    answerQuestion: 'What are good first date questions?',
+    answer:
+      'Good first date questions are light, quick to answer and easy to follow up: would you rather be a morning person or a night owl, take a road trip with no plan or a planned vacation, go to a festival or a quiet cabin. Playing them as a would you rather game avoids the interview feel and shows how someone thinks.',
+    faq: [
+      { q: 'How do you keep a first date from being awkward?', a: 'Do something together instead of only talking about yourselves. A simple game like would you rather gives you both something to react to, laugh about and follow up on.' },
+      { q: 'What questions should you avoid on a first date?', a: 'Skip exes, salary and heavy politics early on. Start with preferences and stories, and let deeper topics come up naturally.' },
+    ],
+    intro: [
+      'The worst first dates feel like interviews: where do you work, where did you grow up, what do you do for fun. A game fixes that, because you are both reacting to the same silly or interesting choice instead of reciting your resume.',
+      'These twenty are light enough for a first coffee and still reveal something real: how adventurous someone is, how they like to spend a weekend, what makes them laugh.',
+    ],
+    tips: [
+      { title: 'Suggest it casually', body: '"Okay, would you rather…" works mid-conversation. You don’t need to announce a game.' },
+      { title: 'Follow the story', body: 'If they pick the road trip, ask about the best one they have taken. The question is just the door.' },
+      { title: 'Take turns', body: 'Hand them the phone and let them ask you one. It keeps things balanced.' },
+    ],
+    listHeading: '20 First Date Questions',
+    questionTag: 'first-date',
+    categoryIds: ['date-night'],
+    limit: 20,
+    keywords: ['first date questions', 'questions to ask on a first date', 'first date games'],
+  },
+  {
+    slug: 'couples-games',
+    title: 'Couples Games: Would You Rather for Date Night',
+    description:
+      'A free couples game you can play tonight: would you rather for date night, in your browser with no app or account. Fifteen date-night picks to start.',
+    headline: 'Couples Games for Date Night',
+    subheadline: 'A free couples game you can start in ten seconds: two phones optional, no board, no setup.',
+    ctaLabel: 'Start the Couples Game →',
+    persona: 'couples',
+    funnel: 'bofu',
+    audienceType: 'Couples',
+    bestFor: 'Couples · date night at home · long-distance · travel',
+    answerQuestion: 'What is a good free game for couples?',
+    answer:
+      'Would you rather is one of the easiest free couples games: no board, no pieces and no app to install. Open a question, both pick at the same moment, then explain your choice. It works at home, on a walk or over a video call, and the Date Night pack has questions written for two people.',
+    faq: [
+      { q: 'What games can couples play at home?', a: 'Conversation games like would you rather, 20 questions and "how well do you know me" need nothing but each other. Board games and co-op video games are great too when you want something longer.' },
+      { q: 'Can long-distance couples play would you rather?', a: 'Yes. Share a question link, both answer, then compare on a call. It is an easy daily ritual when you are apart.' },
+    ],
+    intro: [
+      'Not every date night needs a reservation. A good couples game gives you something to do together that leads to laughing, teasing and actually talking.',
+      'These fifteen questions are written as date-night ideas in disguise. Many of them, like building a blanket fort or recreating your first date, are worth actually doing once you have both picked.',
+    ],
+    tips: [
+      { title: 'Winner picks the date', body: 'Play five questions. Whoever predicts their partner’s answer correctly the most times picks what you do next.' },
+      { title: 'Make it real', body: 'When you both pick the same thing, put it on the calendar.' },
+    ],
+    listHeading: '15 Date Night Picks',
+    questionTag: 'couples-games',
+    categoryIds: ['date-night'],
+    limit: 15,
+    keywords: ['couples games', 'games for couples', 'date night games'],
+  },
+  {
+    slug: 'would-you-rather-questions-for-adults',
+    title: 'Would You Rather Questions for Adults (Real-Life Dilemmas)',
+    description:
+      '20 would you rather questions for adults: taxes or groceries, retire at 40 or rich at 65, more time or more money. Grown-up dilemmas, not explicit ones.',
+    headline: 'Would You Rather Questions for Adults',
+    subheadline: 'Grown-up dilemmas about money, work, home and the life you actually live.',
+    ctaLabel: 'Play a Grown-Up One →',
+    persona: 'couples',
+    funnel: 'tofu',
+    audienceType: 'Adults',
+    bestFor: 'Adults · dinner parties · group chats · game night',
+    answerQuestion: 'What are good would you rather questions for adults?',
+    answer:
+      'Good would you rather questions for adults are about real trade-offs grown-ups face: a job you love that pays little or one you hate that pays a lot, retiring at 40 modestly or at 65 rich, more time or more money. They spark better debates than fantasy questions because everyone has a stake in the answer.',
+    faq: [
+      { q: 'Are these would you rather questions for adults explicit?', a: 'No. "For adults" here means adult life: money, work, family and home. They are fine for a dinner party or a work happy hour.' },
+      { q: 'How do you play would you rather at a dinner party?', a: 'Ask one question to the whole table and go around. Ask the person whose answer surprised you most to explain it, then let them pick the next question.' },
+    ],
+    intro: [
+      'Superpowers are fun, but adults argue hardest about the dilemmas they actually face: money against time, security against freedom, family against career.',
+      'These twenty make great dinner-party and group-chat questions, because everyone has lived some version of them.',
+    ],
+    tips: [
+      { title: 'Play the group chat', body: 'Drop one question into a group chat with the share button and watch who answers first.' },
+      { title: 'Defend the unpopular side', body: 'Whoever is outvoted gets thirty seconds to change one mind. It is harder than it sounds.' },
+    ],
+    listHeading: '20 Would You Rather Questions for Adults',
+    questionTag: 'adults',
+    categoryIds: ['date-night'],
+    limit: 20,
+    keywords: ['would you rather questions for adults', 'fun would you rather questions for adults', 'good would you rather questions for adults'],
+  },
+
+  // ======================================================================
+  // Persona: groups, teens and everyone (batch 2)
+  // ======================================================================
+  {
+    slug: 'would-you-rather-questions',
+    title: 'Would You Rather Questions: 25 Good Ones to Play Now',
+    description:
+      '25 good would you rather questions anyone can answer: fame or fortune, teleport or read minds, rewind or pause. Tap any question to play it free.',
+    headline: 'Would You Rather Questions',
+    subheadline: 'Twenty-five of the best, for any group: friends, family, dates or coworkers. Read one, or tap it and play.',
+    ctaLabel: 'Play a Question →',
+    persona: 'groups',
+    funnel: 'tofu',
+    audienceType: 'Anyone: friends, families, couples and coworkers',
+    bestFor: 'Any group · parties · car rides · icebreakers',
+    answerQuestion: 'What makes a good would you rather question?',
+    answer:
+      'A good would you rather question offers two options that are equally tempting or equally tough, so the choice reveals how someone thinks: be famous but broke or rich and unknown, teleport or read minds. It should be quick to say, need no explanation and lead naturally to "why?", where the real conversation starts.',
+    faq: [
+      { q: 'How do you play would you rather?', a: 'One person reads a question with two options. Everyone picks one and explains why. There is no winner: the fun is in the reasons and the arguments.' },
+      { q: 'Is there a would you rather game online?', a: 'Yes. Every question here opens in a free browser game with no account. Tap a question to play it, or use the random generator for a new one each time.' },
+    ],
+    intro: [
+      'The best would you rather questions are the ones that start an argument among friends who thought they agreed on everything. These twenty-five are a mix of light and deep, all quick to say out loud.',
+      'Looking for something specific? There are lists below for kids, teens, couples, work and more.',
+    ],
+    tips: [
+      { title: 'Everyone answers, then explains', body: 'Go around the group; the answer takes a second, the reason takes a minute.' },
+      { title: 'Keep a running tally', body: 'Note who is always in the minority. They are usually the most interesting person to ask "why?"' },
+      { title: 'Want a new one every time?', body: 'Use the would you rather generator for a random question at the tap of a button.' },
+    ],
+    listHeading: '25 Good Would You Rather Questions',
+    questionTag: 'hub',
+    categoryIds: ['party-pack'],
+    limit: 25,
+    keywords: ['would you rather questions', 'good would you rather questions', 'best would you rather questions'],
+  },
+  {
+    slug: 'funny-would-you-rather-questions',
+    title: 'Funny Would You Rather Questions: 20 That Get Laughs',
+    description:
+      '20 funny would you rather questions: horse-sized duck or 100 duck-sized horses, a personal theme song or a laugh track. Silly, clean and ready for any group.',
+    headline: 'Funny Would You Rather Questions',
+    subheadline: 'Ridiculous choices, serious debates. Twenty clean, funny questions for parties, group chats and long drives.',
+    ctaLabel: 'Play a Funny One →',
+    persona: 'groups',
+    funnel: 'tofu',
+    audienceType: 'Teens and adults',
+    bestFor: 'Parties · group chats · road trips · icebreakers',
+    answerQuestion: 'What are some funny would you rather questions?',
+    answer:
+      'Funny would you rather questions pair two absurd fates and make you defend one: fight one horse-sized duck or a hundred duck-sized horses, have a laugh track after everything you say or narrate your life like a nature documentary. The best ones are clean, quick to picture and impossible to answer with a straight face.',
+    faq: [
+      { q: 'What makes a would you rather question funny?', a: 'A vivid, ridiculous picture and two options that are equally bad. The laughs come from people seriously defending something absurd.' },
+      { q: 'Are these funny questions OK for work or school?', a: 'Yes. They are silly, not crude, so they suit office icebreakers, classrooms and family gatherings.' },
+    ],
+    intro: [
+      'Funny questions are the fastest way to warm up a room. Nobody worries about a wrong answer when the choice is between a clown nose and clown shoes.',
+      'All twenty are clean. Want kid-sized ones? There is a separate funny list for kids below.',
+    ],
+    tips: [
+      { title: 'Demand a defense', body: 'Everyone has ten seconds to argue their side. The most convincing argument picks the next question.' },
+      { title: 'Act it out', body: 'If you pick the penguin walk, you walk like a penguin to get the snacks.' },
+    ],
+    listHeading: '20 Funny Would You Rather Questions',
+    questionTag: 'funny',
+    categoryIds: ['party-pack'],
+    limit: 20,
+    keywords: ['funny would you rather questions', 'silly would you rather questions', 'hilarious would you rather questions'],
+  },
+  {
+    slug: 'hard-would-you-rather-questions',
+    title: 'Hard Would You Rather Questions: 20 Impossible Choices',
+    description:
+      '20 hard would you rather questions with no easy answer: lose your past or your future, save five strangers or one you love. Built for real debates.',
+    headline: 'Hard Would You Rather Questions',
+    subheadline: 'No easy answers. Twenty genuinely difficult choices that will split any group down the middle.',
+    ctaLabel: 'Try a Hard One →',
+    persona: 'groups',
+    funnel: 'tofu',
+    audienceType: 'Teens and adults',
+    bestFor: 'Late nights · debates · deep talks · philosophy class',
+    answerQuestion: 'What are the hardest would you rather questions?',
+    answer:
+      'The hardest would you rather questions pit two things people value against each other, with no loophole: lose all your memories or never make new ones, save five strangers or one person you love, know the truth or stay happy. They work because both answers cost something real, so everyone has to reveal what matters most to them.',
+    faq: [
+      { q: 'What makes a would you rather question hard?', a: 'Both options must cost something you care about, with no clever way out. Questions about memory, love, truth and time are the hardest because people disagree deeply.' },
+      { q: 'Are hard would you rather questions good for classrooms?', a: 'Yes, for older students. They make good ethics and debate warm-ups: pick a side, give a reason, then hear the other side.' },
+    ],
+    intro: [
+      'Easy questions get easy answers. These are built so that half the room picks each side, and both halves think the other is wrong.',
+      'Several are classic thought experiments in disguise, about memory, identity, fairness and trust, so they work as well in a classroom as at a party.',
+    ],
+    tips: [
+      { title: 'No loopholes', body: 'Agree on the rules: no "it depends", no third option. Pick one.' },
+      { title: 'Switch sides', body: 'After the vote, each side argues for the other. It is the fastest way to understand a hard choice.' },
+    ],
+    listHeading: '20 Hard Would You Rather Questions',
+    questionTag: 'hard',
+    categoryIds: ['party-pack'],
+    limit: 20,
+    keywords: ['hard would you rather questions', 'difficult would you rather questions', 'crazy would you rather questions'],
+  },
+  {
+    slug: 'would-you-rather-questions-for-teens',
+    title: 'Would You Rather Questions for Teens (Middle & High School)',
+    description:
+      '20 would you rather questions for teens: no phone or no friends for a month, streamer or athlete, prom with your crush or your best friend. Clean and relatable.',
+    headline: 'Would You Rather Questions for Teens',
+    subheadline: 'Phones, school, friends and the future: twenty clean questions teens actually want to argue about.',
+    ctaLabel: 'Play a Teen Question →',
+    persona: 'groups',
+    funnel: 'tofu',
+    audienceType: 'Teenagers aged 12 to 18',
+    ages: { min: 12, max: 18 },
+    bestFor: 'Ages 12–18 · sleepovers · youth groups · classrooms',
+    answerQuestion: 'What are good would you rather questions for teens?',
+    answer:
+      'Good would you rather questions for teens are about their actual world: no phone for a month or no friends nearby, go viral for something embarrassing or never get noticed, a dream college or a dream job. They are clean enough for a classroom or youth group, and relatable enough that teens argue about them without being asked.',
+    faq: [
+      { q: 'Are these would you rather questions appropriate for middle school?', a: 'Yes. They avoid romance beyond prom, dares and anything explicit, so they suit ages 12 and up, youth groups and classrooms.' },
+      { q: 'How do you get teens to play a game like this?', a: 'Let them run it. Hand a teen the phone to read questions; they will pick the ones that start the biggest arguments.' },
+    ],
+    intro: [
+      'Teens can smell a question written by an adult trying too hard. These stick to things teens actually deal with: phones, group chats, school, friends, families and what comes after graduation.',
+      'They work for middle and high school, sleepovers, youth groups and advisory periods.',
+    ],
+    tips: [
+      { title: 'Hand over control', body: 'Let a teen read and pick the questions. Buy-in goes way up.' },
+      { title: 'Parents: play too', body: 'Answer honestly when they ask you one back. It is one of the easier ways into a real conversation with a teenager.' },
+    ],
+    listHeading: '20 Would You Rather Questions for Teens',
+    questionTag: 'teens',
+    categoryIds: ['party-pack'],
+    limit: 20,
+    keywords: ['would you rather questions for teenagers', 'would you rather questions for teens', 'would you rather questions for middle schoolers'],
+  },
+  {
+    slug: 'would-you-rather-questions-for-work',
+    title: 'Would You Rather Questions for Work: 20 Team Icebreakers',
+    description:
+      '20 would you rather questions for work: no meetings or no email, 4-day week or work from anywhere. Office-safe icebreakers for meetings and team building.',
+    headline: 'Would You Rather Questions for Work',
+    subheadline: 'Office-safe icebreakers for stand-ups, onboarding and team building. No HR review required.',
+    ctaLabel: 'Start the Icebreaker →',
+    persona: 'groups',
+    funnel: 'tofu',
+    audienceType: 'Teams and coworkers',
+    bestFor: 'Stand-ups · onboarding · team building · virtual meetings',
+    answerQuestion: 'What are good would you rather questions for work?',
+    answer:
+      'Good would you rather questions for work are light, safe and relatable to everyone on the team: no meetings or no email, a four-day week or work from anywhere, an office dog or a nap pod. They make quick icebreakers for stand-ups and onboarding because anyone can answer in ten seconds without revealing anything personal.',
+    faq: [
+      { q: 'How do you use would you rather in a team meeting?', a: 'Open with one question and go around, about ten seconds each. In a virtual meeting, post it in chat and have people answer with A or B, then call on two people from each side.' },
+      { q: 'What icebreaker questions should you avoid at work?', a: 'Skip money specifics, politics, religion, health and anything about relationships. Keep it about preferences and work habits, like these.' },
+    ],
+    intro: [
+      'A good work icebreaker takes two minutes, includes everyone and never makes anyone uncomfortable. Would you rather is ideal: everyone answers the same question, and nobody has to share anything personal.',
+      'All twenty are about work life: meetings, commutes, offices, perks and the occasional reply-all disaster.',
+    ],
+    tips: [
+      { title: 'Ten-second rule', body: 'In a stand-up, each person gets one question and ten seconds. Done in two minutes.' },
+      { title: 'Use it in onboarding', body: 'Pair a new hire with a teammate and give them three questions. It is an easy first conversation.' },
+    ],
+    listHeading: '20 Would You Rather Questions for Work',
+    questionTag: 'work',
+    categoryIds: ['party-pack'],
+    limit: 20,
+    keywords: ['would you rather questions for work', 'would you rather questions for workplace', 'work icebreaker questions'],
+  },
+  {
+    slug: 'would-you-rather-generator',
+    title: 'Would You Rather Generator: Random Questions, Free',
+    description:
+      'Free would you rather generator: tap for a random question from hundreds of clean, curated choices. Play it in your browser, no app or account needed.',
+    headline: 'Would You Rather Generator',
+    subheadline: 'Tap for a random would you rather question. Hundreds of curated choices, all free and clean.',
+    ctaLabel: 'Play This Question →',
+    persona: 'groups',
+    funnel: 'bofu',
+    audienceType: 'Anyone',
+    bestFor: 'Parties · classrooms · streams · group chats',
+    answerQuestion: 'Is there a free would you rather generator?',
+    answer:
+      'Yes. This would you rather generator gives you a random question every time you tap, drawn from hundreds of hand-written, clean questions. Every question can be played in the browser with no app or account, and shared with a link. It suits parties, classrooms, livestreams and group chats.',
+    faq: [
+      { q: 'Are the generator’s questions written by AI?', a: 'No. Every question in the generator was written and checked by hand, and the pool is limited to clean questions suitable for groups.' },
+      { q: 'Can I use the generator in class or on stream?', a: 'Yes. It is free, needs no login and the questions are clean. Put it on screen and let the audience vote.' },
+    ],
+    intro: [
+      'Lists run out. A generator doesn’t: tap the button and get a new question from the whole clean collection, from funny to hard to work-friendly.',
+      'Below the generator are ten starter questions if you’d rather scroll than tap.',
+    ],
+    tips: [
+      { title: 'Play it with a crowd', body: 'Put the generator on a big screen. Everyone picks A or B with a hand vote, then tap for the next one.' },
+      { title: 'Share the good ones', body: 'Found a question that split the room? Play it, then share the link so friends can answer too.' },
+    ],
+    listHeading: '10 Starter Questions',
+    questionTag: 'generator',
+    generator: true,
+    categoryIds: ['party-pack'],
+    limit: 10,
+    keywords: ['would you rather generator', 'random would you rather generator', 'would you rather question generator'],
+  },
+
+  // ======================================================================
+  // Persona: parents (batch 2)
+  // ======================================================================
+  {
+    slug: 'questions-to-ask-your-kids',
+    title: 'Questions to Ask Your Kids (That Get Real Answers)',
+    description:
+      '20 questions to ask your kids that get more than "fine", plus how to keep them talking. Would you rather picks about friends, school, worries and kindness.',
+    headline: 'Questions to Ask Your Kids',
+    subheadline: 'Twenty questions that get more than "fine", and how to keep the conversation going once it starts.',
+    ctaLabel: 'Ask the First One →',
+    persona: 'parents',
+    funnel: 'mofu',
+    audienceType: 'Parents of children aged 5 to 12',
+    ages: { min: 5, max: 12 },
+    bestFor: 'Ages 5–12 · after school · bedtime · car rides',
+    answerQuestion: 'How do I get my kids to talk to me?',
+    answer:
+      'Ask questions that are easy to answer and hard to stop at one word, at moments when kids feel relaxed: in the car, at bedtime, side by side. A choice like "be really good at making friends or keeping friends?" invites a story where "how was school?" gets "fine". Listen more than you advise, and answer the questions yourself too.',
+    faq: [
+      { q: 'Why does my child only say "fine" when I ask about their day?', a: 'Open questions about a whole day are hard to answer when you are tired. Specific, playful choices are easier, and kids often add the real story once they have picked.' },
+      { q: 'When is the best time to talk to kids?', a: 'Side-by-side moments work best: car rides, cooking together, walks and bedtime. Kids talk more when it does not feel like a face-to-face interview.' },
+    ],
+    intro: [
+      '"How was school?" "Fine." Every parent knows that conversation. The problem is not your kid. It is that big open questions are hard to answer. Two concrete choices are easy, and the story usually follows.',
+      'These twenty would you rather questions are written to open doors to friendships, school, worries and kindness, without feeling like a check-in.',
+    ],
+    tips: [
+      { title: 'Pick the moment', body: 'Car rides and bedtime beat the kitchen table. Side by side feels safer than face to face.' },
+      { title: 'Follow, don’t fix', body: 'If a question opens something hard, ask "what happened next?" before offering advice.' },
+      { title: 'Answer yours first', body: 'Kids open up more when they hear a real answer from you first, including the times you were not brave.' },
+    ],
+    listHeading: '20 Questions to Ask Your Kids',
+    questionTag: 'kids-talk',
+    categoryIds: ['kids-family'],
+    limit: 20,
+    keywords: ['questions to ask your kids', 'how to talk to your kids', 'questions to ask your child'],
   },
 ];
 
