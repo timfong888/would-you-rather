@@ -35,15 +35,18 @@ coder.
 | AC-4 | Tapping an option sends one `POST /api/votes` and shows the result with the choice highlighted | e2e | e2e | X |
 | AC-4 | With `/api/votes` stubbed to 503 and to a network abort, the result screen still shows the choice and the invite text; one retry happens on next load | e2e | e2e | X |
 | AC-5 | `formatResult` at threshold − 1, threshold, and 0 votes; percentages sum to 100 (including 1/3 splits) | unit | unit | X |
-| AC-5 | Result screen shows no "%" and no "0" below the threshold, and percentages plus total at it (tallies stubbed) | e2e | e2e | X |
+| AC-5 | Result screen shows no "%" and no "0" below the threshold, and percentages plus total at it, using the tally in the stubbed `POST /api/votes` response; a stale `/api/tallies` response is ignored; a failed POST shows no numbers | e2e | e2e | X |
+| AC-5 | `POST /api/votes` returns a tally that includes the new vote; a duplicate returns the same tally, not +1 | integration | integration | X |
 | AC-5 | Build fails if any question has `votesA`/`votesB` | build check (`verify:data`) | Vercel build, unit | |
 | AC-6 | Two posts of the same question from one visitor: total stays 1; second returns `counted:false`; concurrent duplicate posts also give 1 | integration | integration | X |
 | AC-7 | Build fails when a kids' question lacks `review.status = approved`; passes when all are approved; kids' category has ≥ launch size | build check + unit on the checker | unit | X |
 | AC-8 | A non-kids vote stores question, choice, UTC date, country, region and no IP column exists; a kids' vote has `player_id` null; two kids' votes from one visitor have different `voter_key`s; inserting a kids' row with a player ID fails at the database | integration | integration | X |
+| AC-8 | With PostHog stubbed, answering two kids' questions sends events with no `question_id`, `choice` or `visitor_id`, different `distinct_id`s and no `identify` call | e2e | e2e | X |
 | AC-9 | Share produces `/p/{id}?…&pick=`; opening it in a fresh browser context shows that question; `/api/p/[id]` card shows percentages or invite text per threshold | e2e + integration | e2e, integration | X |
 | AC-10 | Opening a link with `pick=A` shows "Your friend picked {optionA} — what's yours?"; an invalid `pick` shows the plain question | e2e | e2e | X |
 | AC-11 | In a paid category, question number `FREE_QUESTIONS_PER_CATEGORY + 1` shows the paywall with `PACK_PRICE_CENTS` and `PACK_SIZE`, and no account field | e2e | e2e | X |
 | AC-12 | Signed `checkout.session.completed` fixture creates one purchase (replayed twice: still one); `/api/unlock` returns 202 then 200; UI shows the next question without reload; cancelled return keeps it locked and shows "nothing was charged"; bad signature returns 400 | integration + e2e | integration, e2e | X |
+| AC-13 | Webhook processed in one handler invocation, then `/api/unlock` in a separate invocation returns a restore token; replaying the webhook gives the same token; a token with a tampered signature returns 404 | integration | integration | X |
 | AC-13 | Restore token unlocks the pack in a fresh browser context; a refunded purchase returns 410; an unknown token returns 404 | integration + e2e | integration, e2e | X |
 | AC-14 | Settings has "Feedback and refunds" whose `mailto:` carries the support address and app version | e2e | e2e | X |
 | AC-15 | With PostHog stubbed, a 5-answer session emits `question_answered` ×5 and `activated` ×1; no event props contain an IP, email or name | e2e | e2e | X |

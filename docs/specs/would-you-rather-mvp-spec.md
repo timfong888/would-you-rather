@@ -92,7 +92,6 @@ Constraints and indexes:
 | `category_id` | `text` | no | a paid category |
 | `pack_volume` | `int` | no | ≥2 |
 | `status` | `text` | no | `check (status in ('paid','refunded'))` |
-| `restore_token_hash` | `text` | no | SHA-256 of the restore token; the token itself is never stored |
 | `created_at` | `timestamptz` | no | default `now()` |
 
 States: `paid → refunded` is the only transition (from the `charge.refunded` webhook). `refunded → paid`
@@ -110,24 +109,27 @@ is invalid. A pending or failed Checkout creates no row.
 All handlers are synchronous request/response unless marked async. Bodies are JSON.
 
 ### FR-1 `POST /api/votes` (AC-4, AC-6, AC-8)
-`recordVote({ questionId, choice, visitorId }) → 201 { counted: true } | 200 { counted: false } | 400 | 429 | 503`
+`recordVote({ questionId, choice, visitorId }) → 201 { counted: true, tally } | 200 { counted: false, tally } | 400 | 429 | 503`
 1. Validate: `questionId` exists, `choice ∈ {A,B}`, `visitorId` is a UUID v4. Otherwise 400 `{ error, field }`.
 2. Look up the category audience; build `voter_key` and `player_id` per 3.4.
 3. Read `x-vercel-ip-country` / `x-vercel-ip-country-region`; never read or log the IP.
-4. `insert ... on conflict (question_id, voter_key) do nothing`. Inserted: 201 `{counted:true}`; conflict: 200 `{counted:false}`.
+4. In one transaction: `insert ... on conflict (question_id, voter_key) do nothing`, then the tally query for this question. Inserted: 201 `{ counted: true, tally: { a, b } }`; conflict: 200 `{ counted: false, tally: { a, b } }`. The tally is read after the insert commits in the same transaction, so it already includes this vote (or the earlier one from this device).
 5. Database error or timeout (2 s): 503 `{ error: 'unavailable', retryable: true }`.
 6. Rate limit: a Vercel Firewall rule, 30 requests per minute per IP; over it, 429 `{ retryable: true }`. Applied at the edge, so no IP reaches our code or database.
-- Client: `castVote()` shows the result screen at once with the local choice (AC-4), sends the request,
-  and on 503, 429 or network failure keeps the vote in `localStorage` and retries once on the next app
-  load (async). It never blocks the result screen.
+- Client: `castVote()` shows the result screen at once with the local choice and the invite text (AC-4),
+  then replaces the invite with `formatResult(response.tally)` when the response arrives. The client never
+  adds its own vote to a count: the only numbers shown on the result screen come from this response.
+  On 503, 429 or network failure the screen keeps the invite text, and the vote is kept in `localStorage`
+  and retried once on the next app load (async).
 - Perf: p95 ≤ 300 ms server time.
 
-### FR-2 `GET /api/tallies?ids=q1,q2` (AC-5, AC-9)
+### FR-2 `GET /api/tallies?ids=q1,q2` (AC-9: share cards and previews only)
 `getTallies(ids: string[]) → 200 { [questionId]: { a: number, b: number } } | 400`
 - 1–50 ids; unknown ids return `{a:0,b:0}`. `Cache-Control: s-maxage=60, stale-while-revalidate=300`.
 - Client display rule (`formatResult(tally, threshold)`):
   `a + b < VOTE_THRESHOLD` → `{ kind: 'invite' }`; otherwise `{ kind: 'percent', a: round(100a/(a+b)), b: 100 − a%, total }`.
-  The client counts its own just-cast vote in if the cached tally predates it.
+  The result screen does not call this endpoint (it uses FR-1's response), so a cached tally is never mixed
+  with a just-cast vote. Share cards may lag by up to 60 s; that is acceptable.
 - On error or timeout (1.5 s): `{ kind: 'invite' }`. The app never shows a number it did not get from the server.
 - Perf: p95 ≤ 200 ms at the CDN.
 
@@ -140,13 +142,16 @@ All handlers are synchronous request/response unless marked async. Bodies are JS
 - `POST /api/checkout { categoryId, volume } → 200 { url } | 400 | 503`: creates a Stripe Checkout
   Session (`mode: payment`, price from `PACK_PRICE_CENTS`, `success_url=/unlock/{id}?session_id={CHECKOUT_SESSION_ID}`).
 - `POST /api/stripe-webhook` (async, from Stripe): verifies the signature; on
-  `checkout.session.completed` upserts `purchases` by `stripe_session_id` with a new restore token
-  (its hash stored); on `charge.refunded` sets `status='refunded'`. Returns 2xx after commit;
+  `checkout.session.completed` upserts `purchases` by `stripe_session_id` (a retry hits the same row
+  and the same `id`); on `charge.refunded` sets `status='refunded'`. Returns 2xx after commit;
   Stripe retries any other response, so the handler is idempotent.
+- Restore token: `restoreToken(purchaseId) = purchaseId + '.' + base64url(HMAC-SHA256(RESTORE_TOKEN_SECRET, purchaseId))`.
+  It is computed, never stored, so any later request can reproduce it, and webhook retries yield the same
+  token. `verifyRestoreToken(token) → purchaseId | null` recomputes the HMAC and compares in constant time.
 - `GET /api/unlock?session_id= → 200 { categoryId, volume, restoreToken } | 202 (webhook not yet
   processed; client polls every 1 s, up to 10 s) | 404`. The client then stores the unlock locally
   and shows the next question (AC-12) and the receipt link `/restore?token=...` (AC-13).
-- `GET /api/restore?token= → 200 { categoryId, volume } | 404 | 410 (refunded)`.
+- `GET /api/restore?token= → 200 { categoryId, volume } | 404 (bad signature or unknown purchase) | 410 (refunded)`.
 - A cancelled Checkout returns to `/unlock/{id}?cancelled=1`: the category stays locked and the
   page says nothing was charged (AC-12).
 - Stripe outage: `/api/checkout` returns 503 and the paywall shows "Payments are down, try again
@@ -156,6 +161,16 @@ All handlers are synchronous request/response unless marked async. Bodies are JS
 `track(event, props)` in `lib/analytics.ts` (PostHog). Props never include IP, name or email;
 PostHog IP capture is turned off (`disable_geoip` and the project's "discard IP" setting). `activated`
 fires once per session, on the fifth `question_answered`.
+
+Kids' policy (AC-8, AC-15). Today `AnalyticsProvider` calls `identify(visitorId)` and events carry
+`visitor_id`, which would link a child's answers in PostHog even with the database HMAC. So:
+- `identify()` is no longer called at startup; it is called only when a player answers a question
+  outside a kids' category.
+- Any event raised on a kids' category screen (`question_answered`, `share_clicked`, `paywall_viewed`,
+  ...) is sent through `trackKids(event, { category })`, which sends no `question_id`, `choice` or
+  `visitor_id`, uses a fresh random `distinct_id` per event and sets `$process_person_profile: false`.
+  Two kids' events therefore share no identifier.
+- `activated` counts kids' answers in local session state, so activation is still measured.
 
 ## 5. Business rules
 
@@ -177,7 +192,7 @@ fires once per session, on the fifth `question_answered`.
 - Privacy: COPPA (children under 13: no personal data collected in kids' categories, per BR-4 and
   no accounts), GDPR (no IP stored; the visitor UUID is pseudonymous personal data, so the privacy
   page must say so and say how to clear it).
-- Secrets: `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VOTER_KEY_SECRET` in Vercel
+- Secrets: `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `VOTER_KEY_SECRET`, `RESTORE_TOKEN_SECRET` in Vercel
   environment variables only.
 
 ## 7. Risks
@@ -224,5 +239,10 @@ First-draft findings and what changed. Scores are for the revised text above.
   don't decide them for Tim.
 - High, fixed: the purchase status enum and its invalid transition were implied; now stated (3.3).
 - High, fixed: error responses lacked bodies and a retryable flag; added per endpoint.
+- PR review (Blocks, 3 × P1), fixed: (1) the restore token was stored only as a hash, so `/api/unlock`
+  could not return it; it is now a reproducible HMAC of the purchase id. (2) PostHog `identify` and
+  `visitor_id` would still link a child's answers; added the kids' analytics policy in FR-5. (3) The
+  client added its own vote to a possibly cached tally; FR-1 now returns the committed tally and the
+  client never increments counts.
 - Medium, open: `region` format varies by country (Vercel passes ISO 3166-2 suffixes); keep it
   as given and normalise in reports.

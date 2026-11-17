@@ -29,8 +29,9 @@ on one read the value from config and are not written until it is chosen.
 - **AC-5** On the result screen, a question with fewer than `[VOTE_THRESHOLD = 5 / 10 / 20]` votes
   shows the share invite ("New question — send it to someone and see if they pick the same") and
   shows no percentage and no "0". At or above the threshold it shows both options' percentages
-  (whole numbers summing to 100) and the total vote count. Every number shown comes from recorded
-  votes; no question in the shipped bundle carries a vote count.
+  (whole numbers summing to 100) and the total vote count, including the player's own vote exactly
+  once. Every number shown comes from recorded votes; no question in the shipped bundle carries a
+  vote count.
 - **AC-6** Answering a question that this device has already answered does not increase that
   question's total vote count.
 
@@ -41,7 +42,8 @@ on one read the value from config and are not written until it is chosen.
   at least one kids' category with `[30 / 50 / 100]` approved questions.
 - **AC-8** A recorded vote contains the question, the choice, the UTC date and a coarse region
   (country and first-level region), and never contains an IP address. A vote in a kids' category
-  contains no player ID, so two votes in kids' categories cannot be linked to the same player.
+  contains no player ID, and analytics events from kids' categories carry no question, choice or
+  stable player identifier, so two answers in kids' categories cannot be linked to the same player.
 
 ## Share
 
