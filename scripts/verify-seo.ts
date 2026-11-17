@@ -15,7 +15,7 @@ import { isDeepStrictEqual } from 'util';
 import { resolve } from 'path';
 import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
-import { SEO_PAGES, getSeoPageQuestions } from '../constants/seoPages';
+import { KIDS_CATEGORY, SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage } from '../constants/seoPages';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
 const ROOT = resolve(__dirname, '..');
@@ -45,6 +45,21 @@ for (const page of SEO_PAGES) {
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
     if (isQuestionLocked(cat, idx, false)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
+  }
+
+  // Child safety: a kids page lists only Kids & Family questions, its play flow stays in that
+  // bank (the game's "next" walks the question's own category), and it links only to kids pages.
+  if (isKidsPage(page)) {
+    if (page.categoryIds.length !== 1 || page.categoryIds[0] !== KIDS_CATEGORY) {
+      fail(`kids: "${page.slug}" must draw only from ${KIDS_CATEGORY} (has ${page.categoryIds.join(', ')})`);
+    }
+    for (const q of questions) {
+      if (q.category !== KIDS_CATEGORY) fail(`kids: "${page.slug}" lists ${q.id} from ${q.category}, outside the kids bank`);
+    }
+    const { samePersona, other } = getRelatedSeoPages(page);
+    for (const p of [...samePersona, ...other]) {
+      if (!isKidsPage(p)) fail(`kids: "${page.slug}" links to non-kids page "${p.slug}"`);
+    }
   }
 
   // Route file, rewrite.
@@ -189,6 +204,17 @@ if (withDist) {
     else if (!isDeepStrictEqual(blocks[0], JSON.parse(JSON.stringify(p.expected)))) fail(`${label}: JSON-LD differs from what lib/seo.ts builds`);
     const page = SEO_PAGES.find((sp) => `dist/${sp.slug}.html` === p.file);
     if (page?.answer && !unescape(html)?.includes(page.answer)) fail(`${label}: answer-first text is not in the static HTML`);
+    // Child safety, checked on the shipped HTML too: kids pages play only kids questions and
+    // link to no adult landing page.
+    if (page && isKidsPage(page)) {
+      const kidsIds = new Set(QUESTIONS.filter((q) => q.category === KIDS_CATEGORY).map((q) => q.id));
+      for (const [, id] of html.matchAll(/\/game\/([a-z]+-\d+)/g)) {
+        if (!kidsIds.has(id)) { fail(`${label}: kids page links to /game/${id}, outside the kids bank`); break; }
+      }
+      for (const sp of SEO_PAGES) {
+        if (!isKidsPage(sp) && html.includes(`href="/${sp.slug}"`)) fail(`${label}: kids page links to adult page /${sp.slug}`);
+      }
+    }
     for (const text of lockedTexts) {
       if (html.includes(text) || html.includes(text.replace(/'/g, '&#x27;'))) {
         fail(`${label}: contains locked question text "${text.slice(0, 50)}…"`);
