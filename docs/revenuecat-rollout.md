@@ -196,7 +196,7 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
   URL RevenueCat shows.
 - Create a sandbox tester (App Store Connect → Users and Access → Sandbox).
 - **Done when:** RevenueCat shows the App Store app as connected; tell the
-  agent its app ID for RC-3.4.
+  agent its app ID for RC-4.2.
 
 ### RC-3.2 Connect Google Play to RevenueCat. **Human**
 - Depends on: RC-1.3.
@@ -206,7 +206,8 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
   hours to start working.
 - Set up Real-time developer notifications with the Pub/Sub topic RevenueCat
   generates.
-- **Done when:** RevenueCat shows valid credentials; tell the agent its app ID.
+- **Done when:** RevenueCat shows valid credentials; tell the agent its app ID
+  for RC-4.2.
 
 ### RC-3.3 Connect Stripe for Web Billing. **Human**
 - Create or use a Stripe account; in RevenueCat add a **Web Billing** app and
