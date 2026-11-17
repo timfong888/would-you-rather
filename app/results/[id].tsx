@@ -59,6 +59,8 @@ export default function ResultsScreen() {
   const userPickedA = safeVoted === 'A';
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
+  // Same rule as the game screen: no majority/minority claim off fewer than 5 votes.
+  const hasCrowd = votesA + votesB >= 5;
 
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
@@ -170,6 +172,7 @@ export default function ResultsScreen() {
     'career-climber': ['#WouldYouRather', '#CareerClimber', '#WorkLife'],
     'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
     'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
+    'kids-family': ['#WouldYouRather', '#FamilyGameNight', '#KidsQuestions'],
   };
 
   const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];
@@ -255,15 +258,17 @@ export default function ResultsScreen() {
         {safeVoted ? (
           <>
             <Text style={styles.resultEmoji}>
-              {withMajority ? '🎯' : '🔥'}
+              {!hasCrowd ? '✨' : withMajority ? '🎯' : '🔥'}
             </Text>
             <Text style={styles.resultTitle}>
-              {withMajority ? "You're with the majority!" : "You're in the minority!"}
+              {!hasCrowd ? 'Nice pick!' : withMajority ? "You're with the majority!" : "You're in the minority!"}
             </Text>
             <Text style={styles.resultSubtitle}>
-              {withMajority
-                ? `Most people also chose Option ${safeVoted}`
-                : `Most people chose Option ${safeVoted === 'A' ? 'B' : 'A'} — you're unique!`}
+              {!hasCrowd
+                ? 'This one is new. Ask the room: who picks the other side, and why?'
+                : withMajority
+                  ? `Most people also chose Option ${safeVoted}`
+                  : `Most people chose Option ${safeVoted === 'A' ? 'B' : 'A'} — you're unique!`}
             </Text>
           </>
         ) : (

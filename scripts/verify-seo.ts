@@ -49,6 +49,25 @@ for (const page of SEO_PAGES) {
 
   // Route file, rewrite.
   if (!existsSync(resolve(ROOT, `app/${page.slug}.tsx`))) fail(`route: app/${page.slug}.tsx is missing`);
+
+  if (page.updated && !/^\d{4}-\d{2}-\d{2}$/.test(page.updated)) fail(`registry: "${page.slug}" updated must be YYYY-MM-DD`);
+
+  // Not a thin page: pages written to a question bank must carry their own copy.
+  if (page.questionTag && (!page.intro?.length || !page.tips?.length)) {
+    fail(`registry: "${page.slug}" has no intro or tips (every page needs its own useful copy)`);
+  }
+}
+
+// --- One page per question ----------------------------------------------------
+// Every page publishes its own questions; the same text on two pages is the
+// duplicate, mass-produced pattern Google demotes.
+const owner = new Map<string, string>();
+for (const page of SEO_PAGES) {
+  for (const q of getSeoPageQuestions(page)) {
+    const prev = owner.get(q.id);
+    if (prev) fail(`registry: question ${q.id} appears on both "${prev}" and "${page.slug}"`);
+    owner.set(q.id, page.slug);
+  }
 }
 
 // --- vercel.json rewrites ---------------------------------------------------
@@ -87,6 +106,19 @@ for (const loc of freeGameUrls) if (!locSet.has(loc)) fail(`sitemap: missing pla
 const robots = read('public/robots.txt');
 if (!robots.split('\n').some((l) => l.trim() === `Sitemap: ${SITE_URL}/sitemap.xml`)) {
   fail(`robots.txt: Sitemap line is not ${SITE_URL}/sitemap.xml`);
+}
+
+// AI search crawlers must never be blocked.
+if (/^\s*Disallow:\s*\/\s*$/m.test(robots)) fail('robots.txt: contains "Disallow: /" (would block search and AI crawlers)');
+for (const bot of ['OAI-SearchBot', 'PerplexityBot', 'ClaudeBot', 'Googlebot', 'Bingbot']) {
+  if (!robots.includes(`User-agent: ${bot}`)) fail(`robots.txt: no explicit group for ${bot}`);
+}
+
+// llms.txt lists every landing page; llms-full.txt carries each page's questions.
+for (const f of ['llms.txt', 'llms-full.txt']) if (!existsSync(resolve(ROOT, `public/${f}`))) fail(`public/${f} is missing`);
+if (existsSync(resolve(ROOT, 'public/llms.txt'))) {
+  const llms = read('public/llms.txt');
+  for (const page of SEO_PAGES) if (!llms.includes(`${SITE_URL}/${page.slug}`)) fail(`llms.txt: missing ${page.slug}`);
 }
 
 // --- Exported HTML ----------------------------------------------------------
@@ -155,6 +187,8 @@ if (withDist) {
     const blocks = jsonLdBlocks(html);
     if (blocks.length !== 1) fail(`${label}: expected exactly one JSON-LD block, found ${blocks.length}`);
     else if (!isDeepStrictEqual(blocks[0], JSON.parse(JSON.stringify(p.expected)))) fail(`${label}: JSON-LD differs from what lib/seo.ts builds`);
+    const page = SEO_PAGES.find((sp) => `dist/${sp.slug}.html` === p.file);
+    if (page?.answer && !unescape(html)?.includes(page.answer)) fail(`${label}: answer-first text is not in the static HTML`);
     for (const text of lockedTexts) {
       if (html.includes(text) || html.includes(text.replace(/'/g, '&#x27;'))) {
         fail(`${label}: contains locked question text "${text.slice(0, 50)}…"`);
@@ -171,7 +205,7 @@ if (withDist) {
   }
 
   // Exported copies of the sitemap/robots must be the ones we just generated.
-  for (const f of ['sitemap.xml', 'robots.txt']) {
+  for (const f of ['sitemap.xml', 'robots.txt', 'llms.txt', 'llms-full.txt']) {
     if (!existsSync(resolve(ROOT, `dist/${f}`))) fail(`dist: ${f} was not exported`);
     else if (read(`dist/${f}`) !== read(`public/${f}`)) fail(`dist: ${f} differs from public/${f}`);
   }

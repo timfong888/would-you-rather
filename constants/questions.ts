@@ -1,3 +1,5 @@
+import { KIDS_QUESTIONS } from './kidsQuestions';
+
 export type CategoryId =
   | 'high-life'
   | 'moral-compass'
@@ -7,7 +9,8 @@ export type CategoryId =
   | 'deep-desires'
   | 'career-climber'
   | 'tech-dystopia'
-  | 'wildest-dreams';
+  | 'wildest-dreams'
+  | 'kids-family';
 
 export type CategoryTier = 'free' | 'premium';
 
@@ -35,6 +38,11 @@ export interface Question {
    * Omitted means volume 1.
    */
   volume?: number;
+  /**
+   * Which SEO landing page this question was written for (constants/seoPages.ts).
+   * Used by the Kids & Family bank so each page publishes its own questions.
+   */
+  tags?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -108,13 +116,21 @@ export const CATEGORIES: CategoryDef[] = [
     color: '#4B1C8C',
     tier: 'premium',
   },
+  {
+    // Written for kids ~4–11 and the grown-ups playing with them.
+    id: 'kids-family',
+    label: 'Kids & Family',
+    emoji: '🧸',
+    color: '#D9622B',
+    tier: 'free',
+  },
 ];
 
 // ---------------------------------------------------------------------------
 // Quick-play category groups
 // ---------------------------------------------------------------------------
 
-export const FAMILY_FRIENDLY: CategoryId[] = ['moral-compass', 'social-blunders', 'career-climber', 'tech-dystopia'];
+export const FAMILY_FRIENDLY: CategoryId[] = ['kids-family', 'moral-compass', 'social-blunders', 'career-climber', 'tech-dystopia'];
 export const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-traveler', 'wildest-dreams', 'high-life'];
 
 // Questions
@@ -1698,6 +1714,9 @@ export const QUESTIONS: Question[] = [
   { id: 'td-38', category: 'tech-dystopia', volume: 2, optionA: 'Live in a city with no cars, only flying buses', optionB: 'Live in a city with no buses, only tiny personal pods', votesA: 639, votesB: 761 },
   { id: 'td-39', category: 'tech-dystopia', volume: 2, optionA: 'Have a hologram of your favorite musician perform in your living room', optionB: 'Have a robot that can play any instrument teach you to play', votesA: 554, votesB: 846 },
   { id: 'td-40', category: 'tech-dystopia', volume: 2, optionA: 'Have a screen-free day every single week', optionB: 'Have unlimited screen time but only on Sundays', votesA: 743, votesB: 657 },
+
+  // Kids & Family (kf-1 through kf-223): see constants/kidsQuestions.ts
+  ...KIDS_QUESTIONS,
 ];
 
 // ---------------------------------------------------------------------------

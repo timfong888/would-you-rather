@@ -3,6 +3,7 @@
  * All UI code calls track() / identify() / buildShareUrl() — never PostHog directly.
  */
 import { Platform } from 'react-native';
+import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
@@ -115,7 +116,7 @@ export function buildShareUrl(questionId: string, incomingGeneration: number): {
   const origin =
     Platform.OS === 'web' && typeof window !== 'undefined'
       ? window.location.origin
-      : 'https://wouldyourather.vercel.app';
+      : SITE_URL;
 
   const url = `${origin}/p/${questionId}?link_id=${linkId}&gen=${gen}`;
   return { url, linkId };
