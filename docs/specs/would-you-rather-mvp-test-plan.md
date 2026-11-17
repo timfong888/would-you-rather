@@ -47,6 +47,7 @@ coder.
 | AC-11 | In a paid category, question number `FREE_QUESTIONS_PER_CATEGORY + 1` shows the paywall with `PACK_PRICE_CENTS` and `PACK_SIZE`, and no account field | e2e | e2e | X |
 | AC-12 | Signed `checkout.session.completed` fixture creates one purchase (replayed twice: still one); `/api/unlock` returns 202 then 200; UI shows the next question without reload; cancelled return keeps it locked and shows "nothing was charged"; bad signature returns 400 | integration + e2e | integration, e2e | X |
 | AC-13 | Webhook processed in one handler invocation, then `/api/unlock` in a separate invocation returns a restore token; replaying the webhook gives the same token; a token with a tampered signature returns 404 | integration | integration | X |
+| AC-13 | After a `charge.refunded` fixture, both `/api/unlock?session_id=` and `/api/restore` return 410 and a fresh browser context stays locked | integration + e2e | integration, e2e | X |
 | AC-13 | Restore token unlocks the pack in a fresh browser context; a refunded purchase returns 410; an unknown token returns 404 | integration + e2e | integration, e2e | X |
 | AC-14 | Settings has "Feedback and refunds" whose `mailto:` carries the support address and app version | e2e | e2e | X |
 | AC-15 | With PostHog stubbed, a 5-answer session emits `question_answered` ×5 and `activated` ×1; no event props contain an IP, email or name | e2e | e2e | X |

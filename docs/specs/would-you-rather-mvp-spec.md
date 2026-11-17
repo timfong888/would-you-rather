@@ -149,7 +149,9 @@ All handlers are synchronous request/response unless marked async. Bodies are JS
   It is computed, never stored, so any later request can reproduce it, and webhook retries yield the same
   token. `verifyRestoreToken(token) → purchaseId | null` recomputes the HMAC and compares in constant time.
 - `GET /api/unlock?session_id= → 200 { categoryId, volume, restoreToken } | 202 (webhook not yet
-  processed; client polls every 1 s, up to 10 s) | 404`. The client then stores the unlock locally
+  processed; client polls every 1 s, up to 10 s) | 404 | 410 (refunded)`. It returns 200 only when
+  `status = 'paid'`, the same check as `/api/restore`, so reopening an old Checkout return URL cannot
+  unlock a refunded purchase on a new device (BR-5). The client then stores the unlock locally
   and shows the next question (AC-12) and the receipt link `/restore?token=...` (AC-13).
 - `GET /api/restore?token= → 200 { categoryId, volume } | 404 (bad signature or unknown purchase) | 410 (refunded)`.
 - A cancelled Checkout returns to `/unlock/{id}?cancelled=1`: the category stays locked and the
@@ -244,5 +246,7 @@ First-draft findings and what changed. Scores are for the revised text above.
   `visitor_id` would still link a child's answers; added the kids' analytics policy in FR-5. (3) The
   client added its own vote to a possibly cached tally; FR-1 now returns the committed tally and the
   client never increments counts.
+- PR review round 2 (1 × P1), fixed: `/api/unlock` did not check refunds, so an old Checkout return
+  URL bypassed BR-5; it now requires `status = 'paid'` and returns 410 otherwise.
 - Medium, open: `region` format varies by country (Vercel passes ISO 3166-2 suffixes); keep it
   as given and normalise in reports.
