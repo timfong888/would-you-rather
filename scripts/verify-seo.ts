@@ -15,7 +15,7 @@ import { isDeepStrictEqual } from 'util';
 import { resolve } from 'path';
 import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
-import { SEO_PAGES, getSeoPageQuestions } from '../constants/seoPages';
+import { KIDS_CATEGORY, SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage } from '../constants/seoPages';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
 const ROOT = resolve(__dirname, '..');
@@ -28,6 +28,36 @@ const host = new URL(SITE_URL).host;
 
 // --- Registry ---------------------------------------------------------------
 const seen = { slug: new Set<string>(), title: new Set<string>(), description: new Set<string>() };
+/**
+ * Same-site pathnames of every href in the HTML, with query strings, hashes, absolute
+ * site URLs, trailing slashes and HTML entities normalized away.
+ */
+function linkedPaths(html: string): string[] {
+  const out: string[] = [];
+  for (const [, raw] of html.matchAll(/href\s*=\s*["']([^"']*)["']/gi)) {
+    const href = raw.replace(/&amp;/g, '&').replace(/&#x2F;/gi, '/').trim();
+    let url: URL;
+    try { url = new URL(href, SITE_URL); } catch { continue; }
+    if (url.origin !== new URL(SITE_URL).origin) continue;
+    let path: string;
+    try { path = decodeURIComponent(url.pathname); } catch { path = url.pathname; }
+    out.push(path);
+  }
+  return out;
+}
+
+// Self-test: links that dress up an adult path (query, hash, absolute URL, trailing slash,
+// .html) must still resolve to it, and off-site links must be ignored.
+{
+  const fixture = ['/questions-for-couples?from=kids', '/questions-for-couples#questions',
+    `${SITE_URL}/questions-for-couples/`, '/questions-for-couples.html', 'https://example.com/questions-for-couples']
+    .map((h) => `<a href="${h}">x</a>`).join('');
+  const got = linkedPaths(fixture).map((p) => p.replace(/^\/+|\/+$/g, '').replace(/\.html$/, ''));
+  if (got.length !== 4 || got.some((p) => p !== 'questions-for-couples')) fail(`self-test: linkedPaths normalized to ${JSON.stringify(got)}`);
+  const games = linkedPaths(['/game/mc%2D2', '/game/%6dc-2', '/game/mc-2?cat=kids-family'].map((h) => `<a href="${h}">x</a>`).join(''));
+  if (games.some((p) => p !== '/game/mc-2')) fail(`self-test: game links normalized to ${JSON.stringify(games)}`);
+}
+
 for (const page of SEO_PAGES) {
   for (const key of ['slug', 'title', 'description'] as const) {
     const value = page[key];
@@ -45,6 +75,21 @@ for (const page of SEO_PAGES) {
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
     if (isQuestionLocked(cat, idx, false)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
+  }
+
+  // Child safety: a kids page lists only Kids & Family questions, its play flow stays in that
+  // bank (the game's "next" walks the question's own category), and it links only to kids pages.
+  if (isKidsPage(page)) {
+    if (page.categoryIds.length !== 1 || page.categoryIds[0] !== KIDS_CATEGORY) {
+      fail(`kids: "${page.slug}" must draw only from ${KIDS_CATEGORY} (has ${page.categoryIds.join(', ')})`);
+    }
+    for (const q of questions) {
+      if (q.category !== KIDS_CATEGORY) fail(`kids: "${page.slug}" lists ${q.id} from ${q.category}, outside the kids bank`);
+    }
+    const { samePersona, other } = getRelatedSeoPages(page);
+    for (const p of [...samePersona, ...other]) {
+      if (!isKidsPage(p)) fail(`kids: "${page.slug}" links to non-kids page "${p.slug}"`);
+    }
   }
 
   // Route file, rewrite.
@@ -189,6 +234,26 @@ if (withDist) {
     else if (!isDeepStrictEqual(blocks[0], JSON.parse(JSON.stringify(p.expected)))) fail(`${label}: JSON-LD differs from what lib/seo.ts builds`);
     const page = SEO_PAGES.find((sp) => `dist/${sp.slug}.html` === p.file);
     if (page?.answer && !unescape(html)?.includes(page.answer)) fail(`${label}: answer-first text is not in the static HTML`);
+    // Child safety, checked on the shipped HTML too: kids pages play only kids questions and
+    // link only to kids destinations.
+    if (page && isKidsPage(page)) {
+      // Allowlist, not a denylist: every same-site link on a kids page must be the home page,
+      // the kids category, a kids game question, another kids page, or a static asset.
+      const kidsIds = new Set(QUESTIONS.filter((q) => q.category === KIDS_CATEGORY).map((q) => q.id));
+      const kidsSlugs = new Set(SEO_PAGES.filter(isKidsPage).map((sp) => sp.slug));
+      for (const path of linkedPaths(html)) {
+        const bare = path.replace(/\/+$/, '').replace(/\.html$/, '') || '/';
+        const game = bare.match(/^\/game\/([^/]+)$/);
+        const ok =
+          bare === '/' ||
+          bare === `/categories/${KIDS_CATEGORY}` ||
+          (game !== null && kidsIds.has(game[1])) ||
+          kidsSlugs.has(bare.slice(1)) ||
+          /^\/(_expo|assets)\//.test(bare) ||
+          /\.(ico|png|svg|jpe?g|webp|css|js|json|xml|txt|woff2?)$/.test(bare);
+        if (!ok) fail(`${label}: kids page links to ${path}, which is not a kids destination`);
+      }
+    }
     for (const text of lockedTexts) {
       if (html.includes(text) || html.includes(text.replace(/'/g, '&#x27;'))) {
         fail(`${label}: contains locked question text "${text.slice(0, 50)}…"`);
