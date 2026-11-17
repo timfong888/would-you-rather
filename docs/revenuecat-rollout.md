@@ -174,9 +174,16 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
 - Depends on: RC-2.3.
 - Replace the client-side owner code check with a server endpoint that, after
   verifying the code, calls RevenueCat's grant-entitlement API for every
-  `cat_*` entitlement on that customer. Update `docs/owner-access.md`.
+  `cat_*` entitlement on that customer.
+- Move the digest from `EXPO_PUBLIC_OWNER_ACCESS_SHA256` (shipped in the
+  client bundle today, so it can be brute-forced offline) to a server-only
+  Vercel variable `OWNER_ACCESS_SHA256`. The endpoint hashes the submitted
+  code, compares in constant time, and rate-limits attempts. Remove the
+  `EXPO_PUBLIC_` variable once the endpoint is live.
+- Update `docs/owner-access.md` to describe the server-side check.
 - **Done when:** redeeming the code on a fresh device unlocks every category,
-  and it survives an app reinstall followed by Restore.
+  it survives an app reinstall followed by Restore, and no owner-access
+  digest appears in the client bundle.
 
 ### RC-2.5 Automated acceptance tests on the Test Store. **Agent**
 - Depends on: RC-2.2, RC-2.3.
