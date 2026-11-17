@@ -154,17 +154,6 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
           <Text style={styles.heroNote}>Free · no sign-up · nothing to install</Text>
         </View>
 
-        {/* Answer first: a direct answer to the question the searcher asked. */}
-        {page.answer ? (
-          <View style={[styles.section, styles.answerBox]}>
-            {page.answerQuestion ? (
-              <Text style={styles.answerQuestion} {...h2}>{page.answerQuestion}</Text>
-            ) : null}
-            <Text style={styles.answerText}>{page.answer}</Text>
-            <Text style={styles.updated}>Last updated {formatDate(getSeoPageUpdated(page))}</Text>
-          </View>
-        ) : null}
-
         {/* Random question generator (generator pages only). */}
         {page.generator && shownGenerated ? (
           <View style={[styles.section, styles.generatorBox]}>
@@ -186,6 +175,17 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
               </Link>
             </View>
             <Text style={styles.updated}>{generatorPool.length} questions in the generator</Text>
+          </View>
+        ) : null}
+
+        {/* Answer first: a direct answer to the question the searcher asked. */}
+        {page.answer ? (
+          <View style={[styles.section, styles.answerBox]}>
+            {page.answerQuestion ? (
+              <Text style={styles.answerQuestion} {...h2}>{page.answerQuestion}</Text>
+            ) : null}
+            <Text style={styles.answerText}>{page.answer}</Text>
+            <Text style={styles.updated}>Last updated {formatDate(getSeoPageUpdated(page))}</Text>
           </View>
         ) : null}
 
