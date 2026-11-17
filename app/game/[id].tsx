@@ -212,7 +212,7 @@ export default function GameScreen() {
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
   // New questions (e.g. the Kids & Family bank) start with no votes. Don't show
   // "100% consensus / with the majority" off a single tap; say it's new instead.
-  const hasCrowd = question.votesA + question.votesB >= 5;
+  const hasCrowd = votesA + votesB >= 5;
 
   const pageTitle = `Would You Rather: ${question.optionA} — or — ${question.optionB}?`;
   const truncatedTitle = pageTitle.length > 100
