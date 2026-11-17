@@ -111,7 +111,14 @@ ${SEO_PAGES.filter((p) => p.persona === persona)
 - [All categories](${loc('/categories')})
 `;
 
-const unCap = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+// Lowercase the first letter so the option reads mid-sentence, but keep "I", "I'm", acronyms
+// and proper nouns (a capital followed by more capitals, or a word we know is a name).
+const unCap = (t: string) => {
+  const first = t.split(/\s/)[0];
+  if (/^I('|\b)/.test(first) || /^[A-Z]{2,}/.test(first) || /^[A-Z][a-z]+(?:'s)?$/.test(first) && KEEP_CAPS.has(first.replace(/'s$/, ''))) return t;
+  return t.charAt(0).toLowerCase() + t.slice(1);
+};
+const KEEP_CAPS = new Set(['Christmas', 'Thanksgiving', 'Halloween', 'Easter', 'Santa', 'Monday', 'Friday', 'Saturday', 'Sunday', 'Mars', 'Earth', 'Paris', 'Disney']);
 const llmsFull = `# Would You Rather: full question lists
 
 > ${ORGANIZATION_DESCRIPTION}

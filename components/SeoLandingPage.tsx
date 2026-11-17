@@ -27,7 +27,7 @@ const h3 = { role: 'heading', 'aria-level': 3 } as object;
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > 31) return iso;
+  if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > new Date(Date.UTC(y, m, 0)).getUTCDate()) return iso;
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   return `${months[m - 1]} ${d}, ${y}`;
 }
