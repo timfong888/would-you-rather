@@ -237,10 +237,12 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
 
 ### RC-4.2 Attach store products in RevenueCat; set store keys. **Agent**
 - Depends on: RC-3.1, RC-3.2, RC-3.3, RC-4.1.
-- Extend `sync-catalog.mjs` to create the matching products in the App Store,
-  Play Store and Web Billing apps (Web Billing products are created in
-  RevenueCat with their price) and attach them to the same entitlements and
-  offering packages.
+- Extend `sync-catalog.mjs` so that, inside RevenueCat:
+  - for the App Store and Play Store apps, it creates product **entries**
+    that reference the store product IDs created by hand in RC-4.1. It never
+    calls Apple or Google APIs.
+  - for the Web Billing app, it creates the actual products, with prices.
+  - it attaches all of them to the same entitlements and offering packages.
 - Set `EXPO_PUBLIC_RC_IOS_KEY`, `EXPO_PUBLIC_RC_ANDROID_KEY`,
   `EXPO_PUBLIC_RC_WEB_KEY` (sandbox for `preview` and Vercel Preview,
   production for `production` and Vercel Production).
