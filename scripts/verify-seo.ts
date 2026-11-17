@@ -50,6 +50,8 @@ for (const page of SEO_PAGES) {
   // Route file, rewrite.
   if (!existsSync(resolve(ROOT, `app/${page.slug}.tsx`))) fail(`route: app/${page.slug}.tsx is missing`);
 
+  if (page.updated && !/^\d{4}-\d{2}-\d{2}$/.test(page.updated)) fail(`registry: "${page.slug}" updated must be YYYY-MM-DD`);
+
   // Not a thin page: pages written to a question bank must carry their own copy.
   if (page.questionTag && (!page.intro?.length || !page.tips?.length)) {
     fail(`registry: "${page.slug}" has no intro or tips (every page needs its own useful copy)`);

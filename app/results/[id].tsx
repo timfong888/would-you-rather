@@ -60,7 +60,7 @@ export default function ResultsScreen() {
   const majorityPickedA = votesA > votesB;
   const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
   // Same rule as the game screen: no majority/minority claim off fewer than 5 votes.
-  const hasCrowd = question.votesA + question.votesB >= 5;
+  const hasCrowd = votesA + votesB >= 5;
 
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
