@@ -49,18 +49,29 @@ RevenueCat mapping, with **identical identifiers in every stage and store**:
 
 ## Stages and keys
 
-The code never changes between stages. Only the keys do.
+This is the target state once RC-2.2 lands; until then the only "simulation"
+is the timer in `app/unlock/[id].tsx` described above. After RC-2.2 the code
+never changes between stages. Only the keys do.
 
 | Stage | Purchases | RevenueCat key used by the app | Where it is set |
 |---|---|---|---|
-| Dev / automated | Simulated (Test Store) | `test_…` | EAS `development` profile, Vercel Preview |
+| Dev / automated | Simulated by the RevenueCat Test Store | `test_…` | EAS `development` profile, Vercel Preview |
 | Staging / acceptance | Store sandboxes, Stripe test mode | `appl_…`, `goog_…`, `rcb_sb_…` | EAS `preview` profile, Vercel Preview |
 | Production | Real | `appl_…`, `goog_…`, `rcb_…` | EAS `production` profile, Vercel Production |
 
 Public SDK keys are safe to ship to the client as
 `EXPO_PUBLIC_RC_IOS_KEY`, `EXPO_PUBLIC_RC_ANDROID_KEY`, `EXPO_PUBLIC_RC_WEB_KEY`.
-The **secret** v2 key (`sk_…`) is server-only: Vercel variable
-`REVENUECAT_SECRET_KEY`, never prefixed `EXPO_PUBLIC_`.
+Secret v2 keys (`sk_…`) are never prefixed `EXPO_PUBLIC_`. Use **two
+separate keys**, each with only the permissions it needs:
+
+| Key | Holder | Permissions |
+|---|---|---|
+| Orchestrator key | Network secret on the agents' cloud environment (RC-0.1) | project configuration read/write, customer information read/write |
+| Server key | Vercel variable `REVENUECAT_SECRET_KEY` (Preview and Production) | customer information read/write only (read for entitlement checks, write for owner-access grants in RC-2.4) |
+
+The production server never holds a key that can change products,
+entitlements or offerings, and either key can be rotated without touching
+the other.
 
 ---
 
@@ -69,11 +80,11 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
 ### RC-0.1 Give the Orchestrator's worker environment RevenueCat access. **Human**
 - In the claude.ai cloud environment where Orchestrator sessions run, add a
   **network secret** for host `api.revenuecat.com`, header `Authorization`,
-  prefix `Bearer`, using a v2 secret key with: project configuration read and
-  write, customer information read and write.
+  prefix `Bearer`, using the **Orchestrator key** (see "Stages and keys").
 - Attach the `timfong888/would-you-rather` repository to that environment.
-- Remove any plain-text `REVENUE_CAT_SECRET` environment variable; the
-  network secret replaces it.
+- Delete the plain-text `REVENUE_CAT_SECRET` variable from the claude.ai
+  cloud environment settings (it was added there by hand, not in this repo);
+  the network secret replaces it.
 - **Done when:** an agent session there gets HTTP 200 from
   `GET https://api.revenuecat.com/v2/projects` (send any dummy Bearer value;
   the proxy injects the real one).
@@ -154,7 +165,9 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
   wrapper with the SDK mocked.
 
 ### RC-2.3 Server-side entitlement check and webhook. **Agent**
-- Depends on: RC-2.1, RC-0.2.
+- Depends on: RC-0.1, RC-0.2, RC-2.1.
+- Human sub-step: create the **server key** (customer information read/write
+  only) in RevenueCat and add it to Vercel as `REVENUECAT_SECRET_KEY`.
 - `api/revenuecat/webhook`: verify a shared `Authorization` header
   (`REVENUECAT_WEBHOOK_AUTH`), ignore events whose `environment` doesn't
   match the deployment (Production deployments ignore `SANDBOX`), log
@@ -185,10 +198,14 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
 
 ### RC-2.5 Automated acceptance tests on the Test Store. **Agent**
 - Depends on: RC-2.2, RC-2.3.
-- Playwright against a Vercel Preview deployment (web, Test Store key): free
-  questions playable, locked ones gated, purchase unlocks the category,
-  restore after clearing storage, cancel leaves it locked.
-- **Done when:** the suite runs in CI on every PR and passes.
+- The repo has no CI yet (no `.github/workflows`, no `test` script). Add a
+  GitHub Actions workflow that runs on every PR: install, type-check, unit
+  tests, then the Playwright suite against the PR's Vercel Preview URL
+  (wait for the Vercel deployment status, then use its URL).
+- Playwright suite (web, Test Store key): free questions playable, locked
+  ones gated, purchase unlocks the category, restore after clearing storage,
+  cancel leaves it locked.
+- **Done when:** the workflow runs on every PR and passes.
 
 ### RC-2.6 Upload the first Android build to Play internal testing. **Human**
 - Depends on: RC-1.3, RC-2.2.
@@ -231,7 +248,7 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
 
 ## Phase 4: Store products and prices
 
-### RC-4.1 Create the 9 products in App Store Connect and Play Console. **Human**
+### RC-4.1 Create 9 Apple and 9 Google products (18 total). **Human**
 - Depends on: RC-3.1, RC-3.2, prices confirmed.
 - Create each `wyr_unlock_*` as a **non-consumable** in-app purchase (Apple)
   and a **one-time product** (Google), with the agreed price, name and
