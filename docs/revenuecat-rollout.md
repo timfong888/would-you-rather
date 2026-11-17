@@ -157,9 +157,13 @@ the other.
 ### RC-2.2 Integrate the SDK in the app. **Agent**
 - Depends on: RC-1.1, RC-2.1.
 - Add `react-native-purchases` (native) and `@revenuecat/purchases-js` (web).
-  Write one `lib/purchases.ts` wrapper with `configure`, `getOffering(categoryId)`,
-  `purchase(categoryId)`, `restore()` and `getEntitlements()`, and pick the
-  key with `Platform.OS`.
+  Write a `lib/purchases` wrapper with one interface (`configure`,
+  `getOffering(categoryId)`, `purchase(categoryId)`, `restore()`,
+  `getEntitlements()`) split into platform files: `purchases.native.ts`
+  imports only `react-native-purchases` (iOS/Android keys by `Platform.OS`),
+  `purchases.web.ts` imports only `@revenuecat/purchases-js`. Metro picks the
+  file per platform, so neither bundle tries to resolve the other SDK. Never
+  import both SDKs from one file. Shared types go in `purchases.types.ts`.
 - `contexts/UnlockedContext.tsx`: derive `isUnlocked` from active
   entitlements (`cat_<id>`), keep local storage only as an offline cache.
 - `app/unlock/[id].tsx`: replace the simulated `handlePay` /
