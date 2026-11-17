@@ -56,11 +56,11 @@ for (const page of SEO_PAGES) {
   }
 }
 
-// --- One page per question (tagged pages) ----------------------------------
-// Each tagged page publishes its own questions; the same text on two pages is
-// the duplicate, mass-produced pattern Google demotes.
+// --- One page per question ----------------------------------------------------
+// Every page publishes its own questions; the same text on two pages is the
+// duplicate, mass-produced pattern Google demotes.
 const owner = new Map<string, string>();
-for (const page of SEO_PAGES.filter((p) => p.questionTag)) {
+for (const page of SEO_PAGES) {
   for (const q of getSeoPageQuestions(page)) {
     const prev = owner.get(q.id);
     if (prev) fail(`registry: question ${q.id} appears on both "${prev}" and "${page.slug}"`);
