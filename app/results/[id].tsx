@@ -170,6 +170,7 @@ export default function ResultsScreen() {
     'career-climber': ['#WouldYouRather', '#CareerClimber', '#WorkLife'],
     'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
     'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
+    'kids-family': ['#WouldYouRather', '#FamilyGameNight', '#KidsQuestions'],
   };
 
   const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];

@@ -49,6 +49,23 @@ for (const page of SEO_PAGES) {
 
   // Route file, rewrite.
   if (!existsSync(resolve(ROOT, `app/${page.slug}.tsx`))) fail(`route: app/${page.slug}.tsx is missing`);
+
+  // Not a thin page: pages written to a question bank must carry their own copy.
+  if (page.questionTag && (!page.intro?.length || !page.tips?.length)) {
+    fail(`registry: "${page.slug}" has no intro or tips (every page needs its own useful copy)`);
+  }
+}
+
+// --- One page per question (tagged pages) ----------------------------------
+// Each tagged page publishes its own questions; the same text on two pages is
+// the duplicate, mass-produced pattern Google demotes.
+const owner = new Map<string, string>();
+for (const page of SEO_PAGES.filter((p) => p.questionTag)) {
+  for (const q of getSeoPageQuestions(page)) {
+    const prev = owner.get(q.id);
+    if (prev) fail(`registry: question ${q.id} appears on both "${prev}" and "${page.slug}"`);
+    owner.set(q.id, page.slug);
+  }
 }
 
 // --- vercel.json rewrites ---------------------------------------------------

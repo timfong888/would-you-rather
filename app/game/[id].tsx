@@ -210,6 +210,9 @@ export default function GameScreen() {
 
   const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
   const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
+  // New questions (e.g. the Kids & Family bank) start with no votes. Don't show
+  // "100% consensus / with the majority" off a single tap; say it's new instead.
+  const hasCrowd = question.votesA + question.votesB >= 5;
 
   const pageTitle = `Would You Rather: ${question.optionA} — or — ${question.optionB}?`;
   const truncatedTitle = pageTitle.length > 100
@@ -290,7 +293,7 @@ export default function GameScreen() {
           disabled={confirmed}
           votesA={votesA}
           votesB={votesB}
-          showConsensus={confirmed}
+          showConsensus={confirmed && hasCrowd}
         />
 
         <View style={styles.orDivider}>
@@ -309,7 +312,7 @@ export default function GameScreen() {
           disabled={confirmed}
           votesA={votesA}
           votesB={votesB}
-          showConsensus={confirmed}
+          showConsensus={confirmed && hasCrowd}
         />
       </View>
 
@@ -376,20 +379,25 @@ export default function GameScreen() {
           <>
             <View style={[styles.resultBanner, { borderColor: `${catColor}40` }]}>
               <Text style={styles.resultBannerEmoji}>
-                {selected === 'A'
-                  ? (votesA > votesB ? '🎯' : '🔥')
-                  : (votesB > votesA ? '🎯' : '🔥')}
+                {!hasCrowd
+                  ? '✨'
+                  : selected === 'A'
+                    ? (votesA > votesB ? '🎯' : '🔥')
+                    : (votesB > votesA ? '🎯' : '🔥')}
               </Text>
               <View style={styles.resultBannerText}>
                 <Text style={styles.resultBannerTitle}>
                   {(() => {
+                    if (!hasCrowd) return 'Nice pick!';
                     const myVotes = selected === 'A' ? votesA : votesB;
                     const otherVotes = selected === 'A' ? votesB : votesA;
                     return myVotes >= otherVotes ? 'With the majority!' : 'Uniquely yours!';
                   })()}
                 </Text>
                 <Text style={styles.resultBannerSub}>
-                  You chose Option {selected}
+                  {hasCrowd
+                    ? `You chose Option ${selected}`
+                    : 'This one is new. Ask the room: who picks the other side, and why?'}
                 </Text>
               </View>
             </View>

@@ -87,7 +87,14 @@ export function landingPageJsonLd(page: SeoPageDef, questions: Question[]): Json
         description: page.description,
         inLanguage: 'en',
         keywords: page.keywords.join(', '),
-        audience: { '@type': 'Audience', audienceType: page.audienceType },
+        audience: page.ages
+          ? {
+              '@type': 'PeopleAudience',
+              audienceType: page.audienceType,
+              suggestedMinAge: page.ages.min,
+              suggestedMaxAge: page.ages.max,
+            }
+          : { '@type': 'Audience', audienceType: page.audienceType },
         isPartOf: { '@id': websiteId() },
         breadcrumb: { '@id': `${url}#breadcrumb` },
         mainEntity: { '@id': `${url}#questions` },

@@ -7,6 +7,9 @@
  * here, add its thin route file and its vercel.json rewrite, and the build
  * checks tell you if anything is missing.
  *
+ * Where the pages come from: docs/seo/keyword-research-2026-11.md (one page per
+ * search-intent cluster) and the process in docs/seo-content-skill.md.
+ *
  * Only questions a first-time visitor can play for free are ever listed
  * (getAccessibleQuestions with categoryUnlocked = false), so the pages never
  * publish locked expansion or premium text.
@@ -14,27 +17,53 @@
 import {
   CATEGORIES,
   DARING,
-  FAMILY_FRIENDLY,
+  QUESTIONS,
   getAccessibleQuestions,
   type CategoryDef,
   type CategoryId,
   type Question,
 } from './questions';
 
+export type Persona = 'parents' | 'couples' | 'groups';
+export type FunnelStage = 'tofu' | 'mofu' | 'bofu';
+
+export interface SeoTip {
+  title: string;
+  body: string;
+}
+
 export interface SeoPageDef {
   /** URL path segment; also the route file name (app/<slug>.tsx). */
   slug: string;
-  /** <title> and og:title. */
+  /** <title> and og:title. Keep under ~60 characters. */
   title: string;
-  /** meta description and og:description. */
+  /** meta description and og:description. Keep under ~155 characters. */
   description: string;
   /** Visible <h1>. */
   headline: string;
   subheadline: string;
   ctaLabel: string;
+  /** Who the page is for, and where in the funnel it sits (docs/seo/). */
+  persona: Persona;
+  funnel: FunnelStage;
   /** schema.org Audience.audienceType. */
   audienceType: string;
-  /** Categories to draw from, listed round-robin so the page stays varied. */
+  /** Suggested age range, when the page is written for children (schema.org PeopleAudience). */
+  ages?: { min: number; max: number };
+  /** Short "best for" line under the headline, e.g. "Ages 4–6 · car rides · bedtime". */
+  bestFor?: string;
+  /** Intro paragraphs: why this list, who it is for. Unique per page. */
+  intro?: string[];
+  /** How-to-play and parent tips. Unique per page. */
+  tips?: SeoTip[];
+  /** Section heading above the question list. */
+  listHeading?: string;
+  /**
+   * Draw the page's questions from the questions tagged with this value
+   * (the Kids & Family bank). Takes precedence over categoryIds.
+   */
+  questionTag?: string;
+  /** Otherwise: categories to draw from, listed round-robin so the page stays varied. */
   categoryIds: CategoryId[];
   /** Max questions on the page. */
   limit: number;
@@ -42,34 +71,344 @@ export interface SeoPageDef {
 }
 
 export const SEO_PAGES: SeoPageDef[] = [
+  // ======================================================================
+  // Persona: parents of young kids (batch 1, #63)
+  // ======================================================================
   {
     slug: 'would-you-rather-questions-for-kids',
-    title: '20 Would You Rather Questions for Kids — Fun Family Dilemmas',
+    title: 'Would You Rather Questions for Kids (Ages 5–10)',
     description:
-      "Free Would You Rather questions for kids: fun family dilemmas for dinner tables and road trips that spark real conversations. No download needed.",
+      '25 would you rather questions for kids, written for ages 5 to 10. Tap any question to play it with your child in seconds. Free, no sign-up.',
     headline: 'Would You Rather Questions for Kids',
     subheadline:
-      'Turn car rides and dinner tables into unforgettable family conversations. 20 kid-friendly dilemmas — free to play, no download needed.',
-    ctaLabel: 'Play Free Now →',
-    audienceType: 'Families with children',
-    categoryIds: FAMILY_FRIENDLY,
+      'Twenty-five questions written for kids, not adults with the edges sanded off. Read one aloud, or tap it and let them pick.',
+    ctaLabel: 'Play a Kids Question →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Parents of children aged 5 to 10',
+    ages: { min: 5, max: 10 },
+    bestFor: 'Ages 5–10 · dinner · car rides · waiting rooms',
+    intro: [
+      'A good would you rather question for a kid has two answers they actually want, and a reason they can say out loud. That is all these are: big, happy choices about flying, dragons, treehouses and talking dogs.',
+      'The questions are the conversation starter. The fun is in the follow-up: "Why that one?" A five-year-old will give you one word. A ten-year-old will give you a speech.',
+    ],
+    tips: [
+      { title: 'Ask "why?" every time', body: 'The answer matters less than the reason. One "why" turns a two-second pick into a two-minute conversation.' },
+      { title: 'Let them ask you', body: 'Kids love catching grown-ups on a hard choice. Hand over the phone and let them read the next one to you.' },
+      { title: 'Younger than five?', body: 'Try the kindergarten list: shorter choices, things they can picture.' },
+    ],
+    listHeading: '25 Would You Rather Questions for Kids',
+    questionTag: 'kids',
+    categoryIds: ['kids-family'],
+    limit: 25,
+    keywords: ['would you rather questions for kids', 'kids would you rather questions', 'would you rather for kids'],
+  },
+  {
+    slug: 'funny-would-you-rather-questions-for-kids',
+    title: 'Funny Would You Rather Questions for Kids',
+    description:
+      '20 funny would you rather questions for kids: spaghetti hair, penguin walks and sneezing confetti. Silly enough for giggles, clean enough for anyone.',
+    headline: 'Funny Would You Rather Questions for Kids',
+    subheadline: 'Silly, ridiculous and 100% clean. Guaranteed to get a giggle out of the back seat.',
+    ctaLabel: 'Play a Funny One →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Parents of children aged 5 to 11',
+    ages: { min: 5, max: 11 },
+    bestFor: 'Ages 5–11 · grumpy moods · long waits · sleepovers',
+    intro: [
+      'Funny questions work because there is no right answer, just two equally ridiculous futures. Spaghetti for hair, or sausages for fingers? Kids will argue it like a court case.',
+      'Everything here is clean. No potty humor beyond a burp, nothing mean, nothing about anyone\'s body that could sting.',
+    ],
+    tips: [
+      { title: 'Act it out', body: 'If the answer is "walk like a penguin", they have to walk like a penguin to the car. Instant mood fix.' },
+      { title: 'Make up the next one', body: 'After five or six, kids start inventing their own. Let them. That is the point.' },
+    ],
+    listHeading: '20 Funny Would You Rather Questions',
+    questionTag: 'funny',
+    categoryIds: ['kids-family'],
     limit: 20,
-    keywords: ['would you rather questions for kids', 'family conversation starters', 'road trip games'],
+    keywords: ['funny would you rather questions for kids', 'silly would you rather questions for kids', 'funny would you rather questions'],
+  },
+  {
+    slug: 'would-you-rather-questions-for-kindergarten',
+    title: 'Would You Rather Questions for Kindergarten & Preschool',
+    description:
+      '20 would you rather questions for kindergarten and preschool kids, ages 4 to 6. Short choices they can picture: puppies or kittens, swings or slide.',
+    headline: 'Would You Rather Questions for Kindergarten',
+    subheadline: 'Short, simple choices for ages 4 to 6. No reading needed: you say it, they pick.',
+    ctaLabel: 'Play With Your Little One →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Parents and teachers of children aged 4 to 6',
+    ages: { min: 4, max: 6 },
+    bestFor: 'Ages 4–6 · preschool · kindergarten · bedtime',
+    intro: [
+      'Little kids can\'t weigh "fly at walking pace or run at 100 miles an hour". They can choose between a puppy and a kitten, and tell you why with total conviction.',
+      'Every question on this page is two things a four-year-old can picture: animals, colors, foods, the playground. Each one also gives them a word or two to explain, which is great practice for talking about what they like.',
+    ],
+    tips: [
+      { title: 'Point to pick', body: 'Hold up your left hand for one answer and your right for the other. Pre-readers can point instead of answer.' },
+      { title: 'One "because"', body: 'Ask for one "because…". At this age a single reason is a win.' },
+      { title: 'Circle time', body: 'Teachers: read one aloud and have kids stand on one side of the rug or the other. It makes a quick, wiggly vote.' },
+    ],
+    listHeading: '20 Questions for Ages 4–6',
+    questionTag: 'little',
+    categoryIds: ['kids-family'],
+    limit: 20,
+    keywords: ['would you rather questions for kindergarten', 'would you rather questions for preschoolers', 'would you rather questions for 5 year olds'],
+  },
+  {
+    slug: 'would-you-rather-questions-for-elementary-students',
+    title: 'Would You Rather Questions for Elementary Students',
+    description:
+      '20 would you rather questions for elementary students (grades 1–5). Mind-reading, volcano field trips and robot friends: great for class or the car.',
+    headline: 'Would You Rather Questions for Elementary Students',
+    subheadline: 'For grades 1 to 5: bigger ideas, real reasons, and the occasional heated debate.',
+    ctaLabel: 'Play a Question →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Parents and teachers of children aged 6 to 10',
+    ages: { min: 6, max: 10 },
+    bestFor: 'Grades 1–5 · morning meeting · after school · car pool',
+    intro: [
+      'By first grade kids can hold two ideas in their head and argue for one. These questions use that: read minds or see the future, write a famous book or make a famous movie.',
+      'They make good warm-ups for persuasive writing too. Pick one, take a side, and give three reasons.',
+    ],
+    tips: [
+      { title: 'After-school opener', body: '"How was school?" gets "fine". "Would you rather have recess all day or art all day?" gets an actual answer, and often a story about their day.' },
+      { title: 'Classroom vote', body: 'Teachers: put the two options on opposite walls. Students move, then one from each side gives a reason.' },
+      { title: 'Change your mind', body: 'Let kids switch sides after hearing someone else\'s reason. Learning to change your mind is the hidden lesson.' },
+    ],
+    listHeading: '20 Questions for Grades 1–5',
+    questionTag: 'elementary',
+    categoryIds: ['kids-family'],
+    limit: 20,
+    keywords: ['would you rather questions for elementary students', 'would you rather questions for first graders', 'would you rather questions for 3rd graders'],
+  },
+  {
+    slug: 'gross-would-you-rather-questions',
+    title: 'Gross Would You Rather Questions (Kid-Safe)',
+    description:
+      '15 gross would you rather questions for kids: worm sandwiches, slime socks and pudding pools. Disgusting enough to delight, clean enough for dinner.',
+    headline: 'Gross Would You Rather Questions',
+    subheadline: 'Worms, slime and stinky socks. Gross enough to make them squeal, clean enough for the dinner table (mostly).',
+    ctaLabel: 'Play If You Dare →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Parents of children aged 6 to 11',
+    ages: { min: 6, max: 11 },
+    bestFor: 'Ages 6–11 · sleepovers · camping · road trips',
+    intro: [
+      'Nothing gets a room of eight-year-olds louder than "worm sandwich or bug smoothie?" Gross-out questions are pure fun. Both choices are awful, so nobody can be wrong.',
+      'Kid-safe means gross, not crude. These stick to mud, slime, bugs and stinky socks.',
+    ],
+    tips: [
+      { title: 'Save it for the right moment', body: 'These are a riot at a sleepover or around a campfire. Maybe not mid-spaghetti.' },
+      { title: 'The grossness scale', body: 'Have everyone rate each question from 1 to 10 for grossness. The arguing over the scores is half the fun.' },
+    ],
+    listHeading: '15 Gross Would You Rather Questions',
+    questionTag: 'gross',
+    categoryIds: ['kids-family'],
+    limit: 15,
+    keywords: ['gross would you rather questions', 'gross would you rather questions for kids', 'disgusting would you rather questions'],
+  },
+  {
+    slug: 'this-or-that-questions-for-kids',
+    title: 'This or That Questions for Kids: 20 Quick Picks',
+    description:
+      '20 this or that questions for kids: pizza or tacos, cats or dogs, space or ocean. Fast two-word picks for little kids, car rides and getting to know you.',
+    headline: 'This or That Questions for Kids',
+    subheadline: 'Two words, one pick, no thinking time. The fastest way to find out what your kid is into this week.',
+    ctaLabel: 'Start Picking →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Parents of children aged 4 to 10',
+    ages: { min: 4, max: 10 },
+    bestFor: 'Ages 4–10 · speed rounds · new friends · first day of school',
+    intro: [
+      'This or that is would you rather at top speed. No scenarios, just two words: pizza or tacos? Morning or night? Sharks or dinosaurs?',
+      'It\'s the easiest version for younger kids and a great icebreaker when kids don\'t know each other yet. Their answers also make a fun little snapshot to compare a year from now.',
+    ],
+    tips: [
+      { title: 'Speed round', body: 'Read them as fast as you can. No hesitating allowed. First answer counts.' },
+      { title: 'Guess first', body: 'Before they answer, guess what they will pick. Keep score. Do you really know your kid?' },
+    ],
+    listHeading: '20 This or That Questions',
+    questionTag: 'this-or-that',
+    categoryIds: ['kids-family'],
+    limit: 20,
+    keywords: ['this or that questions for kids', 'this or that for kids', 'this or that questions'],
+  },
+  {
+    slug: 'thanksgiving-would-you-rather-questions',
+    title: 'Thanksgiving Would You Rather Questions for Kids & Family',
+    description:
+      '15 Thanksgiving would you rather questions for kids and family: pie vs turkey, kids table vs grown-ups table. Fun for the table while dinner cooks.',
+    headline: 'Thanksgiving Would You Rather Questions',
+    subheadline: 'Pie or turkey? Kids table or grown-ups table? Something for every generation at the table while the turkey rests.',
+    ctaLabel: 'Play at the Table →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Families with children',
+    ages: { min: 4, max: 12 },
+    bestFor: 'All ages · Thanksgiving dinner · the wait before dinner',
+    intro: [
+      'Thanksgiving puts three generations at one table, and it can be hard to find something they all want to talk about. A light question everyone can answer helps: grandparents, cousins, the four-year-old.',
+      'These are all about the day itself: food, traditions, parades and leftovers. Nothing political, nothing divisive.',
+    ],
+    tips: [
+      { title: 'Go around the table', body: 'One question, everyone answers, youngest first so the kids don\'t just copy the grown-ups.' },
+      { title: 'Kids host', body: 'Put a kid in charge of asking the questions. It gives them a job and keeps them at the table longer.' },
+    ],
+    listHeading: '15 Thanksgiving Questions',
+    questionTag: 'thanksgiving',
+    categoryIds: ['kids-family'],
+    limit: 15,
+    keywords: ['thanksgiving would you rather questions', 'thanksgiving would you rather questions for kids', 'thanksgiving games for family'],
+  },
+  {
+    slug: 'christmas-would-you-rather-questions-for-kids',
+    title: 'Christmas Would You Rather Questions for Kids',
+    description:
+      '18 Christmas would you rather questions for kids: elves or reindeer, snowman or snowball fight. Festive, free and ready to play at the table or by the tree.',
+    headline: 'Christmas Would You Rather Questions for Kids',
+    subheadline: 'Elves or reindeer? Sledding or skating? Eighteen festive questions for the most wonderful (and most waiting) time of the year.',
+    ctaLabel: 'Play a Christmas Question →',
+    persona: 'parents',
+    funnel: 'tofu',
+    audienceType: 'Families with children',
+    ages: { min: 4, max: 11 },
+    bestFor: 'Ages 4–11 · Christmas Eve · holiday travel · school parties',
+    intro: [
+      'December is full of waiting: for the cookies to bake, for relatives to arrive, for Christmas morning. These questions fill the gaps with something better than "are we there yet?"',
+      'They are all about the season: snow, Santa\'s workshop, gingerbread, presents, hot chocolate. Grandparents and kids can play them together.',
+    ],
+    tips: [
+      { title: 'An advent question', body: 'Play one question a night in December. It becomes a small tradition the kids remind you about.' },
+      { title: 'Class party', body: 'Teachers: read one aloud and have kids vote by standing on the "elf" side or the "reindeer" side of the room.' },
+    ],
+    listHeading: '18 Christmas Questions',
+    questionTag: 'christmas',
+    categoryIds: ['kids-family'],
+    limit: 18,
+    keywords: ['christmas would you rather questions for kids', 'christmas would you rather questions', 'christmas games for kids'],
+  },
+  {
+    slug: 'would-you-rather-questions-for-family',
+    title: 'Would You Rather Questions for Family Game Night',
+    description:
+      '20 would you rather questions for the whole family: switch jobs for a day, family band or sports team. Made for game night with kids and grandparents.',
+    headline: 'Would You Rather Questions for Family',
+    subheadline: 'Questions about your family, for your family. Everyone from age five to eighty-five gets a vote.',
+    ctaLabel: 'Start Family Game Night →',
+    persona: 'parents',
+    funnel: 'mofu',
+    audienceType: 'Families with children',
+    ages: { min: 5, max: 99 },
+    bestFor: 'All ages · game night · holidays · family meetings',
+    intro: [
+      'Most would you rather lists are about you. These are about your family: what you would do together, where you would go, who would be in charge. That makes the answers more interesting, because everyone has an opinion about everyone else\'s pick.',
+      'Many of them double as real plans. If everyone picks "backyard campout", you know what next Saturday is.',
+    ],
+    tips: [
+      { title: 'Majority rules (sometimes)', body: 'Pick one question a week where the winning answer actually happens: breakfast for dinner, a living-room fort.' },
+      { title: 'Predict the family', body: 'Before anyone answers, everyone guesses how the family vote will split. Closest guess picks the next question.' },
+      { title: 'Include the grandparents', body: 'Send one question to the family group chat with the share button. You\'ll get answers from people you didn\'t expect.' },
+    ],
+    listHeading: '20 Family Would You Rather Questions',
+    questionTag: 'family',
+    categoryIds: ['kids-family'],
+    limit: 20,
+    keywords: ['would you rather questions for family', 'family would you rather questions', 'would you rather questions for family game night'],
   },
   {
     slug: 'dinner-table-conversation-starters',
-    title: 'Dinner Table Conversation Starters — Would You Rather Dilemmas',
+    title: 'Family Dinner Questions & Conversation Starters',
     description:
-      "Dinner table conversation starters: Would You Rather dilemmas that get families and friends talking, no phones needed. Free to play, no account required.",
-    headline: 'Dinner Table Conversation Starters',
-    subheadline:
-      'Put the phones down. These Would You Rather dilemmas spark real debates and bring people together — no awkward silences required.',
+      '20 family dinner questions and conversation starters for kids: dinner on the moon, best part of your day, oldest or youngest. Phones down, talking up.',
+    headline: 'Family Dinner Conversation Starters',
+    subheadline: 'Twenty would you rather questions that get kids talking at dinner, and keep them at the table a little longer.',
     ctaLabel: 'Start the Conversation →',
-    audienceType: 'Families and friends',
-    categoryIds: ['moral-compass', 'social-blunders', 'career-climber'],
+    persona: 'parents',
+    funnel: 'mofu',
+    audienceType: 'Families with children',
+    ages: { min: 5, max: 12 },
+    bestFor: 'Ages 5–12 · weeknight dinners · restaurants · picnics',
+    intro: [
+      'Weeknight dinner is often the only time the whole family sits down together, and "how was your day?" usually ends the conversation instead of starting it.',
+      'A would you rather question works better because it\'s easy to answer and hard to stop at one word. Some of these are pure fun. Others, like "be famous for being kind or brave?", open up what your kid cares about without feeling like a test.',
+    ],
+    tips: [
+      { title: 'One question per dinner', body: 'Don\'t turn dinner into a quiz. One good question, with follow-ups, beats ten fast ones.' },
+      { title: 'Rotate the asker', body: 'A different family member picks the question each night. Kids take the job very seriously.' },
+      { title: 'Grown-ups answer too', body: 'Kids open up more when parents answer honestly first. Show them how a real answer sounds.' },
+    ],
+    listHeading: '20 Family Dinner Questions',
+    questionTag: 'dinner',
+    categoryIds: ['kids-family'],
     limit: 20,
-    keywords: ['dinner table conversation starters', 'would you rather questions', 'family dinner games'],
+    keywords: ['family dinner questions', 'dinner table conversation starters', 'dinner conversation starters for families'],
   },
+  {
+    slug: 'road-trip-would-you-rather-questions',
+    title: 'Road Trip Would You Rather Questions for Kids',
+    description:
+      '20 road trip would you rather questions for kids: flying cars, rest-stop treasure, moose or bear. A no-screens car game for the whole family. Free.',
+    headline: 'Road Trip Would You Rather Questions',
+    subheadline: 'The car game that needs no board, no pieces and no batteries. Just a driver who can read the next question.',
+    ctaLabel: 'Start the Car Game →',
+    persona: 'parents',
+    funnel: 'mofu',
+    audienceType: 'Families with children',
+    ages: { min: 4, max: 12 },
+    bestFor: 'Ages 4–12 · long drives · flights · traffic jams',
+    intro: [
+      'Hour three of a road trip is when tablets die and patience runs out. Would you rather is the perfect car game: nothing to set up, nothing to drop under the seat, and it works for a four-year-old and a teenager at once.',
+      'These questions are all about the trip itself: cars that fly, rest-stop treasure, which museum to visit, who controls the music.',
+    ],
+    tips: [
+      { title: 'Passenger reads, everyone answers', body: 'The front-seat passenger reads from the phone; the driver answers too, eyes on the road.' },
+      { title: 'Turn it into a plan', body: 'If the car votes for the ice cream stop, make it happen at the next exit. Kids remember the game that came true.' },
+      { title: 'Rotate the question master', body: 'Kids who can read take turns reading the questions. Whoever reads also gets to ask "why?"' },
+    ],
+    listHeading: '20 Road Trip Questions',
+    questionTag: 'road-trip',
+    categoryIds: ['kids-family'],
+    limit: 20,
+    keywords: ['road trip would you rather questions', 'road trip games for kids', 'car games for kids'],
+  },
+  {
+    slug: 'would-you-rather-app',
+    title: 'Would You Rather App: Free, In Your Browser',
+    description:
+      'A free would you rather app that runs in your browser: nothing to install, no account. Kids & Family pack, dinner, road trip and couples questions.',
+    headline: 'The Would You Rather App',
+    subheadline: 'Free, in your browser, nothing to install and no account. Open it, tap a side, pass the phone.',
+    ctaLabel: 'Open the App →',
+    persona: 'parents',
+    funnel: 'bofu',
+    audienceType: 'Families, couples and friends',
+    bestFor: 'Phones, tablets and laptops · works in any browser',
+    intro: [
+      'Most would you rather apps want a download, an account, or your attention for ads. This one is a web page. Open it on any phone, tablet or laptop and start playing in one tap.',
+      'There is a free Kids & Family pack written for ages 4 to 11, plus packs for dinner tables, deep conversations and couples. Each question has a shareable card, so you can send one to the family group chat and see who answers.',
+    ],
+    tips: [
+      { title: 'How it works', body: 'Pick a pack. Read the two options. Tap the one you\'d choose. Pass the phone to the next person, or share the question so someone far away can answer.' },
+      { title: 'Safe for kids', body: 'The Kids & Family pack has no romance, no violence, no brands and nothing scary. Start kids there; the adult packs are clearly labelled.' },
+      { title: 'Add it to your home screen', body: 'On iPhone, tap Share → Add to Home Screen. On Android, tap the menu → Add to Home screen. It then opens like any other app.' },
+    ],
+    listHeading: '10 Questions to Start With',
+    questionTag: 'app',
+    categoryIds: ['kids-family'],
+    limit: 10,
+    keywords: ['would you rather app', 'would you rather game online', 'free would you rather game'],
+  },
+
+  // ======================================================================
+  // Persona: couples / adults (pre-batch pages from PR #43; next batch)
+  // ======================================================================
   {
     slug: 'deep-would-you-rather-questions',
     title: 'Deep Would You Rather Questions — Thought-Provoking Dilemmas',
@@ -79,6 +418,8 @@ export const SEO_PAGES: SeoPageDef[] = [
     subheadline:
       "The questions you don't normally ask. Reveal what people actually value — and what they secretly fear. Best played after midnight.",
     ctaLabel: 'Go Deep →',
+    persona: 'couples',
+    funnel: 'tofu',
     audienceType: 'Adults',
     categoryIds: DARING,
     limit: 20,
@@ -93,6 +434,8 @@ export const SEO_PAGES: SeoPageDef[] = [
     subheadline:
       'You think you know each other. These questions will surprise you. Share a question, compare answers, and see where you actually stand.',
     ctaLabel: 'Play Together →',
+    persona: 'couples',
+    funnel: 'tofu',
     audienceType: 'Couples',
     categoryIds: ['moral-compass', 'midnight-secrets', 'deep-desires'],
     limit: 20,
@@ -104,11 +447,34 @@ export function getSeoPage(slug: string): SeoPageDef | undefined {
   return SEO_PAGES.find((p) => p.slug === slug);
 }
 
+/** Other pages for the same persona, then the rest: the page's internal links. */
+export function getRelatedSeoPages(page: SeoPageDef): { samePersona: SeoPageDef[]; other: SeoPageDef[] } {
+  const others = SEO_PAGES.filter((p) => p.slug !== page.slug);
+  return {
+    samePersona: others.filter((p) => p.persona === page.persona),
+    other: others.filter((p) => p.persona !== page.persona),
+  };
+}
+
 /**
- * The free, playable questions for a page, drawn round-robin across its
- * categories (so a three-category page is not twenty questions from the first).
+ * The free, playable questions for a page.
+ *
+ * Tagged pages take the questions written for them (in bank order). Otherwise
+ * questions are drawn round-robin across the page's categories, so a
+ * three-category page is not twenty questions from the first.
  */
 export function getSeoPageQuestions(page: SeoPageDef): Question[] {
+  if (page.questionTag) {
+    const free = new Set(
+      page.categoryIds
+        .map((id) => CATEGORIES.find((c): c is CategoryDef => c.id === id))
+        .filter((c): c is CategoryDef => c !== undefined)
+        .flatMap((c) => getAccessibleQuestions(c, false))
+        .map((q) => q.id),
+    );
+    return QUESTIONS.filter((q) => free.has(q.id) && q.tags?.includes(page.questionTag!)).slice(0, page.limit);
+  }
+
   const pools = page.categoryIds
     .map((id) => CATEGORIES.find((c): c is CategoryDef => c.id === id))
     .filter((c): c is CategoryDef => c !== undefined)
