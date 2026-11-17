@@ -39,7 +39,9 @@ function linkedPaths(html: string): string[] {
     let url: URL;
     try { url = new URL(href, SITE_URL); } catch { continue; }
     if (url.origin !== new URL(SITE_URL).origin) continue;
-    out.push(decodeURIComponent(url.pathname));
+    let path: string;
+    try { path = decodeURIComponent(url.pathname); } catch { path = url.pathname; }
+    out.push(path);
   }
   return out;
 }
@@ -52,6 +54,8 @@ function linkedPaths(html: string): string[] {
     .map((h) => `<a href="${h}">x</a>`).join('');
   const got = linkedPaths(fixture).map((p) => p.replace(/^\/+|\/+$/g, '').replace(/\.html$/, ''));
   if (got.length !== 4 || got.some((p) => p !== 'questions-for-couples')) fail(`self-test: linkedPaths normalized to ${JSON.stringify(got)}`);
+  const games = linkedPaths(['/game/mc%2D2', '/game/%6dc-2', '/game/mc-2?cat=kids-family'].map((h) => `<a href="${h}">x</a>`).join(''));
+  if (games.some((p) => p !== '/game/mc-2')) fail(`self-test: game links normalized to ${JSON.stringify(games)}`);
 }
 
 for (const page of SEO_PAGES) {
@@ -231,16 +235,23 @@ if (withDist) {
     const page = SEO_PAGES.find((sp) => `dist/${sp.slug}.html` === p.file);
     if (page?.answer && !unescape(html)?.includes(page.answer)) fail(`${label}: answer-first text is not in the static HTML`);
     // Child safety, checked on the shipped HTML too: kids pages play only kids questions and
-    // link to no adult landing page.
+    // link only to kids destinations.
     if (page && isKidsPage(page)) {
+      // Allowlist, not a denylist: every same-site link on a kids page must be the home page,
+      // the kids category, a kids game question, another kids page, or a static asset.
       const kidsIds = new Set(QUESTIONS.filter((q) => q.category === KIDS_CATEGORY).map((q) => q.id));
-      for (const [, id] of html.matchAll(/\/game\/([a-z]+-\d+)/g)) {
-        if (!kidsIds.has(id)) { fail(`${label}: kids page links to /game/${id}, outside the kids bank`); break; }
-      }
-      const adult = new Set(SEO_PAGES.filter((sp) => !isKidsPage(sp)).map((sp) => sp.slug));
+      const kidsSlugs = new Set(SEO_PAGES.filter(isKidsPage).map((sp) => sp.slug));
       for (const path of linkedPaths(html)) {
-        const slug = path.replace(/^\/+|\/+$/g, '').replace(/\.html$/, '');
-        if (adult.has(slug)) fail(`${label}: kids page links to adult page /${slug}`);
+        const bare = path.replace(/\/+$/, '').replace(/\.html$/, '') || '/';
+        const game = bare.match(/^\/game\/([^/]+)$/);
+        const ok =
+          bare === '/' ||
+          bare === `/categories/${KIDS_CATEGORY}` ||
+          (game !== null && kidsIds.has(game[1])) ||
+          kidsSlugs.has(bare.slice(1)) ||
+          /^\/(_expo|assets)\//.test(bare) ||
+          /\.(ico|png|svg|jpe?g|webp|css|js|json|xml|txt|woff2?)$/.test(bare);
+        if (!ok) fail(`${label}: kids page links to ${path}, which is not a kids destination`);
       }
     }
     for (const text of lockedTexts) {
