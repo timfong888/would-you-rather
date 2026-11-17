@@ -111,7 +111,9 @@ the other.
   `production` (store) profiles. Set the `EXPO_PUBLIC_RC_*` variables per
   profile with EAS environment variables, not in the repo.
 - Add a build-time check that fails a `production` build if any
-  `EXPO_PUBLIC_RC_*` value starts with `test_` or `rcb_sb_`.
+  `EXPO_PUBLIC_RC_*` value starts with `test_` or `rcb_sb_`. Run the same
+  check at the start of `build:web` when `VERCEL_ENV=production`, so the web
+  deployment is covered too.
 - **Done when:** the PR is merged and `eas build --profile development
   --platform all` succeeds.
 
@@ -181,7 +183,10 @@ the other.
   `REVENUECAT_SECRET_KEY`. Use this wherever the server serves locked
   content.
 - Create the webhook in RevenueCat via the API, pointing at the Production
-  URL; create a second one for Preview if useful.
+  URL. Per-PR Preview URLs change, so a webhook can't target them. For
+  staging, point a second webhook at a **stable** URL: the Vercel branch
+  alias of a long-lived `staging` branch (or a custom staging domain),
+  receiving sandbox events only. PR previews rely on dashboard test events.
 - **Done when:** a RevenueCat test webhook event (the dashboard's "Send test
   event") is accepted with HTTP 200, a request with a bad auth header gets
   401, and the entitlement lookup returns the right result for a customer
