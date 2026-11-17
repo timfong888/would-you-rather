@@ -946,11 +946,19 @@ export function getSeoPage(slug: string): SeoPageDef | undefined {
 }
 
 /** Other pages for the same persona, then the rest: the page's internal links. */
+/**
+ * Kids pages: written for parents and played by children (ages 4–11). They list and link
+ * only to the Kids & Family bank and to other kids pages. `verify-seo` enforces this.
+ */
+export const KIDS_CATEGORY: CategoryId = 'kids-family';
+export const isKidsPage = (page: SeoPageDef): boolean => page.persona === 'parents';
+
 export function getRelatedSeoPages(page: SeoPageDef): { samePersona: SeoPageDef[]; other: SeoPageDef[] } {
   const others = SEO_PAGES.filter((p) => p.slug !== page.slug);
   return {
     samePersona: others.filter((p) => p.persona === page.persona),
-    other: others.filter((p) => p.persona !== page.persona),
+    // A kids page never links out to adult lists (deep questions, couples, ...).
+    other: isKidsPage(page) ? [] : others.filter((p) => p.persona !== page.persona),
   };
 }
 

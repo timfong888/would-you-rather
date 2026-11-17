@@ -149,7 +149,9 @@ export const CATEGORIES: CategoryDef[] = [
 // Quick-play category groups
 // ---------------------------------------------------------------------------
 
-export const FAMILY_FRIENDLY: CategoryId[] = ['kids-family', 'moral-compass', 'social-blunders', 'career-climber', 'tech-dystopia'];
+// Only the Kids & Family bank is safe for children. moral-compass and the other adult banks
+// include crime, infidelity and workplace themes, so they are not "family friendly".
+export const FAMILY_FRIENDLY: CategoryId[] = ['kids-family'];
 export const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-traveler', 'wildest-dreams', 'high-life'];
 
 // Questions
