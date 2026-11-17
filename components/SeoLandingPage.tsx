@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  Share,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
@@ -66,7 +67,16 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
     const { url, linkId } = buildShareUrl(q.id, 0);
     track('share_clicked', { question_id: q.id, surface: 'seo_landing', slug: page.slug, link_id: linkId });
     const text = `Would you rather ${q.optionA.toLowerCase()} or ${q.optionB.toLowerCase()}?`;
-    if (Platform.OS !== 'web' || typeof navigator === 'undefined') return;
+    if (Platform.OS !== 'web') {
+      // Native app routes: the OS share sheet.
+      try {
+        await Share.share({ title: 'Would You Rather?', message: `${text}\n\n${url}`, url });
+      } catch {
+        // Dismissed or unavailable: nothing else to do.
+      }
+      return;
+    }
+    if (typeof navigator === 'undefined') return;
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Would You Rather?', text, url });
