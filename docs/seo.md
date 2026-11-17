@@ -9,7 +9,7 @@ One source of truth, checked at build time.
 | The landing pages (slug, title, description, headline, which categories) | `constants/seoPages.ts` |
 | JSON-LD builders (schema.org) | `lib/seo.ts`, emitted by `components/JsonLd.tsx` |
 | Page template | `components/SeoLandingPage.tsx` (route files `app/<slug>.tsx` are one-liners) |
-| Sitemap + robots.txt | `scripts/generate-sitemap.ts` (writes `public/sitemap.xml`, `public/robots.txt`) |
+| Sitemap, robots.txt, llms.txt, llms-full.txt | `scripts/generate-sitemap.ts` (writes them to `public/`) |
 | Rewrites that serve each page's own HTML | `vercel.json` |
 | Build checks | `scripts/verify-seo.ts` |
 
@@ -38,8 +38,8 @@ two tagged pages, or if a tagged page has no intro or tips.
 - **Why the rewrites.** Without a rewrite, `/some-page` is not a file on Vercel and falls through
   to the catch-all, which serves the home page's HTML (home title, home canonical) to crawlers.
 - **Schema.** Each page is one `@graph`: landing pages are `CollectionPage` + `ItemList` +
-  `BreadcrumbList` + `WebSite` (audience is a `PeopleAudience` with suggested ages when the page
-  sets `ages`); home is `WebSite`; category and question pages get the same
+  `FAQPage` (only for the visible FAQ section) + `BreadcrumbList` + `WebSite` + `Organization`
+  (audience is a `PeopleAudience` with suggested ages when the page sets `ages`); home is `WebSite` + `Organization`; category and question pages get the same
   pieces at runtime. No `FAQPage`: Google limits FAQ rich results, and a "would you rather"
   prompt is not a question with one accepted answer.
 - **Known limit.** `/game/:id` and `/categories/:id` are served from one shared HTML template, so

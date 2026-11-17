@@ -11,9 +11,9 @@ import {
 import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { CATEGORIES, QUESTIONS, type Question } from '@/constants/questions';
-import { getRelatedSeoPages, getSeoPage, getSeoPageQuestions, type SeoPageDef } from '@/constants/seoPages';
+import { getRelatedSeoPages, getSeoPage, getSeoPageQuestions, getSeoPageUpdated, type SeoPageDef } from '@/constants/seoPages';
 import { SITE_URL } from '@/constants/config';
-import { landingPageJsonLd } from '@/lib/seo';
+import { ORGANIZATION_DESCRIPTION, landingPageJsonLd } from '@/lib/seo';
 import { track, buildShareUrl } from '@/lib/analytics';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
@@ -24,6 +24,12 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 const h1 = { role: 'heading', 'aria-level': 1 } as object;
 const h2 = { role: 'heading', 'aria-level': 2 } as object;
 const h3 = { role: 'heading', 'aria-level': 3 } as object;
+
+function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return `${months[m - 1]} ${d}, ${y}`;
+}
 
 const PERSONA_HEADING: Record<SeoPageDef['persona'], string> = {
   parents: 'MORE FOR FAMILIES',
@@ -132,6 +138,17 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
           <Text style={styles.heroNote}>Free · no sign-up · nothing to install</Text>
         </View>
 
+        {/* Answer first: a direct answer to the question the searcher asked. */}
+        {page.answer ? (
+          <View style={[styles.section, styles.answerBox]}>
+            {page.answerQuestion ? (
+              <Text style={styles.answerQuestion} {...h2}>{page.answerQuestion}</Text>
+            ) : null}
+            <Text style={styles.answerText}>{page.answer}</Text>
+            <Text style={styles.updated}>Last updated {formatDate(getSeoPageUpdated(page))}</Text>
+          </View>
+        ) : null}
+
         {/* Intro */}
         {page.intro?.length ? (
           <View style={styles.section}>
@@ -145,10 +162,6 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
         <View style={styles.section}>
           <Text style={styles.listHeading} {...h2}>{page.listHeading ?? 'Sample Questions'}</Text>
           {questions.map((q, i) => {
-            const totalVotes = q.votesA + q.votesB;
-            const pctA = totalVotes > 0 ? Math.round((q.votesA / totalVotes) * 100) : 0;
-            const leadPct = Math.max(pctA, 100 - pctA);
-
             return (
               <View key={q.id} style={styles.card}>
                 <View style={styles.cardBadge}>
@@ -164,11 +177,6 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
                   <Text style={styles.orDivider}>{'\n'}— OR —{'\n'}</Text>
                   <Text style={styles.optionB}>{q.optionB}</Text>
                 </Text>
-                {totalVotes >= 5 && (
-                  <Text style={styles.cardVoteHint}>
-                    {leadPct}% chose one side — play to see which
-                  </Text>
-                )}
                 <View style={styles.cardActions}>
                   <Link
                     href={gameHref(q) as never}
@@ -199,6 +207,21 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
               <View key={tip.title} style={styles.tip}>
                 <Text style={styles.tipTitle} {...h3}>{tip.title}</Text>
                 <Text style={styles.tipBody}>{tip.body}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {/* FAQ: visible Q&A, mirrored in FAQPage JSON-LD (lib/seo.ts). */}
+        {page.faq?.length ? (
+          <View style={styles.section}>
+            <Text style={styles.listHeading} {...h2}>
+              {page.persona === 'parents' ? 'Questions Parents Ask' : 'Common Questions'}
+            </Text>
+            {page.faq.map((f) => (
+              <View key={f.q} style={styles.tip}>
+                <Text style={styles.tipTitle} {...h3}>{f.q}</Text>
+                <Text style={styles.tipBody}>{f.a}</Text>
               </View>
             ))}
           </View>
@@ -249,6 +272,15 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
             ))}
           </View>
         ) : null}
+
+        {/* Who publishes this (answer engines weigh a clear source). */}
+        <View style={[styles.section, styles.about]}>
+          <Text style={styles.relatedLabel} {...h2}>ABOUT WOULD YOU RATHER</Text>
+          <Text style={styles.aboutText}>
+            {ORGANIZATION_DESCRIPTION} Every question on this page was written for it and is free to play
+            {page.ages ? `, and was written for ages ${page.ages.min} to ${page.ages.max}` : ''}.
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -279,6 +311,42 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.xs,
       color: colors.textMuted,
       marginTop: SPACING.sm,
+    },
+    answerBox: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: SPACING.lg,
+      marginHorizontal: SPACING.lg,
+      marginBottom: SPACING.lg,
+    },
+    answerQuestion: {
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+      color: colors.text,
+      marginBottom: SPACING.sm,
+    },
+    answerText: {
+      fontSize: FONTS.sizes.md,
+      color: colors.text,
+      lineHeight: 24,
+    },
+    updated: {
+      fontSize: FONTS.sizes.xs,
+      color: colors.textMuted,
+      marginTop: SPACING.sm,
+    },
+    about: {
+      alignItems: 'center',
+      marginTop: SPACING.md,
+    },
+    aboutText: {
+      fontSize: FONTS.sizes.xs,
+      color: colors.textMuted,
+      textAlign: 'center',
+      lineHeight: 18,
+      maxWidth: 480,
     },
     introText: {
       fontSize: FONTS.sizes.md,
