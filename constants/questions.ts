@@ -1,4 +1,5 @@
 import { KIDS_QUESTIONS } from './kidsQuestions';
+import { DATE_QUESTIONS, KIDS_TALK_QUESTIONS, PARTY_QUESTIONS } from './partyQuestions';
 
 export type CategoryId =
   | 'high-life'
@@ -10,7 +11,9 @@ export type CategoryId =
   | 'career-climber'
   | 'tech-dystopia'
   | 'wildest-dreams'
-  | 'kids-family';
+  | 'kids-family'
+  | 'party-pack'
+  | 'date-night';
 
 export type CategoryTier = 'free' | 'premium';
 
@@ -122,6 +125,22 @@ export const CATEGORIES: CategoryDef[] = [
     label: 'Kids & Family',
     emoji: '🧸',
     color: '#D9622B',
+    tier: 'free',
+  },
+  {
+    // General party questions: funny, hard, teens, work (constants/partyQuestions.ts).
+    id: 'party-pack',
+    label: 'Party Pack',
+    emoji: '🎉',
+    color: '#2F7FD1',
+    tier: 'free',
+  },
+  {
+    // Couples, first dates, partners, adults. Flirty at most, never explicit.
+    id: 'date-night',
+    label: 'Date Night',
+    emoji: '💞',
+    color: '#C2185B',
     tier: 'free',
   },
 ];
@@ -1717,6 +1736,11 @@ export const QUESTIONS: Question[] = [
 
   // Kids & Family (kf-1 through kf-223): see constants/kidsQuestions.ts
   ...KIDS_QUESTIONS,
+  ...KIDS_TALK_QUESTIONS,
+
+  // Party Pack (pp-) and Date Night (dn-): see constants/partyQuestions.ts
+  ...PARTY_QUESTIONS,
+  ...DATE_QUESTIONS,
 ];
 
 // ---------------------------------------------------------------------------

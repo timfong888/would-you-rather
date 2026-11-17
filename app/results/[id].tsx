@@ -173,6 +173,8 @@ export default function ResultsScreen() {
     'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
     'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
     'kids-family': ['#WouldYouRather', '#FamilyGameNight', '#KidsQuestions'],
+    'party-pack': ['#WouldYouRather', '#GameNight', '#PartyGames'],
+    'date-night': ['#WouldYouRather', '#DateNight', '#CouplesGames'],
   };
 
   const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];

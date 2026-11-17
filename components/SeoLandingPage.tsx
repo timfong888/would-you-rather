@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { CATEGORIES, QUESTIONS, type Question } from '@/constants/questions';
+import { CATEGORIES, QUESTIONS, getAccessibleQuestions, type Question } from '@/constants/questions';
 import { getRelatedSeoPages, getSeoPage, getSeoPageQuestions, getSeoPageUpdated, type SeoPageDef } from '@/constants/seoPages';
 import { SITE_URL } from '@/constants/config';
 import { ORGANIZATION_DESCRIPTION, landingPageJsonLd } from '@/lib/seo';
@@ -52,6 +52,9 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
   const router = useRouter();
   const { styles } = useThemedStyles(makeStyles);
   const [sharedId, setSharedId] = useState<string | null>(null);
+  // Generator pages: the question currently shown (null = the page's first question,
+  // so the static HTML and the first client render match).
+  const [generated, setGenerated] = useState<Question | null>(null);
 
   const page = getSeoPage(slug);
   if (!page) return null;
@@ -61,6 +64,19 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
   const primaryCategory = CATEGORIES.find((c) => c.id === page.categoryIds[0]);
 
   const gameHref = (q: Question) => `/game/${q.id}?cat=${q.category}`;
+
+  // Pool for the generator: every free question in the page's categories.
+  const generatorPool = page.generator
+    ? CATEGORIES.filter((c) => page.categoryIds.includes(c.id)).flatMap((c) => getAccessibleQuestions(c, false))
+    : [];
+  const shownGenerated = generated ?? questions[0];
+  const handleGenerate = () => {
+    if (generatorPool.length < 2) return;
+    let next = shownGenerated;
+    while (next?.id === shownGenerated?.id) next = generatorPool[Math.floor(Math.random() * generatorPool.length)];
+    setGenerated(next);
+    track('generator_clicked', { slug: page.slug, question_id: next.id });
+  };
 
   const handleCtaPlay = () => {
     if (questions.length === 0) return;
@@ -146,6 +162,30 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
             ) : null}
             <Text style={styles.answerText}>{page.answer}</Text>
             <Text style={styles.updated}>Last updated {formatDate(getSeoPageUpdated(page))}</Text>
+          </View>
+        ) : null}
+
+        {/* Random question generator (generator pages only). */}
+        {page.generator && shownGenerated ? (
+          <View style={[styles.section, styles.generatorBox]}>
+            <Text style={styles.cardQuestion}>Would you rather…</Text>
+            <Text style={styles.generatorOptionA}>{shownGenerated.optionA}</Text>
+            <Text style={styles.orDivider}>— OR —</Text>
+            <Text style={styles.generatorOptionB}>{shownGenerated.optionB}</Text>
+            <View style={styles.generatorActions}>
+              <Pressable
+                style={({ pressed }) => [styles.heroCta, pressed && { opacity: 0.85 }]}
+                onPress={handleGenerate}
+                accessibilityRole="button"
+                accessibilityLabel="Give me another question"
+              >
+                <Text style={styles.heroCtaText}>Give me another 🎲</Text>
+              </Pressable>
+              <Link href={gameHref(shownGenerated) as never} style={styles.secondaryLink}>
+                Play this one →
+              </Link>
+            </View>
+            <Text style={styles.updated}>{generatorPool.length} questions in the generator</Text>
           </View>
         ) : null}
 
@@ -235,7 +275,9 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
           <Text style={styles.bottomCtaDesc}>
             {page.persona === 'parents'
               ? 'Start with the free Kids & Family pack: written for ages 4 to 11, no sign-up, nothing to install.'
-              : 'Family-friendly packs, daring conversation starters for couples, and everything in between. Free to start, no account required.'}
+              : page.persona === 'couples'
+                ? 'The Date Night pack is free: questions written for two, plus deeper packs when you want them. No account required.'
+                : 'Party Pack, Kids & Family, Date Night and more. Free to play in your browser, no account required.'}
           </Text>
           <Pressable
             style={({ pressed }) => [styles.heroCta, pressed && { opacity: 0.85 }]}
@@ -277,8 +319,10 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
         <View style={[styles.section, styles.about]}>
           <Text style={styles.relatedLabel} {...h2}>ABOUT WOULD YOU RATHER</Text>
           <Text style={styles.aboutText}>
-            {ORGANIZATION_DESCRIPTION} Every question on this page was written for it and is free to play
-            {page.ages ? `, and was written for ages ${page.ages.min} to ${page.ages.max}` : ''}.
+            {ORGANIZATION_DESCRIPTION}
+            {page.questionTag
+              ? ` Every question on this page was written for it${page.ages ? `, for ages ${page.ages.min} to ${page.ages.max}` : ''}, and is free to play.`
+              : ' Every question on this page is free to play.'}
           </Text>
         </View>
       </View>
@@ -311,6 +355,32 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.xs,
       color: colors.textMuted,
       marginTop: SPACING.sm,
+    },
+    generatorBox: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      paddingVertical: SPACING.lg,
+      marginHorizontal: SPACING.lg,
+      marginBottom: SPACING.lg,
+      alignItems: 'center',
+    },
+    generatorOptionA: {
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.bold,
+      color: colors.optionA,
+      textAlign: 'center',
+    },
+    generatorOptionB: {
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.bold,
+      color: colors.optionB,
+      textAlign: 'center',
+      marginBottom: SPACING.md,
+    },
+    generatorActions: {
+      alignItems: 'center',
     },
     answerBox: {
       backgroundColor: colors.surface,

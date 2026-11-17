@@ -16,11 +16,25 @@
 - [Family Dinner Conversation Starters](https://wyr-timfong888.vercel.app/dinner-table-conversation-starters): 20 family dinner questions and conversation starters for kids: dinner on the moon, best part of your day, oldest or youngest. Phones down, talking up.
 - [Road Trip Would You Rather Questions](https://wyr-timfong888.vercel.app/road-trip-would-you-rather-questions): 20 road trip would you rather questions for kids: flying cars, rest-stop treasure, moose or bear. A no-screens car game for the whole family. Free.
 - [The Would You Rather App](https://wyr-timfong888.vercel.app/would-you-rather-app): A free would you rather app that runs in your browser: nothing to install, no account. Kids & Family pack, dinner, road trip and couples questions.
+- [Questions to Ask Your Kids](https://wyr-timfong888.vercel.app/questions-to-ask-your-kids): 20 questions to ask your kids that get more than "fine", plus how to keep them talking. Would you rather picks about friends, school, worries and kindness.
 
 ## Question lists for couples and adults
 
 - [Deep Would You Rather Questions](https://wyr-timfong888.vercel.app/deep-would-you-rather-questions): Deep Would You Rather questions about values, desires and what people rarely say out loud. Ideal for late nights and real conversations. Free to start.
-- [Would You Rather for Couples](https://wyr-timfong888.vercel.app/questions-for-couples): Would You Rather questions for couples that reveal how you really think. Ideal for date nights and long conversations. Free to start, no account needed.
+- [Would You Rather Questions for Couples](https://wyr-timfong888.vercel.app/questions-for-couples): 20 would you rather questions for couples: weekend trips, tiny houses, matching tattoos. Play them together and find out where you really agree.
+- [Questions to Ask Your Partner](https://wyr-timfong888.vercel.app/questions-to-ask-your-partner): 20 questions to ask your partner, as would you rather choices: money, families, holidays, the future. Easier to answer than "where is this going?"
+- [First Date Questions (That Feel Like a Game)](https://wyr-timfong888.vercel.app/first-date-questions): 20 first date questions as a would you rather game: coffee or mini-golf, dog or cat, festival or cabin. Fun to answer, easy to follow up, no awkward silence.
+- [Couples Games for Date Night](https://wyr-timfong888.vercel.app/couples-games): A free couples game you can play tonight: would you rather for date night, in your browser with no app or account. Fifteen date-night picks to start.
+- [Would You Rather Questions for Adults](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-adults): 20 would you rather questions for adults: taxes or groceries, retire at 40 or rich at 65, more time or more money. Grown-up dilemmas, not explicit ones.
+
+## Question lists for groups and teens
+
+- [Would You Rather Questions](https://wyr-timfong888.vercel.app/would-you-rather-questions): 25 good would you rather questions anyone can answer: fame or fortune, teleport or read minds, rewind or pause. Tap any question to play it free.
+- [Funny Would You Rather Questions](https://wyr-timfong888.vercel.app/funny-would-you-rather-questions): 20 funny would you rather questions: horse-sized duck or 100 duck-sized horses, a personal theme song or a laugh track. Silly, clean and ready for any group.
+- [Hard Would You Rather Questions](https://wyr-timfong888.vercel.app/hard-would-you-rather-questions): 20 hard would you rather questions with no easy answer: lose your past or your future, save five strangers or one you love. Built for real debates.
+- [Would You Rather Questions for Teens](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-teens): 20 would you rather questions for teens: no phone or no friends for a month, streamer or athlete, prom with your crush or your best friend. Clean and relatable.
+- [Would You Rather Questions for Work](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-work): 20 would you rather questions for work: no meetings or no email, 4-day week or work from anywhere. Office-safe icebreakers for meetings and team building.
+- [Would You Rather Generator](https://wyr-timfong888.vercel.app/would-you-rather-generator): Free would you rather generator: tap for a random question from hundreds of clean, curated choices. Play it in your browser, no app or account needed.
 
 ## Optional
 
