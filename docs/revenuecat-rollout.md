@@ -116,13 +116,11 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
 ### RC-1.3 Google Play prerequisites. **Human**
 - Google Play Console developer account; create the app with package
   `com.timfong888.wouldyourather`.
-- Upload the first `preview` Android build (`.aab`) to the **internal
-  testing** track. Google blocks creating in-app products until a build that
-  includes the billing permission has been uploaded, so RC-2.2 must land
-  before this upload.
 - Add your Google account(s) as **license testers** (Settings → License
   testing).
-- **Done when:** the internal-track build installs on a tester device.
+- The first build upload is RC-2.6: it has to include the billing permission
+  that RC-2.2 adds.
+- **Done when:** the Play Console app exists and license testers are set.
 
 ## Phase 2: Test Store, fully automated (no money, no store accounts)
 
@@ -192,6 +190,15 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
   restore after clearing storage, cancel leaves it locked.
 - **Done when:** the suite runs in CI on every PR and passes.
 
+### RC-2.6 Upload the first Android build to Play internal testing. **Human**
+- Depends on: RC-1.3, RC-2.2.
+- Run `eas build --profile preview --platform android` (an agent can run
+  this), then upload the `.aab` to the **internal testing** track (the first
+  upload must be done by hand in Play Console; later ones can use
+  `eas submit`). Google blocks creating in-app products until a build that
+  includes the billing permission has been uploaded.
+- **Done when:** the internal-track build installs on a tester device.
+
 ## Phase 3: Store sandboxes (no money, real store integrations)
 
 ### RC-3.1 Connect the App Store to RevenueCat. **Human**
@@ -206,7 +213,7 @@ The **secret** v2 key (`sk_…`) is server-only: Vercel variable
   agent its app ID for RC-4.2.
 
 ### RC-3.2 Connect Google Play to RevenueCat. **Human**
-- Depends on: RC-1.3.
+- Depends on: RC-2.6.
 - Create a Google Cloud service account, grant it access in Play Console
   (Users and permissions: view financial data, manage orders), upload its
   JSON to a RevenueCat **Play Store** app. Credentials can take up to 36
