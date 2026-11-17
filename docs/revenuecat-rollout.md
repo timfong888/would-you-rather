@@ -178,8 +178,11 @@ the other.
   content.
 - Create the webhook in RevenueCat via the API, pointing at the Production
   URL; create a second one for Preview if useful.
-- **Done when:** a Test Store purchase produces a webhook the endpoint
-  accepts (HTTP 200), and a request with a bad auth header gets 401.
+- **Done when:** a RevenueCat test webhook event (the dashboard's "Send test
+  event") is accepted with HTTP 200, a request with a bad auth header gets
+  401, and the entitlement lookup returns the right result for a customer
+  given an entitlement via the API. This doesn't need RC-2.2, so it can run
+  in parallel; the end-to-end purchase → webhook check is in RC-2.5.
 
 ### RC-2.4 Owner access as a granted entitlement. **Agent**
 - Depends on: RC-2.3.
@@ -203,8 +206,9 @@ the other.
   tests, then the Playwright suite against the PR's Vercel Preview URL
   (wait for the Vercel deployment status, then use its URL).
 - Playwright suite (web, Test Store key): free questions playable, locked
-  ones gated, purchase unlocks the category, restore after clearing storage,
-  cancel leaves it locked.
+  ones gated, purchase unlocks the category and the webhook endpoint
+  receives the purchase event, restore after clearing storage, cancel leaves
+  it locked.
 - **Done when:** the workflow runs on every PR and passes.
 
 ### RC-2.6 Upload the first Android build to Play internal testing. **Human**
