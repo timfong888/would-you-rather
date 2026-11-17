@@ -28,6 +28,32 @@ const host = new URL(SITE_URL).host;
 
 // --- Registry ---------------------------------------------------------------
 const seen = { slug: new Set<string>(), title: new Set<string>(), description: new Set<string>() };
+/**
+ * Same-site pathnames of every href in the HTML, with query strings, hashes, absolute
+ * site URLs, trailing slashes and HTML entities normalized away.
+ */
+function linkedPaths(html: string): string[] {
+  const out: string[] = [];
+  for (const [, raw] of html.matchAll(/href\s*=\s*["']([^"']*)["']/gi)) {
+    const href = raw.replace(/&amp;/g, '&').replace(/&#x2F;/gi, '/').trim();
+    let url: URL;
+    try { url = new URL(href, SITE_URL); } catch { continue; }
+    if (url.origin !== new URL(SITE_URL).origin) continue;
+    out.push(decodeURIComponent(url.pathname));
+  }
+  return out;
+}
+
+// Self-test: links that dress up an adult path (query, hash, absolute URL, trailing slash,
+// .html) must still resolve to it, and off-site links must be ignored.
+{
+  const fixture = ['/questions-for-couples?from=kids', '/questions-for-couples#questions',
+    `${SITE_URL}/questions-for-couples/`, '/questions-for-couples.html', 'https://example.com/questions-for-couples']
+    .map((h) => `<a href="${h}">x</a>`).join('');
+  const got = linkedPaths(fixture).map((p) => p.replace(/^\/+|\/+$/g, '').replace(/\.html$/, ''));
+  if (got.length !== 4 || got.some((p) => p !== 'questions-for-couples')) fail(`self-test: linkedPaths normalized to ${JSON.stringify(got)}`);
+}
+
 for (const page of SEO_PAGES) {
   for (const key of ['slug', 'title', 'description'] as const) {
     const value = page[key];
@@ -211,8 +237,10 @@ if (withDist) {
       for (const [, id] of html.matchAll(/\/game\/([a-z]+-\d+)/g)) {
         if (!kidsIds.has(id)) { fail(`${label}: kids page links to /game/${id}, outside the kids bank`); break; }
       }
-      for (const sp of SEO_PAGES) {
-        if (!isKidsPage(sp) && html.includes(`href="/${sp.slug}"`)) fail(`${label}: kids page links to adult page /${sp.slug}`);
+      const adult = new Set(SEO_PAGES.filter((sp) => !isKidsPage(sp)).map((sp) => sp.slug));
+      for (const path of linkedPaths(html)) {
+        const slug = path.replace(/^\/+|\/+$/g, '').replace(/\.html$/, '');
+        if (adult.has(slug)) fail(`${label}: kids page links to adult page /${slug}`);
       }
     }
     for (const text of lockedTexts) {
