@@ -135,7 +135,13 @@ All handlers are synchronous request/response unless marked async. Bodies are JS
 
 ### FR-3 Share link (AC-9, AC-10)
 `buildShareUrl(questionId, choice, gen) → /p/{id}?link_id={uuid}&gen={n}&pick={A|B}`
-- Extends the existing `buildShareUrl`. `/api/p/[id]` renders the preview card from `getTallies`, using the same threshold rule.
+- Extends the existing `buildShareUrl`. Public `/p/:id` links are served by `vercel.json` as static
+  HTML from `scripts/generate-sharing-pages.mjs`, not by `/api/p/[id]`, so the change is made there:
+  - The generated page stops embedding build-time counts: `og:description` uses fixed copy ("Which
+    side are you on? Tap to vote."), and the only live numbers come from `og:image`, which already
+    points at `/api/card?id=…`. `/api/card` renders from `getTallies`, with the same threshold rule.
+  - The page's redirect script forwards `pick` along with `link_id` and `gen`.
+  - `/api/p/[id]` is left as is (it is not routed publicly) and is removed in a later cleanup.
 - The question screen reads `pick` and shows "Your friend picked {option} — what's yours?". An invalid `pick` is ignored.
 
 ### FR-4 Payments (AC-11, AC-12, AC-13)
@@ -248,5 +254,7 @@ First-draft findings and what changed. Scores are for the revised text above.
   client never increments counts.
 - PR review round 2 (1 × P1), fixed: `/api/unlock` did not check refunds, so an old Checkout return
   URL bypassed BR-5; it now requires `status = 'paid'` and returns 410 otherwise.
+- PR review round 3 (1 × P1), fixed: FR-3 targeted `/api/p/[id]`, but public `/p/:id` is static HTML
+  that embeds build-time counts and drops `pick`; FR-3 now changes the generator instead.
 - Medium, open: `region` format varies by country (Vercel passes ISO 3166-2 suffixes); keep it
   as given and normalise in reports.
