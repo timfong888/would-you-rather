@@ -78,6 +78,7 @@ the other.
 ## Phase 0: Orchestrator access (do first)
 
 ### RC-0.1 Give the Orchestrator's worker environment RevenueCat access. **Human**
+- Depends on: none.
 - In the claude.ai cloud environment where Orchestrator sessions run, add a
   **network secret** for host `api.revenuecat.com`, header `Authorization`,
   prefix `Bearer`, using the **Orchestrator key** (see "Stages and keys").
@@ -90,6 +91,7 @@ the other.
   the proxy injects the real one).
 
 ### RC-0.2 Give the Orchestrator Vercel and Expo access. **Human**
+- Depends on: none.
 - Vercel: the environment allows `api.vercel.com` / `vercel.com`, and the
   Vercel connector (or a token as a network secret) is available.
 - Expo: create an Expo account access token and add it as a network secret
@@ -114,6 +116,7 @@ the other.
   --platform all` succeeds.
 
 ### RC-1.2 Apple developer prerequisites. **Human**
+- Depends on: none to start; the TestFlight check in the done-when needs RC-1.1.
 - Active Apple Developer Program membership.
 - App Store Connect: create the app record for bundle ID
   `com.timfong888.wouldyourather`.
@@ -125,6 +128,7 @@ the other.
 - **Done when:** a `preview` iOS build installs through TestFlight.
 
 ### RC-1.3 Google Play prerequisites. **Human**
+- Depends on: none.
 - Google Play Console developer account; create the app with package
   `com.timfong888.wouldyourather`.
 - Add your Google account(s) as **license testers** (Settings → License
@@ -201,10 +205,16 @@ the other.
 
 ### RC-2.5 Automated acceptance tests on the Test Store. **Agent**
 - Depends on: RC-2.2, RC-2.3.
-- The repo has no CI yet (no `.github/workflows`, no `test` script). Add a
-  GitHub Actions workflow that runs on every PR: install, type-check, unit
-  tests, then the Playwright suite against the PR's Vercel Preview URL
-  (wait for the Vercel deployment status, then use its URL).
+- The repo has no CI yet (no `.github/workflows`), no test runner, and no
+  `type-check` or `test` script. Add them first:
+  - `"type-check": "tsc --noEmit"` (TypeScript is already installed).
+  - A unit test runner (`jest` with the `jest-expo` preset) and a `"test"`
+    script; the RC-2.2 wrapper tests run here.
+  - `@playwright/test` and a `"test:e2e"` script.
+- Then add a GitHub Actions workflow that runs on every PR: `npm ci`,
+  `npm run type-check`, `npm test`, then `npm run test:e2e` against the PR's
+  Vercel Preview URL (wait for the Vercel deployment status, then use its
+  URL).
 - Playwright suite (web, Test Store key): free questions playable, locked
   ones gated, purchase unlocks the category and the webhook endpoint
   receives the purchase event, restore after clearing storage, cancel leaves
@@ -245,6 +255,7 @@ the other.
   for RC-4.2.
 
 ### RC-3.3 Connect Stripe for Web Billing. **Human**
+- Depends on: none. Do it any time; RC-4.2 needs it finished.
 - Create or use a Stripe account; in RevenueCat add a **Web Billing** app and
   connect Stripe (OAuth in the dashboard).
 - **Done when:** RevenueCat shows the sandbox (`rcb_sb_…`) and production
@@ -296,17 +307,20 @@ the other.
 ## Phase 6: Production release
 
 ### RC-6.1 Submit the builds. **Human**
+- Depends on: RC-5.1, RC-5.2.
 - `eas build --profile production` and `eas submit` (an agent can run these
   once credentials exist). Submit the in-app purchases **with** the first app
   version in App Store Connect; Apple reviews them together.
 - **Done when:** both apps are approved and live.
 
 ### RC-6.2 Real-money smoke test, once. **Human**
+- Depends on: RC-6.1.
 - Buy one unlock per platform with a real card, confirm it shows as
   `PRODUCTION` in RevenueCat and the webhook fired, then refund it.
 - **Done when:** confirmed on iOS, Android and web.
 
 ### RC-6.3 Monitoring. **Agent**
+- Depends on: RC-2.3.
 - Alert (PostHog or email) on webhook failures, error spikes in
   `purchase_failed`, and refunds. Enable RevenueCat's own email alerts.
 
