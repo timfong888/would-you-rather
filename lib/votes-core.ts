@@ -86,3 +86,19 @@ export async function getTallies(
   }
 }
 
+
+// ── retry queue ──────────────────────────────────────────────────────────────
+
+export type PendingVote = { questionId: string; choice: Choice };
+
+const pendingKey = (p: PendingVote) => `${p.questionId}:${p.choice}`;
+
+/**
+ * Queue after a flush: the queue as it is NOW, minus only the entries that were
+ * sent (or rejected for good). Entries added while the flush was awaiting
+ * requests are kept, so a vote cast during the flush is never dropped.
+ */
+export function queueAfterFlush(current: PendingVote[], done: PendingVote[]): PendingVote[] {
+  const finished = new Set(done.map(pendingKey));
+  return current.filter((p) => !finished.has(pendingKey(p)));
+}

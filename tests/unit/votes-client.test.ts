@@ -1,7 +1,7 @@
 // Client side of the vote API: what the app does with the server's answers (issue #65).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { postVote, getTally, getTallies } from '../../lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush } from '../../lib/votes-core';
 
 const VOTE = { questionId: 'hl-1', choice: 'A' as const, visitorId: '00000000-0000-4000-8000-000000000001' };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
@@ -45,4 +45,17 @@ test('getTally / getTallies return counts, or null on any failure', async () => 
   assert.equal(await getTally(async () => { throw new Error('offline'); }, '', 'hl-1'), null);
   assert.equal(await getTallies(json(200, body), '', []), null);
   assert.equal(await getTallies(json(200, body), '', Array.from({ length: 51 }, (_, i) => `hl-${i}`)), null);
+});
+
+test('a vote queued while a flush was in flight survives the flush', () => {
+  const hl1 = { questionId: 'hl-1', choice: 'A' as const };
+  const hl2 = { questionId: 'hl-2', choice: 'B' as const };
+  // flush started with [hl-1]; hl-2 was queued during it; hl-1 was still retryable, so nothing is done
+  assert.deepEqual(queueAfterFlush([hl1, hl2], []), [hl1, hl2]);
+  // hl-1 was sent: only hl-1 leaves the queue
+  assert.deepEqual(queueAfterFlush([hl1, hl2], [hl1]), [hl2]);
+  // everything sent
+  assert.deepEqual(queueAfterFlush([hl1], [hl1]), []);
+  // an entry whose choice changed meanwhile is not removed by the older snapshot
+  assert.deepEqual(queueAfterFlush([{ questionId: 'hl-1', choice: 'B' }], [hl1]), [{ questionId: 'hl-1', choice: 'B' }]);
 });

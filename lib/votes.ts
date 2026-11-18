@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import { getOrCreateVisitorId } from '@/lib/analytics';
 import type { Tally } from '@/lib/results';
-import { postVote, getTally, getTallies, type Choice } from '@/lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, type Choice, type PendingVote } from '@/lib/votes-core';
 
 export type { Choice };
 
@@ -16,7 +16,7 @@ function apiBase(): string {
   return Platform.OS === 'web' && typeof window !== 'undefined' ? '' : SITE_URL;
 }
 
-function readPending(): { questionId: string; choice: Choice }[] {
+function readPending(): PendingVote[] {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return [];
   try {
     const parsed = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '[]');
@@ -26,7 +26,7 @@ function readPending(): { questionId: string; choice: Choice }[] {
   }
 }
 
-function writePending(list: { questionId: string; choice: Choice }[]): void {
+function writePending(list: PendingVote[]): void {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
   try {
     if (list.length) localStorage.setItem(PENDING_KEY, JSON.stringify(list));
@@ -59,10 +59,11 @@ export async function flushPendingVotes(): Promise<void> {
   const pending = readPending();
   if (!pending.length) return;
   const { id: visitorId } = getOrCreateVisitorId();
-  const stillPending: typeof pending = [];
+  const done: PendingVote[] = [];
   for (const p of pending) {
     const { retry } = await postVote(fetch, apiBase(), { ...p, visitorId });
-    if (retry) stillPending.push(p);
+    if (!retry) done.push(p);
   }
-  writePending(stillPending);
+  // Re-read: a vote cast while the requests above were in flight may have been queued.
+  writePending(queueAfterFlush(readPending(), done));
 }

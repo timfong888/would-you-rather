@@ -419,19 +419,6 @@ export default function GameScreen() {
               </Text>
             </Pressable>
 
-            <Pressable
-              onPress={() => {
-                setSelected(null);
-                setConfirmed(false);
-                setResult({ kind: 'invite' });
-              }}
-              style={({ pressed }) => [
-                styles.replayButton,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={styles.replayText}>Change my answer</Text>
-            </Pressable>
           </>
         )}
       </View>
@@ -638,23 +625,10 @@ function makeStyles(colors: ThemeColors) {
       fontWeight: FONTS.weights.extrabold,
       letterSpacing: 2,
     },
-    replayButton: {
-      alignItems: 'center',
-      paddingVertical: SPACING.sm,
-      ...Platform.select({
-        web: {
-          cursor: 'pointer',
-        },
-      }),
-    },
     disclosure: {
       color: colors.textMuted,
       fontSize: FONTS.sizes.sm,
       textAlign: 'center',
-    },
-    replayText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.md,
     },
     buttonPressed: {
       opacity: 0.8,
