@@ -29,6 +29,7 @@ const POSTHOG_KEY =
 const POSTHOG_DEBUG_KEY = process.env.EXPO_PUBLIC_POSTHOG_DEBUG_KEY ?? '';
 
 let _client: PostHog | null = null;
+let _needsOptIn = false;
 
 function getClient(): PostHog | null {
   if (_client) return _client;
@@ -43,6 +44,11 @@ function getClient(): PostHog | null {
     host: 'https://us.i.posthog.com',
     captureAppLifecycleEvents: false,
   });
+  if (_needsOptIn) {
+    // A kids route opted the previous client out (persisted); this visit is on an allowed page.
+    _needsOptIn = false;
+    try { (_client as any).optIn?.(); } catch { /* ignore */ }
+  }
   return _client;
 }
 
@@ -208,6 +214,21 @@ export interface SessionInfo {
 }
 
 let _session: SessionInfo | null = null;
+const _listeners = new Set<(s: SessionInfo | null) => void>();
+
+export function getSession(): SessionInfo | null {
+  return _session;
+}
+
+/** Called when the allowed session is created or cleared (kids route). Returns an unsubscribe. */
+export function subscribeSession(cb: (s: SessionInfo | null) => void): () => void {
+  _listeners.add(cb);
+  return () => { _listeners.delete(cb); };
+}
+
+function notifySession(): void {
+  _listeners.forEach((cb) => { try { cb(_session); } catch { /* listener errors must not break analytics */ } });
+}
 // Set when init was skipped because the visit began on a kids page. A later init (once the
 // visitor is on an allowed page) then ignores the browser's referrer and persists no first touch,
 // so nothing about the kids visit reaches PostHog (COPPA, #51).
@@ -257,7 +278,10 @@ export function ensureSessionInit(): SessionInfo | null {
       registerSuperProps(toFirstTouchProps(getFirstTouch(attribution, storage)));
     }
   }
+  // A session created after the visit began on a kids page is not an acquisition: say so.
+  if (_skippedForKids) attribution = { ...attribution, channel: 'internal' };
   _session = { visitorId, isNew, attribution, linkId, generation };
+  notifySession();
   return _session;
 }
 
@@ -282,16 +306,21 @@ export function syncKidsMode(pathname: string): void {
   _inKidsMode = kids;
   if (kids) {
     _skippedForKids = true;
+    const hadSession = _session !== null;
     _session = null;
     _superProps = Object.fromEntries(
       Object.entries(_superProps).filter(([k]) => !FIRST_TOUCH_PROP_KEYS.includes(k)),
     );
+    // Stop the client for good while on kids routes: opt out, shut it down and drop it.
+    // No reset(): the SDK's reset clears the opt-out flag and restarts flag requests.
     try {
       (_client as any)?.optOut?.();
-      (_client as any)?.reset?.();
+      (_client as any)?.shutdown?.();
     } catch (e) {
-      if (DEBUG) console.warn('[analytics] kids reset error', e);
+      if (DEBUG) console.warn('[analytics] kids shutdown error', e);
     }
+    if (_client) _needsOptIn = true;
+    _client = null;
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem(VISITOR_KEY);
@@ -303,11 +332,19 @@ export function syncKidsMode(pathname: string): void {
     } catch {
       /* storage unavailable */
     }
-  } else {
-    try {
-      (_client as any)?.optIn?.();
-    } catch (e) {
-      if (DEBUG) console.warn('[analytics] opt-in error', e);
-    }
+    if (hadSession) notifySession();
   }
+}
+
+/** Test hook: back to a fresh page load (module state only; storage is the test's to manage). */
+export function __resetForTests(): void {
+  _client = null;
+  _needsOptIn = false;
+  _session = null;
+  _skippedForKids = false;
+  _inKidsMode = false;
+  _kidsEphemeralId = null;
+  _superProps = { platform: Platform.OS === 'web' ? 'web' : Platform.OS };
+  _ownerAccess = false;
+  _listeners.clear();
 }

@@ -6,5 +6,6 @@ export default class PostHog {
   identify(id: string) { calls.push({ op: 'identify', args: [id] }); }
   reset() { calls.push({ op: 'reset', args: [] }); }
   optOut() { calls.push({ op: 'optOut', args: [] }); }
+  shutdown() { calls.push({ op: 'shutdown', args: [] }); }
   optIn() { calls.push({ op: 'optIn', args: [] }); }
 }

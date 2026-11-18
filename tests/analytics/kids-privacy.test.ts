@@ -2,40 +2,18 @@
 // Runs with tests/tsconfig.analytics.json, which swaps react-native and PostHog for stubs.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { local, session, writes, go } from './_setup';
 import { calls } from '../stubs/posthog';
+import * as analytics from '../../lib/analytics';
 
-type Store = Map<string, string>;
-const local: Store = new Map();
-const session: Store = new Map();
-const writes: string[] = [];
-const mkStorage = (m: Store, name: string) => ({
-  getItem: (k: string) => m.get(k) ?? null,
-  setItem: (k: string, v: string) => { writes.push(`${name}.set ${k}`); m.set(k, v); },
-  removeItem: (k: string) => void m.delete(k),
-  key: (i: number) => [...m.keys()][i] ?? null,
-  get length() { return m.size; },
-});
-const win: any = { location: { pathname: '/', search: '', href: 'https://www.wouldyourather.fyi/', host: 'www.wouldyourather.fyi', hostname: 'www.wouldyourather.fyi' } };
-(globalThis as any).window = win;
-(globalThis as any).document = { referrer: '', cookie: '' };
-(globalThis as any).localStorage = mkStorage(local, 'local');
-(globalThis as any).sessionStorage = mkStorage(session, 'session');
-win.localStorage = (globalThis as any).localStorage;
-process.env.EXPO_PUBLIC_POSTHOG_KEY = 'phc_test';
-
-const go = (path: string, search = '', referrer = '') => {
-  win.location.pathname = path;
-  win.location.search = search;
-  win.location.href = `https://www.wouldyourather.fyi${path}${search}`;
-  (globalThis as any).document.referrer = referrer;
+// A fresh page load = reset the module state (storage persists, like a browser).
+const load = async () => {
+  analytics.__resetForTests();
+  return analytics;
 };
 
-let n = 0;
-// A fresh module instance per test = a fresh page load (storage persists, like a browser).
-// @ts-ignore dynamic import with a cache-busting query needs a newer --module than the Expo base config
-const load = async () => (await import(`../../lib/analytics?load=${++n}`)) as typeof import('../../lib/analytics');
-
 beforeEach(() => {
+  analytics.__resetForTests();
   local.clear(); session.clear(); writes.length = 0; calls.length = 0;
   go('/');
 });
@@ -110,10 +88,13 @@ test('adult page then client-side navigation into a kids page: capture stops, Po
 
   go('/would-you-rather-questions-for-kids');
   a.syncKidsMode('/would-you-rather-questions-for-kids');
-  assert.ok(calls.some((c) => c.op === 'optOut') && calls.some((c) => c.op === 'reset'));
+  assert.ok(calls.some((c) => c.op === 'optOut') && calls.some((c) => c.op === 'shutdown'), 'client opted out and shut down');
+  assert.ok(!calls.some((c) => c.op === 'reset'), 'reset() would clear the opt-out and restart flag requests');
   assert.ok(!local.has('wyr_visitor_id') && !local.has('ph_phc_test_posthog'), 'persisted IDs cleared');
   const before = captures().length;
+  const inits = calls.filter((c) => c.op === 'init').length;
   a.track('page_view', { path: '/would-you-rather-questions-for-kids' });
+  assert.equal(calls.filter((c) => c.op === 'init').length, inits, 'no new PostHog client on a kids route');
   a.track('question_answered', { question_id: 'kf-3' });
   assert.equal(captures().length, before, 'nothing captured on the kids page');
   assert.notEqual(a.getOrCreateVisitorId().id, s.visitorId, 'kids pages never reuse the adult id');
@@ -122,8 +103,35 @@ test('adult page then client-side navigation into a kids page: capture stops, Po
   // Back to an adult page: capture resumes without the adult first-touch or the old referrer.
   go('/categories');
   a.syncKidsMode('/categories');
-  assert.ok(calls.some((c) => c.op === 'optIn'));
   a.track('page_view', { path: '/categories' });
+  assert.ok(calls.some((c) => c.op === 'optIn'), 'the recreated client is opted back in on an allowed page');
   const p = sentProps().at(-1)!;
   assert.ok(!('first_utm_campaign' in p) && !('referrer' in p));
+});
+
+test('the provider is told when the allowed session ends and when a new one starts (kids landing -> adult page; adult -> kids -> adult)', async () => {
+  // Kids landing: no session. Then client-side navigation to an adult page creates one.
+  go('/game/kf-1');
+  const a = await load();
+  const seen: (string | null)[] = [];
+  a.subscribeSession((s) => seen.push(s ? s.visitorId : null));
+  assert.equal(a.ensureSessionInit(), null);
+  assert.equal(a.getSession(), null);
+  go('/settings');
+  a.syncKidsMode('/settings');
+  a.track('page_view', { path: '/settings' });
+  const first = a.getSession()!;
+  assert.ok(first.visitorId, 'a visitor id exists once an allowed page is reached');
+  assert.equal(first.attribution.channel, 'internal', 'not counted as an acquisition');
+  assert.deepEqual(seen, [first.visitorId]);
+
+  // Adult -> kids -> adult: the provider hears about the end and the new session.
+  go('/game/kf-3');
+  a.syncKidsMode('/game/kf-3');
+  go('/categories');
+  a.syncKidsMode('/categories');
+  a.track('page_view', { path: '/categories' });
+  const second = a.getSession()!;
+  assert.deepEqual(seen, [first.visitorId, null, second.visitorId]);
+  assert.notEqual(second.visitorId, first.visitorId, 'a new anonymous id after kids pages');
 });
