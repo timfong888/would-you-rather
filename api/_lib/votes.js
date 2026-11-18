@@ -189,6 +189,10 @@ export function createSqlStore(query) {
         await ensureSchema();
         written = await query(INSERT_SQL, params);
       }
+      // Keep these two as SEPARATE autocommit calls. Do not wrap them in one transaction or
+      // merge them into one statement: under READ COMMITTED a later statement gets a fresh
+      // snapshot (it sees a vote another tab has just committed), and a single transaction or
+      // statement would not. See the note above INSERT_SQL.
       const [state] = await query(STATE_SQL, [v.questionId, v.voterKey]);
       // The voter's row must exist by now. If it does not, say so rather than guess a choice.
       if (!state || state.mine == null) throw new UnavailableError('stored vote not found');
