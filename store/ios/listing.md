@@ -72,6 +72,11 @@ No sign-in is needed. Open a category and play. Premium categories show a paywal
 after the free questions; purchases use in-app purchase. Use a sandbox account to
 test: all-categories pack, or any single category. Restore Purchases is on the
 paywall screen.
+
+Parental gate: any purchase screen opened from Kids & Family content shows a
+"Grown-ups only" gate first (solve a three-number sum). Kids & Family is free today,
+so reviewers will only see the gate by opening /unlock/kids-family. The app collects
+no analytics on kids/family content and does not use the Kids category.
 ```
 Demo account: none required.
 
