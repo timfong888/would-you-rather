@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import { getOrCreateVisitorId } from '@/lib/analytics';
 import type { Tally } from '@/lib/results';
-import { postVote, getTally, getTallies, queueAfterFlush, lockedChoice, parsePending, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
+import { postVote, getTally, getTallies, flushPending, lockedChoice, parsePending, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
 
 export type { Choice };
 
@@ -88,14 +88,11 @@ export function fetchTallies(questionIds: string[]): Promise<Record<string, Tall
 
 /** Retry votes that could not be sent earlier. Call once on app load. */
 export async function flushPendingVotes(): Promise<void> {
-  const pending = readPending();
-  if (!pending.length) return;
   const { id: visitorId } = getOrCreateVisitorId();
-  const done: PendingVote[] = [];
-  for (const p of pending) {
-    const { retry } = await postVote(fetch, apiBase(), { ...p, visitorId });
-    if (!retry) done.push(p);
-  }
-  // Re-read: a vote cast while the requests above were in flight may have been queued.
-  writePending(queueAfterFlush(readPending(), done));
+  await flushPending({
+    read: readPending,
+    write: writePending,
+    acknowledge: writeAcknowledged,
+    send: (p) => postVote(fetch, apiBase(), { ...p, visitorId }),
+  });
 }

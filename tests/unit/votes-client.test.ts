@@ -1,7 +1,7 @@
 // Client side of the vote API: what the app does with the server's answers (issue #65).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice, lockedChoice, parsePending } from '../../lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice, lockedChoice, parsePending, flushPending, type PendingVote, type AckMap } from '../../lib/votes-core';
 
 const VOTE = { questionId: 'hl-1', choice: 'A' as const, visitorId: '00000000-0000-4000-8000-000000000001' };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
@@ -100,4 +100,57 @@ test('retry queue: bad storage is ignored, one entry per question, latest wins',
     parsePending(JSON.stringify([{ questionId: 'hl-1', choice: 'A' }, { questionId: '', choice: 'A' }, { questionId: 'hl-2', choice: 'Z' }, null, { questionId: 'hl-1', choice: 'B' }])),
     [{ questionId: 'hl-1', choice: 'B' }],
   );
+});
+
+function fakeStore(initial: PendingVote[]) {
+  let queue = [...initial];
+  const ack: AckMap = {};
+  return {
+    get queue() { return queue; },
+    ack,
+    deps: (send: Parameters<typeof flushPending>[0]['send']) => ({
+      read: () => queue,
+      write: (l: PendingVote[]) => { queue = l; },
+      acknowledge: (q: string, c: 'A' | 'B') => { ack[q] = c; },
+      send,
+    }),
+  };
+}
+
+test('flush: an offline vote that finally gets through is acknowledged and stays locked', async () => {
+  const store = fakeStore([{ questionId: 'hl-1', choice: 'A' }]);
+  await flushPending(store.deps(async () => ({ tally: { a: 3, b: 1 }, choice: 'A' as const, retry: false })));
+  assert.deepEqual(store.queue, []);
+  assert.deepEqual(store.ack, { 'hl-1': 'A' });
+  // the question is still locked after the queue entry is gone
+  assert.equal(lockedChoice('hl-1', store.ack, store.queue), 'A');
+});
+
+test('flush: the server\'s stored choice is what gets acknowledged', async () => {
+  const store = fakeStore([{ questionId: 'hl-1', choice: 'B' }]);
+  await flushPending(store.deps(async () => ({ tally: { a: 2, b: 0 }, choice: 'A' as const, retry: false })));
+  assert.deepEqual(store.ack, { 'hl-1': 'A' });
+});
+
+test('flush: retryable failures stay queued and acknowledge nothing; refused votes leave the queue', async () => {
+  const store = fakeStore([
+    { questionId: 'hl-1', choice: 'A' },
+    { questionId: 'hl-2', choice: 'B' },
+  ]);
+  await flushPending(store.deps(async (v) =>
+    v.questionId === 'hl-1'
+      ? { tally: null, choice: null, retry: true }   // still offline
+      : { tally: null, choice: null, retry: false }, // 400: refused for good, nothing to acknowledge
+  ));
+  assert.deepEqual(store.queue, [{ questionId: 'hl-1', choice: 'A' }]);
+  assert.deepEqual(store.ack, {});
+});
+
+test('flush: a vote queued while sending is kept', async () => {
+  const store = fakeStore([{ questionId: 'hl-1', choice: 'A' }]);
+  await flushPending(store.deps(async () => {
+    store.deps(async () => ({ tally: null, choice: null, retry: true })).write([{ questionId: 'hl-1', choice: 'A' }, { questionId: 'hl-2', choice: 'B' }]);
+    return { tally: { a: 1, b: 0 }, choice: 'A' as const, retry: false };
+  }));
+  assert.deepEqual(store.queue, [{ questionId: 'hl-2', choice: 'B' }]);
 });

@@ -150,3 +150,31 @@ export function lockedChoice(questionId: string, acknowledged: AckMap, pending: 
   if (ack === 'A' || ack === 'B') return ack;
   return pending.find((p) => p.questionId === questionId)?.choice ?? null;
 }
+
+// ── retry flush ──────────────────────────────────────────────────────────────
+
+export type FlushDeps = {
+  read: () => PendingVote[];
+  write: (list: PendingVote[]) => void;
+  /** Remember the choice the server holds, so the question stays locked once its queue entry is gone. */
+  acknowledge: (questionId: string, choice: Choice) => void;
+  send: (v: PendingVote) => Promise<{ tally: Tally | null; choice: Choice | null; retry: boolean }>;
+};
+
+/**
+ * Send every queued vote once. A vote the server answered (accepted or refused for good)
+ * leaves the queue and, if accepted, is acknowledged; a retryable failure stays queued.
+ * The queue is re-read at the end so votes queued while sending are kept.
+ */
+export async function flushPending(deps: FlushDeps): Promise<void> {
+  const pending = deps.read();
+  if (!pending.length) return;
+  const done: PendingVote[] = [];
+  for (const p of pending) {
+    const { tally, choice, retry } = await deps.send(p);
+    if (retry) continue;
+    done.push(p);
+    if (choice || tally) deps.acknowledge(p.questionId, choice ?? p.choice);
+  }
+  deps.write(queueAfterFlush(deps.read(), done));
+}
