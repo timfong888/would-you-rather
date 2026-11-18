@@ -16,7 +16,8 @@
     "test": "tsx --test tests/unit/*.test.ts",
     "report:daily": "tsx scripts/report.ts daily",
     "report:seo": "tsx scripts/report.ts seo",
-    "db:migrate": "node scripts/migrate-db.mjs"
+    "db:migrate": "node scripts/migrate-db.mjs",
+    "eas-build-pre-install": "node scripts/check-rc-keys.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.1",
@@ -25,6 +26,7 @@
     "@vercel/og": "^0.11.1",
     "expo": "~51.0.28",
     "expo-constants": "~16.0.2",
+    "expo-dev-client": "~4.0.29",
     "expo-font": "~12.0.9",
     "expo-linking": "~6.3.1",
     "expo-router": "~3.5.23",
@@ -54,6 +56,15 @@
     "@xmldom/xmldom": ">=0.9.10",
     "postcss": ">=8.5.12",
     "tar": ">=7.5.19",
-    "turbo-stream": "^3.0.0"
+    "turbo-stream": "^3.0.0",
+    "@expo/cli": {
+      "tar": "^6.2.1"
+    },
+    "@expo/plist": {
+      "@xmldom/xmldom": "~0.8.15"
+    },
+    "plist": {
+      "@xmldom/xmldom": "^0.8.8"
+    }
   }
 }
