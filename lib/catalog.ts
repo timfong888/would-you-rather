@@ -9,6 +9,7 @@
  * Google Play, so changing one is a catalog migration, not a code tweak.
  */
 import { CATEGORIES, hasPaidContent } from '@/constants/questions';
+import { IOS_V1_EXCLUDED_CATEGORIES } from '@/constants/iosV1';
 import type { CategoryDef, CategoryId } from '@/constants/questions';
 
 /** Entitlement that opens every paid category, including ones added later. */
@@ -34,9 +35,13 @@ export function productForCategory(id: CategoryId | string): string {
   return `wyr_unlock_${String(id).replace(/-/g, '_')}`;
 }
 
-/** Categories that have something to sell (premium, or an expansion pack). */
+/**
+ * Categories that have something to sell (premium, or an expansion pack) in
+ * the iOS v1 store catalog. Midnight Secrets and Deep Desires are left out of
+ * iOS v1 (Tim, 2026-11-18), so no product exists for them.
+ */
 export function paidCategories(categories: CategoryDef[] = CATEGORIES): CategoryDef[] {
-  return categories.filter(hasPaidContent);
+  return categories.filter((c) => hasPaidContent(c) && !IOS_V1_EXCLUDED_CATEGORIES.includes(c.id));
 }
 
 /**

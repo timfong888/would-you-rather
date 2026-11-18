@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CATEGORIES, hasPaidContent } from '../../constants/questions';
+import { IOS_V1_EXCLUDED_CATEGORIES } from '../../constants/iosV1';
 import {
   ENTITLEMENT_ALL,
   PRODUCT_ALL,
@@ -14,7 +15,7 @@ import {
 
 test('catalog has the pack plus one product per paid category', () => {
   const catalog = buildCatalog();
-  const paid = CATEGORIES.filter(hasPaidContent);
+  const paid = CATEGORIES.filter((c) => hasPaidContent(c) && !IOS_V1_EXCLUDED_CATEGORIES.includes(c.id));
   assert.equal(catalog.length, 1 + paid.length);
   assert.equal(catalog[0].productId, PRODUCT_ALL);
   assert.equal(catalog[0].priceMicros, PRICE_ALL_MICROS);
@@ -48,4 +49,12 @@ test('access: pack opens every category, category unlock opens only itself', () 
   assert.equal(isCategoryEntitled([entitlementForCategory('high-life')], 'high-life'), true);
   assert.equal(isCategoryEntitled([entitlementForCategory('high-life')], 'deep-desires'), false);
   assert.equal(isCategoryEntitled(new Set<string>(), 'high-life'), false);
+});
+
+test('iOS v1 leaves Midnight Secrets and Deep Desires out (Tim, 2026-11-18): no products for them', () => {
+  assert.deepEqual([...IOS_V1_EXCLUDED_CATEGORIES].sort(), ['deep-desires', 'midnight-secrets']);
+  const ids = buildCatalog().map((p) => p.productId);
+  assert.equal(ids.includes('wyr_unlock_midnight_secrets'), false);
+  assert.equal(ids.includes('wyr_unlock_deep_desires'), false);
+  assert.equal(buildCatalog().length, 8); // pack + 7 categories
 });

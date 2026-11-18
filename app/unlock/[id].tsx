@@ -181,7 +181,8 @@ export default function UnlockScreen() {
   const remainingCount = Math.max(questions.length - (freeCount + teaserQuestions.length), 0);
 
   const handlePay = async () => {
-    if (paymentState !== 'sheet') return;
+    // The simulated checkout is web-only; native purchases go through handleBuy.
+    if (Platform.OS !== 'web' || paymentState !== 'sheet') return;
     track('paywall_cta_clicked', {
       category_id: id,
       pack_type: isExpansion ? 'expansion' : 'premium',
@@ -231,6 +232,10 @@ export default function UnlockScreen() {
   const handleRestorePurchases = async () => {
     setRestoreMsg(null);
     setPurchaseError(null);
+    if (!purchasesAvailable && Platform.OS !== 'web') {
+      setRestoreMsg('Purchases are not available in this build.');
+      return;
+    }
     setPaymentState('processing');
     if (purchasesAvailable) {
       try {
@@ -360,9 +365,14 @@ export default function UnlockScreen() {
           onPress={() => {
             if (purchasesAvailable) {
               handleBuy('category');
-            } else {
+            } else if (Platform.OS === 'web') {
+              // Web keeps the simulated sheet until the web payments decision (#53).
               setRestoreMsg(null);
               setPaymentState('sheet');
+            } else {
+              // Native build without a RevenueCat key: never fall back to the
+              // simulated checkout, which would grant paid access for free.
+              setPurchaseError('Purchases are not available in this build.');
             }
           }}
           style={({ pressed }) => [

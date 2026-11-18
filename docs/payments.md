@@ -8,12 +8,12 @@ Device purchase tests need an EAS development build (Unit 2, issue #75).
 | Product | Store id | Entitlement | Price |
 |---|---|---|---|
 | All categories | `wyr_premium_all` | `premium_all` | $4.99 |
-| One category (x9) | `wyr_unlock_<category_id with _>` | `cat_<category-id>` | $1.99 |
+| One category (x7) | `wyr_unlock_<category_id with _>` | `cat_<category-id>` | $1.99 |
 
 A category is open if `premium_all` OR `cat_<id>` is active (`lib/catalog.ts`,
 `isCategoryEntitled`). Access is by entitlement, so questions added later are
 included. Nine categories have something to sell; `kids-family` is free and has
-no product. The catalog is derived from `constants/questions.ts`.
+no product. The catalog is derived from `constants/questions.ts` minus that exclusion list.
 
 One RevenueCat offering, `default`, holds one package per product (package
 id = entitlement id).
@@ -21,10 +21,11 @@ id = entitlement id).
 ## Files
 
 - `lib/catalog.ts` ids, prices, access rule. Pure; unit-tested.
-- `lib/purchases.native.ts` iOS/Android, `react-native-purchases`.
+- `lib/purchases-core.ts` the logic, SDK injected, unit-tested with a fake SDK (`tests/unit/purchases-core.test.ts`).
+- `lib/purchases.native.ts` iOS/Android: binds `react-native-purchases` and the platform key.
 - `lib/purchases.ts` web: unavailable. Metro picks `.native.ts` on devices, so the web bundle never contains the SDK (checked with `expo export`).
 - `contexts/UnlockedContext.tsx` entitlements from RevenueCat on launch, a customer-info listener, and a refresh on every app foreground (RevenueCat does not push backend changes, so a refund or expiry shows up on the next foreground).
-- `app/unlock/[id].tsx` real purchase, "unlock every category", Restore Purchases, quiet user-cancel. On web the old simulated sheet is unchanged (decision pending in #53).
+- `app/unlock/[id].tsx` real purchase, "unlock every category", Restore Purchases, quiet user-cancel. On web the old simulated sheet is unchanged (decision pending in #53). The simulated sheet is web-only: a native build without a RevenueCat key shows "Purchases are not available in this build" and never grants access.
 - `scripts/revenuecat/sync-catalog.ts` (`npm run rc:sync`) idempotent Test Store catalog sync.
 
 ## Keys
@@ -48,9 +49,9 @@ Legend: AUTO = already run by an agent against the Test Store; DEVICE = needs a 
 | # | Check | How | Result |
 |---|---|---|---|
 | 1 | Catalog sync is idempotent | `npm run rc:sync` twice | AUTO: pass (second run created 0 objects) |
-| 2 | Offering as the SDK sees it | `GET /v1/subscribers/<id>/offerings` with the `test_` key | AUTO: pass (`default` current, 10 packages with the right product ids) |
+| 2 | Offering as the SDK sees it | `GET /v1/subscribers/<id>/offerings` with the `test_` key | AUTO: pass (`default` current, 8 packages with the right product ids) |
 | 3 | Entitlement lookup | grant `cat_high-life` to a user, read subscriber with the SDK key | AUTO: pass |
-| 4 | Gating rule | `npm test` (`tests/unit/catalog.test.ts`) | AUTO: pass |
+| 4 | Gating rule, catalog, wrapper (product selection, cancel vs error, restore, no key, listener cleanup) | `npm test` | AUTO: pass |
 | 5 | Web build unaffected, SDK not in web bundle | `expo export --platform web` | AUTO: pass |
 | 6 | iOS bundle builds | `expo export --platform ios` | AUTO: pass |
 | 7 | Buy one category: only that category unlocks | dev build, Test Store key | DEVICE |
