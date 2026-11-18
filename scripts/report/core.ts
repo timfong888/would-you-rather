@@ -45,18 +45,19 @@ export async function dailyReport(fetchImpl: Fetch, env: Env): Promise<string> {
     return lines.join('\n');
   }
   try {
-    const [bySource, newVisitors, activated, errors] = await Promise.all([
+    const [bySource, newVisitors, activated, errors, errorTotal] = await Promise.all([
       hogql(fetchImpl, env, `select properties.channel, count() from events where event = 'session_start' and ${SINCE} and ${NOT_OWNER} group by 1 order by 2 desc`),
       hogql(fetchImpl, env, `select count() from events where event = 'session_start' and properties.is_new_visitor = true and ${SINCE} and ${NOT_OWNER}`),
       hogql(fetchImpl, env, `select count() from events where event = 'activated' and ${SINCE} and ${NOT_OWNER}`),
       hogql(fetchImpl, env, `select coalesce(properties.$exception_message, properties.message, event), count() from events where event in ('$exception', 'api_error') and ${SINCE} and ${NOT_OWNER} group by 1 order by 2 desc limit 5`),
+      hogql(fetchImpl, env, `select count() from events where event in ('$exception', 'api_error') and ${SINCE} and ${NOT_OWNER}`),
     ]);
     const visits = bySource.reduce((n, r) => n + Number(r[1]), 0);
     lines.push(`Visits: ${visits}` + (bySource.length ? ` (${bySource.map((r) => `${r[0] ?? 'unknown'} ${r[1]}`).join(', ')})` : ''));
     const nv = Number(newVisitors[0]?.[0] ?? 0);
     const act = Number(activated[0]?.[0] ?? 0);
     lines.push(`Activated (3 votes in first session): ${act} of ${nv} new visitors (${pct(act, nv)})`);
-    const total = errors.reduce((n, r) => n + Number(r[1]), 0);
+    const total = Number(errorTotal[0]?.[0] ?? 0);
     lines.push(total === 0 ? 'Errors: none' : `Errors: ${total} (${errors.map((r) => `${String(r[0]).slice(0, 60)} x${r[1]}`).join('; ')})`);
   } catch (e) {
     lines.push(`PostHog query failed: ${(e as Error).message}`);
@@ -121,9 +122,10 @@ export async function googleSection(fetchImpl: Fetch, env: Env, urls: string[]):
     const day = (d: Date) => d.toISOString().slice(0, 10);
     const q = await getJson(fetchImpl, `https://www.googleapis.com/webmasters/v3/sites/${enc}/searchAnalytics/query`, {
       method: 'POST', headers: auth,
-      body: JSON.stringify({ startDate: day(start), endDate: day(end), dimensions: ['query'], rowLimit: 5 }),
+      body: JSON.stringify({ startDate: day(start), endDate: day(end), dimensions: ['query'], rowLimit: 100 }),
     });
-    const rows = q.rows ?? [];
+    // The API orders by clicks; rank the (up to 100) rows by impressions here.
+    const rows = [...(q.rows ?? [])].sort((a: any, b: any) => b.impressions - a.impressions).slice(0, 5);
     out.push(rows.length === 0 ? 'Google top queries (7d): no impressions yet' : 'Google top queries (7d): ' + rows.map((r: any) => `"${r.keys[0]}" ${r.impressions} imp/${r.clicks} clk pos ${Number(r.position).toFixed(1)}`).join('; '));
   } catch (e) {
     out.push(`Google failed: ${(e as Error).message}`);
@@ -132,6 +134,27 @@ export async function googleSection(fetchImpl: Fetch, env: Env, urls: string[]):
 }
 
 // ── Bing Webmaster (weekly) ─────────────────────────────────────────────────
+
+/** Bing dates look like "/Date(1731888000000)/" (or an ISO string); returns epoch ms or NaN. */
+export function parseBingDate(v: unknown): number {
+  const m = /\/Date\((-?\d+)/.exec(String(v));
+  return m ? Number(m[1]) : Date.parse(String(v));
+}
+
+/** Last 7 days, repeated queries summed, ranked by impressions. Rows without a parseable date are dropped. */
+export function topBingQueries(rows: any[], now: number, limit = 5): { Query: string; Impressions: number; Clicks: number }[] {
+  const since = now - 7 * 864e5;
+  const byQuery = new Map<string, { Query: string; Impressions: number; Clicks: number }>();
+  for (const r of rows) {
+    const t = parseBingDate(r.Date);
+    if (!(t >= since && t <= now + 864e5)) continue;
+    const cur = byQuery.get(r.Query) ?? { Query: r.Query, Impressions: 0, Clicks: 0 };
+    cur.Impressions += Number(r.Impressions ?? 0);
+    cur.Clicks += Number(r.Clicks ?? 0);
+    byQuery.set(r.Query, cur);
+  }
+  return [...byQuery.values()].sort((a, b) => b.Impressions - a.Impressions).slice(0, limit);
+}
 
 export async function bingSection(fetchImpl: Fetch, env: Env): Promise<string[]> {
   if (!env.BING_WEBMASTER_API_KEY) return [`Bing: ${missing('BING_WEBMASTER_API_KEY')}`];
@@ -144,8 +167,8 @@ export async function bingSection(fetchImpl: Fetch, env: Env): Promise<string[]>
     const stats = (await getJson(fetchImpl, `${base}/GetCrawlStats?${qs}`)).d ?? [];
     const latest = stats[stats.length - 1];
     out.push(latest ? `Bing indexed pages: ${latest.InIndex}, crawled ${latest.CrawledPages}, crawl errors ${latest.CrawlErrors}` : 'Bing indexed pages: no crawl data yet');
-    const queries = ((await getJson(fetchImpl, `${base}/GetQueryStats?${qs}`)).d ?? []).slice(0, 5);
-    out.push(queries.length === 0 ? 'Bing top queries: none yet' : 'Bing top queries: ' + queries.map((r: any) => `"${r.Query}" ${r.Impressions} imp/${r.Clicks} clk`).join('; '));
+    const queries = topBingQueries((await getJson(fetchImpl, `${base}/GetQueryStats?${qs}`)).d ?? [], Date.now());
+    out.push(queries.length === 0 ? 'Bing top queries (7d): none yet' : 'Bing top queries (7d): ' + queries.map((r: any) => `"${r.Query}" ${r.Impressions} imp/${r.Clicks} clk`).join('; '));
   } catch (e) {
     out.push(`Bing failed: ${(e as Error).message}`);
   }
