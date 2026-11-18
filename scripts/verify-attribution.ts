@@ -3,6 +3,7 @@
  * Run by `npm run build:web`; exits non-zero on the first failing case.
  */
 import { classifyAttribution, getFirstTouch, toFirstTouchProps, FIRST_TOUCH_KEY, type StorageLike } from '../lib/attribution';
+import { isKidsPath } from '../lib/kidsPaths';
 import { recordActivationVote, parseActivationState, ACTIVATION_VOTES } from '../lib/activation';
 
 const SITE = 'www.wouldyourather.fyi';
@@ -108,6 +109,14 @@ for (const [name, input, want] of channelCases) {
   check('votes outside the first session never activate', !later.fire && later.state.votes === 0);
   check('corrupt activation state resets', parseActivationState('{oops').votes === 0);
   check('persisted activated state never re-fires', !recordActivationVote({ votes: 3, activated: true }, true).fire);
+}
+
+// Kids pages send nothing to PostHog (COPPA).
+{
+  check('kids landing page is a kids path', isKidsPath('/would-you-rather-questions-for-kids'));
+  check('kids landing page with trailing slash', isKidsPath('/would-you-rather-questions-for-kids/'));
+  check('kids question is a kids path', isKidsPath('/game/kf-12') && isKidsPath('/p/kf-3'));
+  check('adult pages are not kids paths', !isKidsPath('/') && !isKidsPath('/questions-for-couples') && !isKidsPath('/game/hl-1'));
 }
 
 if (failed) {

@@ -5,6 +5,7 @@
 import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
+import { isKidsPath } from '@/lib/kidsPaths';
 import {
   ACTIVATION_KEY,
   parseActivationState,
@@ -13,7 +14,17 @@ import {
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
-const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
+// PostHog project token for the WYR production project. It is a public, client-side
+// token (it ships in the bundle by design), so it is committed as the default. It is
+// used only on the production host, so previews and local runs never write to the
+// production project; EXPO_PUBLIC_POSTHOG_KEY overrides it in any environment.
+const PRODUCTION_HOST = 'www.wouldyourather.fyi';
+const PRODUCTION_POSTHOG_KEY = 'phc_tgCnvAs7acL2qt4ht55R6xmq2yVjqoiv5NFxUvDGCGoM';
+const POSTHOG_KEY =
+  process.env.EXPO_PUBLIC_POSTHOG_KEY ??
+  (typeof window !== 'undefined' && window.location.hostname === PRODUCTION_HOST
+    ? PRODUCTION_POSTHOG_KEY
+    : '');
 const POSTHOG_DEBUG_KEY = process.env.EXPO_PUBLIC_POSTHOG_DEBUG_KEY ?? '';
 
 let _client: PostHog | null = null;
@@ -35,6 +46,12 @@ function getClient(): PostHog | null {
 }
 
 type Props = Record<string, string | number | boolean | null | undefined>;
+
+// Kids pages (COPPA, #65: anonymous votes only): nothing is sent to PostHog while the
+// visitor is on a kids-bank page (lib/kidsPaths.ts). Console debug still logs.
+function onKidsPage(): boolean {
+  return typeof window !== 'undefined' && isKidsPath(window.location.pathname);
+}
 
 // ── owner access flag ───────────────────────────────────────────────────────
 // Set by UnlockedProvider. While true, every event carries owner_access: true
@@ -60,6 +77,7 @@ function withGlobalProps(props?: Props): Props {
 }
 
 export function identify(distinctId: string, properties?: Props): void {
+  if (onKidsPage()) return;
   try {
     getClient()?.identify(distinctId, properties as any);
   } catch (e) {
@@ -72,6 +90,7 @@ export function track(event: string, props?: Props): void {
   if (DEBUG) {
     console.log('[analytics]', event, finalProps);
   }
+  if (onKidsPage()) return;
   try {
     getClient()?.capture(event, finalProps as any);
   } catch (e) {

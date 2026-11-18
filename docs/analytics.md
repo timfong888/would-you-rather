@@ -7,10 +7,11 @@ With no key set nothing is sent and nothing throws.
 
 | Environment | `EXPO_PUBLIC_POSTHOG_KEY` |
 |---|---|
-| Vercel Production | the WYR production project key |
+| Vercel Production | optional: the public production token is committed as the default (`lib/analytics.ts`) and used only on `www.wouldyourather.fyi` |
 | Vercel Preview | the WYR dev project key |
 | Local | leave empty, or set `EXPO_PUBLIC_ANALYTICS_DEBUG=true` to log events to the console |
 
+`EXPO_PUBLIC_POSTHOG_KEY` overrides the default in any environment. Previews and local runs send nothing unless it is set.
 Host is `https://us.i.posthog.com` (account is US). Build-time variable: redeploy after changing it.
 
 ## Events
@@ -50,3 +51,9 @@ fires once. Activation rate = `activated` visitors / `session_start` with `is_ne
 `npm run verify:attribution` (also part of `build:web`) runs the channel, first-touch and activation cases.
 In PostHog Live Events (dev project), open a Google result link, a `?utm_medium=social` link and a shared
 `/p/:id?link_id=…` link and check `channel`.
+
+## Kids pages (COPPA)
+
+Nothing is sent to PostHog while the visitor is on a kids-bank landing page (any SEO page with a `questionTag`)
+or a kids question (`/game/kf-*`, `/p/kf-*`): see `lib/kidsPaths.ts`. Votes are still stored anonymously (#65).
+Consent approach for the rest of the site is still an owner decision (#51).
