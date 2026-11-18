@@ -8,7 +8,7 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
-import { isCategoryEntitled } from '@/lib/catalog';
+import { FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, isCategoryEntitled, productForCategory } from '@/lib/catalog';
 import { purchases } from '@/lib/purchases';
 
 interface UnlockedContextValue {
@@ -22,6 +22,10 @@ interface UnlockedContextValue {
   purchasesAvailable: boolean;
   /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
   applyEntitlements: (active: string[]) => void;
+  /** Price label for a category unlock: the store price when loaded, else the approved $1.99. */
+  priceForCategory: (id: string) => string;
+  /** Price label for the all-categories pack: the store price when loaded, else the approved $4.99. */
+  priceForAll: () => string;
 
   /** Owner access: bypass the payment flow for the owner / testers. */
   ownerAccess: boolean;
@@ -36,6 +40,8 @@ const UnlockedContext = createContext<UnlockedContextValue>({
   reset: () => {},
   purchasesAvailable: false,
   applyEntitlements: () => {},
+  priceForCategory: () => FALLBACK_PRICE_CATEGORY,
+  priceForAll: () => FALLBACK_PRICE_ALL,
   ownerAccess: false,
   ownerAccessAvailable: false,
   grantOwnerAccess: async () => false,
@@ -106,6 +112,27 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
 
   const applyEntitlements = useCallback((active: string[]) => setEntitlements(new Set(active)), []);
 
+  // Localized store prices (empty until loaded, or when purchases are unavailable).
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!purchases.isAvailable()) return;
+    let cancelled = false;
+    purchases
+      .getPrices()
+      .then((p) => {
+        if (!cancelled) setPrices(p);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const priceForCategory = useCallback(
+    (id: string) => prices[productForCategory(id)] ?? FALLBACK_PRICE_CATEGORY,
+    [prices],
+  );
+  const priceForAll = useCallback(() => prices[PRODUCT_ALL] ?? FALLBACK_PRICE_ALL, [prices]);
+
   // Tag every analytics event while owner access is on so tester activity
   // can be excluded from the paywall funnel.
   useEffect(() => {
@@ -161,6 +188,8 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
         reset,
         purchasesAvailable: purchases.isAvailable(),
         applyEntitlements,
+        priceForCategory,
+        priceForAll,
         ownerAccess,
         ownerAccessAvailable: isOwnerAccessConfigured(),
         grantOwnerAccess,

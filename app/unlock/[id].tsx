@@ -23,8 +23,6 @@ import { requiresParentalGate } from '@/lib/parentalGate';
 import { ParentalGate } from '@/components/ParentalGate';
 import {
   PRODUCT_ALL,
-  FALLBACK_PRICE_ALL,
-  FALLBACK_PRICE_CATEGORY,
   isCategoryEntitled,
   productForCategory,
 } from '@/lib/catalog';
@@ -57,15 +55,22 @@ export default function UnlockScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked, unlock, ownerAccessAvailable, grantOwnerAccess, purchasesAvailable, applyEntitlements } =
-    useUnlocked();
+  const {
+    isUnlocked,
+    unlock,
+    ownerAccessAvailable,
+    grantOwnerAccess,
+    purchasesAvailable,
+    applyEntitlements,
+    priceForCategory,
+    priceForAll,
+  } = useUnlocked();
 
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [useApplePay, setUseApplePay] = useState(true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
-  // Real purchases (iOS/Android with a RevenueCat key). On web the existing
+  // Real purchases need iOS/Android with a RevenueCat key. On web the existing
   // simulated sheet is kept until the web payments decision (issue #53).
-  const [prices, setPrices] = useState<Record<string, string>>({});
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   // "Have a code?" on the payment sheet. Redeeming the owner code grants
@@ -154,20 +159,6 @@ export default function UnlockScreen() {
   }, [paymentState, sheetAnim]);
 
   useEffect(() => {
-    if (!purchasesAvailable) return;
-    let cancelled = false;
-    purchases
-      .getPrices()
-      .then((p) => {
-        if (!cancelled) setPrices(p);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [purchasesAvailable]);
-
-  useEffect(() => {
     // Someone who already has this category (purchased or owner access) landing
     // here by URL is not a paywall view; counting it would deflate conversion.
     if (isUnlocked(id as CategoryId)) return;
@@ -208,10 +199,9 @@ export default function UnlockScreen() {
   };
 
   const productId = productForCategory(id as string);
-  const categoryPrice = prices[productId] ?? FALLBACK_PRICE_CATEGORY;
-  const allPrice = prices[PRODUCT_ALL] ?? FALLBACK_PRICE_ALL;
-  // The price shown by the one-button paywall: the real store price on native.
-  const shownPrice = purchasesAvailable ? categoryPrice : '$2.99';
+  // Store price when loaded, else the approved price ($1.99 category, $4.99 pack).
+  const shownPrice = priceForCategory(id as string);
+  const allPrice = priceForAll();
 
   const handleBuy = async (kind: 'category' | 'all') => {
     if (paymentState !== 'idle') return;
@@ -531,7 +521,7 @@ export default function UnlockScreen() {
                     : `Premium Pack · ${questions.length} dilemmas`}
                 </Text>
               </View>
-              <Text style={[styles.productPrice, { color: category.color }]}>$2.99</Text>
+              <Text style={[styles.productPrice, { color: category.color }]}>{shownPrice}</Text>
             </View>
 
             {/* Payment method selector */}
@@ -586,10 +576,10 @@ export default function UnlockScreen() {
                   pressed && styles.btnPressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel="Pay $2.99 with Apple Pay"
+                accessibilityLabel={`Pay ${shownPrice} with Apple Pay`}
               >
                 <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
-                <Text style={styles.applePayBtnText}>Pay  $2.99</Text>
+                <Text style={styles.applePayBtnText}>Pay  {shownPrice}</Text>
               </Pressable>
             ) : (
               <Pressable
@@ -600,9 +590,9 @@ export default function UnlockScreen() {
                   pressed && styles.btnPressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel="Pay $2.99 with card"
+                accessibilityLabel={`Pay ${shownPrice} with card`}
               >
-                <Text style={styles.payBtnText}>PAY $2.99</Text>
+                <Text style={styles.payBtnText}>PAY {shownPrice}</Text>
               </Pressable>
             )}
 

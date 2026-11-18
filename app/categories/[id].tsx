@@ -26,14 +26,13 @@ import JsonLd from '@/components/JsonLd';
 import { categoryJsonLd } from '@/lib/seo';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
-import { FALLBACK_PRICE_CATEGORY } from '@/lib/catalog';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { answered, refresh } = useAnsweredQuestions();
-  const { isUnlocked, purchasesAvailable } = useUnlocked();
+  const { isUnlocked, priceForCategory } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
@@ -244,7 +243,7 @@ export default function CategoryScreen() {
             <Text style={styles.unlockCtaTitle}>
               {isPremium ? `Unlock All ${total} Dilemmas` : `Unlock ${lockedCount} More Dilemmas`}
             </Text>
-            <Text style={styles.unlockCtaSub}>One-time category unlock · {purchasesAvailable ? FALLBACK_PRICE_CATEGORY : '$2.99'}</Text>
+            <Text style={styles.unlockCtaSub}>One-time category unlock · {priceForCategory(category.id)}</Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>
         </Pressable>

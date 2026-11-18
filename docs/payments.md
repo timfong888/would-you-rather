@@ -53,8 +53,12 @@ content exists; the listing kit's review notes mention it.
 
 Set per EAS profile, never in the repo. The app is inert without the key
 (`purchases.isAvailable()` is false), which is also the web behavior.
-Owner-code field: leave `EXPO_PUBLIC_OWNER_ACCESS_SHA256` unset in the iOS
-production profile; grant yourself access with a RevenueCat promotional
+Owner-code field: `EXPO_PUBLIC_*` values ship inside the app bundle, so the code's
+SHA-256 digest could be extracted from an .ipa and brute-forced offline. Native
+release builds (`__DEV__` false: preview and production) therefore never offer the
+code field, whatever the environment says (`lib/ownerAccessPolicy.ts`); the #84 guard
+also fails a production build that has the variable set. Web and native dev builds
+keep it. Grant yourself access in release builds with a RevenueCat promotional
 entitlement.
 
 ## Sandbox test plan
