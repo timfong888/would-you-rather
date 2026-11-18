@@ -1,7 +1,7 @@
 // Client side of the vote API: what the app does with the server's answers (issue #65).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice } from '../../lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice, lockedChoice } from '../../lib/votes-core';
 
 const VOTE = { questionId: 'hl-1', choice: 'A' as const, visitorId: '00000000-0000-4000-8000-000000000001' };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
@@ -67,4 +67,18 @@ test('reload regression: re-answering with a different choice keeps the stored f
   // first vote, or the server sent no choice (old server / failure): keep what was tapped
   assert.equal(reconcileChoice('B', 'B'), 'B');
   assert.equal(reconcileChoice('B', null), 'B');
+});
+
+test('upgrade regression: an answer saved before votes were stored does not lock the question', () => {
+  // The old "answered questions" list is not an input at all: with no acknowledged vote
+  // and nothing queued, the player can still vote.
+  assert.equal(lockedChoice('hl-1', {}, []), null);
+  // a vote the server acknowledged locks, with the server's choice
+  assert.equal(lockedChoice('hl-1', { 'hl-1': 'A' }, []), 'A');
+  // a vote queued for retry locks too (it will be sent), and acknowledged wins over queued
+  assert.equal(lockedChoice('hl-1', {}, [{ questionId: 'hl-1', choice: 'B' }]), 'B');
+  assert.equal(lockedChoice('hl-1', { 'hl-1': 'A' }, [{ questionId: 'hl-1', choice: 'B' }]), 'A');
+  // other questions are unaffected, and garbage in storage is ignored
+  assert.equal(lockedChoice('hl-2', { 'hl-1': 'A' }, []), null);
+  assert.equal(lockedChoice('hl-1', { 'hl-1': 'Z' as any }, []), null);
 });

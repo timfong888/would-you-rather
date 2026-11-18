@@ -6,11 +6,12 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import { getOrCreateVisitorId } from '@/lib/analytics';
 import type { Tally } from '@/lib/results';
-import { postVote, getTally, getTallies, queueAfterFlush, type Choice, type PendingVote } from '@/lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, lockedChoice, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
 
 export type { Choice };
 
 const PENDING_KEY = 'wyr_pending_votes';
+const ACK_KEY = 'wyr_voted_v1';
 
 function apiBase(): string {
   return Platform.OS === 'web' && typeof window !== 'undefined' ? '' : SITE_URL;
@@ -36,6 +37,30 @@ function writePending(list: PendingVote[]): void {
   }
 }
 
+function readAcknowledged(): AckMap {
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ACK_KEY) ?? '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAcknowledged(questionId: string, choice: Choice): void {
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(ACK_KEY, JSON.stringify({ ...readAcknowledged(), [questionId]: choice }));
+  } catch {
+    // storage unavailable: the answer just won't be locked on a revisit
+  }
+}
+
+/** The answer to restore and lock for a question the player has already voted on, or null. */
+export function getLockedChoice(questionId: string): Choice | null {
+  return lockedChoice(questionId, readAcknowledged(), readPending());
+}
+
 /**
  * Record the player's vote. Resolves to the real tally and the choice the server
  * actually holds for this player (the first vote wins), or nulls (show the invite).
@@ -47,6 +72,8 @@ export async function castVote(
   const { id: visitorId } = getOrCreateVisitorId();
   const { tally, choice: stored, retry } = await postVote(fetch, apiBase(), { questionId, choice, visitorId });
   if (retry) writePending([...readPending().filter((p) => p.questionId !== questionId), { questionId, choice }]);
+  // The server answered: remember the choice it holds, so a revisit locks it.
+  else if (stored || tally) writeAcknowledged(questionId, stored ?? choice);
   return { tally, choice: stored };
 }
 

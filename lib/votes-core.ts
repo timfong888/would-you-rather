@@ -112,3 +112,19 @@ export function queueAfterFlush(current: PendingVote[], done: PendingVote[]): Pe
 export function reconcileChoice(tapped: Choice, stored: Choice | null): Choice {
   return stored ?? tapped;
 }
+
+// ── which answers are locked ─────────────────────────────────────────────────
+
+export type AckMap = Record<string, Choice>;
+
+/**
+ * The answer to restore and lock on a revisit, or null to let the player answer.
+ * Only a vote the server acknowledged, or one queued for retry, counts. The old
+ * "answered questions" list (from before votes were stored) is deliberately not an
+ * input: those answers never reached the server, so those players may still vote.
+ */
+export function lockedChoice(questionId: string, acknowledged: AckMap, pending: PendingVote[]): Choice | null {
+  const ack = acknowledged[questionId];
+  if (ack === 'A' || ack === 'B') return ack;
+  return pending.find((p) => p.questionId === questionId)?.choice ?? null;
+}

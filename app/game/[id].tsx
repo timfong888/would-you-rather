@@ -22,7 +22,7 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
-import { castVote, fetchTally } from '@/lib/votes';
+import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
 
@@ -39,7 +39,7 @@ export default function GameScreen() {
   // Real result for this question. Stays the invite until the server answers,
   // and whenever there are fewer than VOTE_THRESHOLD votes (#65).
   const [result, setResult] = useState<ResultDisplay>({ kind: 'invite' });
-  const { answered, markAnswered, refresh } = useAnsweredQuestions();
+  const { markAnswered, refresh } = useAnsweredQuestions();
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
@@ -78,10 +78,11 @@ export default function GameScreen() {
     if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
   }, [mustRedirect, category, navReady, router]);
 
-  // Revisiting a question already answered (reload, back button, shared link):
-  // restore and lock the stored answer instead of letting it be answered again.
-  // Read-only: it shows the counts but never sends a vote.
-  const restoredChoice = question ? answered[question.id] : undefined;
+  // Revisiting a question whose vote the server already holds (reload, back button,
+  // shared link): restore and lock that answer instead of letting it be answered again.
+  // Read-only: it shows the counts but never sends a vote. Answers saved by older
+  // versions (never sent to the server) are not locked, so those players can still vote.
+  const restoredChoice = question ? getLockedChoice(question.id) ?? undefined : undefined;
   useEffect(() => {
     if (!question || !restoredChoice || confirmed) return;
     let live = true;
