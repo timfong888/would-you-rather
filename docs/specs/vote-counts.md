@@ -71,7 +71,7 @@ Reports should only publish questions at or above the threshold.
 
 | Route | Behaviour |
 |---|---|
-| `POST /api/votes` `{ questionId, choice, visitorId }` | Validates, stores, returns `{ counted, tally: { a, b } }`. 201 counted, 200 already voted, 400 invalid, 503 storage unavailable (`retryable`). 2 s database timeout |
+| `POST /api/votes` `{ questionId, choice, visitorId }` | Validates, stores, returns `{ counted, choice, tally: { a, b } }` (`choice` is the stored one). The insert and the read-back are two statements, so two tabs voting at once still read each other's committed vote. 201 counted, 200 already voted, 400 invalid, 503 storage unavailable (`retryable`). 2 s database timeout |
 | `GET /api/tallies?ids=a,b` (1 to 50 ids) | `{ id: { a, b } }`, unknown ids `{a:0,b:0}`. `Cache-Control: s-maxage=60, stale-while-revalidate=300`. 503 is never cached |
 
 A confirmed answer is final in the app (the old "Change my answer" button is removed): the server keeps the first choice, so letting the player change it would show an answer that was never stored.

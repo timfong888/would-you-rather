@@ -130,23 +130,22 @@ export async function readTallies({ store, ids }) {
 
 // ── Postgres store ───────────────────────────────────────────────────────────
 
+// Two statements on purpose. If another request for the same voter and question is still
+// committing, ON CONFLICT waits for it, but the REST of the same statement keeps its older
+// snapshot and cannot see that row. So the insert and the read-back are separate statements:
+// the second one gets a fresh snapshot and sees everything committed, including that row.
 const INSERT_SQL = `
-with ins as (
-  insert into votes (question_id, choice, voter_key, player_id, kids, country, region)
-  values ($1::text, $2::char(1), $3::text, $4::uuid, $5::boolean, $6::char(2), $7::text)
-  on conflict on constraint votes_one_per_voter do nothing
-  returning choice
-)
+insert into votes (question_id, choice, voter_key, player_id, kids, country, region)
+values ($1::text, $2::char(1), $3::text, $4::uuid, $5::boolean, $6::char(2), $7::text)
+on conflict on constraint votes_one_per_voter do nothing
+returning choice
+`;
+
+const STATE_SQL = `
 select
-  (select count(*) from ins)::int as inserted,
-  coalesce(
-    (select choice from ins),
-    (select choice from votes where question_id = $1::text and voter_key = $3::text)
-  ) as mine,
-  ((select count(*) from votes where question_id = $1::text and choice = 'A')
-    + (select count(*) from ins where choice = 'A'))::int as a,
-  ((select count(*) from votes where question_id = $1::text and choice = 'B')
-    + (select count(*) from ins where choice = 'B'))::int as b
+  (select choice from votes where question_id = $1::text and voter_key = $2::text) as mine,
+  (select count(*) from votes where question_id = $1::text and choice = 'A')::int as a,
+  (select count(*) from votes where question_id = $1::text and choice = 'B')::int as b
 `;
 
 const TALLY_SQL = `
@@ -182,16 +181,23 @@ export function createSqlStore(query) {
   return {
     async insertVote(v) {
       const params = [v.questionId, v.choice, v.voterKey, v.playerId, v.kids, v.country, v.region];
-      let rows;
+      let written;
       try {
-        rows = await query(INSERT_SQL, params);
+        written = await query(INSERT_SQL, params);
       } catch (err) {
         if (err?.code !== MISSING_TABLE) throw err;
         await ensureSchema();
-        rows = await query(INSERT_SQL, params);
+        written = await query(INSERT_SQL, params);
       }
-      const r = rows[0];
-      return { inserted: Number(r.inserted) === 1, choice: String(r.mine).trim(), a: Number(r.a), b: Number(r.b) };
+      const [state] = await query(STATE_SQL, [v.questionId, v.voterKey]);
+      // The voter's row must exist by now. If it does not, say so rather than guess a choice.
+      if (!state || state.mine == null) throw new UnavailableError('stored vote not found');
+      return {
+        inserted: written.length === 1,
+        choice: String(state.mine).trim(),
+        a: Number(state.a),
+        b: Number(state.b),
+      };
     },
     async tallies(ids) {
       let rows;

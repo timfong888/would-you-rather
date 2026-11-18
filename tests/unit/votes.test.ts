@@ -239,3 +239,28 @@ test('db/migrations/001_votes.sql and the in-code schema are the same statement'
   const inCode = MIGRATION_STATEMENTS.join(' ').replace(/\s+/g, ' ').trim();
   assert.equal(stripped.replace(/\s*;\s*$/, ''), inCode);
 });
+
+// ── concurrent requests from the same browser (two tabs) ─────────────────────
+
+test('the stored choice and tally are read in a separate, fresh statement from the insert', async () => {
+  // Two tabs, A still committing when B runs: B's insert hits the conflict and returns no row,
+  // and only a LATER statement can see A. Simulated at the query level.
+  const calls: string[] = [];
+  const racing = createSqlStore(async (text: string) => {
+    calls.push(/insert into votes/.test(text) ? 'insert' : 'read');
+    if (/insert into votes/.test(text)) return []; // conflict: nothing inserted by this request
+    return [{ mine: 'A', a: 1, b: 0 }];             // fresh snapshot sees the other tab's committed A
+  });
+  const res = await recordVote({ store: racing, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  assert.deepEqual(calls, ['insert', 'read']);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.counted, false);
+  assert.equal(res.body.choice, 'A', 'the stored choice, not the tapped B');
+  assert.deepEqual(res.body.tally, { a: 1, b: 0 });
+});
+
+test('if the voter row cannot be found after the insert, answer 503 instead of guessing a choice', async () => {
+  const lost = createSqlStore(async (text: string) => (/insert into votes/.test(text) ? [] : [{ mine: null, a: 0, b: 0 }]));
+  const res = await recordVote({ store: lost, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  assert.equal(res.status, 503);
+});
