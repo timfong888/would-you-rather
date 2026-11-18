@@ -38,6 +38,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cf46923b-05a7-46f0-aa0c-367537c92fa7"
+      }
+    },
+    "owner": "blockstitch"
   }
 }
