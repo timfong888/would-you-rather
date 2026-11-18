@@ -1,7 +1,7 @@
 // Client side of the vote API: what the app does with the server's answers (issue #65).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice, lockedChoice } from '../../lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice, lockedChoice, parsePending } from '../../lib/votes-core';
 
 const VOTE = { questionId: 'hl-1', choice: 'A' as const, visitorId: '00000000-0000-4000-8000-000000000001' };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
@@ -81,4 +81,23 @@ test('upgrade regression: an answer saved before votes were stored does not lock
   // other questions are unaffected, and garbage in storage is ignored
   assert.equal(lockedChoice('hl-2', { 'hl-1': 'A' }, []), null);
   assert.equal(lockedChoice('hl-1', { 'hl-1': 'Z' as any }, []), null);
+});
+
+test('retry queue: more than 20 pending votes are all kept, nothing is dropped on read', () => {
+  const entries = Array.from({ length: 25 }, (_, i) => ({ questionId: `hl-${i + 1}`, choice: i % 2 ? 'A' : 'B' }));
+  const read = parsePending(JSON.stringify(entries));
+  assert.equal(read.length, 25);
+  // a flush that sent the first 20 leaves exactly the other 5 queued
+  const left = queueAfterFlush(read, read.slice(0, 20));
+  assert.deepEqual(left.map((p) => p.questionId), ['hl-21', 'hl-22', 'hl-23', 'hl-24', 'hl-25']);
+});
+
+test('retry queue: bad storage is ignored, one entry per question, latest wins', () => {
+  assert.deepEqual(parsePending(null), []);
+  assert.deepEqual(parsePending('{nope'), []);
+  assert.deepEqual(parsePending('{"a":1}'), []);
+  assert.deepEqual(
+    parsePending(JSON.stringify([{ questionId: 'hl-1', choice: 'A' }, { questionId: '', choice: 'A' }, { questionId: 'hl-2', choice: 'Z' }, null, { questionId: 'hl-1', choice: 'B' }])),
+    [{ questionId: 'hl-1', choice: 'B' }],
+  );
 });

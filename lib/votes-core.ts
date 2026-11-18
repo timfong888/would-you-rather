@@ -99,6 +99,28 @@ export type PendingVote = { questionId: string; choice: Choice };
 const pendingKey = (p: PendingVote) => `${p.questionId}:${p.choice}`;
 
 /**
+ * The retry queue from its stored JSON. Keeps EVERY valid entry (one per question,
+ * the latest wins): the queue is bounded by the number of questions, so there is no
+ * cap, and a cap would silently drop votes.
+ */
+export function parsePending(raw: string | null): PendingVote[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw ?? '[]');
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const byQuestion = new Map<string, PendingVote>();
+  for (const e of parsed) {
+    if (e && typeof e.questionId === 'string' && e.questionId && (e.choice === 'A' || e.choice === 'B')) {
+      byQuestion.set(e.questionId, { questionId: e.questionId, choice: e.choice });
+    }
+  }
+  return [...byQuestion.values()];
+}
+
+/**
  * Queue after a flush: the queue as it is NOW, minus only the entries that were
  * sent (or rejected for good). Entries added while the flush was awaiting
  * requests are kept, so a vote cast during the flush is never dropped.

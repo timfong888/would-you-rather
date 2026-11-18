@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import { getOrCreateVisitorId } from '@/lib/analytics';
 import type { Tally } from '@/lib/results';
-import { postVote, getTally, getTallies, queueAfterFlush, lockedChoice, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, lockedChoice, parsePending, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
 
 export type { Choice };
 
@@ -20,8 +20,7 @@ function apiBase(): string {
 function readPending(): PendingVote[] {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.slice(0, 20) : [];
+    return parsePending(localStorage.getItem(PENDING_KEY));
   } catch {
     return [];
   }
