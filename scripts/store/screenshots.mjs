@@ -3,7 +3,11 @@
  * Generates App Store screenshots by running the app (web build) in headless
  * Chromium at the exact pixel sizes App Store Connect asks for.
  *
- *   npx expo start --web --port 8099      # in another terminal
+ *   EXPO_PUBLIC_IOS_V1_CATALOG=1 npx expo start --web --port 8099   # in another terminal
+ *
+ * The flag applies the iOS v1 catalog (Midnight Secrets and Deep Desires left out,
+ * constants/iosV1.ts) so the screenshots match what ships. Requires the payments PR's
+ * constants/platformFilter.ts. iPhone only (iOS v1 is iPhone-only).
  *   node scripts/store/screenshots.mjs [baseUrl]
  *
  * Needs `playwright` resolvable (globally, or `npm i --no-save playwright`).
@@ -21,13 +25,12 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
 const BASE = process.argv[2] ?? 'http://localhost:8099';
-const OUT = path.resolve('store/ios/screenshots');
+const OUT = path.resolve(process.env.SHOTS_OUT ?? 'store/ios/screenshots');
 
 // css viewport x scale = required pixel size
 const DEVICES = [
   { name: 'iphone-6.9', w: 440, h: 956, scale: 3 }, // 1320 x 2868
   { name: 'iphone-6.5', w: 428, h: 926, scale: 3 }, // 1284 x 2778
-  { name: 'ipad-13', w: 1032, h: 1376, scale: 2 }, // 2064 x 2752
 ];
 
 const settle = (page, ms = 1200) => page.waitForTimeout(ms);

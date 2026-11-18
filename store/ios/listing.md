@@ -20,8 +20,8 @@ HOW IT WORKS
 - See the vote split from other players.
 - Challenge a friend: send a question and see if they pick the same.
 
-NINE CATEGORIES
-The High Life, Moral Compass, Midnight Secrets, Social Blunders, Time Traveler, Deep Desires, Career Climber, Tech Dystopia and Wildest Dreams, plus a Kids & Family set. Hundreds of questions, with more added over time.
+SEVEN CATEGORIES
+The High Life, Moral Compass, Social Blunders, Time Traveler, Career Climber, Tech Dystopia and Wildest Dreams, plus a Kids & Family set. Hundreds of questions, with more added over time.
 
 FREE TO START
 Every category has free questions to try. Moral Compass, Social Blunders, Career Climber and Tech Dystopia are free to play, with an optional expansion. Premium categories include a free preview.
@@ -48,15 +48,23 @@ Some categories contain adult themes and are meant for adult and teen players.
 
 ## Category and age rating
 - Primary category: recommend **Entertainment** (alternative: Games > Trivia). Not a Kids-category app.
-- Not in the Kids category (decision 4 on #54).
-- Age-rating questionnaire, draft answers (Tim confirms; Apple computes the final rating):
-  - Profanity or crude humor: Infrequent (a "gross" style of question exists)
-  - Mature/suggestive themes: Infrequent/mild (infidelity, crime, workplace themes per the code comments)
-  - Sexual content or nudity: None
-  - Violence, horror, alcohol/tobacco/drugs, gambling, contests: None
-  - Unrestricted web access: No
-  - User-generated content: No
-  - Expected result: 12+ (could be 17+ if Midnight Secrets/Deep Desires content is judged more explicit; Tim should read those two categories before answering)
+- iOS v1 is iPhone-only and leaves out **Midnight Secrets and Deep Desires** (Tim, 2026-11-18). The rating below is for the 8 categories that ship (443 questions).
+- Audit of the shipped question bank (keyword scan plus reading the hits; no profanity, drugs, violence or sexual content found):
+
+| Apple questionnaire item | Draft answer | Evidence |
+|---|---|---|
+| Profanity or crude humor | Infrequent / mild | a handful of gross-out or embarrassment questions (Social Blunders, Kids & Family: bodily humor) |
+| Alcohol, tobacco or drug use or references | Infrequent / mild | 2 of 443: `hl-16` (vineyard and winery), `hl-17` (wine cellar, sommelier) |
+| Mature / suggestive themes | Infrequent / mild | Moral Compass dilemmas: cheating on an exam, a friend's partner cheating, crime (3 questions) |
+| Sexual content or nudity | None | none found |
+| Violence (realistic, cartoon, horror) | None | `mc-36` and `kf-137` are an argument and a snowball fight |
+| Simulated gambling, contests | None | `hl-8` mentions a lottery as a hypothetical, not a mechanic |
+| Unrestricted web access | No | |
+| User-generated content | No | |
+| Medical or health content | None | |
+
+- **Expected rating: 13+ on Apple's current scale (4+, 9+, 13+, 16+, 18+).** Apple computes the final rating from the questionnaire; the old 12+/17+ labels no longer apply. If Apple returns 16+ the likely cause is the alcohol or mature-themes answer; both are mild and infrequent here.
+- Removing Midnight Secrets and Deep Desires is what keeps this at the lower end. Putting them back means re-running the audit.
 
 ## App Review notes
 ```
