@@ -14,6 +14,8 @@
     "owner:hash": "node scripts/owner-code-hash.mjs",
     "verify:seo": "tsx scripts/verify-seo.ts",
     "test": "tsx --test tests/unit/*.test.ts",
+    "report:daily": "tsx scripts/report.ts daily",
+    "report:seo": "tsx scripts/report.ts seo",
     "db:migrate": "node scripts/migrate-db.mjs"
   },
   "dependencies": {
