@@ -41,3 +41,17 @@ eas submit --profile preview --platform ios         # upload to TestFlight
 
 `production` builds and `eas submit --profile production` only run on Tim's
 go; submitting for review is separate and also needs his go.
+
+## Known `npm audit` findings (Expo 51 build tooling)
+
+`package.json` carries scoped `overrides` so `expo prebuild` works on Expo 51:
+
+| Override | Why | Audit |
+|---|---|---|
+| `@expo/cli` -> `tar ^6.2.1` | `@expo/cli` needs the 6.x API; 7.x breaks prebuild | `tar` critical (advisories are 7.x ranges) |
+| `@expo/plist` -> `@xmldom/xmldom ~0.8.15` | `@expo/plist` needs the 0.8 `DOMParser`; 0.9+ breaks it | clean |
+| `plist` -> `@xmldom/xmldom ^0.8.8` | same | clean |
+
+The `tar` flag stays until Expo is upgraded (`npm audit fix --force` jumps to Expo 58). It only
+affects build-time tooling reading registry tarballs, not the shipped app. The global pins
+(`tar >=7.5.19`, `@xmldom/xmldom >=0.9.10`) still apply to every other consumer.
