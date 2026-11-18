@@ -1,5 +1,7 @@
 # iOS build (EAS) and TestFlight
 
+iPhone only for v1 (`ios.supportsTablet: false`, Tim 2026-11-18): no iPad build or screenshots.
+
 Profiles in `eas.json`:
 
 | Profile | Use | Distribution | RevenueCat key |

@@ -13,7 +13,7 @@
       "backgroundColor": "#0F0F1A"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.timfong888.wouldyourather",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
