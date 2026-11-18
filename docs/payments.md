@@ -12,8 +12,13 @@ Device purchase tests need an EAS development build (Unit 2, issue #75).
 
 A category is open if `premium_all` OR `cat_<id>` is active (`lib/catalog.ts`,
 `isCategoryEntitled`). Access is by entitlement, so questions added later are
-included. Nine categories have something to sell; `kids-family` is free and has
-no product. The catalog is derived from `constants/questions.ts` minus that exclusion list.
+included. `kids-family` is free and has no product.
+
+**iOS v1 leaves out Midnight Secrets and Deep Desires** (Tim, 2026-11-18: "leave
+them out"). iOS hides them (`constants/iosV1.ts`, `constants/platformFilter.ios.ts`)
+and the catalog has no products for them, so iOS v1 sells the pack plus seven
+category unlocks (8 products). They stay on the web. The catalog is derived from
+`constants/questions.ts` minus that exclusion list.
 
 One RevenueCat offering, `default`, holds one package per product (package
 id = entitlement id).
