@@ -5,7 +5,7 @@
  * - every question id is unique and uses its category's prefix
  * - every category has free content (volume 1)
  * - api/_lib/data.js (edge-function mirror) matches constants/questions.ts
- *   exactly: same ids, same order, same text, same votes, same volume
+ *   exactly: same ids, same order, same text, same volume
  */
 import { CATEGORIES, QUESTIONS, getFreeQuestionCount } from '../constants/questions';
 // The edge mirror is intentionally plain, untyped JS (it must bundle into the
@@ -18,8 +18,6 @@ type PlainQuestion = {
   category: string;
   optionA: string;
   optionB: string;
-  votesA: number;
-  votesB: number;
   volume?: number;
 };
 
@@ -36,7 +34,8 @@ for (const q of QUESTIONS) {
   const prefix = q.category.split('-').map((w) => w[0]).join('');
   if (!q.id.startsWith(`${prefix}-`)) fail(`id ${q.id} does not use prefix "${prefix}-" for ${q.category}`);
   if (!q.optionA.trim() || !q.optionB.trim()) fail(`${q.id} has an empty option`);
-  if (q.votesA < 0 || q.votesB < 0) fail(`${q.id} has negative votes`);
+  // Seeded counts are gone (#65): real counts come from the votes table.
+  if ('votesA' in q || 'votesB' in q) fail(`${q.id} carries a seeded vote count`);
 }
 
 // --- categories --------------------------------------------------------------
@@ -60,7 +59,8 @@ const n = Math.min(mirror.QUESTIONS.length, QUESTIONS.length);
 for (let i = 0; i < n; i++) {
   const a = QUESTIONS[i];
   const b = mirror.QUESTIONS[i];
-  const fields: (keyof PlainQuestion)[] = ['id', 'category', 'optionA', 'optionB', 'votesA', 'votesB'];
+  if ('votesA' in b || 'votesB' in b) fail(`api/_lib/data.js ${b.id} carries a seeded vote count`);
+  const fields: (keyof PlainQuestion)[] = ['id', 'category', 'optionA', 'optionB'];
   for (const f of fields) {
     if (a[f] !== b[f]) fail(`mirror mismatch at #${i} (${a.id}) field ${f}: ts=${JSON.stringify(a[f])} js=${JSON.stringify(b[f])}`);
   }

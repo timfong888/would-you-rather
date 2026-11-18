@@ -6,8 +6,10 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 interface VoteBarProps {
   label: 'A' | 'B';
   text: string;
-  votes: number;
-  totalVotes: number;
+  /** Real share of voters (0-100). Omit while there is no result to show (#65). */
+  percent?: number;
+  /** Real number of votes behind `percent`. */
+  total?: number;
   userVoted: boolean;
   animate?: boolean;
 }
@@ -15,8 +17,8 @@ interface VoteBarProps {
 export default function VoteBar({
   label,
   text,
-  votes,
-  totalVotes,
+  percent,
+  total,
   userVoted,
   animate = true,
 }: VoteBarProps) {
@@ -24,7 +26,8 @@ export default function VoteBar({
 
   const isA = label === 'A';
   const color = isA ? colors.optionA : colors.optionB;
-  const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+  const hasResult = percent !== undefined;
+  const percentage = percent ?? 0;
   const widthAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function VoteBar({
           </Text>
         </View>
         <View style={styles.rightCol}>
-          <Text style={[styles.percentage, { color }]}>{percentage}%</Text>
+          {hasResult && <Text style={[styles.percentage, { color }]}>{percentage}%</Text>}
           {userVoted && (
             <View style={[styles.yourChoicePill, { borderColor: color }]}>
               <Text style={[styles.yourChoiceText, { color }]}>YOUR CHOICE</Text>
@@ -61,6 +64,7 @@ export default function VoteBar({
         </View>
       </View>
 
+      {hasResult && (
       <View style={styles.barTrack}>
         <Animated.View
           style={[
@@ -75,10 +79,13 @@ export default function VoteBar({
           ]}
         />
       </View>
+      )}
 
-      <Text style={styles.voteCount}>
-        GLOBAL VOTE · {votes.toLocaleString()} votes
-      </Text>
+      {hasResult && total !== undefined && (
+        <Text style={styles.voteCount}>
+          GLOBAL VOTE · {total.toLocaleString()} players
+        </Text>
+      )}
     </View>
   );
 }

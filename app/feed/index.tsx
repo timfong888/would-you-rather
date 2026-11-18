@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import PageHead from '@/components/PageHead';
 import { SEO, SITE_URL } from '@/constants/config';
+import { fetchTallies } from '@/lib/votes';
+import { formatResult, INVITE_TITLE, type ResultDisplay, type Tally } from '@/lib/results';
 
 // ---------------------------------------------------------------------------
 // Feed tab types
@@ -30,31 +32,20 @@ type FeedTab = 'for-you' | 'trending' | 'new';
 
 interface FeedItem {
   question: Question;
+  /** Real counts from the server, or none yet. Percentages only at/above the vote threshold. */
+  display: ResultDisplay;
   totalVotes: number;
-  topPct: number;
-  topOption: 'A' | 'B';
   isHot: boolean;
-  isMajority: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildFeedItem(q: Question): FeedItem {
-  const totalVotes = q.votesA + q.votesB;
-  const pctA = totalVotes > 0 ? Math.round((q.votesA / totalVotes) * 100) : 50;
-  const pctB = 100 - pctA;
-  const topOption: 'A' | 'B' = pctA >= pctB ? 'A' : 'B';
-  const topPct = topOption === 'A' ? pctA : pctB;
-  return {
-    question: q,
-    totalVotes,
-    topPct,
-    topOption,
-    isHot: totalVotes > 1200,
-    isMajority: topPct >= 70,
-  };
+function buildFeedItem(q: Question, tally?: Tally): FeedItem {
+  const display = formatResult(tally);
+  const totalVotes = display.kind === 'percent' ? display.total : 0;
+  return { question: q, display, totalVotes, isHot: totalVotes > 1200 };
 }
 
 function formatVotes(n: number): string {
@@ -192,11 +183,12 @@ function QuestionCard({
   onPlay: () => void;
 }) {
   const { styles, colors } = useThemedStyles(makeCardStyles);
-  const { question, totalVotes, topPct, topOption, isHot, isMajority } = item;
+  const { question, display, isHot } = item;
+  const topPct = display.kind === 'percent' ? Math.max(display.a, display.b) : 0;
+  const topOption: 'A' | 'B' = display.kind === 'percent' && display.b > display.a ? 'B' : 'A';
+  const isMajority = topPct >= 70;
   const cat = getCategoryById(question.category);
   const catColor = cat?.color ?? colors.magenta;
-  const pctA = Math.round((question.votesA / (totalVotes || 1)) * 100);
-  const pctB = 100 - pctA;
 
   return (
     <View style={[styles.card, { borderColor: `${catColor}30` }]}>
@@ -257,30 +249,36 @@ function QuestionCard({
         </View>
       </View>
 
-      {/* Consensus bar */}
-      <View style={styles.consensusSection}>
-        <View style={styles.consensusBar}>
-          <View
-            style={[
-              styles.consensusFillA,
-              { backgroundColor: colors.optionA, width: `${pctA}%` as any },
-            ]}
-          />
-          <View
-            style={[
-              styles.consensusFillB,
-              { backgroundColor: colors.optionB, width: `${pctB}%` as any },
-            ]}
-          />
+      {/* Consensus bar: real percentages only; otherwise an invitation */}
+      {display.kind === 'percent' ? (
+        <View style={styles.consensusSection}>
+          <View style={styles.consensusBar}>
+            <View
+              style={[
+                styles.consensusFillA,
+                { backgroundColor: colors.optionA, width: `${display.a}%` as any },
+              ]}
+            />
+            <View
+              style={[
+                styles.consensusFillB,
+                { backgroundColor: colors.optionB, width: `${display.b}%` as any },
+              ]}
+            />
+          </View>
+          <View style={styles.consensusLabels}>
+            <Text style={[styles.consensusPct, { color: colors.optionA }]}>{display.a}%</Text>
+            <Text style={styles.voteCount}>
+              {formatVotes(display.total)} votes
+            </Text>
+            <Text style={[styles.consensusPct, { color: colors.optionB }]}>{display.b}%</Text>
+          </View>
         </View>
-        <View style={styles.consensusLabels}>
-          <Text style={[styles.consensusPct, { color: colors.optionA }]}>{pctA}%</Text>
-          <Text style={styles.voteCount}>
-            {formatVotes(totalVotes)} votes
-          </Text>
-          <Text style={[styles.consensusPct, { color: colors.optionB }]}>{pctB}%</Text>
+      ) : (
+        <View style={styles.consensusSection}>
+          <Text style={styles.voteCount}>{INVITE_TITLE}: be one of the first to vote</Text>
         </View>
-      </View>
+      )}
 
       {/* Play CTA */}
       <Pressable
@@ -490,30 +488,33 @@ export default function FeedScreen() {
   const [activeTab, setActiveTab] = useState<FeedTab>('for-you');
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
 
-  const feedItems = useMemo(() => {
+  // The questions on screen, in a stable order. Ordering by real popularity
+  // uses the counts below (only for what is shown); there are no seeded numbers.
+  const visible = useMemo(() => {
     let questions = [...QUESTIONS];
-
-    // Apply category filter
     if (activeFilter !== 'all') {
       questions = questions.filter((q) => q.category === activeFilter);
     }
-
-    // Sort by tab
-    if (activeTab === 'trending') {
-      questions = questions.sort((a, b) => (b.votesA + b.votesB) - (a.votesA + a.votesB));
-    } else if (activeTab === 'new') {
-      questions = questions.reverse();
-    } else {
-      // For You: shuffle deterministically — mix trending + variety
-      questions = questions.sort((a, b) => {
-        const scoreA = (a.votesA + a.votesB) * 0.6 + Math.abs(a.votesA - a.votesB) * 0.4;
-        const scoreB = (b.votesA + b.votesB) * 0.6 + Math.abs(b.votesA - b.votesB) * 0.4;
-        return scoreB - scoreA;
-      });
-    }
-
-    return questions.slice(0, 30).map(buildFeedItem);
+    if (activeTab === 'new') questions = questions.reverse();
+    return questions.slice(0, 30);
   }, [activeTab, activeFilter]);
+
+  const [tallies, setTallies] = useState<Record<string, Tally>>({});
+  useEffect(() => {
+    let live = true;
+    fetchTallies(visible.map((q) => q.id)).then((t) => {
+      if (live && t) setTallies(t);
+    });
+    return () => {
+      live = false;
+    };
+  }, [visible]);
+
+  const feedItems = useMemo(() => {
+    const items = visible.map((q) => buildFeedItem(q, tallies[q.id]));
+    if (activeTab !== 'new') items.sort((x, y) => y.totalVotes - x.totalVotes);
+    return items;
+  }, [visible, tallies, activeTab]);
 
   const handlePlay = (item: FeedItem) => {
     const q = item.question;

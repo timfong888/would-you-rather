@@ -7,7 +7,7 @@
  * SEO page it was written for (constants/seoPages.ts), so no two pages publish
  * the same text. All are volume 1 (free).
  *
- * Votes start at zero. These are new questions; we do not invent counts for them.
+ * Questions carry no vote counts: real counts come from the votes table (docs/specs).
  *
  * Keep api/_lib/data.js in sync (npm run verify:data checks it).
  */
@@ -18,8 +18,6 @@ const q = (id: number, tag: string, optionA: string, optionB: string): Question 
   category: 'kids-family',
   optionA,
   optionB,
-  votesA: 0,
-  votesB: 0,
   tags: [tag],
 });
 

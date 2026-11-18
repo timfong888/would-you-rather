@@ -23,6 +23,8 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { useTally } from '@/lib/useTally';
+import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
@@ -37,6 +39,7 @@ export default function CompleteScreen() {
   const questions = getCategoryQuestions((id ?? '') as CategoryId);
   const safeVoted = voted === 'A' || voted === 'B' ? voted : null;
   const lastQuestion = q ? getQuestionById(q) : questions[questions.length - 1];
+  const result = useTally(lastQuestion?.id);
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -137,15 +140,9 @@ export default function CompleteScreen() {
   const remaining = questions.length - completedCount;
   const isExpansionUpsell = !isPremium && remaining > 0;
 
-  const votesA = lastQuestion ? (safeVoted === 'A' ? lastQuestion.votesA + 1 : lastQuestion.votesA) : 0;
-  const votesB = lastQuestion ? (safeVoted === 'B' ? lastQuestion.votesB + 1 : lastQuestion.votesB) : 0;
-  const totalVotes = votesA + votesB;
-  const pctA = totalVotes > 0 ? Math.round((votesA / totalVotes) * 100) : 50;
-  const pctB = 100 - pctA;
   const myChoice = safeVoted;
-  const myVotes = myChoice === 'A' ? votesA : votesB;
-  const myPct = myChoice === 'A' ? pctA : pctB;
-  const withMajority = myVotes >= (totalVotes / 2);
+  const myPct = result.kind === 'percent' ? (myChoice === 'A' ? result.a : result.b) : null;
+  const withMajority = myPct !== null && myPct >= 50;
 
   return (
     <ScrollView
@@ -174,8 +171,8 @@ export default function CompleteScreen() {
             <VoteBar
               label="A"
               text={lastQuestion.optionA}
-              votes={votesA}
-              totalVotes={totalVotes}
+              percent={result.kind === 'percent' ? result.a : undefined}
+              total={result.kind === 'percent' ? result.total : undefined}
               userVoted={myChoice === 'A'}
             />
 
@@ -188,14 +185,19 @@ export default function CompleteScreen() {
             <VoteBar
               label="B"
               text={lastQuestion.optionB}
-              votes={votesB}
-              totalVotes={totalVotes}
+              percent={result.kind === 'percent' ? result.b : undefined}
+              total={result.kind === 'percent' ? result.total : undefined}
               userVoted={myChoice === 'B'}
             />
 
-            <Text style={styles.totalVotesText}>{totalVotes.toLocaleString()} total votes</Text>
+            {result.kind === 'percent' ? (
+              <Text style={styles.totalVotesText}>{result.total.toLocaleString()} total votes</Text>
+            ) : (
+              <Text style={styles.totalVotesText}>{INVITE_TITLE}. {INVITE_TEXT}</Text>
+            )}
 
-            {/* Majority verdict */}
+            {/* Majority verdict (only from real percentages) */}
+            {result.kind === 'percent' && (
             <View style={[styles.verdictRow, { borderColor: withMajority ? colors.success : colors.secondary }]}>
               <Text style={styles.verdictEmoji}>{withMajority ? '🎯' : '🔥'}</Text>
               <Text style={[styles.verdictText, { color: withMajority ? colors.success : colors.secondary }]}>
@@ -204,6 +206,7 @@ export default function CompleteScreen() {
                   : `You're in the minority — uniquely you!${myChoice ? ` (${myPct}% chose Option ${myChoice})` : ''}`}
               </Text>
             </View>
+            )}
           </View>
         )}
 

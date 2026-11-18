@@ -4,6 +4,8 @@
 import React from 'react';
 import { ImageResponse } from '@vercel/og';
 import { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } from './_lib/data.js';
+import { getStore } from './_lib/votes.js';
+import { formatResult } from '../lib/results.js';
 
 export const config = { runtime: 'edge' };
 
@@ -39,7 +41,7 @@ function truncate(text, max) {
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
 
-export default function handler(req) {
+export default async function handler(req) {
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
   const ratio = url.searchParams.get('ratio') || '9x16';
@@ -55,10 +57,24 @@ export default function handler(req) {
   const themeName = THEME_FOR_CATEGORY[question.category] || 'bright';
   const t = themeName === 'moody' ? MOODY : BRIGHT;
 
-  const totalVotes = question.votesA + question.votesB;
-  const hasData = totalVotes >= 5;
-  const pctA = totalVotes > 0 ? Math.round((question.votesA / totalVotes) * 100) : 0;
-  const pctB = 100 - pctA;
+  // Real stored votes only, and only at or above the vote threshold (#65).
+  // No store, a slow store or an error all mean "no numbers": the card then
+  // shows the invitation instead of a percentage.
+  let tally = null;
+  try {
+    const store = await getStore(process.env);
+    if (store) tally = (await Promise.race([
+      store.tallies([question.id]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500)),
+    ]))[question.id] ?? null;
+  } catch {
+    tally = null;
+  }
+  const result = formatResult(tally);
+  const hasData = result.kind === 'percent';
+  const totalVotes = hasData ? result.total : 0;
+  const pctA = hasData ? result.a : 0;
+  const pctB = hasData ? result.b : 0;
   const majorityPct = Math.max(pctA, pctB);
   const majorityOption = pctA >= pctB ? 'A' : 'B';
   const consensusText = `${majorityPct}% chose Option ${majorityOption}`;
