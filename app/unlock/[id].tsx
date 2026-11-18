@@ -18,7 +18,9 @@ import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQ
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
-import { track } from '@/lib/analytics';
+import { track as trackEvent } from '@/lib/analytics';
+import { requiresParentalGate } from '@/lib/parentalGate';
+import { ParentalGate } from '@/components/ParentalGate';
 import {
   PRODUCT_ALL,
   FALLBACK_PRICE_ALL,
@@ -45,6 +47,13 @@ function benefitsFor(lockedCount: number): { icon: IoniconsName; text: string }[
 
 export default function UnlockScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  // Purchases reachable from kids/family content sit behind a parental gate, and
+  // nothing on that path is tracked (Tim, 2026-11-18).
+  const kidsDirected = requiresParentalGate(String(id));
+  const [gatePassed, setGatePassed] = useState(false);
+  const track: typeof trackEvent = (...args) => {
+    if (!kidsDirected) trackEvent(...args);
+  };
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { styles, colors } = useThemedStyles(makeStyles);
@@ -165,6 +174,10 @@ export default function UnlockScreen() {
     track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (kidsDirected && !gatePassed) {
+    return <ParentalGate onPass={() => setGatePassed(true)} onCancel={() => router.back()} />;
+  }
 
   if (!category) {
     return (
