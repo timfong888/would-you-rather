@@ -107,7 +107,8 @@ export async function recordVote({ store, questionsById, body, geo, secret }) {
     );
     return {
       status: result.inserted ? 201 : 200,
-      body: { counted: result.inserted, tally: { a: result.a, b: result.b } },
+      // `choice` is the STORED choice: on a repeat vote it is the first one, not the one just sent.
+      body: { counted: result.inserted, choice: result.choice, tally: { a: result.a, b: result.b } },
     };
   } catch {
     return { status: 503, body: { error: 'unavailable', retryable: true } };
@@ -138,6 +139,10 @@ with ins as (
 )
 select
   (select count(*) from ins)::int as inserted,
+  coalesce(
+    (select choice from ins),
+    (select choice from votes where question_id = $1::text and voter_key = $3::text)
+  ) as mine,
   ((select count(*) from votes where question_id = $1::text and choice = 'A')
     + (select count(*) from ins where choice = 'A'))::int as a,
   ((select count(*) from votes where question_id = $1::text and choice = 'B')
@@ -186,7 +191,7 @@ export function createSqlStore(query) {
         rows = await query(INSERT_SQL, params);
       }
       const r = rows[0];
-      return { inserted: Number(r.inserted) === 1, a: Number(r.a), b: Number(r.b) };
+      return { inserted: Number(r.inserted) === 1, choice: String(r.mine).trim(), a: Number(r.a), b: Number(r.b) };
     },
     async tallies(ids) {
       let rows;
@@ -237,7 +242,7 @@ export function memoryStore() {
       const key = `${v.questionId}|${v.voterKey}`;
       const inserted = !rows.has(key);
       if (inserted) rows.set(key, v.choice);
-      return { inserted, ...tally(v.questionId) };
+      return { inserted, choice: rows.get(key), ...tally(v.questionId) };
     },
     async tallies(ids) {
       return Object.fromEntries(ids.map((id) => [id, tally(id)]));

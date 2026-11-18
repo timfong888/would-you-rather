@@ -1,7 +1,7 @@
 // Client side of the vote API: what the app does with the server's answers (issue #65).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { postVote, getTally, getTallies, queueAfterFlush } from '../../lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice } from '../../lib/votes-core';
 
 const VOTE = { questionId: 'hl-1', choice: 'A' as const, visitorId: '00000000-0000-4000-8000-000000000001' };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
@@ -13,22 +13,23 @@ test('postVote returns the server tally and sends the vote as JSON', async () =>
     return new Response(JSON.stringify({ counted: true, tally: { a: 3, b: 1 } }), { status: 201 });
   };
   const r = await postVote(fetchImpl, '', VOTE);
-  assert.deepEqual(r, { tally: { a: 3, b: 1 }, retry: false });
+  assert.deepEqual(r, { tally: { a: 3, b: 1 }, choice: null, retry: false });
   assert.equal(seen.url, '/api/votes');
   assert.equal(seen.init.method, 'POST');
   assert.deepEqual(JSON.parse(seen.init.body), VOTE);
 });
 
 test('an already-counted vote (200) still returns the real tally', async () => {
-  const r = await postVote(json(200, { counted: false, tally: { a: 5, b: 5 } }), '', VOTE);
-  assert.deepEqual(r, { tally: { a: 5, b: 5 }, retry: false });
+  const r = await postVote(json(200, { counted: false, choice: 'B', tally: { a: 5, b: 5 } }), '', VOTE);
+  // the player tapped A this time, but the server holds B from the first vote
+  assert.deepEqual(r, { tally: { a: 5, b: 5 }, choice: 'B', retry: false });
 });
 
 test('503, 429 and network failure give no numbers and are retried later; 400 is not', async () => {
-  assert.deepEqual(await postVote(json(503, { error: 'unavailable' }), '', VOTE), { tally: null, retry: true });
-  assert.deepEqual(await postVote(json(429, {}), '', VOTE), { tally: null, retry: true });
-  assert.deepEqual(await postVote(async () => { throw new Error('offline'); }, '', VOTE), { tally: null, retry: true });
-  assert.deepEqual(await postVote(json(400, { error: 'invalid' }), '', VOTE), { tally: null, retry: false });
+  assert.deepEqual(await postVote(json(503, { error: 'unavailable' }), '', VOTE), { tally: null, choice: null, retry: true });
+  assert.deepEqual(await postVote(json(429, {}), '', VOTE), { tally: null, choice: null, retry: true });
+  assert.deepEqual(await postVote(async () => { throw new Error('offline'); }, '', VOTE), { tally: null, choice: null, retry: true });
+  assert.deepEqual(await postVote(json(400, { error: 'invalid' }), '', VOTE), { tally: null, choice: null, retry: false });
 });
 
 test('a malformed server answer never becomes a number', async () => {
@@ -58,4 +59,12 @@ test('a vote queued while a flush was in flight survives the flush', () => {
   assert.deepEqual(queueAfterFlush([hl1], [hl1]), []);
   // an entry whose choice changed meanwhile is not removed by the older snapshot
   assert.deepEqual(queueAfterFlush([{ questionId: 'hl-1', choice: 'B' }], [hl1]), [{ questionId: 'hl-1', choice: 'B' }]);
+});
+
+test('reload regression: re-answering with a different choice keeps the stored first answer', () => {
+  // confirm A, reload, tap B: the server answers choice A, and that is what the screen keeps
+  assert.equal(reconcileChoice('B', 'A'), 'A');
+  // first vote, or the server sent no choice (old server / failure): keep what was tapped
+  assert.equal(reconcileChoice('B', 'B'), 'B');
+  assert.equal(reconcileChoice('B', null), 'B');
 });

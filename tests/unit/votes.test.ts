@@ -66,6 +66,7 @@ test('the same voter cannot vote twice on a question: 200, not counted, first ch
   const again = await vote(1, 'B');
   assert.equal(again.status, 200);
   assert.equal(again.body.counted, false);
+  assert.equal(again.body.choice, 'A', 'the response names the STORED choice, not the one just sent');
   assert.deepEqual(again.body.tally, { a: 1, b: 0 });
   const { rows } = await db.query<any>('select count(*)::int as n from votes');
   assert.equal(rows[0].n, 1);
@@ -173,6 +174,7 @@ test('the in-memory dev store honours the same contract', async () => {
   const r2 = await recordVote({ store: mem, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
   assert.equal(r1.status, 201);
   assert.equal(r2.status, 200);
+  assert.equal(r2.body.choice, 'A');
   assert.deepEqual(r2.body.tally, { a: 1, b: 0 });
 });
 

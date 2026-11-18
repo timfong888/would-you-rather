@@ -75,6 +75,7 @@ Reports should only publish questions at or above the threshold.
 | `GET /api/tallies?ids=a,b` (1 to 50 ids) | `{ id: { a, b } }`, unknown ids `{a:0,b:0}`. `Cache-Control: s-maxage=60, stale-while-revalidate=300`. 503 is never cached |
 
 A confirmed answer is final in the app (the old "Change my answer" button is removed): the server keeps the first choice, so letting the player change it would show an answer that was never stored.
+On a revisit or reload the game screen restores the stored local answer and locks it; it only reads counts and sends no vote. If the player somehow votes again with a different choice, the vote response carries the stored `choice` and the app shows and keeps that one, not the one just tapped.
 The client retries a vote that failed with 503, 429 or a network error once on the next app load (web only, kept in localStorage).
 
 ## Configuration

@@ -36,23 +36,28 @@ export async function postVote(
   fetchImpl: FetchLike,
   base: string,
   vote: { questionId: string; choice: Choice; visitorId: string },
-): Promise<{ tally: Tally | null; retry: boolean }> {
+): Promise<{ tally: Tally | null; choice: Choice | null; retry: boolean }> {
   const res = await request(fetchImpl, `${base}/api/votes`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(vote),
   });
-  if (!res) return { tally: null, retry: true };
+  if (!res) return { tally: null, choice: null, retry: true };
   if (res.status === 201 || res.status === 200) {
     try {
       const json = await res.json();
-      return { tally: isTally(json?.tally) ? json.tally : null, retry: false };
+      return {
+        tally: isTally(json?.tally) ? json.tally : null,
+        // The server's stored choice (the first vote wins), when it sent one.
+        choice: json?.choice === 'A' || json?.choice === 'B' ? json.choice : null,
+        retry: false,
+      };
     } catch {
-      return { tally: null, retry: false };
+      return { tally: null, choice: null, retry: false };
     }
   }
   // 503 / 429 are worth retrying later; 400 is not.
-  return { tally: null, retry: res.status === 503 || res.status === 429 };
+  return { tally: null, choice: null, retry: res.status === 503 || res.status === 429 };
 }
 
 /** GET the stored counts for one question (CDN-cached for up to 60 s), or null. */
@@ -101,4 +106,9 @@ const pendingKey = (p: PendingVote) => `${p.questionId}:${p.choice}`;
 export function queueAfterFlush(current: PendingVote[], done: PendingVote[]): PendingVote[] {
   const finished = new Set(done.map(pendingKey));
   return current.filter((p) => !finished.has(pendingKey(p)));
+}
+
+/** The answer to show and keep: the server's stored choice wins over what was just tapped. */
+export function reconcileChoice(tapped: Choice, stored: Choice | null): Choice {
+  return stored ?? tapped;
 }

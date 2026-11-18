@@ -20,7 +20,7 @@ test('POST /api/votes stores a vote, GET /api/tallies returns the real count wit
   const res = await post({ questionId: 'hl-1', choice: 'B', visitorId: V1 }, { 'x-vercel-ip-country': 'US' });
   assert.equal(res.status, 201);
   assert.equal(res.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await res.json(), { counted: true, tally: { a: 0, b: 1 } });
+  assert.deepEqual(await res.json(), { counted: true, choice: 'B', tally: { a: 0, b: 1 } });
 
   const get = await tallies(new Request('https://x.test/api/tallies?ids=hl-1,hl-2'));
   assert.equal(get.status, 200);
@@ -31,7 +31,8 @@ test('POST /api/votes stores a vote, GET /api/tallies returns the real count wit
 test('a repeat vote from the same device answers 200 and is not counted again', async () => {
   const res = await post({ questionId: 'hl-1', choice: 'A', visitorId: V1 });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { counted: false, tally: { a: 0, b: 1 } });
+  // sent A this time; the first vote (B) is what the server holds and reports
+  assert.deepEqual(await res.json(), { counted: false, choice: 'B', tally: { a: 0, b: 1 } });
 });
 
 test('bad requests: wrong method 405, bad body 400, bad ids 400, oversized body 400', async () => {

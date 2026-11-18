@@ -36,12 +36,18 @@ function writePending(list: PendingVote[]): void {
   }
 }
 
-/** Record the player's vote. Resolves to the real tally, or null (show the invite). */
-export async function castVote(questionId: string, choice: Choice): Promise<Tally | null> {
+/**
+ * Record the player's vote. Resolves to the real tally and the choice the server
+ * actually holds for this player (the first vote wins), or nulls (show the invite).
+ */
+export async function castVote(
+  questionId: string,
+  choice: Choice,
+): Promise<{ tally: Tally | null; choice: Choice | null }> {
   const { id: visitorId } = getOrCreateVisitorId();
-  const { tally, retry } = await postVote(fetch, apiBase(), { questionId, choice, visitorId });
+  const { tally, choice: stored, retry } = await postVote(fetch, apiBase(), { questionId, choice, visitorId });
   if (retry) writePending([...readPending().filter((p) => p.questionId !== questionId), { questionId, choice }]);
-  return tally;
+  return { tally, choice: stored };
 }
 
 /** Real counts for a question the player is looking at again, or null. */

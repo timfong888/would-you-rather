@@ -22,7 +22,8 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
-import { castVote } from '@/lib/votes';
+import { castVote, fetchTally } from '@/lib/votes';
+import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
 
 // Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
@@ -38,7 +39,7 @@ export default function GameScreen() {
   // Real result for this question. Stays the invite until the server answers,
   // and whenever there are fewer than VOTE_THRESHOLD votes (#65).
   const [result, setResult] = useState<ResultDisplay>({ kind: 'invite' });
-  const { markAnswered, refresh } = useAnsweredQuestions();
+  const { answered, markAnswered, refresh } = useAnsweredQuestions();
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
@@ -76,6 +77,24 @@ export default function GameScreen() {
   useEffect(() => {
     if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
   }, [mustRedirect, category, navReady, router]);
+
+  // Revisiting a question already answered (reload, back button, shared link):
+  // restore and lock the stored answer instead of letting it be answered again.
+  // Read-only: it shows the counts but never sends a vote.
+  const restoredChoice = question ? answered[question.id] : undefined;
+  useEffect(() => {
+    if (!question || !restoredChoice || confirmed) return;
+    let live = true;
+    setSelected(restoredChoice);
+    setConfirmed(true);
+    fetchTally(question.id).then((t) => {
+      if (live) setResult(formatResult(t));
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question?.id, restoredChoice]);
 
   // Every hook must run before the early returns below: revoking owner access
   // while this screen is mounted flips `mustRedirect` and the next render
@@ -154,9 +173,17 @@ export default function GameScreen() {
     setConfirmed(true);
     markAnswered(question!.id, selected);
     const votedQuestionId = question!.id;
-    castVote(votedQuestionId, selected).then((tally) => {
+    const tapped = selected;
+    castVote(votedQuestionId, tapped).then(({ tally, choice }) => {
       // Ignore a late answer if the player has already moved to another question.
-      if (votedQuestionId === question?.id) setResult(formatResult(tally));
+      if (votedQuestionId !== question?.id) return;
+      setResult(formatResult(tally));
+      // First vote wins on the server: show and keep the answer it actually holds.
+      const kept = reconcileChoice(tapped, choice);
+      if (kept !== tapped) {
+        setSelected(kept);
+        markAnswered(votedQuestionId, kept);
+      }
     });
     track('question_answered', {
       question_id: question!.id,
