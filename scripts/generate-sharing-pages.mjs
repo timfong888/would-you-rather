@@ -1,8 +1,8 @@
 /**
  * SAT-741: Generate static HTML sharing pages for all questions.
  *
- * Vercel does not deploy Edge Functions for framework:null + custom outputDirectory
- * projects, so /api/p/[id] was returning NOT_FOUND. This script generates
+ * /api/p/[id].jsx was never built by Vercel (the `.jsx` extension is not a function
+ * entry, #73; plain `.js` files in api/ do deploy) and has been removed. This script generates
  * individual static HTML files in dist/p/{id}.html at build time so that
  * /p/:id resolves to a real file with full OG meta tags and a JS redirect.
  *
