@@ -1,7 +1,7 @@
 # Would You Rather: MVP engineering spec
 
 Implements the acceptance criteria in [would-you-rather-mvp.md](would-you-rather-mvp.md) (AC-1 to AC-15).
-Status: draft for review, 2026-11-17. Docs only; nothing here is built yet.
+Status: draft for review, 2026-11-17. Vote storage, the vote API and the result display (FR-1, FR-2, BR-2) are built: see [vote-counts.md](vote-counts.md). The rest is not built yet.
 
 ## 1. What exists today
 

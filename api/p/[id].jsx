@@ -50,12 +50,8 @@ export default function handler(req) {
   const ogTitle = truncate(rawTitle, 55);
 
   // Description: curiosity-gap hook
-  const totalVotes = question.votesA + question.votesB;
-  const pctA = totalVotes > 0 ? Math.round((question.votesA / totalVotes) * 100) : 0;
-  const pctB = 100 - pctA;
-  const ogDescription = totalVotes >= 5
-    ? `${pctA}% vs ${pctB}% — where do YOU stand? Answer the question to see the full breakdown.`
-    : `Where do YOU stand? Play along and see what others chose.`;
+  // No vote numbers in the description: it is not built from stored votes (#65).
+  const ogDescription = 'Which side are you on? Tap to vote.';
 
   // Visible card content for the no-JS fallback
   const displayOptA = truncate(question.optionA, 200);

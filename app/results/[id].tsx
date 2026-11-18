@@ -13,6 +13,8 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
+import { useTally } from '@/lib/useTally';
+import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
@@ -36,6 +38,7 @@ export default function ResultsScreen() {
   }, []);
 
   const question = getQuestionById(id ?? '');
+  const result = useTally(id);
   const safeVoted = voted === 'A' || voted === 'B' ? voted : null;
   const category = cat ? getCategoryById(cat as CategoryId) : undefined;
 
@@ -52,15 +55,10 @@ export default function ResultsScreen() {
 
   const catColor = category?.color ?? colors.primary;
 
-  const votesA = safeVoted === 'A' ? question.votesA + 1 : question.votesA;
-  const votesB = safeVoted === 'B' ? question.votesB + 1 : question.votesB;
-  const totalVotes = votesA + votesB;
-
-  const userPickedA = safeVoted === 'A';
-  const majorityPickedA = votesA > votesB;
-  const withMajority = (userPickedA && majorityPickedA) || (!userPickedA && !majorityPickedA);
-  // Same rule as the game screen: no majority/minority claim off fewer than 5 votes.
-  const hasCrowd = votesA + votesB >= 5;
+  // Real percentages only (server, at or above the vote threshold); otherwise the invite.
+  const hasCrowd = result.kind === 'percent';
+  const myPct = result.kind === 'percent' && safeVoted ? (safeVoted === 'A' ? result.a : result.b) : null;
+  const withMajority = myPct !== null && myPct >= 50;
 
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
@@ -261,11 +259,11 @@ export default function ResultsScreen() {
               {!hasCrowd ? '✨' : withMajority ? '🎯' : '🔥'}
             </Text>
             <Text style={styles.resultTitle}>
-              {!hasCrowd ? 'Nice pick!' : withMajority ? "You're with the majority!" : "You're in the minority!"}
+              {!hasCrowd ? INVITE_TITLE : withMajority ? "You're with the majority!" : "You're in the minority!"}
             </Text>
             <Text style={styles.resultSubtitle}>
               {!hasCrowd
-                ? 'This one is new. Ask the room: who picks the other side, and why?'
+                ? INVITE_TEXT
                 : withMajority
                   ? `Most people also chose Option ${safeVoted}`
                   : `Most people chose Option ${safeVoted === 'A' ? 'B' : 'A'} — you're unique!`}
@@ -288,16 +286,16 @@ export default function ResultsScreen() {
           <VoteBar
             label="A"
             text={question.optionA}
-            votes={votesA}
-            totalVotes={totalVotes}
+            percent={result.kind === 'percent' ? result.a : undefined}
+            total={result.kind === 'percent' ? result.total : undefined}
             userVoted={safeVoted === 'A'}
           />
           <View style={styles.voteDivider} />
           <VoteBar
             label="B"
             text={question.optionB}
-            votes={votesB}
-            totalVotes={totalVotes}
+            percent={result.kind === 'percent' ? result.b : undefined}
+            total={result.kind === 'percent' ? result.total : undefined}
             userVoted={safeVoted === 'B'}
           />
         </View>
@@ -318,7 +316,9 @@ export default function ResultsScreen() {
         )}
 
         <Text style={styles.totalVotes}>
-          {totalVotes.toLocaleString()} total votes
+          {result.kind === 'percent'
+            ? `${result.total.toLocaleString()} total votes`
+            : `${INVITE_TITLE}. ${INVITE_TEXT}`}
         </Text>
       </View>
 
@@ -356,10 +356,8 @@ export default function ResultsScreen() {
               </Text>
             </Pressable>
             <Text style={styles.shareButtonHint}>
-              {totalVotes >= 5
-                ? `Show that you're in the ${(voted === 'A'
-                    ? Math.round((votesA / totalVotes) * 100)
-                    : Math.round((votesB / totalVotes) * 100))}% — prove your point.`
+              {myPct !== null
+                ? `Show that you're in the ${myPct}% — prove your point.`
                 : 'Show which side you chose and spark a debate.'}
             </Text>
           </>

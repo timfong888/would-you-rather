@@ -22,6 +22,9 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
+import { reconcileChoice } from '@/lib/votes-core';
+import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
 
 // Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
 const SHARE_LINK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -33,6 +36,9 @@ export default function GameScreen() {
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  // Real result for this question. Stays the invite until the server answers,
+  // and whenever there are fewer than VOTE_THRESHOLD votes (#65).
+  const [result, setResult] = useState<ResultDisplay>({ kind: 'invite' });
   const { markAnswered, refresh } = useAnsweredQuestions();
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -71,6 +77,25 @@ export default function GameScreen() {
   useEffect(() => {
     if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
   }, [mustRedirect, category, navReady, router]);
+
+  // Revisiting a question whose vote the server already holds (reload, back button,
+  // shared link): restore and lock that answer instead of letting it be answered again.
+  // Read-only: it shows the counts but never sends a vote. Answers saved by older
+  // versions (never sent to the server) are not locked, so those players can still vote.
+  const restoredChoice = question ? getLockedChoice(question.id) ?? undefined : undefined;
+  useEffect(() => {
+    if (!question || !restoredChoice || confirmed) return;
+    let live = true;
+    setSelected(restoredChoice);
+    setConfirmed(true);
+    fetchTally(question.id).then((t) => {
+      if (live) setResult(formatResult(t));
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question?.id, restoredChoice]);
 
   // Every hook must run before the early returns below: revoking owner access
   // while this screen is mounted flips `mustRedirect` and the next render
@@ -148,6 +173,19 @@ export default function GameScreen() {
     if (!selected) return;
     setConfirmed(true);
     markAnswered(question!.id, selected);
+    const votedQuestionId = question!.id;
+    const tapped = selected;
+    castVote(votedQuestionId, tapped).then(({ tally, choice }) => {
+      // Ignore a late answer if the player has already moved to another question.
+      if (votedQuestionId !== question?.id) return;
+      setResult(formatResult(tally));
+      // First vote wins on the server: show and keep the answer it actually holds.
+      const kept = reconcileChoice(tapped, choice);
+      if (kept !== tapped) {
+        setSelected(kept);
+        markAnswered(votedQuestionId, kept);
+      }
+    });
     track('question_answered', {
       question_id: question!.id,
       category: catId ?? undefined,
@@ -208,11 +246,9 @@ export default function GameScreen() {
     router.push('/categories');
   };
 
-  const votesA = confirmed && selected === 'A' ? question.votesA + 1 : question.votesA;
-  const votesB = confirmed && selected === 'B' ? question.votesB + 1 : question.votesB;
-  // New questions (e.g. the Kids & Family bank) start with no votes. Don't show
-  // "100% consensus / with the majority" off a single tap; say it's new instead.
-  const hasCrowd = votesA + votesB >= 5;
+  // Real percentages only, from the server, at or above the vote threshold.
+  const pctFor = (label: 'A' | 'B'): number | undefined =>
+    confirmed && result.kind === 'percent' ? (label === 'A' ? result.a : result.b) : undefined;
 
   const pageTitle = `Would You Rather: ${question.optionA} — or — ${question.optionB}?`;
   const truncatedTitle = pageTitle.length > 100
@@ -291,9 +327,7 @@ export default function GameScreen() {
           selected={selected === 'A'}
           onPress={() => { if (!confirmed) setSelected('A'); }}
           disabled={confirmed}
-          votesA={votesA}
-          votesB={votesB}
-          showConsensus={confirmed && hasCrowd}
+          percentage={pctFor('A')}
         />
 
         <View style={styles.orDivider}>
@@ -310,9 +344,7 @@ export default function GameScreen() {
           selected={selected === 'B'}
           onPress={() => { if (!confirmed) setSelected('B'); }}
           disabled={confirmed}
-          votesA={votesA}
-          votesB={votesB}
-          showConsensus={confirmed && hasCrowd}
+          percentage={pctFor('B')}
         />
       </View>
 
@@ -336,6 +368,9 @@ export default function GameScreen() {
                 {selected ? 'CONFIRM PREFERENCE' : 'PICK AN OPTION FIRST'}
               </Text>
             </Pressable>
+            <Text style={styles.disclosure}>
+              Your answer is recorded anonymously to show how others voted.
+            </Text>
 
             {/* Contextual challenge invite — shown when user picked but hasn't confirmed */}
             {selected && (
@@ -379,25 +414,22 @@ export default function GameScreen() {
           <>
             <View style={[styles.resultBanner, { borderColor: `${catColor}40` }]}>
               <Text style={styles.resultBannerEmoji}>
-                {!hasCrowd
+                {result.kind !== 'percent'
                   ? '✨'
-                  : selected === 'A'
-                    ? (votesA > votesB ? '🎯' : '🔥')
-                    : (votesB > votesA ? '🎯' : '🔥')}
+                  : (selected === 'A' ? result.a : result.b) >= 50 ? '🎯' : '🔥'}
               </Text>
               <View style={styles.resultBannerText}>
                 <Text style={styles.resultBannerTitle}>
                   {(() => {
-                    if (!hasCrowd) return 'Nice pick!';
-                    const myVotes = selected === 'A' ? votesA : votesB;
-                    const otherVotes = selected === 'A' ? votesB : votesA;
-                    return myVotes >= otherVotes ? 'With the majority!' : 'Uniquely yours!';
+                    if (result.kind !== 'percent') return INVITE_TITLE;
+                    const mine = selected === 'A' ? result.a : result.b;
+                    return mine >= 50 ? 'With the majority!' : 'Uniquely yours!';
                   })()}
                 </Text>
                 <Text style={styles.resultBannerSub}>
-                  {hasCrowd
-                    ? `You chose Option ${selected}`
-                    : 'This one is new. Ask the room: who picks the other side, and why?'}
+                  {result.kind === 'percent'
+                    ? `${selected === 'A' ? result.a : result.b}% of ${result.total.toLocaleString()} players chose Option ${selected}`
+                    : INVITE_TEXT}
                 </Text>
               </View>
             </View>
@@ -415,18 +447,6 @@ export default function GameScreen() {
               </Text>
             </Pressable>
 
-            <Pressable
-              onPress={() => {
-                setSelected(null);
-                setConfirmed(false);
-              }}
-              style={({ pressed }) => [
-                styles.replayButton,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={styles.replayText}>Change my answer</Text>
-            </Pressable>
           </>
         )}
       </View>
@@ -633,18 +653,10 @@ function makeStyles(colors: ThemeColors) {
       fontWeight: FONTS.weights.extrabold,
       letterSpacing: 2,
     },
-    replayButton: {
-      alignItems: 'center',
-      paddingVertical: SPACING.sm,
-      ...Platform.select({
-        web: {
-          cursor: 'pointer',
-        },
-      }),
-    },
-    replayText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.md,
+    disclosure: {
+      color: colors.textMuted,
+      fontSize: FONTS.sizes.sm,
+      textAlign: 'center',
     },
     buttonPressed: {
       opacity: 0.8,

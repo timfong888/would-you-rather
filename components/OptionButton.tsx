@@ -15,9 +15,8 @@ interface OptionButtonProps {
   selected: boolean;
   onPress: () => void;
   disabled?: boolean;
-  votesA?: number;
-  votesB?: number;
-  showConsensus?: boolean;
+  /** Real share of voters who chose this option (0-100). Omit to show no result. */
+  percentage?: number;
 }
 
 export default function OptionButton({
@@ -26,19 +25,12 @@ export default function OptionButton({
   selected,
   onPress,
   disabled,
-  votesA = 0,
-  votesB = 0,
-  showConsensus = false,
+  percentage,
 }: OptionButtonProps) {
   const { styles, colors } = useThemedStyles(makeStyles);
 
   const isA = label === 'A';
   const baseColor = isA ? colors.optionA : colors.optionB;
-
-  const totalVotes = votesA + votesB;
-  const percentage = totalVotes > 0
-    ? Math.round(((isA ? votesA : votesB) / totalVotes) * 100)
-    : 50;
 
   return (
     <Pressable
@@ -64,7 +56,7 @@ export default function OptionButton({
         </Text>
       </View>
 
-      {showConsensus && (
+      {percentage !== undefined && (
         <View style={styles.consensusRow}>
           <View style={styles.consensusBarTrack}>
             <View

@@ -13,12 +13,23 @@ export default function PrivacyPolicyScreen() {
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Privacy Policy</Text>
-      <Text style={styles.updated}>Last updated: August 2026</Text>
+      <Text style={styles.updated}>Last updated: November 2026</Text>
 
       <Text style={styles.body}>
-        Would You Rather? is a locally-run game that stores all data on your
-        device only. We do not collect, transmit, or share any personal
-        information.
+        Would You Rather? keeps most of its data on your device. The one thing
+        we store on our servers is your answers to questions, described under
+        "Votes" below. We do not collect your name, email address or IP address.
+      </Text>
+
+      <Text style={styles.heading}>Votes</Text>
+      <Text style={styles.body}>
+        When you answer a question, we store which question it was, which option
+        you chose, when you answered, a random anonymous ID made on your device,
+        and your country and region (coarse, for example "US, CA"). We use
+        these to show how everyone voted and to publish aggregate results. We do
+        not store your IP address. Only one answer per question is counted for
+        each device. In the Kids & Family category we store no device ID and
+        no region at all, only the question, the option and the time.
       </Text>
 
       <Text style={styles.heading}>Data We Store Locally</Text>

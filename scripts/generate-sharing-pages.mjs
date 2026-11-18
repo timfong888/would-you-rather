@@ -67,16 +67,10 @@ for (const question of QUESTIONS) {
   const rawTitle = `WYR: ${shortA} or ${shortB}?`;
   const ogTitle = truncate(rawTitle, 60);
 
-  const totalVotes = question.votesA + question.votesB;
-  const pctA = totalVotes > 0 ? Math.round((question.votesA / totalVotes) * 100) : 0;
-  const pctB = 100 - pctA;
-  const voteCountLabel = totalVotes >= 1000
-    ? `${(totalVotes / 1000).toFixed(1)}k`
-    : String(totalVotes);
-  const ogDescription =
-    totalVotes >= 5
-      ? `🔥 ${voteCountLabel} people voted — ${pctA}% vs ${pctB}%. Which side are YOU on? Tap to vote and unlock the full breakdown.`
-      : `🤔 Your turn — cast your vote and see what everyone else chose!`;
+  // Build-time pages never carry vote numbers: counts change after the build
+  // and below the threshold there is nothing real to show (#65). Live numbers
+  // come only from the card image (/api/card), which reads stored votes.
+  const ogDescription = 'Which side are you on? Tap to vote.';
 
   const shareUrl = `${BASE_URL}/p/${id}`;
   const cardUrl = `${BASE_URL}/api/card?id=${encodeURIComponent(id)}&ratio=1.91x1`;

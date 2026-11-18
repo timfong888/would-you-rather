@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { SEO_PAGES } from '@/constants/seoPages';
 import { StatusBar } from 'expo-status-bar';
@@ -6,6 +7,7 @@ import { UnlockedProvider } from '@/contexts/UnlockedContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AnalyticsProvider } from '@/contexts/AnalyticsContext';
 import ThemeToggle from '@/components/ThemeToggle';
+import { flushPendingVotes } from '@/lib/votes';
 
 function HeaderActions() {
   const router = useRouter();
@@ -27,6 +29,8 @@ function HeaderActions() {
 
 function AppLayout() {
   const { colors, isDark } = useTheme();
+  // Retry any vote that could not be sent last time (issue #65).
+  useEffect(() => { flushPendingVotes(); }, []);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
