@@ -23,7 +23,7 @@ id = entitlement id).
 - `lib/catalog.ts` ids, prices, access rule. Pure; unit-tested.
 - `lib/purchases.native.ts` iOS/Android, `react-native-purchases`.
 - `lib/purchases.ts` web: unavailable. Metro picks `.native.ts` on devices, so the web bundle never contains the SDK (checked with `expo export`).
-- `contexts/UnlockedContext.tsx` entitlements from RevenueCat on launch plus a live listener (refund/expiry revokes access without restart).
+- `contexts/UnlockedContext.tsx` entitlements from RevenueCat on launch, a customer-info listener, and a refresh on every app foreground (RevenueCat does not push backend changes, so a refund or expiry shows up on the next foreground).
 - `app/unlock/[id].tsx` real purchase, "unlock every category", Restore Purchases, quiet user-cancel. On web the old simulated sheet is unchanged (decision pending in #53).
 - `scripts/revenuecat/sync-catalog.ts` (`npm run rc:sync`) idempotent Test Store catalog sync.
 
@@ -59,7 +59,7 @@ Legend: AUTO = already run by an agent against the Test Store; DEVICE = needs a 
 | 10 | Cancel the purchase sheet: no error shown | dev build | DEVICE |
 | 11 | Restore after reinstall | dev build, same store account | DEVICE |
 | 12 | Offline/missing offering: sane message | airplane mode | DEVICE |
-| 13 | Refund or expiry revokes access live | revoke in RevenueCat customer view | DEVICE |
+| 13 | Refund or expiry revokes access after the next app foreground | revoke in RevenueCat customer view, background and reopen the app | DEVICE |
 | 14 | Promo grant unlocks without paying | grant in RevenueCat | DEVICE |
 | 15 | Same on App Store sandbox | `preview` build via TestFlight, `appl_` key, sandbox Apple ID | DEVICE, after #75 and store products exist |
 

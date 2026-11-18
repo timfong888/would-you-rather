@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import type { CategoryId } from '@/constants/questions';
 import {
   loadOwnerAccess,
@@ -80,9 +80,23 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {});
     const unsubscribe = purchases.onEntitlementsChange((active) => setEntitlements(new Set(active)));
+    // RevenueCat does not push backend changes (refund, promo expiry) to the
+    // listener; they appear on the next SDK fetch. Refresh whenever the app
+    // returns to the foreground so revocation does not need a restart.
+    const refresh = () =>
+      purchases
+        .getEntitlements()
+        .then((active) => {
+          if (!cancelled) setEntitlements(new Set(active));
+        })
+        .catch(() => {});
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
     return () => {
       cancelled = true;
       unsubscribe();
+      sub.remove();
     };
   }, []);
 
