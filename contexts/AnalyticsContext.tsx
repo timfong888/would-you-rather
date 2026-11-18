@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { track, identify, getOrCreateVisitorId } from '@/lib/analytics';
+import { track, identify, getOrCreateVisitorId, registerSuperProps, markFirstSession } from '@/lib/analytics';
+import { classifyAttribution, getFirstTouch, toFirstTouchProps } from '@/lib/attribution';
 
 interface AnalyticsContextValue {
   /** Anonymous ID persisted across sessions. */
@@ -31,6 +32,7 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
 
     const { id: visitorId, isNew } = getOrCreateVisitorId();
     identify(visitorId);
+    if (isNew) markFirstSession();
 
     let linkId: string | null = null;
     let generation = 0;
@@ -43,10 +45,25 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
 
     setCtx({ visitorId, incomingLinkId: linkId, incomingGeneration: generation });
 
+    // Acquisition attribution (#52): this visit's, and the first visit's on every event.
+    let attribution = classifyAttribution({});
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      attribution = classifyAttribution({
+        referrer: typeof document !== 'undefined' ? document.referrer : null,
+        url: window.location.href,
+        siteHost: window.location.host,
+      });
+      let storage: Storage | null = null;
+      try { storage = window.localStorage; } catch { storage = null; }
+      registerSuperProps(toFirstTouchProps(getFirstTouch(attribution, storage)));
+    }
+
     track('session_start', {
-      source: linkId ? 'shared_link' : 'direct',
+      ...attribution,
+      source: linkId ? 'shared_link' : attribution.channel,
       link_id: linkId ?? undefined,
       visitor_id: visitorId,
+      is_new_visitor: isNew,
     });
 
     if (linkId) {

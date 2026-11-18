@@ -21,7 +21,7 @@ import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
-import { track, buildShareUrl } from '@/lib/analytics';
+import { track, buildShareUrl, trackVoteForActivation } from '@/lib/analytics';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
@@ -192,6 +192,7 @@ export default function GameScreen() {
       choice: selected,
       visitor_id: visitorId,
     });
+    trackVoteForActivation({ visitor_id: visitorId });
     if (incomingLinkId) {
       track('visitor_answered_after_link', {
         link_id: incomingLinkId,

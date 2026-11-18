@@ -5,6 +5,11 @@
 import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
+import {
+  ACTIVATION_KEY,
+  parseActivationState,
+  recordActivationVote,
+} from '@/lib/activation';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -40,9 +45,18 @@ export function setOwnerAccessFlag(active: boolean): void {
   _ownerAccess = active;
 }
 
-function withGlobalProps(props?: Props): Props | undefined {
-  if (!_ownerAccess) return props;
-  return { ...(props ?? {}), owner_access: true };
+// Properties sent with every event: `platform`, plus the first-touch attribution
+// (`first_channel`, `first_utm_*`, …) once the session has registered it (#52).
+let _superProps: Props = { platform: Platform.OS === 'web' ? 'web' : Platform.OS };
+
+export function registerSuperProps(props: Props): void {
+  _superProps = { ..._superProps, ...props };
+}
+
+function withGlobalProps(props?: Props): Props {
+  const merged: Props = { ..._superProps, ...(props ?? {}) };
+  if (_ownerAccess) merged.owner_access = true;
+  return merged;
 }
 
 export function identify(distinctId: string, properties?: Props): void {
@@ -62,6 +76,36 @@ export function track(event: string, props?: Props): void {
     getClient()?.capture(event, finalProps as any);
   } catch (e) {
     if (DEBUG) console.warn('[analytics] capture error', e);
+  }
+}
+
+// ── activation ──────────────────────────────────────────────────────────────
+
+const FIRST_SESSION_KEY = 'wyr_first_session';
+
+/** Call once per page load when the visitor id was just created. Per-tab (sessionStorage). */
+export function markFirstSession(): void {
+  try {
+    if (Platform.OS === 'web') sessionStorage.setItem(FIRST_SESSION_KEY, '1');
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * Counts a vote toward activation and fires `activated` once, on the vote that
+ * reaches the threshold inside the visitor's first session. Safe without storage.
+ */
+export function trackVoteForActivation(props?: Props): void {
+  if (Platform.OS !== 'web') return;
+  try {
+    const first = sessionStorage.getItem(FIRST_SESSION_KEY) === '1';
+    const prev = parseActivationState(localStorage.getItem(ACTIVATION_KEY));
+    const { state, fire } = recordActivationVote(prev, first);
+    localStorage.setItem(ACTIVATION_KEY, JSON.stringify(state));
+    if (fire) track('activated', { votes: state.votes, ...(props ?? {}) });
+  } catch {
+    /* storage unavailable: skip rather than fire repeatedly */
   }
 }
 
