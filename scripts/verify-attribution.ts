@@ -115,8 +115,10 @@ for (const [name, input, want] of channelCases) {
 {
   check('kids landing page is a kids path', isKidsPath('/would-you-rather-questions-for-kids'));
   check('kids landing page with trailing slash', isKidsPath('/would-you-rather-questions-for-kids/'));
-  check('kids question is a kids path', isKidsPath('/game/kf-12') && isKidsPath('/p/kf-3'));
-  check('adult pages are not kids paths', !isKidsPath('/') && !isKidsPath('/questions-for-couples') && !isKidsPath('/game/hl-1'));
+  check('kids question is a kids path', isKidsPath('/game/kf-12') && isKidsPath('/p/kf-3') && isKidsPath('/results/kf-1'));
+  check('kids category, completion and unlock routes are kids paths',
+    isKidsPath('/categories/kids-family') && isKidsPath('/complete/kids-family') && isKidsPath('/unlock/kids-family'));
+  check('adult pages are not kids paths', !isKidsPath('/') && !isKidsPath('/questions-for-couples') && !isKidsPath('/game/hl-1') && !isKidsPath('/categories/high-life') && !isKidsPath('/complete/moral-compass'));
 }
 
 if (failed) {

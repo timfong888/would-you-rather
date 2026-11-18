@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
 import { isKidsPath } from '@/lib/kidsPaths';
+import { classifyAttribution, getFirstTouch, toFirstTouchProps, type Attribution } from '@/lib/attribution';
 import {
   ACTIVATION_KEY,
   parseActivationState,
@@ -183,4 +184,52 @@ export function buildShareUrl(questionId: string, incomingGeneration: number): {
 
   const url = `${origin}/p/${questionId}?link_id=${linkId}&gen=${gen}`;
   return { url, linkId };
+}
+
+// ── session init ────────────────────────────────────────────────────────────
+
+export interface SessionInfo {
+  visitorId: string;
+  isNew: boolean;
+  attribution: Attribution;
+  linkId: string | null;
+  generation: number;
+}
+
+let _session: SessionInfo | null = null;
+
+/**
+ * Initialises the visitor, first-session flag, identity and first-touch super
+ * properties exactly once per page load. AnalyticsProvider calls it while rendering,
+ * i.e. before any child effect (route page_view, vote-retry flush) can create the
+ * visitor id or capture an event. Returns null where there is no window to read
+ * (static export render); that case is not memoised.
+ */
+export function ensureSessionInit(): SessionInfo | null {
+  if (_session) return _session;
+  const isWeb = Platform.OS === 'web';
+  if (isWeb && typeof window === 'undefined') return null;
+
+  const { id: visitorId, isNew } = getOrCreateVisitorId();
+  if (isNew) markFirstSession();
+  identify(visitorId);
+
+  let attribution = classifyAttribution({});
+  let linkId: string | null = null;
+  let generation = 0;
+  if (isWeb) {
+    attribution = classifyAttribution({
+      referrer: typeof document !== 'undefined' ? document.referrer : null,
+      url: window.location.href,
+      siteHost: window.location.host,
+    });
+    const params = new URLSearchParams(window.location.search);
+    linkId = params.get('link_id');
+    generation = parseInt(params.get('gen') ?? '0', 10) || 0;
+    let storage: Storage | null = null;
+    try { storage = window.localStorage; } catch { storage = null; }
+    registerSuperProps(toFirstTouchProps(getFirstTouch(attribution, storage)));
+  }
+  _session = { visitorId, isNew, attribution, linkId, generation };
+  return _session;
 }

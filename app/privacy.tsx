@@ -41,8 +41,13 @@ export default function PrivacyPolicyScreen() {
 
       <Text style={styles.heading}>Analytics</Text>
       <Text style={styles.body}>
-        This app does not use any analytics, tracking pixels, or third-party
-        SDKs that collect user data.
+        On this website we use PostHog to count visits and see how people use the
+        game: which page or link brought you here, which pages you open, and
+        which questions you answer. PostHog stores a random ID in your browser.
+        PostHog receives standard request data such as your IP address, but we
+        do not send it your name or email address, and we do not use it on the
+        Kids & Family pages or questions. There are no advertising trackers or
+        tracking pixels.
       </Text>
 
       <Text style={styles.heading}>Children</Text>
