@@ -5,6 +5,7 @@
 import { test, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 // @ts-ignore plain JS
 import { MIGRATION_STATEMENTS } from '../../api/_lib/schema.js';
 import { PGlite } from '@electric-sql/pglite';
@@ -15,7 +16,8 @@ import { QUESTIONS } from '../../api/_lib/data.js';
 // @ts-ignore plain JS
 import { formatResult, VOTE_THRESHOLD } from '../../lib/results.js';
 
-const migration = readFileSync(new URL('../../db/migrations/001_votes.sql', import.meta.url), 'utf8');
+// npm test runs from the repo root.
+const migration = readFileSync(join(process.cwd(), 'db', 'migrations', '001_votes.sql'), 'utf8');
 const questionsById = indexQuestions(QUESTIONS);
 const ADULT_Q = 'hl-1';
 const KIDS_Q = 'kf-1';
