@@ -8,6 +8,8 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
+import { isCategoryEntitled } from '@/lib/catalog';
+import { purchases } from '@/lib/purchases';
 
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */
@@ -16,6 +18,10 @@ interface UnlockedContextValue {
   unlock: (id: CategoryId) => void;
   /** Clear purchased unlocks. Owner access is left in place. */
   reset: () => void;
+  /** True when real store purchases are wired up in this build (native + RevenueCat key). */
+  purchasesAvailable: boolean;
+  /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
+  applyEntitlements: (active: string[]) => void;
 
   /** Owner access: bypass the payment flow for the owner / testers. */
   ownerAccess: boolean;
@@ -28,6 +34,8 @@ const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
   unlock: () => {},
   reset: () => {},
+  purchasesAvailable: false,
+  applyEntitlements: () => {},
   ownerAccess: false,
   ownerAccessAvailable: false,
   grantOwnerAccess: async () => false,
@@ -57,6 +65,28 @@ function saveToStorage(set: Set<string>) {
 export function UnlockedProvider({ children }: { children: React.ReactNode }) {
   const [unlocked, setUnlocked] = useState<Set<string>>(() => loadFromStorage());
   const [ownerAccess, setOwnerAccess] = useState<boolean>(() => loadOwnerAccess());
+  // Active RevenueCat entitlement ids. Empty on web, where purchases are unavailable.
+  const [entitlements, setEntitlements] = useState<Set<string>>(() => new Set());
+
+  // Bootstrap from RevenueCat on launch and stay in sync: the listener fires on
+  // purchase, restore, refund and expiry, so access is revoked without a restart.
+  useEffect(() => {
+    if (!purchases.isAvailable()) return;
+    let cancelled = false;
+    purchases
+      .getEntitlements()
+      .then((active) => {
+        if (!cancelled) setEntitlements(new Set(active));
+      })
+      .catch(() => {});
+    const unsubscribe = purchases.onEntitlementsChange((active) => setEntitlements(new Set(active)));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  const applyEntitlements = useCallback((active: string[]) => setEntitlements(new Set(active)), []);
 
   // Tag every analytics event while owner access is on so tester activity
   // can be excluded from the paywall funnel.
@@ -65,8 +95,8 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
   }, [ownerAccess]);
 
   const isUnlocked = useCallback(
-    (id: CategoryId) => ownerAccess || unlocked.has(id),
-    [ownerAccess, unlocked],
+    (id: CategoryId) => ownerAccess || unlocked.has(id) || isCategoryEntitled(entitlements, id),
+    [ownerAccess, unlocked, entitlements],
   );
 
   const unlock = useCallback((id: CategoryId) => {
@@ -111,6 +141,8 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
         isUnlocked,
         unlock,
         reset,
+        purchasesAvailable: purchases.isAvailable(),
+        applyEntitlements,
         ownerAccess,
         ownerAccessAvailable: isOwnerAccessConfigured(),
         grantOwnerAccess,

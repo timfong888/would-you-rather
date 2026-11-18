@@ -1,0 +1,84 @@
+/**
+ * Product catalog and access rule, shared by the app, the tests and
+ * scripts/revenuecat/sync-catalog.ts. Pure: no React Native imports.
+ *
+ * Tim's decision (2026-11-18, issue #54): one all-categories pack plus an
+ * unlock per category. Prices: pack $4.99, single category $1.99.
+ *
+ * Identifiers are identical in RevenueCat (Test Store), App Store Connect and
+ * Google Play, so changing one is a catalog migration, not a code tweak.
+ */
+import { CATEGORIES, hasPaidContent } from '@/constants/questions';
+import type { CategoryDef, CategoryId } from '@/constants/questions';
+
+/** Entitlement that opens every paid category, including ones added later. */
+export const ENTITLEMENT_ALL = 'premium_all';
+
+/** Store product identifier for the all-categories pack. */
+export const PRODUCT_ALL = 'wyr_premium_all';
+
+/** Display prices, USD micros. The store price (from the offering) wins in the UI. */
+export const PRICE_ALL_MICROS = 4_990_000;
+export const PRICE_CATEGORY_MICROS = 1_990_000;
+export const FALLBACK_PRICE_ALL = '$4.99';
+export const FALLBACK_PRICE_CATEGORY = '$1.99';
+
+/** RevenueCat offering that holds every package. One offering, one package per product. */
+export const OFFERING_ID = 'default';
+
+export function entitlementForCategory(id: CategoryId | string): string {
+  return `cat_${id}`;
+}
+
+export function productForCategory(id: CategoryId | string): string {
+  return `wyr_unlock_${String(id).replace(/-/g, '_')}`;
+}
+
+/** Categories that have something to sell (premium, or an expansion pack). */
+export function paidCategories(categories: CategoryDef[] = CATEGORIES): CategoryDef[] {
+  return categories.filter(hasPaidContent);
+}
+
+/**
+ * The whole rule: a category is open if the all-categories entitlement is
+ * active OR that category's own entitlement is.
+ */
+export function isCategoryEntitled(active: ReadonlySet<string> | readonly string[], id: CategoryId | string): boolean {
+  const set = active instanceof Set ? active : new Set(active as readonly string[]);
+  return set.has(ENTITLEMENT_ALL) || set.has(entitlementForCategory(id));
+}
+
+export interface CatalogProduct {
+  productId: string;
+  entitlementId: string;
+  title: string;
+  description: string;
+  priceMicros: number;
+  /** null for the all-categories pack. */
+  categoryId: CategoryId | null;
+}
+
+/** Every product to create, derived from the question bank so it cannot drift. */
+export function buildCatalog(categories: CategoryDef[] = CATEGORIES): CatalogProduct[] {
+  const products: CatalogProduct[] = [
+    {
+      productId: PRODUCT_ALL,
+      entitlementId: ENTITLEMENT_ALL,
+      title: 'All Categories',
+      description: 'Every category, including questions added later.',
+      priceMicros: PRICE_ALL_MICROS,
+      categoryId: null,
+    },
+  ];
+  for (const c of paidCategories(categories)) {
+    products.push({
+      productId: productForCategory(c.id),
+      entitlementId: entitlementForCategory(c.id),
+      title: c.label,
+      description: `Every question in ${c.label}, including questions added later.`,
+      priceMicros: PRICE_CATEGORY_MICROS,
+      categoryId: c.id,
+    });
+  }
+  return products;
+}

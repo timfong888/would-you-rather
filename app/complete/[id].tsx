@@ -19,6 +19,7 @@ import {
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
+import { FALLBACK_PRICE_CATEGORY } from '@/lib/catalog';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
@@ -29,7 +30,7 @@ import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
-  const { isUnlocked } = useUnlocked();
+  const { isUnlocked, purchasesAvailable } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -261,7 +262,9 @@ export default function CompleteScreen() {
             </Text>
             <View style={styles.upsellCta}>
               <Text style={styles.upsellCtaText}>
-                {isExpansionUpsell ? `UNLOCK ${remaining} MORE · $2.99` : 'EXTEND COLLECTION · $2.99'}
+                {isExpansionUpsell
+                  ? `UNLOCK ${remaining} MORE · ${purchasesAvailable ? FALLBACK_PRICE_CATEGORY : '$2.99'}`
+                  : `EXTEND COLLECTION · ${purchasesAvailable ? FALLBACK_PRICE_CATEGORY : '$2.99'}`}
               </Text>
             </View>
           </Pressable>

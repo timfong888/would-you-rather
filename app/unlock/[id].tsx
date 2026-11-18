@@ -19,6 +19,14 @@ import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track } from '@/lib/analytics';
+import {
+  PRODUCT_ALL,
+  FALLBACK_PRICE_ALL,
+  FALLBACK_PRICE_CATEGORY,
+  isCategoryEntitled,
+  productForCategory,
+} from '@/lib/catalog';
+import { purchases } from '@/lib/purchases';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
@@ -40,11 +48,16 @@ export default function UnlockScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked, unlock, ownerAccessAvailable, grantOwnerAccess } = useUnlocked();
+  const { isUnlocked, unlock, ownerAccessAvailable, grantOwnerAccess, purchasesAvailable, applyEntitlements } =
+    useUnlocked();
 
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [useApplePay, setUseApplePay] = useState(true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
+  // Real purchases (iOS/Android with a RevenueCat key). On web the existing
+  // simulated sheet is kept until the web payments decision (issue #53).
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   // "Have a code?" on the payment sheet. Redeeming the owner code grants
   // owner access (every pack), which also completes this unlock.
@@ -132,6 +145,20 @@ export default function UnlockScreen() {
   }, [paymentState, sheetAnim]);
 
   useEffect(() => {
+    if (!purchasesAvailable) return;
+    let cancelled = false;
+    purchases
+      .getPrices()
+      .then((p) => {
+        if (!cancelled) setPrices(p);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [purchasesAvailable]);
+
+  useEffect(() => {
     // Someone who already has this category (purchased or owner access) landing
     // here by URL is not a paywall view; counting it would deflate conversion.
     if (isUnlocked(id as CategoryId)) return;
@@ -166,9 +193,66 @@ export default function UnlockScreen() {
     setPaymentState('success');
   };
 
+  const productId = productForCategory(id as string);
+  const categoryPrice = prices[productId] ?? FALLBACK_PRICE_CATEGORY;
+  const allPrice = prices[PRODUCT_ALL] ?? FALLBACK_PRICE_ALL;
+  // The price shown by the one-button paywall: the real store price on native.
+  const shownPrice = purchasesAvailable ? categoryPrice : '$2.99';
+
+  const handleBuy = async (kind: 'category' | 'all') => {
+    if (paymentState !== 'idle') return;
+    setPurchaseError(null);
+    setRestoreMsg(null);
+    track('paywall_cta_clicked', {
+      category_id: id,
+      pack_type: kind === 'all' ? 'all' : isExpansion ? 'expansion' : 'premium',
+      payment_method: 'store',
+    });
+    setPaymentState('processing');
+    try {
+      const result = await purchases.purchase(kind === 'all' ? PRODUCT_ALL : productId);
+      if (result.status === 'cancelled') {
+        // User backed out of the Apple sheet: not an error.
+        setPaymentState('idle');
+        return;
+      }
+      applyEntitlements(result.entitlements);
+      track('purchase_completed', { category_id: id, product: kind });
+      setPaymentState('success');
+    } catch (e) {
+      track('purchase_failed', { category_id: id, product: kind });
+      setPurchaseError(
+        e instanceof Error && e.message ? e.message : 'The purchase could not be completed. You were not charged.',
+      );
+      setPaymentState('idle');
+    }
+  };
+
   const handleRestorePurchases = async () => {
     setRestoreMsg(null);
+    setPurchaseError(null);
     setPaymentState('processing');
+    if (purchasesAvailable) {
+      try {
+        const active = await purchases.restore();
+        applyEntitlements(active);
+        // The context recomputes access from the restored entitlements.
+        if (isCategoryEntitled(active, id as string)) {
+          setPaymentState('success');
+        } else {
+          setRestoreMsg(
+            active.length > 0
+              ? 'Your purchases were restored, but they do not include this category.'
+              : 'No previous purchases found for this account.',
+          );
+          setPaymentState('idle');
+        }
+      } catch {
+        setRestoreMsg('Could not restore purchases right now. Check your connection and try again.');
+        setPaymentState('idle');
+      }
+      return;
+    }
     await new Promise<void>((r) => setTimeout(r, RESTORE_MS));
     if (isUnlocked(id as CategoryId)) {
       setPaymentState('success');
@@ -268,22 +352,44 @@ export default function UnlockScreen() {
 
         {/* Price + CTA */}
         <View style={styles.priceBlock}>
-          <Text style={styles.price}>$2.99</Text>
+          <Text style={styles.price}>{shownPrice}</Text>
           <Text style={styles.priceNote}>ONE-TIME CATEGORY UNLOCK · NO SUBSCRIPTION</Text>
         </View>
 
         <Pressable
-          onPress={() => { setRestoreMsg(null); setPaymentState('sheet'); }}
+          onPress={() => {
+            if (purchasesAvailable) {
+              handleBuy('category');
+            } else {
+              setRestoreMsg(null);
+              setPaymentState('sheet');
+            }
+          }}
           style={({ pressed }) => [
             styles.unlockBtn,
             { backgroundColor: category.color },
             pressed && styles.btnPressed,
           ]}
           accessibilityRole="button"
-          accessibilityLabel={`Unlock ${lockedCount} more dilemmas for $2.99`}
+          accessibilityLabel={`Unlock ${lockedCount} more dilemmas for ${shownPrice}`}
         >
           <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
         </Pressable>
+
+        {purchasesAvailable && (
+          <Pressable
+            onPress={() => handleBuy('all')}
+            style={({ pressed }) => [styles.restoreBtn, pressed && { opacity: 0.6 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Unlock all categories for ${allPrice}`}
+          >
+            <Text style={[styles.restoreBtnText, { color: category.color }]}>
+              Or unlock every category · {allPrice}
+            </Text>
+          </Pressable>
+        )}
+
+        {purchaseError !== null && <Text style={styles.restoreMsg}>{purchaseError}</Text>}
 
         {restoreMsg !== null && (
           <Text style={styles.restoreMsg}>{restoreMsg}</Text>
