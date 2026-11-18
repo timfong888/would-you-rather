@@ -7,7 +7,7 @@ import { ImageResponse } from "@vercel/og";
 import { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } from "./_lib/data.js";
 import { getStore } from "./_lib/votes.js";
 import { formatResult } from "../lib/results.js";
-const config = { runtime: "edge" };
+export const config = { runtime: "edge" };
 const BRIGHT = {
   bg: "linear-gradient(135deg, #F472B6 0%, #7C3AED 100%)",
   optionBg: "rgba(255,255,255,0.15)",
@@ -37,7 +37,7 @@ const MOODY = {
 function truncate(text, max) {
   return text.length > max ? text.slice(0, max - 1) + "…" : text;
 }
-async function handler(req) {
+export default async function handler(req) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const ratio = url.searchParams.get("ratio") || "9x16";
@@ -300,7 +300,3 @@ async function handler(req) {
     }
   );
 }
-export {
-  config,
-  handler as default
-};
