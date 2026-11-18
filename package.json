@@ -61,7 +61,7 @@
       "tar": "^6.2.1"
     },
     "@expo/plist": {
-      "@xmldom/xmldom": "~0.7.7"
+      "@xmldom/xmldom": "~0.8.15"
     },
     "plist": {
       "@xmldom/xmldom": "^0.8.8"
