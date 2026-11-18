@@ -84,7 +84,9 @@ The client retries a vote that failed with 503, 429 or a network error once on t
 | `VOTER_KEY_SECRET` | Kids' votes (random, at least 32 bytes). Never rotate casually: it changes every kids' `voter_key`, so the same child can vote again |
 | `WYR_VOTE_STORE=memory` | Local development only: in-memory store, lost on restart |
 
-Apply the table with `DATABASE_URL=... npm run db:migrate`, or paste `db/migrations/001_votes.sql` into the Neon SQL Editor.
+The `votes` table creates itself: if the first vote finds it missing (Postgres error `42P01`), the idempotent statement in `api/_lib/schema.js` runs once and the write is retried once. A read of a missing table returns "no votes" and creates nothing. No manual step is needed.
+`db/migrations/001_votes.sql` holds the same statement (a test keeps them identical); `DATABASE_URL=... npm run db:migrate` or pasting it into the Neon SQL Editor does the same thing by hand.
+Later schema changes (new columns, indexes, rollups) will need a real migration step; self-creation only covers the first table.
 
 ## Not built here (still open on #65)
 

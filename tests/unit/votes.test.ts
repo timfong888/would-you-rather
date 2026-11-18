@@ -5,6 +5,8 @@
 import { test, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+// @ts-ignore plain JS
+import { MIGRATION_STATEMENTS } from '../../api/_lib/schema.js';
 import { PGlite } from '@electric-sql/pglite';
 // @ts-ignore plain JS
 import { createSqlStore, recordVote, readTallies, parseTallyIds, indexQuestions, geoFromHeaders, buildVoterKey, memoryStore } from '../../api/_lib/votes.js';
@@ -201,4 +203,35 @@ test('percentages always sum to 100 and garbage input falls back to the invite',
 
 test('the question bank carries no seeded vote counts', () => {
   assert.ok(!QUESTIONS.some((q: any) => 'votesA' in q || 'votesB' in q));
+});
+
+// ── table is created on first use ────────────────────────────────────────────
+
+test('the first vote creates the table by itself; a read before that returns no votes', async () => {
+  const fresh = new PGlite(); // no migration applied
+  const freshStore = createSqlStore(async (text: string, params: unknown[]) => (await fresh.query(text, params)).rows as any[]);
+  const empty = await readTallies({ store: freshStore, ids: [ADULT_Q] });
+  assert.deepEqual(empty.body, { [ADULT_Q]: { a: 0, b: 0 } });
+  const tables = await fresh.query<any>("select count(*)::int as n from information_schema.tables where table_name = 'votes'");
+  assert.equal(tables.rows[0].n, 0, 'a read must not create anything');
+
+  const res = await recordVote({ store: freshStore, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  assert.equal(res.status, 201);
+  assert.deepEqual(res.body.tally, { a: 1, b: 0 });
+  assert.equal((await recordVote({ store: freshStore, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET })).status, 200);
+  await fresh.close();
+});
+
+test('a failure that is not "table missing" is not swallowed by the migration path', async () => {
+  const calls: string[] = [];
+  const failing = createSqlStore(async (text: string) => { calls.push(text.slice(0, 20)); throw Object.assign(new Error('boom'), { code: '08006' }); });
+  const res = await recordVote({ store: failing, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  assert.equal(res.status, 503);
+  assert.equal(calls.length, 1, 'no migration attempt, no retry');
+});
+
+test('db/migrations/001_votes.sql and the in-code schema are the same statement', () => {
+  const stripped = migration.replace(/--.*$/gm, '').replace(/;\s*$/m, '').replace(/\s+/g, ' ').trim();
+  const inCode = MIGRATION_STATEMENTS.join(' ').replace(/\s+/g, ' ').trim();
+  assert.equal(stripped.replace(/\s*;\s*$/, ''), inCode);
 });

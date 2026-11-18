@@ -5,6 +5,8 @@
 // functions here. Everything takes its store, question list and secrets as
 // arguments, so tests run against a real Postgres (pglite) with no network.
 
+import { MIGRATION_STATEMENTS } from './schema.js';
+
 export const KIDS_CATEGORY = 'kids-family';
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -149,19 +151,51 @@ where question_id = any($1::text[])
 group by question_id, choice
 `;
 
+const MISSING_TABLE = '42P01'; // Postgres: undefined_table
+
 /**
  * @param {(text: string, params: unknown[]) => Promise<any[]>} query returns rows
  *   (Neon: sql.query; tests: pglite db.query(...).rows)
+ *
+ * The votes table is created on first use: if a write finds it missing, the
+ * idempotent migration runs once and the write is retried once. A read of a
+ * missing table just means "no votes yet" and creates nothing.
  */
 export function createSqlStore(query) {
+  let ensured = false;
+  async function ensureSchema() {
+    if (ensured) return;
+    for (const stmt of MIGRATION_STATEMENTS) {
+      try {
+        await query(stmt, []);
+      } catch {
+        // Two cold starts can race to create the table; the retry below decides.
+      }
+    }
+    ensured = true;
+  }
   return {
     async insertVote(v) {
-      const rows = await query(INSERT_SQL, [v.questionId, v.choice, v.voterKey, v.playerId, v.kids, v.country, v.region]);
+      const params = [v.questionId, v.choice, v.voterKey, v.playerId, v.kids, v.country, v.region];
+      let rows;
+      try {
+        rows = await query(INSERT_SQL, params);
+      } catch (err) {
+        if (err?.code !== MISSING_TABLE) throw err;
+        await ensureSchema();
+        rows = await query(INSERT_SQL, params);
+      }
       const r = rows[0];
       return { inserted: Number(r.inserted) === 1, a: Number(r.a), b: Number(r.b) };
     },
     async tallies(ids) {
-      const rows = await query(TALLY_SQL, [ids]);
+      let rows;
+      try {
+        rows = await query(TALLY_SQL, [ids]);
+      } catch (err) {
+        if (err?.code !== MISSING_TABLE) throw err;
+        rows = [];
+      }
       const out = {};
       for (const r of rows) {
         out[r.question_id] ??= { a: 0, b: 0 };
