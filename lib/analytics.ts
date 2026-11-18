@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
 import { isKidsPath } from '@/lib/kidsPaths';
-import { classifyAttribution, getFirstTouch, toFirstTouchProps, type Attribution } from '@/lib/attribution';
+import { classifyAttribution, getFirstTouch, toFirstTouchProps, FIRST_TOUCH_KEY, type Attribution } from '@/lib/attribution';
 import {
   ACTIVATION_KEY,
   parseActivationState,
@@ -87,11 +87,14 @@ export function identify(distinctId: string, properties?: Props): void {
 }
 
 export function track(event: string, props?: Props): void {
+  const kids = onKidsPage();
+  // Late init for visits that began on a kids page (no-op once initialised, and never on kids pages).
+  if (!kids && !_session) ensureSessionInit();
   const finalProps = withGlobalProps(props);
   if (DEBUG) {
-    console.log('[analytics]', event, finalProps);
+    console.log('[analytics]', kids ? '(not sent: kids page)' : '', event, finalProps);
   }
-  if (onKidsPage()) return;
+  if (kids) return;
   try {
     getClient()?.capture(event, finalProps as any);
   } catch (e) {
@@ -117,7 +120,7 @@ export function markFirstSession(): void {
  * reaches the threshold inside the visitor's first session. Safe without storage.
  */
 export function trackVoteForActivation(props?: Props): void {
-  if (Platform.OS !== 'web') return;
+  if (Platform.OS !== 'web' || onKidsPage()) return;
   try {
     const first = sessionStorage.getItem(FIRST_SESSION_KEY) === '1';
     const prev = parseActivationState(localStorage.getItem(ACTIVATION_KEY));
@@ -144,9 +147,17 @@ function uuid(): string {
 }
 
 /** Returns the persisted visitor ID, creating one on first call. */
+let _kidsEphemeralId: string | null = null;
+
 export function getOrCreateVisitorId(): { id: string; isNew: boolean } {
   if (Platform.OS !== 'web') {
     return { id: uuid(), isNew: true };
+  }
+  // Kids routes: never read or write a persistent ID. A per-page-load id keeps the vote API
+  // working (the server HMACs it with the question and stores no player id for kids).
+  if (onKidsPage()) {
+    if (!_kidsEphemeralId) _kidsEphemeralId = uuid();
+    return { id: _kidsEphemeralId, isNew: true };
   }
   try {
     const existing = localStorage.getItem(VISITOR_KEY);
@@ -197,6 +208,10 @@ export interface SessionInfo {
 }
 
 let _session: SessionInfo | null = null;
+// Set when init was skipped because the visit began on a kids page. A later init (once the
+// visitor is on an allowed page) then ignores the browser's referrer and persists no first touch,
+// so nothing about the kids visit reaches PostHog (COPPA, #51).
+let _skippedForKids = false;
 
 /**
  * Initialises the visitor, first-session flag, identity and first-touch super
@@ -209,6 +224,11 @@ export function ensureSessionInit(): SessionInfo | null {
   if (_session) return _session;
   const isWeb = Platform.OS === 'web';
   if (isWeb && typeof window === 'undefined') return null;
+  // Kids pages: no visitor id, identify, attribution or first touch (and nothing memoised).
+  if (onKidsPage()) {
+    _skippedForKids = true;
+    return null;
+  }
 
   const { id: visitorId, isNew } = getOrCreateVisitorId();
   if (isNew) markFirstSession();
@@ -219,17 +239,75 @@ export function ensureSessionInit(): SessionInfo | null {
   let generation = 0;
   if (isWeb) {
     attribution = classifyAttribution({
-      referrer: typeof document !== 'undefined' ? document.referrer : null,
+      referrer: !_skippedForKids && typeof document !== 'undefined' ? document.referrer : null,
       url: window.location.href,
       siteHost: window.location.host,
     });
     const params = new URLSearchParams(window.location.search);
     linkId = params.get('link_id');
     generation = parseInt(params.get('gen') ?? '0', 10) || 0;
-    let storage: Storage | null = null;
-    try { storage = window.localStorage; } catch { storage = null; }
-    registerSuperProps(toFirstTouchProps(getFirstTouch(attribution, storage)));
+    if (!_skippedForKids) {
+      let storage: Storage | null = null;
+      try { storage = window.localStorage; } catch { storage = null; }
+      // Drop a first touch stored by an older build that recorded a kids landing.
+      try {
+        const stored = JSON.parse(storage?.getItem(FIRST_TOUCH_KEY) ?? 'null');
+        if (stored?.landing_path && isKidsPath(String(stored.landing_path))) storage?.removeItem(FIRST_TOUCH_KEY);
+      } catch { /* unreadable: getFirstTouch falls back */ }
+      registerSuperProps(toFirstTouchProps(getFirstTouch(attribution, storage)));
+    }
   }
   _session = { visitorId, isNew, attribution, linkId, generation };
   return _session;
+}
+
+// ── kids mode (COPPA, #51/#65) ──────────────────────────────────────────────
+
+const FIRST_TOUCH_PROP_KEYS = [
+  'first_channel', 'first_referring_domain', 'first_utm_source', 'first_utm_medium',
+  'first_utm_campaign', 'first_landing_path',
+];
+let _inKidsMode = false;
+
+/**
+ * Call on every route change. On a kids route: stop capturing, reset PostHog, drop the
+ * first-touch event properties, clear persisted IDs (the visitor id and PostHog's ph_*
+ * storage) and forget the session, so nothing from the adult part of the visit follows the
+ * player into kids pages. Leaving kids re-enables capture; the session then re-initialises
+ * from the current page only (no referrer, no first touch).
+ */
+export function syncKidsMode(pathname: string): void {
+  const kids = isKidsPath(pathname);
+  if (kids === _inKidsMode) return;
+  _inKidsMode = kids;
+  if (kids) {
+    _skippedForKids = true;
+    _session = null;
+    _superProps = Object.fromEntries(
+      Object.entries(_superProps).filter(([k]) => !FIRST_TOUCH_PROP_KEYS.includes(k)),
+    );
+    try {
+      (_client as any)?.optOut?.();
+      (_client as any)?.reset?.();
+    } catch (e) {
+      if (DEBUG) console.warn('[analytics] kids reset error', e);
+    }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(VISITOR_KEY);
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('ph_')) localStorage.removeItem(k);
+        }
+      }
+    } catch {
+      /* storage unavailable */
+    }
+  } else {
+    try {
+      (_client as any)?.optIn?.();
+    } catch (e) {
+      if (DEBUG) console.warn('[analytics] opt-in error', e);
+    }
+  }
 }

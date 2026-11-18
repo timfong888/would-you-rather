@@ -8,7 +8,7 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AnalyticsProvider } from '@/contexts/AnalyticsContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import { flushPendingVotes } from '@/lib/votes';
-import { track } from '@/lib/analytics';
+import { track, syncKidsMode } from '@/lib/analytics';
 
 function HeaderActions() {
   const router = useRouter();
@@ -35,7 +35,10 @@ function AppLayout() {
   // page_view on every route change, path only (no query string), so SEO
   // landing pages are measurable (#52).
   const pathname = usePathname();
-  useEffect(() => { track('page_view', { path: pathname }); }, [pathname]);
+  useEffect(() => {
+    syncKidsMode(pathname);
+    track('page_view', { path: pathname });
+  }, [pathname]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>

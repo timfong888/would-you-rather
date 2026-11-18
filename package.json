@@ -14,7 +14,7 @@
     "verify:data": "tsx scripts/verify-questions.ts",
     "owner:hash": "node scripts/owner-code-hash.mjs",
     "verify:seo": "tsx scripts/verify-seo.ts",
-    "test": "tsx --test tests/unit/*.test.ts",
+    "test": "tsx --test tests/unit/*.test.ts && tsx --tsconfig tests/tsconfig.analytics.json --test tests/analytics/*.test.ts",
     "db:migrate": "node scripts/migrate-db.mjs"
   },
   "dependencies": {
