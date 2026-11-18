@@ -41,13 +41,20 @@ export default function PrivacyPolicyScreen() {
 
       <Text style={styles.heading}>Analytics</Text>
       <Text style={styles.body}>
-        On this website we use PostHog to count visits and see how people use the
-        game: which page or link brought you here, which pages you open, and
-        which questions you answer. PostHog stores a random ID in your browser.
-        PostHog receives standard request data such as your IP address, but we
-        do not send it your name or email address, and we do not use it on the
-        Kids & Family pages or questions. There are no advertising trackers or
-        tracking pixels.
+        We use PostHog to understand which questions and screens are used, for
+        example when a category is opened or a paywall is viewed. Events are
+        linked to a random anonymous ID created on your device. We do not
+        collect your name, email address or precise location, and we do not use
+        the data for advertising or sell it. PostHog receives standard request
+        data such as your IP address. We do not use PostHog on the Kids &
+        Family pages or questions.
+      </Text>
+
+      <Text style={styles.heading}>Purchases</Text>
+      <Text style={styles.body}>
+        In-app purchases are processed by Apple. We use RevenueCat to validate
+        purchases and to restore them. RevenueCat receives an anonymous app user
+        ID and your purchase history for this app, not your name or Apple ID.
       </Text>
 
       <Text style={styles.heading}>Children</Text>
