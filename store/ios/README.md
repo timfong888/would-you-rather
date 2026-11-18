@@ -12,7 +12,7 @@ iOS v1 scope (Tim, 2026-11-18): **iPhone only**, and **Midnight Secrets and Deep
 | `iap.md` | the 8 in-app products and prices |
 
 Open items before submission:
-1. Privacy policy page update (PR #85, growth session) must match `privacy.md`.
+1. Privacy policy page update and the kids/family analytics exclusion (PR #85, growth session) must match `privacy.md`, and the parental gate (PR #83) must be merged: the review notes describe both, and neither is in this PR.
 2. IAP review screenshots need a native build (Unit 2 blocked on the Expo token).
 3. Screenshots are the web render, not simulator captures (header chrome differs from native).
 4. Name availability, support page contact, copyright holder.

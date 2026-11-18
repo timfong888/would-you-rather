@@ -75,8 +75,9 @@ paywall screen.
 
 Parental gate: any purchase screen opened from Kids & Family content shows a
 "Grown-ups only" gate first (solve a three-number sum). Kids & Family is free today,
-so reviewers will only see the gate by opening /unlock/kids-family. The app collects
-no analytics on kids/family content and does not use the Kids category.
+so reviewers only see the gate by opening /unlock/kids-family. The app does not use
+the Kids category. [Verify before submitting: the gate ships in PR #83, and analytics
+suppression for kids/family content ships in PR #85; neither is in this PR.]
 ```
 Demo account: none required.
 
