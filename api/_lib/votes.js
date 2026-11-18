@@ -74,6 +74,17 @@ export async function buildVoterKey({ kids, visitorId, questionId, secret }) {
   return { voterKey: await hmacHex(secret, `${visitorId}:${questionId}`), playerId: null };
 }
 
+/**
+ * One structured line on stderr for a failed API call, so Vercel runtime errors and logs
+ * show it (and the daily report can count it). Route and reason only: no ids, no
+ * question text, no connection strings (anything that looks like a URL is dropped).
+ */
+export function logApiError(route, err, status = 503) {
+  const raw = String((err && err.message) || err || 'unknown');
+  const reason = raw.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<url>').slice(0, 160);
+  console.error(JSON.stringify({ event: 'api_error', route, status, reason }));
+}
+
 function withTimeout(promise, ms = DB_TIMEOUT_MS) {
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -110,7 +121,8 @@ export async function recordVote({ store, questionsById, body, geo, secret }) {
       // `choice` is the STORED choice: on a repeat vote it is the first one, not the one just sent.
       body: { counted: result.inserted, choice: result.choice, tally: { a: result.a, b: result.b } },
     };
-  } catch {
+  } catch (err) {
+    logApiError('/api/votes', err);
     return { status: 503, body: { error: 'unavailable', retryable: true } };
   }
 }
@@ -123,7 +135,8 @@ export async function readTallies({ store, ids }) {
     const out = {};
     for (const id of ids) out[id] = found[id] ?? { a: 0, b: 0 };
     return { status: 200, body: out };
-  } catch {
+  } catch (err) {
+    logApiError('/api/tallies', err);
     return { status: 503, body: { error: 'unavailable', retryable: true } };
   }
 }

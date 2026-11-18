@@ -57,3 +57,23 @@ In PostHog Live Events (dev project), open a Google result link, a `?utm_medium=
 Nothing is sent to PostHog while the visitor is on a kids-bank landing page (any SEO page with a `questionTag`)
 or a kids question (`/game/kf-*`, `/p/kf-*`): see `lib/kidsPaths.ts`. Votes are still stored anonymously (#65).
 Consent approach for the rest of the site is still an owner decision (#51).
+
+## Errors and bug alerts (#80)
+
+**Client:** `lib/errorTracking.ts` (installed once from `app/_layout.tsx`) reports unhandled errors and promise
+rejections, and render errors through the router's `ErrorBoundary`, as one `$exception` event each via the analytics
+wrapper: `$exception_type`, `$exception_message` (scrubbed: URLs lose their query string, emails are removed,
+200 characters), `$exception_source`, `path` (no query string). No stack traces. At most 2 of the same error and 10
+overall per page load. Kids routes send nothing (same gate as every event). A failed vote request adds
+`api_error {route: '/api/votes', kind: 'vote_failed'}`.
+
+**API:** `api/votes.js` and `api/tallies.js` write one JSON line to stderr for every failure, including a missing
+`DATABASE_URL`: `{"event":"api_error","route":"/api/votes","status":503,"reason":"…"}` (route and reason only, no ids, no
+connection strings). They show up in Vercel's runtime errors/logs (`vercel logs`, or the Logs tab of the project).
+
+**Daily report:** counts `$exception` and `api_error` events (see `docs/reports.md`).
+
+**Spike alert (one-time setup in PostHog, not in code):** PostHog, New insight, Trends, event `$exception`, interval
+hour, then the bell icon ("Alerts"), threshold above 5 per hour, notify Tim's email or Slack. Use
+https://us.posthog.com/insights/new . For server errors, Vercel's own alerts can be set on the project
+(Settings, Notifications), "Error anomalies". Both are one-time dashboard steps; neither was verified from code.

@@ -3,9 +3,15 @@
 // Spec: docs/specs/would-you-rather-mvp-spec.md FR-1. Rate limiting is a Vercel
 // Firewall rule, so no IP reaches this code or the database.
 import { QUESTIONS } from './_lib/data.js';
-import { getStore, recordVote, geoFromHeaders, indexQuestions } from './_lib/votes.js';
+import { logApiError, getStore, recordVote, geoFromHeaders, indexQuestions } from './_lib/votes.js';
 
 export const config = { runtime: 'edge' };
+
+// No store means DATABASE_URL is missing: say so in the logs instead of failing silently.
+function unconfigured(route) {
+  logApiError(route, new Error('vote store not configured (DATABASE_URL missing)'));
+  return { status: 503, body: { error: 'unavailable', retryable: true } };
+}
 
 const QUESTIONS_BY_ID = indexQuestions(QUESTIONS);
 const JSON_HEADERS = { 'content-type': 'application/json', 'cache-control': 'no-store' };
@@ -33,6 +39,6 @@ export default async function handler(req) {
         geo: geoFromHeaders(req.headers),
         secret: process.env.VOTER_KEY_SECRET,
       })
-    : { status: 503, body: { error: 'unavailable', retryable: true } };
+    : unconfigured('/api/votes');
   return new Response(JSON.stringify(result.body), { status: result.status, headers: JSON_HEADERS });
 }
