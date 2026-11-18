@@ -93,10 +93,14 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
+    // The SDK refetches at most every few minutes anyway; poll on that cadence
+    // so a long foreground session also picks up a refund or expiry.
+    const timer = setInterval(refresh, 5 * 60 * 1000);
     return () => {
       cancelled = true;
       unsubscribe();
       sub.remove();
+      clearInterval(timer);
     };
   }, []);
 
