@@ -56,6 +56,15 @@
     "@xmldom/xmldom": ">=0.9.10",
     "postcss": ">=8.5.12",
     "tar": ">=7.5.19",
-    "turbo-stream": "^3.0.0"
+    "turbo-stream": "^3.0.0",
+    "@expo/cli": {
+      "tar": "^6.2.1"
+    },
+    "@expo/plist": {
+      "@xmldom/xmldom": "~0.7.7"
+    },
+    "plist": {
+      "@xmldom/xmldom": "^0.8.8"
+    }
   }
 }
