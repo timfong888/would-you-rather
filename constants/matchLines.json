@@ -1,0 +1,69 @@
+{
+  "_readme": "All wording for 'share a question and see if your friend matched' (#92). Edit text here, no code change needed. {line} in a share message is replaced by the line the player just saw. 'adult' is used on every route except Kids & Family; 'kids' is used on Kids & Family routes. Keep kids copy kid-appropriate.",
+  "adult": {
+    "heading": {
+      "matched": "You matched the person who sent this",
+      "different": "You and the person who sent this picked differently"
+    },
+    "matched": [
+      "Same brain, apparently.",
+      "Great minds… or equally questionable ones.",
+      "A match. Your friendship just got suspiciously easy.",
+      "Same pick. Now one of you has to be the weird one next time.",
+      "You're either in sync or in trouble.",
+      "Twins separated at birth, or just equally unhinged?",
+      "Same choice. Nobody check the reasoning.",
+      "A match. Don't let it go to your heads.",
+      "Same pick. Somebody's copying, and we won't ask who.",
+      "You agree. Enjoy it, it won't last."
+    ],
+    "different": [
+      "Someone has some explaining to do.",
+      "This friendship is being tested.",
+      "Different picks. One of you is wrong, and it isn't you.",
+      "You split. Time for a strongly worded text.",
+      "Opposite choices. Dinner just got awkward.",
+      "Not a match. Prepare your closing argument.",
+      "Different picks. Who's the weird one? Don't answer yet.",
+      "A disagreement! Bring snacks.",
+      "You picked differently. Go ahead, judge them.",
+      "Split decision. Appeal denied."
+    ],
+    "share": {
+      "first_after": "I picked one. Pick yours and let's see if we match.",
+      "first_before": "Would you rather…? I want to know what you'd pick.",
+      "tell_matched": "Plot twist: we matched. {line}",
+      "tell_different": "We picked differently. {line}",
+      "ask_another": "Round two. Your pick first."
+    }
+  },
+  "kids": {
+    "heading": {
+      "matched": "You matched the person who sent this",
+      "different": "You and the person who sent this picked differently"
+    },
+    "matched": [
+      "Same pick! Tell them why you picked it.",
+      "You matched! Who thought of it first?",
+      "Same choice. What's the best part of it?",
+      "You think alike. Can you guess their next pick?",
+      "A match! Ask them what made them choose it.",
+      "Same pick. What would you do first?"
+    ],
+    "different": [
+      "Different picks! Ask them why they chose theirs.",
+      "You picked differently. Can you change their mind?",
+      "Not a match. What's good about their pick?",
+      "Different sides! Who has the better reason?",
+      "You split. Try one more question to break the tie.",
+      "Different picks. What would make you switch?"
+    ],
+    "share": {
+      "first_after": "I picked an answer. Which would you pick?",
+      "first_before": "I picked an answer. Which would you pick?",
+      "tell_matched": "I picked an answer. Which would you pick?",
+      "tell_different": "I picked an answer. Which would you pick?",
+      "ask_another": "I picked an answer. Which would you pick?"
+    }
+  }
+}

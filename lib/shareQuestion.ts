@@ -3,6 +3,8 @@
  * Pure (everything is injected) so it is testable without a browser. Used by the game
  * screen's share buttons.
  */
+import { encodePick, type Pick } from './matchShare';
+
 export type ShareOutcome = 'shared' | 'cancelled' | 'copied' | 'failed';
 
 export interface ShareDeps {
@@ -72,9 +74,14 @@ export function buildShareLink(o: {
   linkId: string;
   generation: number;
   kids: boolean;
+  /** The sharer's own pick, when they have answered. Travels as `f=<code>` (#92). */
+  friendPick?: Pick | null;
 }): string {
   const base = `${o.origin}/p/${o.questionId}`;
-  return o.kids ? base : `${base}?link_id=${o.linkId}&gen=${o.generation}`;
+  const params: string[] = [];
+  if (!o.kids) params.push(`link_id=${o.linkId}`, `gen=${o.generation}`);
+  if (o.friendPick) params.push(`f=${encodePick(o.friendPick)}`);
+  return params.length ? `${base}?${params.join('&')}` : base;
 }
 
 export interface ShareEvent {
