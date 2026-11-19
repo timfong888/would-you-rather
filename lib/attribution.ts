@@ -12,6 +12,7 @@
  *   7 no referrer                  -> direct
  * iMessage and WhatsApp usually send no referrer; those arrivals are caught by rule 1.
  */
+import { isKidsPath } from './kidsPaths';
 
 export type Channel =
   | 'shared_link'
@@ -92,13 +93,19 @@ function parseUrl(raw?: string | null): URL | null {
 
 export function classifyAttribution(input: AttributionInput): Attribution {
   const page = parseUrl(input.url);
-  const ref = parseUrl(input.referrer);
+  let ref = parseUrl(input.referrer);
+  // Kids pages leave no trace (COPPA): a referrer on a kids path is ignored whatever the in-memory
+  // kids flag says, since a new tab or full navigation from a kids page starts with a clean flag
+  // (Vercel Security Review on #85). Any host: nothing about kids pages is needed for attribution.
+  if (ref && isKidsPath(ref.pathname)) ref = null;
   const params = page?.searchParams;
 
   const out: Attribution = { channel: 'direct' };
   if (page) out.landing_path = page.pathname;
   if (ref) {
-    out.referrer = ref.origin + ref.pathname;
+    // Same-site referrers keep only the origin: internal paths are not needed for attribution.
+    const sameSite = !!input.siteHost && bare(ref.hostname) === bare(input.siteHost);
+    out.referrer = sameSite ? ref.origin : ref.origin + ref.pathname;
     out.referring_domain = ref.hostname.toLowerCase();
   }
   const utm = (k: string) => params?.get(k)?.trim().slice(0, 100) || undefined;

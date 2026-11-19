@@ -135,3 +135,19 @@ test('the provider is told when the allowed session ends and when a new one star
   assert.deepEqual(seen, [first.visitorId, null, second.visitorId]);
   assert.notEqual(second.visitorId, first.visitorId, 'a new anonymous id after kids pages');
 });
+
+test('a fresh document on an allowed route, opened from a kids page, sends no kids browsing path (Vercel Security Review on #85)', async () => {
+  // New tab / full navigation from /game/kf-2: the in-memory kids flag starts false, the referrer is the kids URL.
+  go('/categories', '', 'https://www.wouldyourather.fyi/game/kf-2');
+  const a = await load();
+  const s = a.ensureSessionInit()!;
+  assert.ok(s, 'an allowed page gets a session');
+  const blob = JSON.stringify([s.attribution, ...sentProps(), ...calls.map((c) => c.args)]);
+  assert.ok(!/kf-|kids/.test(blob), 'no kids path anywhere in what is sent: ' + blob);
+  assert.ok(!('referrer' in s.attribution), 'the kids referrer is dropped');
+  // An adult same-site referrer keeps only the origin.
+  analytics.__resetForTests(); calls.length = 0; local.clear(); session.clear();
+  go('/categories', '', 'https://www.wouldyourather.fyi/game/sb-1?x=1');
+  const b = (await load()).ensureSessionInit()!;
+  assert.equal(b.attribution.referrer, 'https://www.wouldyourather.fyi');
+});
