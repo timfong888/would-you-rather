@@ -26,7 +26,7 @@ async function get(path) {
     headers: { Authorization: `Bearer ${jwt()}` },
   });
   const text = await res.text();
-  let body; try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 500) }; }
+  let body; try { body = JSON.parse(text); } catch { body = { nonJson: true }; }
   return { status: res.status, body };
 }
 
@@ -34,6 +34,11 @@ const [cmd, ...rest] = process.argv.slice(2);
 const appId = rest[rest.indexOf('--app') + 1];
 if (!cmd || (cmd !== 'bundle-ids' && !appId)) {
   console.error('Usage: asc-api.mjs <app|builds|uploads|bundle-ids> --app <ascAppId>');
+  process.exit(2);
+}
+
+if (appId !== undefined && !/^\d{1,20}$/.test(appId)) {
+  console.error('--app must be a numeric ASC app id.');
   process.exit(2);
 }
 
@@ -53,5 +58,5 @@ if (body.errors) {
 }
 const rows = Array.isArray(body.data) ? body.data : body.data ? [body.data] : [];
 for (const r of rows) console.log(JSON.stringify({ id: r.id, type: r.type, ...r.attributes }, null, 2));
-if (!rows.length && !body.errors) console.log(JSON.stringify(body).slice(0, 800));
+if (!rows.length && !body.errors) console.log(body.nonJson ? '(non-JSON response, see HTTP status)' : '(no data returned)');
 process.exit(status >= 400 ? 1 : 0);
