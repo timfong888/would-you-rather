@@ -23,7 +23,7 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { shareLink, shareEvents, SHARE_FEEDBACK } from '@/lib/shareQuestion';
-import { decodeFriend, matchOutcome, pickLine, headingFor, shareText, matchEvent } from '@/lib/matchShare';
+import { decodeFriend, matchOutcome, pickLine, headingFor, shareText, uiText, matchEvent } from '@/lib/matchShare';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
@@ -472,7 +472,7 @@ export default function GameScreen() {
                   pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text style={styles.challengeText}>{copyFeedback ?? '💬  Challenge a friend to this question first'}</Text>
+                <Text style={styles.challengeText}>{copyFeedback ?? uiText(isKidsCategory, 'challenge')}</Text>
               </Pressable>
             )}
 
@@ -528,7 +528,7 @@ export default function GameScreen() {
             {((outcome && matchLine !== null) || asked) && (
               <View style={[styles.matchCard, { borderColor: `${catColor}60` }]} testID="match-card">
                 <Text style={styles.matchTitle}>
-                  {outcome === 'matched' ? '🤝  ' : outcome === 'different' ? '⚡  ' : '💬  '}
+                  {uiText(isKidsCategory, outcome === 'matched' ? 'icon_matched' : outcome === 'different' ? 'icon_different' : 'icon_asked')}
                   {headingFor(isKidsCategory, outcome ?? 'asked')}
                 </Text>
                 {outcome && <Text style={styles.matchLine}>{matchLine}</Text>}
@@ -536,20 +536,20 @@ export default function GameScreen() {
                   <Pressable
                     onPress={handleTellThem}
                     accessibilityRole="button"
-                    accessibilityLabel="Tell them"
+                    accessibilityLabel={uiText(isKidsCategory, 'tell_them')}
                     style={({ pressed }) => [
                       styles.matchButton,
                       { backgroundColor: catColor },
                       pressed && { opacity: 0.8 },
                     ]}
                   >
-                    <Text style={styles.matchButtonText}>{copyFeedback ?? 'Tell them'}</Text>
+                    <Text style={styles.matchButtonText}>{copyFeedback ?? uiText(isKidsCategory, 'tell_them')}</Text>
                   </Pressable>
                   {nextQuestion && !nextLocked && (
                     <Pressable
                       onPress={handleAskAnother}
                       accessibilityRole="button"
-                      accessibilityLabel="Ask them another"
+                      accessibilityLabel={uiText(isKidsCategory, 'ask_another')}
                       style={({ pressed }) => [
                         styles.matchButton,
                         styles.matchButtonOutline,
@@ -557,7 +557,7 @@ export default function GameScreen() {
                         pressed && { opacity: 0.8 },
                       ]}
                     >
-                      <Text style={[styles.matchButtonText, { color: catColor }]}>Ask them another</Text>
+                      <Text style={[styles.matchButtonText, { color: catColor }]}>{uiText(isKidsCategory, 'ask_another')}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -575,7 +575,7 @@ export default function GameScreen() {
               ]}
             >
               <Text style={[styles.shareButtonText, { color: catColor }]}>
-                {copyFeedback ?? '🔗  Send this question to a friend'}
+                {copyFeedback ?? uiText(isKidsCategory, 'send_question')}
               </Text>
             </Pressable>
 

@@ -138,3 +138,30 @@ test('the "asked" heading and tell_asked text exist for adult and kids', () => {
   assert.ok(shareText(false, 'tell_asked').length > 0);
   assert.equal(shareText(true, 'tell_asked'), 'I picked an answer. Which would you pick?');
 });
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { uiText } from '../../lib/matchShare';
+
+test('ui labels exist for adult and kids and are non-empty', () => {
+  for (const kids of [false, true]) {
+    for (const k of ['tell_them', 'ask_another', 'icon_matched', 'icon_different', 'icon_asked', 'send_question', 'challenge'] as const) {
+      assert.ok(uiText(kids, k).trim().length > 0, `${kids}:${k}`);
+    }
+  }
+});
+
+test('no share/match wording is hardcoded in the game screen: it all comes from constants/matchLines.json', () => {
+  const src = readFileSync(join(process.cwd(), 'app', 'game', '[id].tsx'), 'utf8')
+    // comments may quote the labels
+    .replace(/\/\/.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const strings: string[] = [];
+  for (const set of [MATCH_COPY.adult, MATCH_COPY.kids]) {
+    strings.push(...Object.values(set.ui).map((s) => s.replace(/^[^\w]+/, '').trim()));
+    strings.push(...Object.values(set.heading), ...Object.values(set.share), ...set.matched, ...set.different);
+  }
+  for (const s of strings.filter((x) => x.length > 3 && !x.includes('{line}'))) {
+    assert.ok(!src.includes(s), `game screen hardcodes: ${s}`);
+  }
+});

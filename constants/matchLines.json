@@ -1,5 +1,5 @@
 {
-  "_readme": "All wording for 'share a question and see if your friend matched' (#92). Edit text here, no code change needed. {line} in a share message is replaced by the line the player just saw. 'adult' is used on every route except Kids & Family; 'kids' is used on Kids & Family routes. Keep kids copy kid-appropriate.",
+  "_readme": "All wording for 'share a question and see if your friend matched' (#92). Edit text here, no code change needed. {line} in a share message is replaced by the line the player just saw. 'adult' is used on every route except Kids & Family; 'kids' is used on Kids & Family routes. Keep kids copy kid-appropriate. 'ui' holds the button labels and result icons of the share and match screens.",
   "adult": {
     "heading": {
       "matched": "You matched the person who sent this",
@@ -37,6 +37,15 @@
       "tell_different": "We picked differently. {line}",
       "tell_asked": "I answered. Open this to see if we match.",
       "ask_another": "Round two. Your pick first."
+    },
+    "ui": {
+      "tell_them": "Tell them",
+      "ask_another": "Ask them another",
+      "icon_matched": "🤝  ",
+      "icon_different": "⚡  ",
+      "icon_asked": "💬  ",
+      "send_question": "🔗  Send this question to a friend",
+      "challenge": "💬  Challenge a friend to this question first"
     }
   },
   "kids": {
@@ -68,6 +77,15 @@
       "tell_different": "I picked an answer. Which would you pick?",
       "tell_asked": "I picked an answer. Which would you pick?",
       "ask_another": "I picked an answer. Which would you pick?"
+    },
+    "ui": {
+      "tell_them": "Tell them",
+      "ask_another": "Ask them another",
+      "icon_matched": "🤝  ",
+      "icon_different": "⚡  ",
+      "icon_asked": "💬  ",
+      "send_question": "🔗  Send this question to a friend",
+      "challenge": "💬  Challenge a friend to this question first"
     }
   }
 }

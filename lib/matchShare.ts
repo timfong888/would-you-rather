@@ -85,6 +85,13 @@ export function shareText(kids: boolean, key: ShareKey, line = ''): string {
   return copy[lineSetFor(kids)].share[key].replace('{line}', line).trim();
 }
 
+type UiKey = keyof typeof copy.adult.ui;
+
+/** Button labels and icons of the share/match screens (constants/matchLines.json, "ui"). */
+export function uiText(kids: boolean, key: UiKey): string {
+  return copy[lineSetFor(kids)].ui[key];
+}
+
 export interface MatchEvent {
   name: 'share_opened' | 'share_answered' | 'share_reply_sent';
   props: Record<string, string | number | boolean | null | undefined>;
