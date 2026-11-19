@@ -1,10 +1,7 @@
 # Build iOS on your Mac and upload to TestFlight
 
-> **Blocked until the Expo SDK upgrade (#90).** Apple now rejects builds made with an SDK older
-> than iOS 26 (App Store Connect error 90725, needs Xcode 26+), and the app's current Expo SDK 51 /
-> React Native 0.74 does not compile under Xcode 26 (`cannot find 'TARGET_IPHONE_SIMULATOR' in
-> scope`). This script works as designed, but its build step will fail until the app is on Expo
-> SDK 54 or newer. Details: https://github.com/timfong888/would-you-rather/issues/75
+> Needs Xcode 26 or newer: Apple rejects uploads built with an older SDK (App Store Connect
+> error 90725). The app is on Expo SDK 54, which compiles under Xcode 26.
 
 One command builds the app locally and uploads it straight to App Store Connect, so
 you skip the EAS cloud build and submit queues (the Free plan queue can take hours).
@@ -28,7 +25,7 @@ Do these in order on the MacBook.
    (or run `sudo xcodebuild -license accept`).
 2. **Command line tools**: `xcode-select --install`
 3. **Homebrew** (if you do not have it): https://brew.sh
-4. **Node 20 or newer**: `brew install node@20` or the installer at https://nodejs.org
+4. **Node 20.19.4 or newer**: `brew install node@20` or the installer at https://nodejs.org
 5. **CocoaPods and fastlane** (EAS local builds need both):
    `brew install cocoapods fastlane`
 6. **eas-cli**: `npm install -g eas-cli`

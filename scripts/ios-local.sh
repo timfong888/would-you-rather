@@ -6,7 +6,7 @@
 #   scripts/ios-local.sh --skip-upload  # build build.ipa only
 #   PROFILE=production scripts/ios-local.sh   # production profile (only with an explicit go)
 #
-# Needs: macOS, Xcode, CocoaPods, fastlane, Node 20+, eas-cli logged in, and the App Store
+# Needs: macOS, Xcode, CocoaPods, fastlane, Node 20.19.4+, eas-cli logged in, and the App Store
 # Connect API key file. See docs/ios-local-build.md for the one-time setup.
 #
 # The .p8 key is read from ~/.appstoreconnect/private_keys/ by `xcrun altool`. It is never
@@ -42,8 +42,8 @@ command -v xcodebuild >/dev/null || fail "Xcode missing. Install it from the Mac
 xcodebuild -version >/dev/null 2>&1 || fail "Xcode is not ready. Open Xcode once and accept the license, or run: sudo xcodebuild -license accept"
 ok "Xcode $(xcodebuild -version | head -1)"
 command -v node >/dev/null || fail "Node missing. Install Node 20: https://nodejs.org"
-NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-[ "$NODE_MAJOR" -ge 20 ] || fail "Node 20+ needed (found $(node -v))."
+node -e 'const [a,b,c]=process.versions.node.split(".").map(Number);process.exit(a>20||(a===20&&(b>19||(b===19&&c>=4)))?0:1)' \
+  || fail "Node 20.19.4+ needed for React Native 0.81 (found $(node -v))."
 ok "Node $(node -v)"
 command -v pod >/dev/null || fail "CocoaPods missing. Run: brew install cocoapods"
 ok "CocoaPods $(pod --version)"
