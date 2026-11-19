@@ -100,7 +100,8 @@ is invalid. A pending or failed Checkout creates no row.
 ### 3.4 Voter key
 
 - Not kids: `voter_key = visitor UUID`; `player_id = visitor UUID`.
-- Kids: `voter_key = HMAC-SHA256(VOTER_KEY_SECRET, visitorId + ':' + questionId)`; `player_id = null`.
+- Kids: the client sends no `visitorId`; `voter_key = 'kids:' + randomUUID()` (one-off, never joinable); `player_id = null`.
+  (Was an HMAC of the visitor id per question until the kids-storage fix in PR #105.)
   Because the key differs per question, two kids' votes cannot be joined to one player, yet the
   unique constraint still stops a device voting twice on the same question.
 

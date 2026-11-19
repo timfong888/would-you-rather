@@ -21,7 +21,6 @@ const migration = readFileSync(join(process.cwd(), 'db', 'migrations', '001_vote
 const questionsById = indexQuestions(QUESTIONS);
 const ADULT_Q = 'hl-1';
 const KIDS_Q = 'kf-1';
-const SECRET = 'test-secret';
 type Geo = { country: string | null; region: string | null };
 const NO_GEO: Geo = { country: null, region: null };
 
@@ -30,7 +29,7 @@ let store: ReturnType<typeof createSqlStore>;
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const vote = (visitor: number, choice: 'A' | 'B', questionId = ADULT_Q, geo: Geo = NO_GEO) =>
-  recordVote({ store, questionsById, body: { questionId, choice, visitorId: uuid(visitor) }, geo, secret: SECRET });
+  recordVote({ store, questionsById, body: { questionId, choice, visitorId: uuid(visitor) }, geo });
 
 before(async () => {
   db = new PGlite();
@@ -89,7 +88,7 @@ test('coarse region is stored from geo headers; the table has no IP column', asy
   assert.ok(!cols.rows.some((c) => /ip|addr/i.test(c.column_name)), 'no IP-like column');
 });
 
-test('kids votes carry no player id, no region, and a per-question key', async () => {
+test('kids votes carry no player id, no region, and no device key (COPPA)', async () => {
   const res = await vote(1, 'A', KIDS_Q, { country: 'US', region: 'CA' });
   assert.equal(res.status, 201);
   const { rows } = await db.query<any>('select player_id, kids, country, region, voter_key from votes');
@@ -97,13 +96,20 @@ test('kids votes carry no player id, no region, and a per-question key', async (
   assert.equal(rows[0].player_id, null);
   assert.equal(rows[0].country, null);
   assert.equal(rows[0].region, null);
-  assert.notEqual(rows[0].voter_key, uuid(1)); // HMAC, not the visitor id
-  // still one vote per device per kids' question
-  assert.equal((await vote(1, 'B', KIDS_Q)).body.counted, false);
-  // two kids' questions from one device do not share a key
+  assert.ok(!rows[0].voter_key.includes(uuid(1)), 'the visitor id never reaches storage');
+  // A visitor id sent with a kids vote is ignored: the same id on the same question gives a
+  // different key, so no two kids votes can be joined (old behaviour: HMAC(visitor, question)).
+  await vote(1, 'B', KIDS_Q);
   await vote(1, 'A', 'kf-2');
   const keys = await db.query<any>('select distinct voter_key from votes');
-  assert.equal(keys.rows.length, 2);
+  assert.equal(keys.rows.length, 3);
+});
+
+test('a kids vote needs no visitor id; an adult vote still does', async () => {
+  const kids = await recordVote({ store, questionsById, body: { questionId: KIDS_Q, choice: 'A' }, geo: NO_GEO });
+  assert.equal(kids.status, 201);
+  const adult = await recordVote({ store, questionsById, body: { questionId: ADULT_Q, choice: 'A' }, geo: NO_GEO });
+  assert.equal(adult.status, 400);
 });
 
 test('the database itself refuses a kids vote that carries a player id', async () => {
@@ -112,11 +118,9 @@ test('the database itself refuses a kids vote that carries a player id', async (
   );
 });
 
-test('kids votes fail closed (503) when VOTER_KEY_SECRET is missing', async () => {
-  const res = await recordVote({ store, questionsById, body: { questionId: KIDS_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO, secret: undefined });
-  assert.equal(res.status, 503);
-  const { rows } = await db.query<any>('select count(*)::int as n from votes');
-  assert.equal(rows[0].n, 0);
+test('kids votes do not depend on VOTER_KEY_SECRET (nothing is derived from a device)', async () => {
+  const res = await recordVote({ store, questionsById, body: { questionId: KIDS_Q, choice: 'A' }, geo: NO_GEO });
+  assert.equal(res.status, 201);
 });
 
 test('invalid input is rejected with 400 and stores nothing', async () => {
@@ -128,7 +132,7 @@ test('invalid input is rejected with 400 and stores nothing', async () => {
     null,
   ];
   for (const body of bad) {
-    const res = await recordVote({ store, questionsById, body, geo: NO_GEO, secret: SECRET });
+    const res = await recordVote({ store, questionsById, body, geo: NO_GEO });
     assert.equal(res.status, 400, JSON.stringify(body));
   }
   const { rows } = await db.query<any>('select count(*)::int as n from votes');
@@ -137,7 +141,7 @@ test('invalid input is rejected with 400 and stores nothing', async () => {
 
 test('a storage failure answers 503 retryable, never throws', async () => {
   const broken = { insertVote: async () => { throw new Error('db down'); }, tallies: async () => { throw new Error('db down'); } };
-  const res = await recordVote({ store: broken, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  const res = await recordVote({ store: broken, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO });
   assert.equal(res.status, 503);
   assert.equal(res.body.retryable, true);
   assert.equal((await readTallies({ store: broken, ids: [ADULT_Q] })).status, 503);
@@ -160,20 +164,18 @@ test('geo headers are sanitised; the IP is never read', () => {
   assert.deepEqual(geoFromHeaders(h({ 'x-forwarded-for': '1.2.3.4' })), { country: null, region: null });
 });
 
-test('voter key: adult = visitor id; kids = deterministic HMAC with no player id', async () => {
-  assert.deepEqual(await buildVoterKey({ kids: false, visitorId: uuid(1), questionId: ADULT_Q, secret: SECRET }), { voterKey: uuid(1), playerId: uuid(1) });
-  const a = await buildVoterKey({ kids: true, visitorId: uuid(1), questionId: KIDS_Q, secret: SECRET });
-  const b = await buildVoterKey({ kids: true, visitorId: uuid(1), questionId: KIDS_Q, secret: SECRET });
-  const c = await buildVoterKey({ kids: true, visitorId: uuid(1), questionId: 'kf-2', secret: SECRET });
+test('voter key: adult = visitor id; kids = one-off random key with no player id', async () => {
+  assert.deepEqual(await buildVoterKey({ kids: false, visitorId: uuid(1) }), { voterKey: uuid(1), playerId: uuid(1) });
+  const a = await buildVoterKey({ kids: true, visitorId: null });
+  const b = await buildVoterKey({ kids: true, visitorId: null });
   assert.equal(a.playerId, null);
-  assert.equal(a.voterKey, b.voterKey);
-  assert.notEqual(a.voterKey, c.voterKey);
+  assert.notEqual(a.voterKey, b.voterKey);
 });
 
 test('the in-memory dev store honours the same contract', async () => {
   const mem = memoryStore();
-  const r1 = await recordVote({ store: mem, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
-  const r2 = await recordVote({ store: mem, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  const r1 = await recordVote({ store: mem, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO });
+  const r2 = await recordVote({ store: mem, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO });
   assert.equal(r1.status, 201);
   assert.equal(r2.status, 200);
   assert.equal(r2.body.choice, 'A');
@@ -219,17 +221,17 @@ test('the first vote creates the table by itself; a read before that returns no 
   const tables = await fresh.query<any>("select count(*)::int as n from information_schema.tables where table_name = 'votes'");
   assert.equal(tables.rows[0].n, 0, 'a read must not create anything');
 
-  const res = await recordVote({ store: freshStore, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  const res = await recordVote({ store: freshStore, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO });
   assert.equal(res.status, 201);
   assert.deepEqual(res.body.tally, { a: 1, b: 0 });
-  assert.equal((await recordVote({ store: freshStore, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET })).status, 200);
+  assert.equal((await recordVote({ store: freshStore, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO })).status, 200);
   await fresh.close();
 });
 
 test('a failure that is not "table missing" is not swallowed by the migration path', async () => {
   const calls: string[] = [];
   const failing = createSqlStore(async (text: string) => { calls.push(text.slice(0, 20)); throw Object.assign(new Error('boom'), { code: '08006' }); });
-  const res = await recordVote({ store: failing, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  const res = await recordVote({ store: failing, questionsById, body: { questionId: ADULT_Q, choice: 'A', visitorId: uuid(1) }, geo: NO_GEO });
   assert.equal(res.status, 503);
   assert.equal(calls.length, 1, 'no migration attempt, no retry');
 });
@@ -251,7 +253,7 @@ test('the stored choice and tally are read in a separate, fresh statement from t
     if (/insert into votes/.test(text)) return []; // conflict: nothing inserted by this request
     return [{ mine: 'A', a: 1, b: 0 }];             // fresh snapshot sees the other tab's committed A
   });
-  const res = await recordVote({ store: racing, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  const res = await recordVote({ store: racing, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO });
   assert.deepEqual(calls, ['insert', 'read']);
   assert.equal(res.status, 200);
   assert.equal(res.body.counted, false);
@@ -261,6 +263,6 @@ test('the stored choice and tally are read in a separate, fresh statement from t
 
 test('if the voter row cannot be found after the insert, answer 503 instead of guessing a choice', async () => {
   const lost = createSqlStore(async (text: string) => (/insert into votes/.test(text) ? [] : [{ mine: null, a: 0, b: 0 }]));
-  const res = await recordVote({ store: lost, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO, secret: SECRET });
+  const res = await recordVote({ store: lost, questionsById, body: { questionId: ADULT_Q, choice: 'B', visitorId: uuid(1) }, geo: NO_GEO });
   assert.equal(res.status, 503);
 });

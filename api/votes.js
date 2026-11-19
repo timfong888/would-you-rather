@@ -1,4 +1,4 @@
-// POST /api/votes  { questionId, choice: 'A'|'B', visitorId }
+// POST /api/votes  { questionId, choice: 'A'|'B', visitorId }  (kids questions: no visitorId)
 // Stores one real vote (one per voter per question) and returns the tally.
 // Spec: docs/specs/would-you-rather-mvp-spec.md FR-1. Rate limiting is a Vercel
 // Firewall rule, so no IP reaches this code or the database.
@@ -31,7 +31,6 @@ export default async function handler(req) {
         questionsById: QUESTIONS_BY_ID,
         body,
         geo: geoFromHeaders(req.headers),
-        secret: process.env.VOTER_KEY_SECRET,
       })
     : { status: 503, body: { error: 'unavailable', retryable: true } };
   return new Response(JSON.stringify(result.body), { status: result.status, headers: JSON_HEADERS });
