@@ -9,7 +9,14 @@ import { createWriteStream, createReadStream, statSync, openSync, readSync, clos
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 
-const BASE = process.env.ASC_BASE_URL || 'https://api.appstoreconnect.apple.com';
+const OFFICIAL_BASE = 'https://api.appstoreconnect.apple.com';
+// Test-only override (local mock). Refused unless ASC_ALLOW_ANY_IPA_URL is also set, so the JWT
+// can never be sent to a non-Apple host in the workflow.
+const BASE = process.env.ASC_BASE_URL || OFFICIAL_BASE;
+if (BASE !== OFFICIAL_BASE && !process.env.ASC_ALLOW_ANY_IPA_URL) {
+  console.error('ASC_BASE_URL must be the official App Store Connect endpoint.');
+  process.exit(2);
+}
 const { ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY } = process.env;
 for (const [k, v] of Object.entries({ ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY })) {
   if (!v) { console.error(`Missing ${k} (set it as a GitHub Actions secret).`); process.exit(2); }
