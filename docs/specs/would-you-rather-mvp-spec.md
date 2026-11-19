@@ -75,7 +75,8 @@ if any question carries a vote count.
 | `created_at` | `timestamptz` | no | default `now()`, stored in UTC |
 
 Constraints and indexes:
-- `unique (question_id, voter_key)`: enforces one vote per device per question (AC-6); `insert ... on
+- `unique (question_id, voter_key)`: enforces one vote per device per question (AC-6) for non-kids
+  questions only (kids' keys are one-off, see 3.4); `insert ... on
   conflict do nothing` makes retries safe. It also serves the tally query below, because
   `question_id` leads.
 - `check (not kids or player_id is null)`: the database itself refuses a kids' vote with a player ID.
@@ -102,8 +103,10 @@ is invalid. A pending or failed Checkout creates no row.
 - Not kids: `voter_key = visitor UUID`; `player_id = visitor UUID`.
 - Kids: the client sends no `visitorId`; `voter_key = 'kids:' + randomUUID()` (one-off, never joinable); `player_id = null`.
   (Was an HMAC of the visitor id per question until the kids-storage fix in PR #105.)
-  Because the key differs per question, two kids' votes cannot be joined to one player, yet the
-  unique constraint still stops a device voting twice on the same question.
+  Trade-off: no two kids' votes can be joined to a device or to each other, and nothing about a kids'
+  vote is stored on the device, so kids' questions have **no** one-vote-per-device limit. Reopening
+  the same `kf-*` question and answering again inserts another row. Kids' counts are protected only
+  by the Firewall rate limit and the reporting threshold.
 
 ## 4. Interfaces
 
@@ -111,7 +114,7 @@ All handlers are synchronous request/response unless marked async. Bodies are JS
 
 ### FR-1 `POST /api/votes` (AC-4, AC-6, AC-8)
 `recordVote({ questionId, choice, visitorId }) → 201 { counted: true, tally } | 200 { counted: false, tally } | 400 | 429 | 503`
-1. Validate: `questionId` exists, `choice ∈ {A,B}`, `visitorId` is a UUID v4. Otherwise 400 `{ error, field }`.
+1. Validate: `questionId` exists, `choice ∈ {A,B}`, and for non-kids questions `visitorId` is a UUID v4 (kids' questions need none and ignore one if sent). Otherwise 400 `{ error, field }`.
 2. Look up the category audience; build `voter_key` and `player_id` per 3.4.
 3. Read `x-vercel-ip-country` / `x-vercel-ip-country-region`; never read or log the IP.
 4. In one transaction: `insert ... on conflict (question_id, voter_key) do nothing`, then the tally query for this question. Inserted: 201 `{ counted: true, tally: { a, b } }`; conflict: 200 `{ counted: false, tally: { a, b } }`. The tally is read after the insert commits in the same transaction, so it already includes this vote (or the earlier one from this device).
@@ -210,8 +213,8 @@ Kids' policy (AC-8, AC-15). Today `AnalyticsProvider` calls `identify(visitorId)
 |---|---|---|
 | Removing seeded counts leaves every result on the invite screen for weeks, weakening the "you vs everyone" hook | High × Medium | Low threshold option (5); the share invite is designed to be the hook while counts build |
 | Kids' content is unsafe or thin at launch, and the parent SEO pages land on adult questions | High × High | AC-7 build check; the kids' category ships before the parent pages point to it; FAMILY_FRIENDLY is removed from the kids page |
-| Vote stuffing skews published results | Medium × Medium | Firewall rate limit, one vote per device; reports exclude questions below the threshold |
-| COPPA exposure if a kids' vote is linkable | Low × High | Per-question HMAC key, null `player_id`, database check |
+| Vote stuffing skews published results | Medium × Medium | Firewall rate limit, one vote per device (non-kids only; kids' questions have no device limit, 3.4); reports exclude questions below the threshold |
+| COPPA exposure if a kids' vote is linkable | Low × High | No visitor id sent, one-off random key, null `player_id`, database check, nothing stored on the device |
 | Webhook delay makes a paid player wait | Medium × Low | 202 + polling up to 10 s, then "Your purchase is confirmed; refresh in a minute" |
 | Native visitor ID is regenerated on every call | Certain (native only) × High for native | Out of MVP scope; must be fixed (persisted with AsyncStorage) before native apps |
 | Apple Pay on web needs domain verification on the final domain | Medium × Medium | Verify `wouldyourather.fyi` in Stripe before launch; card payment works regardless |

@@ -53,9 +53,9 @@ from votes where not kids
 group by 1, 2, 3, 4 having count(*) >= 20;
 ```
 
-Kids' rows have no `player_id`, no region and a per-question key, so they cannot be joined to a device or to each other.
+Kids' rows have no `player_id`, no region and a one-off random key (the client sends no visitor ID, and the server ignores one if sent), so they cannot be joined to a device or to each other.
 The database refuses a kids' vote with a `player_id` (check constraint `votes_kids_anonymous`).
-If `VOTER_KEY_SECRET` is missing, kids' votes are refused (503), not stored with a weaker key.
+`VOTER_KEY_SECRET` is no longer used (it keyed the old per-question HMAC).
 
 Retention: rows are kept indefinitely and nothing deletes them automatically. #65 recommends this, and Tim has not separately confirmed it.
 Deletion on request (`delete from votes where player_id = $1`) is possible for non-kids' votes; there is no request channel in the product yet.
@@ -63,6 +63,7 @@ Deletion on request (`delete from votes where player_id = $1`) is possible for n
 ## One vote per device per question (abuse)
 
 `unique (question_id, voter_key)` makes a second vote from the same browser a no-op: HTTP 200, `counted: false`, the first choice is kept.
+**Not for kids' questions:** each kids' vote has a one-off key and nothing is stored on the device, so answering the same `kf-*` question again (after a reload or a revisit) inserts another vote. That is the price of keeping kids' votes unlinkable; kids' counts rely on the Firewall rate limit and the reporting threshold.
 This stops double-clicks, retries and casual re-voting. It does not stop someone who clears localStorage or uses another browser or device.
 Per-IP rate limiting is a Vercel Firewall rule (spec FR-1), configured in the dashboard, not in code.
 Reports should only publish questions at or above the threshold.
@@ -71,12 +72,12 @@ Reports should only publish questions at or above the threshold.
 
 | Route | Behaviour |
 |---|---|
-| `POST /api/votes` `{ questionId, choice, visitorId }` | Validates, stores, returns `{ counted, choice, tally: { a, b } }` (`choice` is the stored one). The insert and the read-back are two statements, so two tabs voting at once still read each other's committed vote. 201 counted, 200 already voted, 400 invalid, 503 storage unavailable (`retryable`). 2 s database timeout |
+| `POST /api/votes` `{ questionId, choice, visitorId }` (kids' questions: no `visitorId`) | Validates, stores, returns `{ counted, choice, tally: { a, b } }` (`choice` is the stored one). The insert and the read-back are two statements, so two tabs voting at once still read each other's committed vote. 201 counted, 200 already voted, 400 invalid, 503 storage unavailable (`retryable`). 2 s database timeout |
 | `GET /api/tallies?ids=a,b` (1 to 50 ids) | `{ id: { a, b } }`, unknown ids `{a:0,b:0}`. `Cache-Control: s-maxage=60, stale-while-revalidate=300`. 503 is never cached |
 
 A confirmed answer is final in the app (the old "Change my answer" button is removed): the server keeps the first choice, so letting the player change it would show an answer that was never stored.
-On a revisit or reload the game screen restores and locks the answer the server acknowledged (or one queued for retry; `wyr_voted_v1` in localStorage); it only reads counts and sends no vote. Answers saved by older versions (`wyr_answered_questions`, never sent to the server) do not lock anything, so those players can still vote. If the player somehow votes again with a different choice, the vote response carries the stored `choice` and the app shows and keeps that one, not the one just tapped.
-The client retries a vote that failed with 503, 429 or a network error once on the next app load (web only, kept in localStorage).
+On a revisit or reload the game screen restores and locks the answer the server acknowledged (or one queued for retry; `wyr_voted_v1` in localStorage; never for kids' questions, which store nothing); it only reads counts and sends no vote. Answers saved by older versions (`wyr_answered_questions`, never sent to the server) do not lock anything, so those players can still vote. If the player somehow votes again with a different choice, the vote response carries the stored `choice` and the app shows and keeps that one, not the one just tapped.
+The client retries a vote that failed with 503, 429 or a network error once on the next app load (web only, kept in localStorage; kids' votes are not queued or retried).
 
 ## Configuration
 
