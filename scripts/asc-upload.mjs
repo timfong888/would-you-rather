@@ -99,7 +99,8 @@ try {
   let n = 0;
   for (const op of ops) {
     const buf = Buffer.alloc(op.length);
-    readSync(fd, buf, 0, op.length, op.offset);
+    const got = readSync(fd, buf, 0, op.length, op.offset);
+    if (got !== op.length) fail(`part ${n + 1}/${ops.length}: short read (${got}/${op.length} bytes); not uploading.`);
     const headers = Object.fromEntries((op.requestHeaders || []).map((h) => [h.name, h.value]));
     const res = await fetch(op.url, { method: op.method || 'PUT', headers, body: buf });
     if (!res.ok) fail(`part ${n + 1}/${ops.length} upload failed: HTTP ${res.status}`);
@@ -119,7 +120,7 @@ console.log('upload committed; polling processing state');
 
 // 6. Poll the upload state (attributes only).
 let last = '';
-for (let i = 0; i < 20; i++) {
+for (let i = 0; i < 30; i++) {
   const s = await asc('GET', `/v1/buildUploads/${uploadId}`);
   const st = s.data.attributes?.state || {};
   last = st.state || 'UNKNOWN';
@@ -128,5 +129,9 @@ for (let i = 0; i < 20; i++) {
   for (const w of st.warnings || []) console.log(`  warning ${w.code || ''}: ${w.description || w.message || ''}`);
   if (['COMPLETE', 'FAILED'].includes(last)) break;
   await new Promise((r) => setTimeout(r, 15000));
+}
+if (!['COMPLETE', 'FAILED'].includes(last)) {
+  console.error(`Timed out waiting for COMPLETE; last state: ${last}. Check TestFlight / run Apple ops "builds".`);
+  process.exit(1);
 }
 process.exit(last === 'FAILED' ? 1 : 0);
