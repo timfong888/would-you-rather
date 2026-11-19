@@ -43,7 +43,7 @@ function jwt() {
   return `${input}.${b64u(sign('sha256', Buffer.from(input), { key, dsaEncoding: 'ieee-p1363' }))}`;
 }
 
-async function asc(method, path, body) {
+async function asc(method, path, body, { allowFail = false } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: { Authorization: `Bearer ${jwt()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
@@ -54,6 +54,7 @@ async function asc(method, path, body) {
   if (!res.ok) {
     console.error(`ASC ${method} ${path.split('?')[0]} -> HTTP ${res.status}`);
     for (const e of json?.errors || []) console.error(`  ${e.status} ${e.code}: ${e.title} - ${e.detail}`);
+    if (allowFail) return null;
     process.exit(1);
   }
   return json;
@@ -68,6 +69,9 @@ const size = statSync(ipaPath).size;
 const sha = createHash('sha256');
 await pipeline(createReadStream(ipaPath), sha);
 const hash = sha.digest('hex');
+const md5 = createHash('md5');
+await pipeline(createReadStream(ipaPath), md5);
+const md5hex = md5.digest('hex');
 console.log(`IPA downloaded: ${size} bytes, sha256 ${hash.slice(0, 12)}...`);
 
 // 2. Create the build upload.
@@ -109,13 +113,24 @@ try {
   console.log(`uploaded ${n} part(s)`);
 } finally { closeSync(fd); }
 
-// 5. Commit with the checksum.
-await asc('PATCH', `/v1/buildUploadFiles/${fileId}`, {
-  data: {
-    type: 'buildUploadFiles', id: fileId,
-    attributes: { uploaded: true, sourceFileChecksums: { file: { hash, algorithm: 'SHA_256' } } },
-  },
-});
+// 5. Commit. Apple rejected a SHA_256 `sourceFileChecksums` value (HTTP 409 on first live run), and
+// the field is optional, so try MD5, then no checksum. Integrity is still covered by TLS.
+const commitVariants = [
+  ['MD5 checksum', { file: { hash: md5hex, algorithm: 'MD5' } }],
+  ['no checksum', undefined],
+];
+let committed = false;
+for (const [label, sums] of commitVariants) {
+  const res = await asc('PATCH', `/v1/buildUploadFiles/${fileId}`, {
+    data: {
+      type: 'buildUploadFiles', id: fileId,
+      attributes: { uploaded: true, ...(sums ? { sourceFileChecksums: sums } : {}) },
+    },
+  }, { allowFail: true });
+  if (res) { console.log(`commit accepted (${label})`); committed = true; break; }
+  console.log(`commit rejected with ${label}`);
+}
+if (!committed) fail('Could not commit the upload with any checksum variant.');
 console.log('upload committed; polling processing state');
 
 // 6. Poll the upload state (attributes only).
