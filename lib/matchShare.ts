@@ -9,6 +9,8 @@
 import copy from '../constants/matchLines.json';
 
 export type Pick = 'A' | 'B';
+/** What a share link says about the sharer: their pick, or 'ask' = "you go first", no pick yet. */
+export type Friend = Pick | 'ask';
 export type MatchOutcome = 'matched' | 'different';
 export type LineSet = 'adult' | 'kids';
 
@@ -17,21 +19,30 @@ export type LineSet = 'adult' | 'kids';
 // can decode it, and the card image and preview text never use it.
 const A_SET = 'ahkpvz';
 const B_SET = 'bgmtwx';
+const ASK_SET = 'ejuy4';
 const FILL = '23456789cdfjnqrsy';
 
 const pickFrom = (set: string, rnd: number) => set[Math.floor(rnd * set.length) % set.length];
 
-export function encodePick(pick: Pick, rnd: () => number = Math.random): string {
-  return pickFrom(FILL, rnd()) + pickFrom(pick === 'A' ? A_SET : B_SET, rnd()) + pickFrom(FILL, rnd());
+export function encodePick(pick: Friend, rnd: () => number = Math.random): string {
+  const set = pick === 'A' ? A_SET : pick === 'B' ? B_SET : ASK_SET;
+  return pickFrom(FILL, rnd()) + pickFrom(set, rnd()) + pickFrom(FILL, rnd());
 }
 
-/** The pick a link code stands for, or null for anything missing or malformed. */
-export function decodePick(code: unknown): Pick | null {
+/** What a link code says: a pick, 'ask' (a share with no pick yet), or null if missing or malformed. */
+export function decodeFriend(code: unknown): Friend | null {
   if (typeof code !== 'string' || code.length !== 3) return null;
   if (!FILL.includes(code[0]) || !FILL.includes(code[2])) return null;
   if (A_SET.includes(code[1])) return 'A';
   if (B_SET.includes(code[1])) return 'B';
+  if (ASK_SET.includes(code[1])) return 'ask';
   return null;
+}
+
+/** The pick a link code stands for; null for 'ask', missing or malformed codes. */
+export function decodePick(code: unknown): Pick | null {
+  const f = decodeFriend(code);
+  return f === 'A' || f === 'B' ? f : null;
 }
 
 export function matchOutcome(mine: Pick, theirs: Pick): MatchOutcome {
@@ -42,7 +53,7 @@ export function lineSetFor(kids: boolean): LineSet {
   return kids ? 'kids' : 'adult';
 }
 
-export function headingFor(kids: boolean, outcome: MatchOutcome): string {
+export function headingFor(kids: boolean, outcome: MatchOutcome | 'asked'): string {
   return copy[lineSetFor(kids)].heading[outcome];
 }
 
@@ -67,7 +78,7 @@ export function __resetLineMemory(): void {
   lastIndex = {};
 }
 
-type ShareKey = 'first_after' | 'first_before' | 'tell_matched' | 'tell_different' | 'ask_another';
+type ShareKey = 'first_after' | 'first_before' | 'tell_matched' | 'tell_different' | 'tell_asked' | 'ask_another';
 
 /** Share message text. `{line}` is replaced by the line the player just saw. */
 export function shareText(kids: boolean, key: ShareKey, line = ''): string {

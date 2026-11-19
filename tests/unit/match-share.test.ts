@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  encodePick, decodePick, matchOutcome, pickLine, shareText, matchEvent, headingFor,
+  encodePick, decodePick, decodeFriend, matchOutcome, pickLine, shareText, matchEvent, headingFor,
   MATCH_COPY, __resetLineMemory,
 } from '../../lib/matchShare';
 import { buildShareLink } from '../../lib/shareQuestion';
@@ -112,4 +112,29 @@ test('analytics: kids routes send no match events; adult events carry only wheth
   assert.ok(!JSON.stringify(ans).includes('"A"') && !JSON.stringify(ans).includes('"B"'));
   assert.deepEqual(matchEvent('opened', { kids: false, questionId: 'sb-1', visitorId: 'v' }).map((e) => e.name), ['share_opened']);
   assert.deepEqual(matchEvent('reply_sent', { kids: false, questionId: 'sb-1', visitorId: 'v', outcome: 'matched' }).map((e) => e.name), ['share_reply_sent']);
+});
+
+test('an "ask" code (a share made before answering) is told apart from both picks', () => {
+  for (let i = 0; i < 200; i++) {
+    assert.equal(decodeFriend(encodePick('ask')), 'ask');
+    assert.equal(decodePick(encodePick('ask')), null);
+    assert.equal(decodeFriend(encodePick('A')), 'A');
+    assert.equal(decodeFriend(encodePick('B')), 'B');
+  }
+  assert.equal(decodeFriend('zzz'), null);
+  assert.equal(decodeFriend(undefined), null);
+});
+
+test('before-answering share links carry an ask code, kids included (no link_id on kids)', () => {
+  const o = 'https://www.wouldyourather.fyi';
+  const kids = new URL(buildShareLink({ origin: o, questionId: 'kf-2', linkId: '', generation: 1, kids: true, friendPick: 'ask' }));
+  assert.deepEqual([...kids.searchParams.keys()], ['f']);
+  assert.equal(decodeFriend(kids.searchParams.get('f')), 'ask');
+});
+
+test('the "asked" heading and tell_asked text exist for adult and kids', () => {
+  assert.ok(headingFor(false, 'asked').length > 0);
+  assert.ok(headingFor(true, 'asked').length > 0);
+  assert.ok(shareText(false, 'tell_asked').length > 0);
+  assert.equal(shareText(true, 'tell_asked'), 'I picked an answer. Which would you pick?');
 });

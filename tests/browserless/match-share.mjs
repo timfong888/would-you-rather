@@ -39,7 +39,9 @@ async function newPlayer(browser, log) {
   return { ctx, page };
 }
 
-const clip = (page) => page.evaluate(() => navigator.clipboard.readText());
+const clipFull = (page) => page.evaluate(() => navigator.clipboard.readText());
+// The copied text is `message\nlink` for match actions; the link is the last line.
+const clip = async (page) => (await clipFull(page)).trim().split('\n').pop();
 async function vote(page, optionText) {
   await page.getByText(optionText, { exact: false }).first().click();
   await page.getByText(/confirm/i).first().click();
@@ -78,12 +80,15 @@ async function scenario(browser, { name, id, optA, optB, kids }) {
     await B.page.waitForTimeout(400);
     const replyUrl = await clip(B.page);
     check(new URL(replyUrl).searchParams.get('f') !== null, `B(${outcome}): "Tell them" link carries B's pick`, replyUrl);
+    const tellText = await clipFull(B.page);
+    check(tellText.trim().split('\n').length >= 2 && /^(Plot twist|We picked differently|I picked an answer)/.test(tellText), `B(${outcome}): "Tell them" copies the message with the link`, JSON.stringify(tellText.slice(0, 60)));
     const askBtn = B.page.getByRole('button', { name: 'Ask them another' });
     if (await askBtn.count()) {
       await askBtn.click();
       await B.page.waitForTimeout(400);
       const another = await clip(B.page);
-      check(!/[?&]f=/.test(another), `B(${outcome}): "Ask them another" link has no pick`, another);
+      const af = new URL(another).searchParams.get('f');
+      check(!!af && af.length === 3 && af !== new URL(replyUrl).searchParams.get('f'), `B(${outcome}): "Ask them another" link is a before-answering share`, another);
     }
     const after = await B.page.evaluate(() => window.__writes.length);
     check(after === before, `B(${outcome}): match actions wrote nothing to storage/cookies`, `${before}->${after}`);
@@ -100,6 +105,43 @@ async function scenario(browser, { name, id, optA, optB, kids }) {
       check((await c2.count()) === 1 && /picked differently/.test(await c2.innerText()), 'A: opening the reply link shows the result (A=A vs B=B)');
     }
     await B.ctx.close();
+  }
+
+  // Before answering: A picks but does not confirm, shares; B answers and replies; A answers and sees the result.
+  {
+    const logC = [];
+    const A2 = await newPlayer(browser, logC);
+    await A2.page.goto(`${HOST}/game/${id}`, { waitUntil: 'networkidle' });
+    await A2.page.getByText(optA, { exact: false }).first().click();
+    await A2.page.getByText(/Challenge a friend/i).first().click();
+    await A2.page.waitForTimeout(400);
+    const preUrl = await clip(A2.page);
+    const pf = new URL(preUrl).searchParams.get('f');
+    check(!!pf && pf.length === 3, 'before-answering: link carries an "ask" code', preUrl);
+    const B2 = await newPlayer(browser, logC);
+    await B2.page.goto(preUrl, { waitUntil: 'load' });
+    await B2.page.waitForURL(/\/game\//);
+    await B2.page.waitForLoadState('networkidle');
+    await vote(B2.page, optB);
+    const asked = B2.page.locator('[data-testid=match-card]');
+    check((await asked.count()) === 1 && /You picked one/.test(await asked.innerText()), 'before-answering: B sees "You picked one. Tell them" (no comparison)');
+    check((await B2.page.getByRole('button', { name: 'Tell them' }).count()) === 1, 'before-answering: B has a "Tell them" button');
+    await B2.page.getByRole('button', { name: 'Tell them' }).click();
+    await B2.page.waitForTimeout(400);
+    const replyFull = await clipFull(B2.page);
+    const reply = replyFull.trim().split('\n').pop();
+    check(replyFull.trim().split('\n').length >= 2 && new URL(reply).searchParams.get('f') !== pf, 'before-answering: "Tell them" copies message + a link carrying B\'s pick', reply);
+    await A2.page.goto(reply, { waitUntil: 'load' });
+    await A2.page.waitForURL(/\/game\//);
+    await A2.page.waitForLoadState('networkidle');
+    await vote(A2.page, optA);
+    const res = A2.page.locator('[data-testid=match-card]');
+    check((await res.count()) === 1 && /picked differently/.test(await res.innerText()), 'before-answering: A answers and sees the result (A vs B)');
+    if (kids) {
+      const bad = logC.filter((u) => /posthog|\/e\/|\/batch|analytics/i.test(u));
+      check(bad.length === 0, 'kids before-answering: no analytics request', bad.join(' '));
+    }
+    await A2.ctx.close(); await B2.ctx.close();
   }
 
   if (kids) {

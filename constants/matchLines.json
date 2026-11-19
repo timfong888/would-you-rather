@@ -3,7 +3,8 @@
   "adult": {
     "heading": {
       "matched": "You matched the person who sent this",
-      "different": "You and the person who sent this picked differently"
+      "different": "You and the person who sent this picked differently",
+      "asked": "You picked one. Tell them so they can see if you match."
     },
     "matched": [
       "Same brain, apparently.",
@@ -34,13 +35,15 @@
       "first_before": "Would you rather…? I want to know what you'd pick.",
       "tell_matched": "Plot twist: we matched. {line}",
       "tell_different": "We picked differently. {line}",
+      "tell_asked": "I answered. Open this to see if we match.",
       "ask_another": "Round two. Your pick first."
     }
   },
   "kids": {
     "heading": {
       "matched": "You matched the person who sent this",
-      "different": "You and the person who sent this picked differently"
+      "different": "You and the person who sent this picked differently",
+      "asked": "You picked one. Tell them what you picked."
     },
     "matched": [
       "Same pick! Tell them why you picked it.",
@@ -63,6 +66,7 @@
       "first_before": "I picked an answer. Which would you pick?",
       "tell_matched": "I picked an answer. Which would you pick?",
       "tell_different": "I picked an answer. Which would you pick?",
+      "tell_asked": "I picked an answer. Which would you pick?",
       "ask_another": "I picked an answer. Which would you pick?"
     }
   }

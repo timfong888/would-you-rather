@@ -111,7 +111,7 @@ export function buildShareUrl(
   questionId: string,
   incomingGeneration: number,
   kids = false,
-  friendPick: 'A' | 'B' | null = null,
+  friendPick: 'A' | 'B' | 'ask' | null = null,
 ): {
   url: string;
   linkId: string;
