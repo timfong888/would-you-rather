@@ -151,3 +151,30 @@ test('a fresh document on an allowed route, opened from a kids page, sends no ki
   const b = (await load()).ensureSessionInit()!;
   assert.equal(b.attribution.referrer, 'https://www.wouldyourather.fyi');
 });
+
+test('kids routes keep no first touch, activation counter, visitor id or ph_* keys, including a late shutdown flush', async () => {
+  go('/categories', '?utm_source=news');
+  const a = await load();
+  a.ensureSessionInit();
+  a.track('page_view', { path: '/categories' });
+  local.set('wyr_activation', JSON.stringify({ votes: 2 }));
+  local.set('ph_phc_test_posthog', '{"distinct_id":"x"}');
+  assert.ok(local.has('wyr_visitor_id') && local.has('wyr_first_touch'), 'adult page stores them');
+
+  go('/game/kf-2');
+  a.syncKidsMode('/game/kf-2');
+  for (const k of ['wyr_visitor_id', 'wyr_first_touch', 'wyr_activation', 'ph_phc_test_posthog']) assert.ok(!local.has(k), `${k} removed on a kids route`);
+
+  // PostHog's async shutdown flushing after the first clear rewrites a key: cleared again.
+  local.set('ph_phc_test_posthog', '{"late":true}');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(!local.has('ph_phc_test_posthog'), 'late ph_* write removed while still on the kids route');
+
+  // Back on an adult page the late clear must not run (it would wipe the new adult session's keys).
+  go('/categories');
+  a.syncKidsMode('/categories');
+  a.track('page_view', { path: '/categories' });
+  const keep = a.getOrCreateVisitorId().id;
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(local.get('wyr_visitor_id'), keep, 'adult visitor id survives');
+});

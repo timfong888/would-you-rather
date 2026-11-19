@@ -316,6 +316,25 @@ let _inKidsMode = false;
  * player into kids pages. Leaving kids re-enables capture; the session then re-initialises
  * from the current page only (no referrer, no first touch).
  */
+/**
+ * Everything analytics keeps in storage: the visitor ID, PostHog's own ph_* keys, the first-touch
+ * attribution and the activation counter. None of it may be kept while a kids route is shown.
+ */
+function clearKidsStorage(): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.removeItem(VISITOR_KEY);
+    localStorage.removeItem(FIRST_TOUCH_KEY);
+    localStorage.removeItem(ACTIVATION_KEY);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ph_')) localStorage.removeItem(k);
+    }
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export function syncKidsMode(pathname: string): void {
   const kids = isKidsPath(pathname);
   if (kids === _inKidsMode) return;
@@ -329,25 +348,20 @@ export function syncKidsMode(pathname: string): void {
     );
     // Stop the client for good while on kids routes: opt out, shut it down and drop it.
     // No reset(): the SDK's reset clears the opt-out flag and restarts flag requests.
+    let shutdownDone: unknown;
     try {
       (_client as any)?.optOut?.();
-      (_client as any)?.shutdown?.();
+      shutdownDone = (_client as any)?.shutdown?.();
     } catch (e) {
       if (DEBUG) console.warn('[analytics] kids shutdown error', e);
     }
     if (_client) _needsOptIn = true;
     _client = null;
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem(VISITOR_KEY);
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('ph_')) localStorage.removeItem(k);
-        }
-      }
-    } catch {
-      /* storage unavailable */
-    }
+    clearKidsStorage();
+    // shutdown() is async and may flush (and rewrite ph_* keys) after the clear above: clear once
+    // more when it settles, but only if the visitor is still on a kids route.
+    const again = () => { if (_inKidsMode) clearKidsStorage(); };
+    Promise.resolve(shutdownDone).then(again, again);
     if (hadSession) notifySession();
   }
 }
