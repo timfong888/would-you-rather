@@ -86,3 +86,17 @@ test('an adult share sends share_clicked, plus visitor_shared_after_link when it
   assert.deepEqual(chained.map((e) => e.name), ['share_clicked', 'visitor_shared_after_link']);
   assert.equal(chained[1].props.new_link_id, 'n1');
 });
+
+test('copyText is what gets copied without a share sheet (message + link); the sheet still gets the url', async () => {
+  let copied = '';
+  const out = await shareLink({ ...base, copyText: 'Plot twist: we matched.\n' + base.url, nav: { clipboard: { writeText: async (s) => { copied = s; } } } });
+  assert.equal(out, 'copied');
+  assert.equal(copied, 'Plot twist: we matched.\n' + base.url);
+  let legacy = '';
+  const out2 = await shareLink({ ...base, copyText: 'hi\n' + base.url, legacyCopy: (s) => { legacy = s; return true; } });
+  assert.equal(out2, 'copied');
+  assert.equal(legacy, 'hi\n' + base.url);
+  let seen: any;
+  await shareLink({ ...base, copyText: 'x', nav: { share: async (d) => { seen = d; } } });
+  assert.equal(seen.url, base.url);
+});

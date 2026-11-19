@@ -3,6 +3,8 @@
  * Pure (everything is injected) so it is testable without a browser. Used by the game
  * screen's share buttons.
  */
+import { encodePick, type Friend } from './matchShare';
+
 export type ShareOutcome = 'shared' | 'cancelled' | 'copied' | 'failed';
 
 export interface ShareDeps {
@@ -16,6 +18,8 @@ export interface ShareDeps {
   };
   /** Legacy copy for pages where the async clipboard is unavailable (e.g. non-secure contexts). */
   legacyCopy?: (s: string) => boolean;
+  /** What to copy when the share sheet is unavailable (default: the url). Used to keep a message with its link. */
+  copyText?: string;
   /** React Native's Share.share, used on native. */
   nativeShare?: (opts: { title: string; message: string; url: string }) => unknown;
 }
@@ -40,14 +44,14 @@ export async function shareLink(d: ShareDeps): Promise<ShareOutcome> {
   }
   if (d.nav?.clipboard) {
     try {
-      await d.nav.clipboard.writeText(d.url);
+      await d.nav.clipboard.writeText(d.copyText ?? d.url);
       return 'copied';
     } catch {
       /* fall through to the legacy path */
     }
   }
   try {
-    if (d.legacyCopy?.(d.url)) return 'copied';
+    if (d.legacyCopy?.(d.copyText ?? d.url)) return 'copied';
   } catch {
     /* nothing left to try */
   }
@@ -72,9 +76,14 @@ export function buildShareLink(o: {
   linkId: string;
   generation: number;
   kids: boolean;
+  /** The sharer's own pick, when they have answered. Travels as `f=<code>` (#92). */
+  friendPick?: Friend | null;
 }): string {
   const base = `${o.origin}/p/${o.questionId}`;
-  return o.kids ? base : `${base}?link_id=${o.linkId}&gen=${o.generation}`;
+  const params: string[] = [];
+  if (!o.kids) params.push(`link_id=${o.linkId}`, `gen=${o.generation}`);
+  if (o.friendPick) params.push(`f=${encodePick(o.friendPick)}`);
+  return params.length ? `${base}?${params.join('&')}` : base;
 }
 
 export interface ShareEvent {

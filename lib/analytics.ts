@@ -132,7 +132,12 @@ export function generateLinkId(): string {
  * `incomingGeneration` is the generation the current session arrived with;
  * the new link's generation is incomingGeneration + 1.
  */
-export function buildShareUrl(questionId: string, incomingGeneration: number, kids = false): {
+export function buildShareUrl(
+  questionId: string,
+  incomingGeneration: number,
+  kids = false,
+  friendPick: 'A' | 'B' | 'ask' | null = null,
+): {
   url: string;
   linkId: string;
 } {
@@ -145,6 +150,6 @@ export function buildShareUrl(questionId: string, incomingGeneration: number, ki
       ? window.location.origin
       : SITE_URL;
 
-  const url = buildShareLink({ origin, questionId, linkId, generation: gen, kids });
+  const url = buildShareLink({ origin, questionId, linkId, generation: gen, kids, friendPick });
   return { url, linkId };
 }
