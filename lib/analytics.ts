@@ -6,6 +6,8 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
 import { buildShareLink } from '@/lib/shareQuestion';
+import { isKidsPath } from '@/lib/kidsPaths';
+import { resolveVisitorId, purgeStoredVisitorId, analyticsAllowed } from '@/lib/visitorId';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -46,7 +48,17 @@ function withGlobalProps(props?: Props): Props | undefined {
   return { ...(props ?? {}), owner_access: true };
 }
 
+/**
+ * True when analytics may run on the page the browser is on. Kids routes (COPPA) never send
+ * analytics: no events, no identify. Web only; the native app does not use a web path.
+ */
+function analyticsOn(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return true;
+  return analyticsAllowed(window.location.pathname, isKidsPath);
+}
+
 export function identify(distinctId: string, properties?: Props): void {
+  if (!analyticsOn()) return;
   try {
     getClient()?.identify(distinctId, properties as any);
   } catch (e) {
@@ -55,6 +67,7 @@ export function identify(distinctId: string, properties?: Props): void {
 }
 
 export function track(event: string, props?: Props): void {
+  if (!analyticsOn()) return;
   const finalProps = withGlobalProps(props);
   if (DEBUG) {
     console.log('[analytics]', event, finalProps);
@@ -68,8 +81,6 @@ export function track(event: string, props?: Props): void {
 
 // ── visitor_id ──────────────────────────────────────────────────────────────
 
-const VISITOR_KEY = 'wyr_visitor_id';
-
 function uuid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -80,19 +91,33 @@ function uuid(): string {
   });
 }
 
-/** Returns the persisted visitor ID, creating one on first call. */
+const _memoryVisitor: { id?: string } = {};
+
+/**
+ * Returns the persisted visitor ID, creating one on first call. On kids routes nothing is read
+ * or stored (an existing ID is removed) and an in-memory ID is used instead.
+ */
 export function getOrCreateVisitorId(): { id: string; isNew: boolean } {
   if (Platform.OS !== 'web') {
     return { id: uuid(), isNew: true };
   }
+  const onKids = typeof window !== 'undefined' && isKidsPath(window.location.pathname);
+  let storage: Storage | null = null;
   try {
-    const existing = localStorage.getItem(VISITOR_KEY);
-    if (existing) return { id: existing, isNew: false };
-    const id = uuid();
-    localStorage.setItem(VISITOR_KEY, id);
-    return { id, isNew: true };
+    storage = typeof localStorage !== 'undefined' ? localStorage : null;
   } catch {
-    return { id: uuid(), isNew: true };
+    storage = null;
+  }
+  return resolveVisitorId({ kids: onKids, storage, uuid, memory: _memoryVisitor });
+}
+
+/** Remove the persisted visitor ID (called when a kids route is shown). */
+export function purgeVisitorId(): void {
+  if (Platform.OS !== 'web') return;
+  try {
+    purgeStoredVisitorId(typeof localStorage !== 'undefined' ? localStorage : null);
+  } catch {
+    /* storage unavailable */
   }
 }
 
