@@ -61,6 +61,8 @@ if (body.errors) {
   for (const e of body.errors) console.log(`ERROR ${e.status} ${e.code}: ${e.title} - ${e.detail}`);
 }
 const rows = Array.isArray(body.data) ? body.data : body.data ? [body.data] : [];
-for (const r of rows) console.log(JSON.stringify({ id: r.id, type: r.type, ...r.attributes }, null, 2));
+// JSON:API puts include=... records (e.g. builds of a pre-release version) in `included`.
+const included = Array.isArray(body.included) ? body.included : [];
+for (const r of [...rows, ...included]) console.log(JSON.stringify({ id: r.id, type: r.type, ...r.attributes }, null, 2));
 if (!rows.length && !body.errors) console.log(body.nonJson ? '(non-JSON response, see HTTP status)' : '(no data returned)');
 process.exit(status >= 400 ? 1 : 0);
