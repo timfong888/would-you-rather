@@ -38,7 +38,7 @@ Rows are raw and append-only. They are not counters, so any report can slice the
 | `question_id`, `choice` (`A`/`B`) | What was answered |
 | `created_at` (timestamptz, UTC) | When |
 | `player_id` (uuid) | Anonymous per-device ID from the browser (`wyr_visitor_id`). `NULL` for kids' votes |
-| `voter_key` | Uniqueness key. Not kids: the same UUID. Kids: HMAC-SHA256 of `visitorId:questionId` with `VOTER_KEY_SECRET` |
+| `voter_key` | Uniqueness key. Not kids: the same UUID. Kids: `kids:` + a one-off random UUID per vote (no visitor ID is sent) |
 | `kids` | True for the Kids & Family category |
 | `country`, `region` | From `x-vercel-ip-country` and `x-vercel-ip-country-region`. Not stored for kids' votes |
 
@@ -84,7 +84,7 @@ The client retries a vote that failed with 503, 429 or a network error once on t
 | Variable | Needed for |
 |---|---|
 | `DATABASE_URL` | Neon connection string. Without it both routes answer 503 and every screen shows the invite |
-| `VOTER_KEY_SECRET` | Kids' votes (random, at least 32 bytes). Never rotate casually: it changes every kids' `voter_key`, so the same child can vote again |
+| `VOTER_KEY_SECRET` | No longer used (kids' votes have one-off keys). Can be removed from the Vercel environment after this ships |
 | `WYR_VOTE_STORE=memory` | Local development only: in-memory store, lost on restart |
 
 The `votes` table creates itself: if the first vote finds it missing (Postgres error `42P01`), the idempotent statement in `api/_lib/schema.js` runs once and the write is retried once. A read of a missing table returns "no votes" and creates nothing. No manual step is needed.
