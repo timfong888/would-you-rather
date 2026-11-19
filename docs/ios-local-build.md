@@ -1,5 +1,11 @@
 # Build iOS on your Mac and upload to TestFlight
 
+> **Blocked until the Expo SDK upgrade (#90).** Apple now rejects builds made with an SDK older
+> than iOS 26 (App Store Connect error 90725, needs Xcode 26+), and the app's current Expo SDK 51 /
+> React Native 0.74 does not compile under Xcode 26 (`cannot find 'TARGET_IPHONE_SIMULATOR' in
+> scope`). This script works as designed, but its build step will fail until the app is on Expo
+> SDK 54 or newer. Details: https://github.com/timfong888/would-you-rather/issues/75
+
 One command builds the app locally and uploads it straight to App Store Connect, so
 you skip the EAS cloud build and submit queues (the Free plan queue can take hours).
 
