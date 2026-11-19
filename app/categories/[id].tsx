@@ -32,7 +32,7 @@ export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { answered, refresh } = useAnsweredQuestions();
-  const { isUnlocked } = useUnlocked();
+  const { isUnlocked, priceForCategory } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
@@ -243,7 +243,7 @@ export default function CategoryScreen() {
             <Text style={styles.unlockCtaTitle}>
               {isPremium ? `Unlock All ${total} Dilemmas` : `Unlock ${lockedCount} More Dilemmas`}
             </Text>
-            <Text style={styles.unlockCtaSub}>One-time category unlock · $2.99</Text>
+            <Text style={styles.unlockCtaSub}>One-time category unlock · {priceForCategory(category.id)}</Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>
         </Pressable>

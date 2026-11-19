@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import type { CategoryId } from '@/constants/questions';
 import {
   loadOwnerAccess,
@@ -8,6 +8,8 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
+import { FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, isCategoryEntitled, productForCategory } from '@/lib/catalog';
+import { purchases } from '@/lib/purchases';
 
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */
@@ -16,6 +18,14 @@ interface UnlockedContextValue {
   unlock: (id: CategoryId) => void;
   /** Clear purchased unlocks. Owner access is left in place. */
   reset: () => void;
+  /** True when real store purchases are wired up in this build (native + RevenueCat key). */
+  purchasesAvailable: boolean;
+  /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
+  applyEntitlements: (active: string[]) => void;
+  /** Price label for a category unlock: the store price when loaded, else the approved $1.99. */
+  priceForCategory: (id: string) => string;
+  /** Price label for the all-categories pack: the store price when loaded, else the approved $4.99. */
+  priceForAll: () => string;
 
   /** Owner access: bypass the payment flow for the owner / testers. */
   ownerAccess: boolean;
@@ -28,6 +38,10 @@ const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
   unlock: () => {},
   reset: () => {},
+  purchasesAvailable: false,
+  applyEntitlements: () => {},
+  priceForCategory: () => FALLBACK_PRICE_CATEGORY,
+  priceForAll: () => FALLBACK_PRICE_ALL,
   ownerAccess: false,
   ownerAccessAvailable: false,
   grantOwnerAccess: async () => false,
@@ -57,6 +71,67 @@ function saveToStorage(set: Set<string>) {
 export function UnlockedProvider({ children }: { children: React.ReactNode }) {
   const [unlocked, setUnlocked] = useState<Set<string>>(() => loadFromStorage());
   const [ownerAccess, setOwnerAccess] = useState<boolean>(() => loadOwnerAccess());
+  // Active RevenueCat entitlement ids. Empty on web, where purchases are unavailable.
+  const [entitlements, setEntitlements] = useState<Set<string>>(() => new Set());
+
+  // Bootstrap from RevenueCat on launch and stay in sync: the listener fires on
+  // purchase, restore, refund and expiry, so access is revoked without a restart.
+  useEffect(() => {
+    if (!purchases.isAvailable()) return;
+    let cancelled = false;
+    purchases
+      .getEntitlements()
+      .then((active) => {
+        if (!cancelled) setEntitlements(new Set(active));
+      })
+      .catch(() => {});
+    const unsubscribe = purchases.onEntitlementsChange((active) => setEntitlements(new Set(active)));
+    // RevenueCat does not push backend changes (refund, promo expiry) to the
+    // listener; they appear on the next SDK fetch. Refresh whenever the app
+    // returns to the foreground so revocation does not need a restart.
+    const refresh = () =>
+      purchases
+        .getEntitlements()
+        .then((active) => {
+          if (!cancelled) setEntitlements(new Set(active));
+        })
+        .catch(() => {});
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    // The SDK refetches at most every few minutes anyway; poll on that cadence
+    // so a long foreground session also picks up a refund or expiry.
+    const timer = setInterval(refresh, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      sub.remove();
+      clearInterval(timer);
+    };
+  }, []);
+
+  const applyEntitlements = useCallback((active: string[]) => setEntitlements(new Set(active)), []);
+
+  // Localized store prices (empty until loaded, or when purchases are unavailable).
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!purchases.isAvailable()) return;
+    let cancelled = false;
+    purchases
+      .getPrices()
+      .then((p) => {
+        if (!cancelled) setPrices(p);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const priceForCategory = useCallback(
+    (id: string) => prices[productForCategory(id)] ?? FALLBACK_PRICE_CATEGORY,
+    [prices],
+  );
+  const priceForAll = useCallback(() => prices[PRODUCT_ALL] ?? FALLBACK_PRICE_ALL, [prices]);
 
   // Tag every analytics event while owner access is on so tester activity
   // can be excluded from the paywall funnel.
@@ -65,8 +140,8 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
   }, [ownerAccess]);
 
   const isUnlocked = useCallback(
-    (id: CategoryId) => ownerAccess || unlocked.has(id),
-    [ownerAccess, unlocked],
+    (id: CategoryId) => ownerAccess || unlocked.has(id) || isCategoryEntitled(entitlements, id),
+    [ownerAccess, unlocked, entitlements],
   );
 
   const unlock = useCallback((id: CategoryId) => {
@@ -111,6 +186,10 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
         isUnlocked,
         unlock,
         reset,
+        purchasesAvailable: purchases.isAvailable(),
+        applyEntitlements,
+        priceForCategory,
+        priceForAll,
         ownerAccess,
         ownerAccessAvailable: isOwnerAccessConfigured(),
         grantOwnerAccess,

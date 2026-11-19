@@ -19,6 +19,7 @@
  * DRM.
  */
 import { Platform } from 'react-native';
+import { ownerCodeAllowed } from './ownerAccessPolicy';
 
 export const OWNER_ACCESS_STORAGE_KEY = 'wyr_owner_access';
 
@@ -26,9 +27,13 @@ const OWNER_ACCESS_SHA256 = (process.env.EXPO_PUBLIC_OWNER_ACCESS_SHA256 ?? '')
   .trim()
   .toLowerCase();
 
-/** True when the build has an owner-access hash configured. */
+/**
+ * True when the build has an owner-access hash configured and may use it.
+ * Native release builds never do (see ownerAccessPolicy.ts): the digest would
+ * be extractable from the app bundle.
+ */
 export function isOwnerAccessConfigured(): boolean {
-  return /^[0-9a-f]{64}$/.test(OWNER_ACCESS_SHA256);
+  return ownerCodeAllowed(Platform.OS, __DEV__) && /^[0-9a-f]{64}$/.test(OWNER_ACCESS_SHA256);
 }
 
 async function sha256Hex(input: string): Promise<string | null> {

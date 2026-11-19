@@ -12,6 +12,8 @@ import {
   parseActivationState,
   recordActivationVote,
 } from '@/lib/activation';
+import { buildShareLink } from '@/lib/shareQuestion';
+import { purgeStoredVisitorId, VISITOR_KEY } from '@/lib/visitorId';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -140,8 +142,6 @@ export function trackVoteForActivation(props?: Props): void {
 
 // ── visitor_id ──────────────────────────────────────────────────────────────
 
-const VISITOR_KEY = 'wyr_visitor_id';
-
 function uuid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -176,6 +176,16 @@ export function getOrCreateVisitorId(): { id: string; isNew: boolean } {
   }
 }
 
+/** Remove the persisted visitor ID (called when a kids route is shown). */
+export function purgeVisitorId(): void {
+  if (Platform.OS !== 'web') return;
+  try {
+    purgeStoredVisitorId(typeof localStorage !== 'undefined' ? localStorage : null);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 // ── link_id / share URL construction ────────────────────────────────────────
 
 export function generateLinkId(): string {
@@ -187,11 +197,17 @@ export function generateLinkId(): string {
  * `incomingGeneration` is the generation the current session arrived with;
  * the new link's generation is incomingGeneration + 1.
  */
-export function buildShareUrl(questionId: string, incomingGeneration: number): {
+export function buildShareUrl(
+  questionId: string,
+  incomingGeneration: number,
+  kids = false,
+  friendPick: 'A' | 'B' | 'ask' | null = null,
+): {
   url: string;
   linkId: string;
 } {
-  const linkId = generateLinkId();
+  // Kids routes: no link id is generated and none is put in the URL.
+  const linkId = kids ? '' : generateLinkId();
   const gen = incomingGeneration + 1;
 
   const origin =
@@ -199,7 +215,7 @@ export function buildShareUrl(questionId: string, incomingGeneration: number): {
       ? window.location.origin
       : SITE_URL;
 
-  const url = `${origin}/p/${questionId}?link_id=${linkId}&gen=${gen}`;
+  const url = buildShareLink({ origin, questionId, linkId, generation: gen, kids, friendPick });
   return { url, linkId };
 }
 

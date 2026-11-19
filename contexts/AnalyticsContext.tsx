@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { track, ensureSessionInit, getSession, subscribeSession, type SessionInfo } from '@/lib/analytics';
+import { usePathname } from 'expo-router';
+import { purgeVisitorId } from '@/lib/analytics';
+import { isKidsPath } from '@/lib/kidsPaths';
 
 interface AnalyticsContextValue {
   /** Anonymous ID persisted across sessions ('' while on a kids route, where there is none). */
@@ -22,6 +25,13 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   // properties exist before any child effect (page_view, vote-retry flush) runs.
   const [ctx, setCtx] = useState<AnalyticsContextValue>(() => toValue(ensureSessionInit()));
   const announced = useRef<SessionInfo | null>(null);
+  const pathname = usePathname();
+
+  // Kids routes keep no persisted visitor ID (COPPA): remove one a previous build or visit stored,
+  // whenever such a route is shown (including after in-app navigation to it).
+  useEffect(() => {
+    if (pathname && isKidsPath(pathname)) purgeVisitorId();
+  }, [pathname]);
 
   useEffect(() => {
     // The allowed session can change after mount: it is cleared on kids routes and created

@@ -13,8 +13,11 @@
       "backgroundColor": "#0F0F1A"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.timfong888.wouldyourather"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.timfong888.wouldyourather",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,10 +33,17 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "expo-dev-client"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cf46923b-05a7-46f0-aa0c-367537c92fa7"
+      }
+    },
+    "owner": "blockstitch"
   }
 }

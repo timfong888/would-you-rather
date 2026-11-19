@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,8 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl, trackVoteForActivation } from '@/lib/analytics';
+import { shareLink, shareEvents, SHARE_FEEDBACK } from '@/lib/shareQuestion';
+import { decodeFriend, matchOutcome, pickLine, headingFor, shareText, uiText, matchEvent } from '@/lib/matchShare';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
@@ -29,8 +31,25 @@ import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/l
 // Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
 const SHARE_LINK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Copy for browsers without the async clipboard API (e.g. an insecure context). */
+function legacyCopy(value: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.createElement('textarea');
+  el.value = value;
+  el.setAttribute('readonly', '');
+  el.style.position = 'fixed';
+  el.style.opacity = '0';
+  document.body.appendChild(el);
+  el.select();
+  try {
+    return document.execCommand('copy');
+  } finally {
+    document.body.removeChild(el);
+  }
+}
+
 export default function GameScreen() {
-  const { id, cat, idx, link_id } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string }>();
+  const { id, cat, idx, link_id, f } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string; f: string }>();
   const router = useRouter();
   const { isUnlocked } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
@@ -68,7 +87,12 @@ export default function GameScreen() {
   // question per URL. The shape check only keeps accidental or malformed
   // params from triggering the exception. Real enforcement needs server-side
   // entitlements (see docs/owner-access.md, "Related client-side gating limits").
-  const arrivedViaShare = typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id);
+  // The friend's pick from a match-share link (#92). It also counts as arriving via a share
+  // link, so a shared kids question (whose link has no link_id) stays playable.
+  // `friend` is their pick, or 'ask' for a link shared before answering (no pick yet).
+  const friend = decodeFriend(f);
+  const friendPick = friend === 'A' || friend === 'B' ? friend : null;
+  const arrivedViaShare = (typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id)) || friend !== null;
   const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
   const mustRedirect = currentLocked && !arrivedViaShare;
   // On a cold deep link the root navigator may not be mounted on first render;
@@ -100,42 +124,76 @@ export default function GameScreen() {
   // Every hook must run before the early returns below: revoking owner access
   // while this screen is mounted flips `mustRedirect` and the next render
   // returns early, which would otherwise render fewer hooks and throw.
-  // Voluntary pre-answer challenge: share the question before confirming
-  const handleChallengeShare = useCallback(async () => {
-    const title = 'Would You Rather?';
-    const text = `${question?.optionA} — OR — ${question?.optionB}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
-
-    track('share_clicked', {
-      question_id: id,
-      surface: 'game_challenge',
-      link_id: linkId,
-      visitor_id: visitorId,
+  // Share the question: before confirming ("challenge a friend first") and after
+  // (the "send it to someone" prompt). Works in every category. The Kids & Family
+  // category sends no analytics at all (the shared link is the bare question URL: no link_id or generation).
+  const isKidsCategory = catId === 'kids-family';
+  const runShare = useCallback(async (shareUrl: string, text: string, copyMessage = false) => {
+    const web = Platform.OS === 'web' && typeof navigator !== 'undefined';
+    const result = await shareLink({
+      title: 'Would You Rather?',
+      text,
+      url: shareUrl,
+      // Without a share sheet, keep the message with its link (match actions).
+      copyText: copyMessage ? `${text}\n${shareUrl}` : undefined,
+      nav: web ? (navigator as any) : undefined,
+      legacyCopy: web ? legacyCopy : undefined,
+      nativeShare: Platform.OS === 'web' ? undefined : (o) => Share.share(o),
     });
-    if (incomingLinkId) {
-      track('visitor_shared_after_link', {
-        link_id: incomingLinkId,
-        generation: incomingGeneration,
-        new_link_id: linkId,
-        visitor_id: visitorId,
-      });
+    const message = SHARE_FEEDBACK[result];
+    if (message) {
+      setCopyFeedback(message);
+      setTimeout(() => setCopyFeedback(null), 2500);
+    }
+  }, [setCopyFeedback]);
+
+  const handleChallengeShare = useCallback(async (surface: 'game_challenge' | 'game_result' = 'game_challenge') => {
+    // After answering, the link carries this player's pick so the friend can see if they match (#92).
+    // Before answering the link says so ('ask'), so the friend's answer can be sent back.
+    const myPick = surface === 'game_result' && confirmed && selected ? selected : 'ask';
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategory, myPick);
+
+    // Kids & Family: no events and no link_id/gen in the shared URL (see shareEvents).
+    for (const ev of shareEvents({
+      kids: isKidsCategory,
+      questionId: id ?? '',
+      surface,
+      linkId,
+      visitorId,
+      incomingLinkId,
+      incomingGeneration,
+    })) {
+      track(ev.name, ev.props);
     }
 
-    if (Platform.OS === 'web') {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
-      }
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          setCopyFeedback('Link copied!');
-          setTimeout(() => setCopyFeedback(null), 2000);
-        } catch {}
-      }
-    } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    const intro = shareText(isKidsCategory, myPick === 'ask' ? 'first_before' : 'first_after');
+    await runShare(shareUrl, `${intro}\n${question?.optionA} — OR — ${question?.optionB}`);
+  }, [question, id, selected, confirmed, incomingGeneration, incomingLinkId, visitorId, isKidsCategory, runShare]);
+
+  // Match share (#92): once this player has an answer, compare it with the friend's pick
+  // from the link. Computed in the browser only; nothing is stored or sent.
+  const outcome = confirmed && selected && friendPick ? matchOutcome(selected, friendPick) : null;
+  // Arrived on a share made before answering, and has now answered: offer "Tell them".
+  const asked = confirmed && !!selected && friend === 'ask';
+  const matchLine = useMemo(
+    () => (outcome ? pickLine(isKidsCategory, outcome) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [outcome, isKidsCategory, id],
+  );
+  useEffect(() => {
+    if (!friend || !question) return;
+    for (const ev of matchEvent('opened', { kids: isKidsCategory, questionId: question.id, visitorId })) {
+      track(ev.name, ev.props);
     }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId, setCopyFeedback]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question?.id, friend]);
+  useEffect(() => {
+    if (!outcome || !question) return;
+    for (const ev of matchEvent('answered', { kids: isKidsCategory, questionId: question.id, visitorId, outcome })) {
+      track(ev.name, ev.props);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outcome, question?.id]);
 
   if (!question) {
     return (
@@ -200,6 +258,39 @@ export default function GameScreen() {
         visitor_id: visitorId,
       });
     }
+  };
+
+  // Send the result back: the link carries this player's pick, so the friend sees it too.
+  const handleTellThem = async () => {
+    if (!(outcome || asked) || !selected) return;
+    const { url: replyUrl } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategory, selected);
+    for (const ev of matchEvent('reply_sent', { kids: isKidsCategory, questionId: id ?? '', visitorId, outcome: outcome ?? undefined })) {
+      track(ev.name, ev.props);
+    }
+    const key = outcome === 'matched' ? 'tell_matched' : outcome === 'different' ? 'tell_different' : 'tell_asked';
+    await runShare(replyUrl, shareText(isKidsCategory, key, matchLine ?? ''), true);
+  };
+
+  // Share the next question in this category with the same friend, before answering.
+  const handleAskAnother = async () => {
+    if (!nextQuestion || nextLocked) return;
+    const { url: nextUrl, linkId: nextLinkId } = buildShareUrl(nextQuestion.id, incomingGeneration, isKidsCategory, 'ask');
+    for (const ev of shareEvents({
+      kids: isKidsCategory,
+      questionId: nextQuestion.id,
+      surface: 'game_match_next',
+      linkId: nextLinkId,
+      visitorId,
+      incomingLinkId,
+      incomingGeneration,
+    })) {
+      track(ev.name, ev.props);
+    }
+    await runShare(
+      nextUrl,
+      `${shareText(isKidsCategory, 'ask_another')}\n${nextQuestion.optionA} — OR — ${nextQuestion.optionB}`,
+      true,
+    );
   };
 
   const handleNext = () => {
@@ -376,13 +467,13 @@ export default function GameScreen() {
             {/* Contextual challenge invite — shown when user picked but hasn't confirmed */}
             {selected && (
               <Pressable
-                onPress={handleChallengeShare}
+                onPress={() => handleChallengeShare('game_challenge')}
                 style={({ pressed }) => [
                   styles.challengeButton,
                   pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text style={styles.challengeText}>{copyFeedback ?? '💬  Challenge a friend to this question first'}</Text>
+                <Text style={styles.challengeText}>{copyFeedback ?? uiText(isKidsCategory, 'challenge')}</Text>
               </Pressable>
             )}
 
@@ -434,6 +525,60 @@ export default function GameScreen() {
                 </Text>
               </View>
             </View>
+
+            {((outcome && matchLine !== null) || asked) && (
+              <View style={[styles.matchCard, { borderColor: `${catColor}60` }]} testID="match-card">
+                <Text style={styles.matchTitle}>
+                  {uiText(isKidsCategory, outcome === 'matched' ? 'icon_matched' : outcome === 'different' ? 'icon_different' : 'icon_asked')}
+                  {headingFor(isKidsCategory, outcome ?? 'asked')}
+                </Text>
+                {outcome && <Text style={styles.matchLine}>{matchLine}</Text>}
+                <View style={styles.matchButtons}>
+                  <Pressable
+                    onPress={handleTellThem}
+                    accessibilityRole="button"
+                    accessibilityLabel={uiText(isKidsCategory, 'tell_them')}
+                    style={({ pressed }) => [
+                      styles.matchButton,
+                      { backgroundColor: catColor },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                  >
+                    <Text style={styles.matchButtonText}>{copyFeedback ?? uiText(isKidsCategory, 'tell_them')}</Text>
+                  </Pressable>
+                  {nextQuestion && !nextLocked && (
+                    <Pressable
+                      onPress={handleAskAnother}
+                      accessibilityRole="button"
+                      accessibilityLabel={uiText(isKidsCategory, 'ask_another')}
+                      style={({ pressed }) => [
+                        styles.matchButton,
+                        styles.matchButtonOutline,
+                        { borderColor: catColor },
+                        pressed && { opacity: 0.8 },
+                      ]}
+                    >
+                      <Text style={[styles.matchButtonText, { color: catColor }]}>{uiText(isKidsCategory, 'ask_another')}</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            )}
+
+            <Pressable
+              onPress={() => handleChallengeShare('game_result')}
+              accessibilityRole="button"
+              accessibilityLabel="Share this question"
+              style={({ pressed }) => [
+                styles.shareButton,
+                { borderColor: catColor },
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <Text style={[styles.shareButtonText, { color: catColor }]}>
+                {copyFeedback ?? uiText(isKidsCategory, 'send_question')}
+              </Text>
+            </Pressable>
 
             <Pressable
               onPress={handleNext}
@@ -594,6 +739,18 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
       ...Platform.select({ web: { cursor: 'pointer' } }),
     },
+    shareButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.md,
+      borderWidth: 1.5,
+      borderRadius: RADIUS.full,
+      backgroundColor: colors.surface,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    shareButtonText: {
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
     challengeText: {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.sm,
@@ -611,6 +768,45 @@ function makeStyles(colors: ThemeColors) {
     skipText: {
       color: colors.textMuted,
       fontSize: FONTS.sizes.md,
+    },
+    matchCard: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1.5,
+      padding: SPACING.md,
+      gap: SPACING.sm,
+    },
+    matchTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    matchLine: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+    },
+    matchButtons: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: SPACING.sm,
+      marginTop: SPACING.xs,
+    },
+    matchButton: {
+      flexGrow: 1,
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      borderRadius: RADIUS.full,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    matchButtonOutline: {
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+    },
+    matchButtonText: {
+      color: '#fff',
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
     },
     resultBanner: {
       flexDirection: 'row',

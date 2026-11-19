@@ -1,4 +1,5 @@
 import { KIDS_QUESTIONS } from './kidsQuestions';
+import { isCategoryAvailable } from './platformFilter';
 
 export type CategoryId =
   | 'high-life'
@@ -47,7 +48,7 @@ export interface Question {
 // Categories
 // ---------------------------------------------------------------------------
 
-export const CATEGORIES: CategoryDef[] = [
+const ALL_CATEGORIES: CategoryDef[] = [
   {
     id: 'high-life',
     label: 'The High Life',
@@ -124,6 +125,9 @@ export const CATEGORIES: CategoryDef[] = [
   },
 ];
 
+/** Categories shipped on this platform (iOS v1 leaves two out; see constants/iosV1.ts). */
+export const CATEGORIES: CategoryDef[] = ALL_CATEGORIES.filter((c) => isCategoryAvailable(c.id));
+
 // ---------------------------------------------------------------------------
 // Quick-play category groups
 // ---------------------------------------------------------------------------
@@ -136,7 +140,7 @@ export const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-t
 // Questions
 // ---------------------------------------------------------------------------
 
-export const QUESTIONS: Question[] = [
+const ALL_QUESTIONS: Question[] = [
   // -------------------------------------------------------------------------
   // The High Life (hl-1 through hl-20)
   // -------------------------------------------------------------------------
@@ -1358,6 +1362,8 @@ export const QUESTIONS: Question[] = [
   // Kids & Family (kf-1 through kf-223): see constants/kidsQuestions.ts
   ...KIDS_QUESTIONS,
 ];
+
+export const QUESTIONS: Question[] = ALL_QUESTIONS.filter((q) => isCategoryAvailable(q.category));
 
 // ---------------------------------------------------------------------------
 // Helper functions
