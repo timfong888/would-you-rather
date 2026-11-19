@@ -45,6 +45,11 @@ function getClient(): PostHog | null {
   _client = new PostHog(key, {
     host: 'https://us.i.posthog.com',
     captureAppLifecycleEvents: false,
+    // On web posthog-react-native finds no async-storage/expo-file-system and throws "No storage
+    // available", so nothing was ever sent. Memory persistence needs no storage and keeps PostHog
+    // from writing its own ids anywhere (kids routes: nothing of PostHog's to purge). Identity
+    // comes from our own persisted visitor id via identify() at session start.
+    ...(Platform.OS === 'web' ? { persistence: 'memory' as const } : {}),
   });
   if (_needsOptIn) {
     // A kids route opted the previous client out (persisted); this visit is on an allowed page.
@@ -58,7 +63,20 @@ type Props = Record<string, string | number | boolean | null | undefined>;
 
 // Kids pages (COPPA, #65: anonymous votes only): nothing is sent to PostHog while the
 // visitor is on a kids-bank page (lib/kidsPaths.ts). Console debug still logs.
+//
+// The router's pathname is the single source of truth: window.location lags an in-app navigation
+// (a click on /categories still reads /categories while /categories/kids-family is rendering), so
+// the layout hands the router path in synchronously during render (setRouterPath) and every gate
+// below prefers it. Before the router has reported (first render, tests) window.location is used.
+let _routerPath: string | null = null;
+
+/** Called by the root layout while rendering, before any screen effect can emit an event. */
+export function setRouterPath(pathname: string | null | undefined): void {
+  _routerPath = pathname || null;
+}
+
 function onKidsPage(): boolean {
+  if (_routerPath !== null) return isKidsPath(_routerPath);
   return typeof window !== 'undefined' && isKidsPath(window.location.pathname);
 }
 
@@ -336,6 +354,7 @@ function clearKidsStorage(): void {
 }
 
 export function syncKidsMode(pathname: string): void {
+  setRouterPath(pathname);
   const kids = isKidsPath(pathname);
   if (kids === _inKidsMode) return;
   _inKidsMode = kids;
@@ -368,6 +387,7 @@ export function syncKidsMode(pathname: string): void {
 
 /** Test hook: back to a fresh page load (module state only; storage is the test's to manage). */
 export function __resetForTests(): void {
+  _routerPath = null;
   _client = null;
   _needsOptIn = false;
   _session = null;

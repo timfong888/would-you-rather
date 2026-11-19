@@ -80,7 +80,7 @@ const MEDIUM_CHANNEL: Record<string, Channel> = {
   organic: 'organic_search',
 };
 
-const bare = (host: string) => host.toLowerCase().replace(/^www\./, '');
+const bare = (host: string) => host.toLowerCase().replace(/:\d+$/, '').replace(/^www\./, '');
 
 function parseUrl(raw?: string | null): URL | null {
   if (!raw) return null;

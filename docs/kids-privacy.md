@@ -17,3 +17,8 @@ Not covered here: the vote's own storage (`wyr_voted_v1`, `wyr_answered_question
 
 Check: `tests/browserless/kids-no-tracking.mjs` (see its header), plus `tests/unit/visitor-id.test.ts`.
 When #85 lands, fold this page into `docs/analytics.md`.
+
+## How the gate decides (router path)
+`lib/analytics.ts` treats the **router's pathname** as the source of truth (`setRouterPath`, called by the root layout while rendering, and by `syncKidsMode`). `window.location` lags an in-app navigation, so reading it let an adult → kids click send `$identify`, `session_start` and a kids-path `page_view` (#85 verification). `tests/browserless/analytics-network.mjs` proves it against a build with a fake PostHog key (PostHog's host intercepted): adult events reach `/batch`, kids routes send nothing, adult → kids in-app sends nothing.
+
+PostHog on web uses `persistence: 'memory'`: the SDK otherwise throws "No storage available" and sends nothing. Identity is our own `wyr_visitor_id` via `identify()`, so PostHog writes no storage of its own.

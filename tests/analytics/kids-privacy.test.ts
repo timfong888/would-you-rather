@@ -178,3 +178,38 @@ test('kids routes keep no first touch, activation counter, visitor id or ph_* ke
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(local.get('wyr_visitor_id'), keep, 'adult visitor id survives');
 });
+
+test('in-app adult -> kids: the router path gates events while window.location still shows the adult page (verifier fail on #85)', async () => {
+  go('/categories');
+  const a = await load();
+  const s = a.ensureSessionInit()!;
+  a.track('page_view', { path: '/categories' });
+  const adultId = s.visitorId;
+  const before = captures().length;
+  const clientCalls = calls.length;
+
+  // The user clicks "Kids & Family": the router already reports the kids path (the layout calls
+  // setRouterPath while rendering) but window.location has not changed yet.
+  a.setRouterPath('/categories/kids-family');
+  a.track('page_view', { path: '/categories/kids-family' });
+  a.track('session_start', { source: 'internal' });
+  assert.equal(captures().length, before, 'nothing captured for the kids route');
+  assert.equal(a.ensureSessionInit(), a.getSession(), 'no new session is created');
+  assert.notEqual(a.getOrCreateVisitorId().id, adultId, 'kids routes never use the adult id');
+  a.syncKidsMode('/categories/kids-family'); // the layout effect, afterwards
+  assert.ok(!local.has('wyr_visitor_id'), 'the stored id is removed');
+  a.track('page_view', { path: '/categories/kids-family' });
+  assert.equal(captures().length, before, 'still nothing captured');
+  assert.ok(!calls.slice(clientCalls).some((c) => c.op === 'identify' || c.op === 'capture' && JSON.stringify(c.args).includes('kids-family')), 'no identify, no kids path');
+  assert.ok(!local.has('wyr_visitor_id'), 'no new persisted id was created');
+});
+
+test('no persistence option is read from the SDK on web: the client is created with memory persistence', async () => {
+  go('/categories');
+  const a = await load();
+  a.ensureSessionInit();
+  a.track('page_view', { path: '/categories' });
+  const init = calls.find((c) => c.op === 'init');
+  assert.ok(init, 'a client was created');
+  assert.equal((init!.args[1] as any)?.persistence, 'memory');
+});
