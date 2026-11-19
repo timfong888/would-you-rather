@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { track, identify, getOrCreateVisitorId } from '@/lib/analytics';
+import { usePathname } from 'expo-router';
+import { track, identify, getOrCreateVisitorId, purgeVisitorId } from '@/lib/analytics';
+import { isKidsPath } from '@/lib/kidsPaths';
 
 interface AnalyticsContextValue {
   /** Anonymous ID persisted across sessions. */
@@ -19,6 +21,14 @@ const AnalyticsContext = createContext<AnalyticsContextValue>({
 
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const fired = useRef(false);
+  const pathname = usePathname();
+
+  // Kids routes keep no persisted visitor ID (COPPA): remove one if it exists, whenever such a
+  // route is shown (including after navigating there inside the app).
+  useEffect(() => {
+    if (pathname && isKidsPath(pathname)) purgeVisitorId();
+  }, [pathname]);
+
   const [ctx, setCtx] = useState<AnalyticsContextValue>({
     visitorId: '',
     incomingLinkId: null,
