@@ -31,10 +31,14 @@
   },
   "submit": {
     "preview": {
-      "ios": {}
+      "ios": {
+        "ascAppId": "6836653723"
+      }
     },
     "production": {
-      "ios": {}
+      "ios": {
+        "ascAppId": "6836653723"
+      }
     }
   }
 }
