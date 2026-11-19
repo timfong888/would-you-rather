@@ -71,7 +71,10 @@ test('share text fills {line}; kids text is the approved kid-safe message', () =
   assert.equal(shareText(false, 'tell_matched', 'Same brain, apparently.'), 'Plot twist: we matched. Same brain, apparently.');
   assert.equal(shareText(false, 'tell_different', 'Appeal denied.'), 'We picked differently. Appeal denied.');
   assert.equal(shareText(true, 'tell_matched', 'Same pick!'), 'I picked an answer. Which would you pick?');
-  assert.equal(shareText(true, 'ask_another'), 'I picked an answer. Which would you pick?');
+  // Shares made before the sender answers must not claim a pick.
+  assert.equal(shareText(true, 'ask_another'), 'Which would you pick? Tell me after you answer!');
+  assert.equal(shareText(true, 'first_before'), 'Which would you pick? Tell me after you answer!');
+  assert.equal(shareText(true, 'first_after'), 'I picked an answer. Which would you pick?');
   assert.ok(!shareText(true, 'first_after').includes('{line}'));
 });
 

@@ -72,11 +72,11 @@
     ],
     "share": {
       "first_after": "I picked an answer. Which would you pick?",
-      "first_before": "I picked an answer. Which would you pick?",
+      "first_before": "Which would you pick? Tell me after you answer!",
       "tell_matched": "I picked an answer. Which would you pick?",
       "tell_different": "I picked an answer. Which would you pick?",
       "tell_asked": "I picked an answer. Which would you pick?",
-      "ask_another": "I picked an answer. Which would you pick?"
+      "ask_another": "Which would you pick? Tell me after you answer!"
     },
     "ui": {
       "tell_them": "Tell them",
