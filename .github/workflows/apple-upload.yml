@@ -1,0 +1,56 @@
+name: Apple upload (TestFlight)
+
+# Manual only. Uploads an EAS-built IPA straight to App Store Connect with the
+# ASC REST buildUploads API, skipping the EAS submit queue. This WRITES to
+# App Store Connect (creates a build upload); it never submits for App Review.
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: EAS build artifact URL (https://expo.dev/artifacts/eas/<id>.ipa)
+        type: string
+        required: true
+      version:
+        description: CFBundleShortVersionString (app version)
+        type: string
+        required: true
+        default: '1.0.0'
+      build_number:
+        description: CFBundleVersion (build number)
+        type: string
+        required: true
+      app_id:
+        description: ASC app id (Apple ID of the app)
+        type: string
+        required: true
+        default: '6836653723'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Upload IPA to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          IPA_URL: ${{ inputs.ipa_url }}
+          APP_VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          APP_ID: ${{ inputs.app_id }}
+        run: >-
+          node scripts/asc-upload.mjs
+          --app "$APP_ID" --ipa-url "$IPA_URL"
+          --version "$APP_VERSION" --build "$BUILD_NUMBER"
