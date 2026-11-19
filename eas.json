@@ -8,7 +8,10 @@
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "node": "20.18.0"
+      "node": "20.18.0",
+      "ios": {
+        "image": "macos-sequoia-15.6-xcode-26.2"
+      }
     },
     "development-simulator": {
       "extends": "development",
@@ -20,13 +23,19 @@
       "distribution": "store",
       "environment": "preview",
       "autoIncrement": true,
-      "node": "20.18.0"
+      "node": "20.18.0",
+      "ios": {
+        "image": "macos-sequoia-15.6-xcode-26.2"
+      }
     },
     "production": {
       "distribution": "store",
       "environment": "production",
       "autoIncrement": true,
-      "node": "20.18.0"
+      "node": "20.18.0",
+      "ios": {
+        "image": "macos-sequoia-15.6-xcode-26.2"
+      }
     }
   },
   "submit": {
