@@ -8,7 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "export:web": "expo export --platform web",
-    "build:web": "npm run verify:data && npm run generate:sitemap && expo export --platform web && node scripts/flatten-index-routes.mjs && node scripts/generate-sharing-pages.mjs && npm run verify:seo -- --dist",
+    "build:web": "npm run verify:data && npm run generate:sitemap && expo export --platform web && node scripts/web-export-compat.mjs && node scripts/generate-sharing-pages.mjs && npm run verify:seo -- --dist",
     "generate:sitemap": "tsx scripts/generate-sitemap.ts",
     "verify:data": "tsx scripts/verify-questions.ts",
     "owner:hash": "node scripts/owner-code-hash.mjs",
