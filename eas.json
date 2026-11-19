@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "node": "20.18.0",
+      "node": "20.19.4",
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
       }
@@ -23,7 +23,7 @@
       "distribution": "store",
       "environment": "preview",
       "autoIncrement": true,
-      "node": "20.18.0",
+      "node": "20.19.4",
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
       }
@@ -32,7 +32,7 @@
       "distribution": "store",
       "environment": "production",
       "autoIncrement": true,
-      "node": "20.18.0",
+      "node": "20.19.4",
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
       }
