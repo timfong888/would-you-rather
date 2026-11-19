@@ -5,6 +5,7 @@
 import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
+import { buildShareLink } from '@/lib/shareQuestion';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -106,11 +107,12 @@ export function generateLinkId(): string {
  * `incomingGeneration` is the generation the current session arrived with;
  * the new link's generation is incomingGeneration + 1.
  */
-export function buildShareUrl(questionId: string, incomingGeneration: number): {
+export function buildShareUrl(questionId: string, incomingGeneration: number, kids = false): {
   url: string;
   linkId: string;
 } {
-  const linkId = generateLinkId();
+  // Kids routes: no link id is generated and none is put in the URL.
+  const linkId = kids ? '' : generateLinkId();
   const gen = incomingGeneration + 1;
 
   const origin =
@@ -118,6 +120,6 @@ export function buildShareUrl(questionId: string, incomingGeneration: number): {
       ? window.location.origin
       : SITE_URL;
 
-  const url = `${origin}/p/${questionId}?link_id=${linkId}&gen=${gen}`;
+  const url = buildShareLink({ origin, questionId, linkId, generation: gen, kids });
   return { url, linkId };
 }

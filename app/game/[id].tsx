@@ -22,7 +22,7 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
-import { shareLink, SHARE_FEEDBACK } from '@/lib/shareQuestion';
+import { shareLink, shareEvents, SHARE_FEEDBACK } from '@/lib/shareQuestion';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
@@ -120,28 +120,24 @@ export default function GameScreen() {
   // returns early, which would otherwise render fewer hooks and throw.
   // Share the question: before confirming ("challenge a friend first") and after
   // (the "send it to someone" prompt). Works in every category. The Kids & Family
-  // category sends no analytics at all (the link itself carries no player data).
+  // category sends no analytics at all (the shared link is the bare question URL: no link_id or generation).
   const isKidsCategory = catId === 'kids-family';
   const handleChallengeShare = useCallback(async (surface: 'game_challenge' | 'game_result' = 'game_challenge') => {
     const title = 'Would You Rather?';
     const text = `${question?.optionA} — OR — ${question?.optionB}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategory);
 
-    if (!isKidsCategory) {
-      track('share_clicked', {
-        question_id: id,
-        surface,
-        link_id: linkId,
-        visitor_id: visitorId,
-      });
-      if (incomingLinkId) {
-        track('visitor_shared_after_link', {
-          link_id: incomingLinkId,
-          generation: incomingGeneration,
-          new_link_id: linkId,
-          visitor_id: visitorId,
-        });
-      }
+    // Kids & Family: no events and no link_id/gen in the shared URL (see shareEvents).
+    for (const ev of shareEvents({
+      kids: isKidsCategory,
+      questionId: id ?? '',
+      surface,
+      linkId,
+      visitorId,
+      incomingLinkId,
+      incomingGeneration,
+    })) {
+      track(ev.name, ev.props);
     }
 
     const web = Platform.OS === 'web' && typeof navigator !== 'undefined';

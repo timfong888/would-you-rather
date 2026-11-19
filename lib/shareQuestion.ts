@@ -60,3 +60,58 @@ export const SHARE_FEEDBACK: Record<ShareOutcome, string | null> = {
   copied: 'Link copied!',
   failed: "Couldn't share. Copy the link from the address bar.",
 };
+
+/**
+ * The link a player shares. Kids routes get the bare question link: no link_id or
+ * generation, so the shared URL carries nothing that identifies a sharer or a chain
+ * of shares (kids rule: no tracking or persisted IDs on kids routes).
+ */
+export function buildShareLink(o: {
+  origin: string;
+  questionId: string;
+  linkId: string;
+  generation: number;
+  kids: boolean;
+}): string {
+  const base = `${o.origin}/p/${o.questionId}`;
+  return o.kids ? base : `${base}?link_id=${o.linkId}&gen=${o.generation}`;
+}
+
+export interface ShareEvent {
+  name: 'share_clicked' | 'visitor_shared_after_link';
+  props: Record<string, string | number | boolean | null | undefined>;
+}
+
+/**
+ * Analytics events a share tap produces. Kids routes produce none.
+ * Pure, so the kids rule is unit-tested instead of relying on the screen wiring.
+ */
+export function shareEvents(o: {
+  kids: boolean;
+  questionId: string;
+  surface: string;
+  linkId: string;
+  visitorId?: string | null;
+  incomingLinkId?: string | null;
+  incomingGeneration: number;
+}): ShareEvent[] {
+  if (o.kids) return [];
+  const events: ShareEvent[] = [
+    {
+      name: 'share_clicked',
+      props: { question_id: o.questionId, surface: o.surface, link_id: o.linkId, visitor_id: o.visitorId },
+    },
+  ];
+  if (o.incomingLinkId) {
+    events.push({
+      name: 'visitor_shared_after_link',
+      props: {
+        link_id: o.incomingLinkId,
+        generation: o.incomingGeneration,
+        new_link_id: o.linkId,
+        visitor_id: o.visitorId,
+      },
+    });
+  }
+  return events;
+}
