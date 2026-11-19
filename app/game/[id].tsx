@@ -22,12 +22,30 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { shareLink, shareEvents, SHARE_FEEDBACK } from '@/lib/shareQuestion';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
 
 // Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
 const SHARE_LINK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Copy for browsers without the async clipboard API (e.g. an insecure context). */
+function legacyCopy(value: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.createElement('textarea');
+  el.value = value;
+  el.setAttribute('readonly', '');
+  el.style.position = 'fixed';
+  el.style.opacity = '0';
+  document.body.appendChild(el);
+  el.select();
+  try {
+    return document.execCommand('copy');
+  } finally {
+    document.body.removeChild(el);
+  }
+}
 
 export default function GameScreen() {
   const { id, cat, idx, link_id } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string }>();
@@ -100,42 +118,43 @@ export default function GameScreen() {
   // Every hook must run before the early returns below: revoking owner access
   // while this screen is mounted flips `mustRedirect` and the next render
   // returns early, which would otherwise render fewer hooks and throw.
-  // Voluntary pre-answer challenge: share the question before confirming
-  const handleChallengeShare = useCallback(async () => {
+  // Share the question: before confirming ("challenge a friend first") and after
+  // (the "send it to someone" prompt). Works in every category. The Kids & Family
+  // category sends no analytics at all (the shared link is the bare question URL: no link_id or generation).
+  const isKidsCategory = catId === 'kids-family';
+  const handleChallengeShare = useCallback(async (surface: 'game_challenge' | 'game_result' = 'game_challenge') => {
     const title = 'Would You Rather?';
     const text = `${question?.optionA} — OR — ${question?.optionB}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategory);
 
-    track('share_clicked', {
-      question_id: id,
-      surface: 'game_challenge',
-      link_id: linkId,
-      visitor_id: visitorId,
+    // Kids & Family: no events and no link_id/gen in the shared URL (see shareEvents).
+    for (const ev of shareEvents({
+      kids: isKidsCategory,
+      questionId: id ?? '',
+      surface,
+      linkId,
+      visitorId,
+      incomingLinkId,
+      incomingGeneration,
+    })) {
+      track(ev.name, ev.props);
+    }
+
+    const web = Platform.OS === 'web' && typeof navigator !== 'undefined';
+    const outcome = await shareLink({
+      title,
+      text,
+      url: shareUrl,
+      nav: web ? (navigator as any) : undefined,
+      legacyCopy: web ? legacyCopy : undefined,
+      nativeShare: Platform.OS === 'web' ? undefined : (o) => Share.share(o),
     });
-    if (incomingLinkId) {
-      track('visitor_shared_after_link', {
-        link_id: incomingLinkId,
-        generation: incomingGeneration,
-        new_link_id: linkId,
-        visitor_id: visitorId,
-      });
+    const message = SHARE_FEEDBACK[outcome];
+    if (message) {
+      setCopyFeedback(message);
+      setTimeout(() => setCopyFeedback(null), 2500);
     }
-
-    if (Platform.OS === 'web') {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
-      }
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          setCopyFeedback('Link copied!');
-          setTimeout(() => setCopyFeedback(null), 2000);
-        } catch {}
-      }
-    } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
-    }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId, setCopyFeedback]);
+  }, [question, id, incomingGeneration, incomingLinkId, visitorId, isKidsCategory, setCopyFeedback]);
 
   if (!question) {
     return (
@@ -375,7 +394,7 @@ export default function GameScreen() {
             {/* Contextual challenge invite — shown when user picked but hasn't confirmed */}
             {selected && (
               <Pressable
-                onPress={handleChallengeShare}
+                onPress={() => handleChallengeShare('game_challenge')}
                 style={({ pressed }) => [
                   styles.challengeButton,
                   pressed && { opacity: 0.7 },
@@ -433,6 +452,21 @@ export default function GameScreen() {
                 </Text>
               </View>
             </View>
+
+            <Pressable
+              onPress={() => handleChallengeShare('game_result')}
+              accessibilityRole="button"
+              accessibilityLabel="Share this question"
+              style={({ pressed }) => [
+                styles.shareButton,
+                { borderColor: catColor },
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <Text style={[styles.shareButtonText, { color: catColor }]}>
+                {copyFeedback ?? '🔗  Send this question to a friend'}
+              </Text>
+            </Pressable>
 
             <Pressable
               onPress={handleNext}
@@ -592,6 +626,18 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: RADIUS.full,
       backgroundColor: colors.surface,
       ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    shareButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.md,
+      borderWidth: 1.5,
+      borderRadius: RADIUS.full,
+      backgroundColor: colors.surface,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    shareButtonText: {
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
     },
     challengeText: {
       color: colors.textSecondary,
