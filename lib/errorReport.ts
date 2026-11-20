@@ -3,25 +3,36 @@
  * under plain Node in tests. What reaches analytics is a short, scrubbed description:
  * no stack traces, no URLs with query strings (any scheme, blob:/data: payloads, scheme-less hosts), no email addresses.
  */
-// Input is capped before any regex runs, and every pattern below is anchored to a token start (\b) or has no
+// Input is capped before any regex runs, and every pattern below starts only at a token boundary or has no
 // leading greedy group, so cost stays linear: a large error payload (a JSON.stringify of an API body, say)
 // must not freeze the page, and this runs before the per-page rate limiter.
 const MAX_INPUT = 2000;
+const DELIMS = [' ', '\n', '\t', '\r', ',', ';', ')', "'", '"'];
+
+/** Cap the input without cutting a token in half (a half email would no longer match the email pattern). */
+function capInput(text: string): string {
+  if (text.length <= MAX_INPUT) return text;
+  const head = text.slice(0, MAX_INPUT);
+  const cut = Math.max(...DELIMS.map((c) => head.lastIndexOf(c)));
+  return cut > 0 ? head.slice(0, cut) : head;
+}
+
+function cleanUrl(u: string): string {
+  try {
+    const url = new URL(u);
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch {
+    return '<url>';
+  }
+}
 
 export function scrub(text: string, max = 200): string {
-  return text
-    .slice(0, MAX_INPUT)
-    // Any scheme:// URL (https, wss, ftp, ...): keep scheme, host (no credentials) and path; drop query and fragment.
-    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s)'"]+/gi, (u) => {
-      try {
-        const url = new URL(u);
-        return `${url.protocol}//${url.host}${url.pathname}`;
-      } catch {
-        return '<url>';
-      }
-    })
+  return capInput(text)
+    // Any scheme:// URL (https, wss, ftp, ...), also right after "_" or digits: keep scheme, host (no
+    // credentials) and path; drop query and fragment. The capture keeps the character before the scheme.
+    .replace(/(^|[^a-z0-9+.-])([a-z0-9][a-z0-9+.-]*:\/\/[^\s)'"]+)/gi, (_m, pre: string, u: string) => pre + cleanUrl(u))
     // blob: and data: URIs carry a payload or an object ID; drop all of it.
-    .replace(/\b(blob|data):[^\s)'"]+/gi, '<$1-uri>')
+    .replace(/(^|[^a-z0-9])(blob|data):[^\s)'"]+/gi, (_m, pre: string, kind: string) => `${pre}<${kind.toLowerCase()}-uri>`)
     // Scheme-less hosts or paths with a query string (www.example.com/p?link_id=x): cut at the "?".
     .replace(/\?[^\s)'"?]*=[^\s)'"]*/g, '')
     .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email>')

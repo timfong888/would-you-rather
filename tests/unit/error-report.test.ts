@@ -25,6 +25,16 @@ test('scrub drops query strings from any scheme, blob/data payloads and scheme-l
   assert.ok(!scrub('x https://a.test/p?link_id=secret#frag y').includes('secret'));
 });
 
+test('scrub: the input cap never leaves half an email, and URLs after "_" or digits are still scrubbed', () => {
+  const pre = 'https://h.example.com/p?q=';
+  const out = scrub(pre + 'a'.repeat(2000 - pre.length - 14) + ' john.doe@gmail.com tail');
+  assert.ok(!/john|doe@|gmai/.test(out), out); // base returned "<email>"; the pre-cap must not leak a fragment
+  assert.equal(scrub('Load_https://host.example.com/reset#token=SECRET'), 'Load_https://host.example.com/reset');
+  assert.equal(scrub('code 404https://host.example.com/x?k=v'), 'code <url>'); // not a valid scheme: dropped whole, nothing leaks
+  assert.equal(scrub('see _data:text/plain;base64,QUJD end'), 'see _<data>-uri end'.replace('<data>-uri', '<data-uri>'));
+  assert.equal(scrub('metadata:foo stays'), 'metadata:foo stays'); // not a data: URI
+});
+
 test('scrub stays fast on large whitespace-free input (no quadratic backtracking)', () => {
   const big = JSON.stringify({ rows: Array.from({ length: 4000 }, (_, i) => ({ id: i, v: 'abc' + i })) }); // ~100 KB, no spaces
   assert.ok(big.length > 50000 && !/\s/.test(big));
