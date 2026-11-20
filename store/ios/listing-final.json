@@ -1,0 +1,19 @@
+{
+  "_readme": "Text sent to App Store Connect by .github/workflows/apple-metadata.yml. Copy comes from docs/specs/app-store-listing.md (name variant A, the recommended one). Tim reviews THIS file; apply is refused until approved is true. Open decisions are tracked in issue #114.",
+  "approved": false,
+  "locale": "en-US",
+  "appInfo": {
+    "name": "Would You Rather? Family Fun",
+    "subtitle": "Questions for the whole family",
+    "privacyPolicyUrl": "https://www.wouldyourather.fyi/privacy"
+  },
+  "version": {
+    "copyright": "2026 Tim Fong",
+    "description": "One question, two choices, a table full of opinions. Would You Rather turns dinner, car rides and waiting rooms into real conversation. Pick A or B, send the question to someone, and see if they chose the same.\n\nHOW IT WORKS\n- Read a dilemma and tap the option you would choose.\n- Send the question to a friend and see if they pick the same.\n- As more people answer a question, you see how everyone voted.\n\nEIGHT CATEGORIES\nThe High Life, Moral Compass, Social Blunders, Time Traveler, Career Climber, Tech Dystopia and Wildest Dreams for teens and adults, plus Kids & Family for the whole table. New questions are added over time.\n\nFREE TO START\nEvery category has free questions to try. Moral Compass, Social Blunders, Career Climber and Tech Dystopia are free to play with an optional expansion, and Kids & Family is free. Other categories include a free preview.\n\nUNLOCK WHAT YOU LIKE\n- Unlock one category with a single purchase.\n- Or unlock every category in one pack, including questions added later.\n- No subscription. Restore Purchases is always available.\n\nPRIVATE BY DEFAULT\nNo account and no sign-up. Your answers are stored anonymously to build vote totals. Kids & Family answers are stored with no device ID and no location.\n\nSome categories contain mature themes and are meant for teens and adults. Kids & Family is designed for families to play together.",
+    "keywords": "game,icebreaker,road trip,this or that,date night,dilemma,conversation,parents,teens,couples,party",
+    "promotionalText": "Pick a side, then see if your family or friends picked the same. Hundreds of dilemmas, free to start, no account needed.",
+    "whatsNew": null,
+    "supportUrl": "https://www.wouldyourather.fyi/support",
+    "marketingUrl": "https://www.wouldyourather.fyi"
+  }
+}
