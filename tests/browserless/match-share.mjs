@@ -1,11 +1,13 @@
 /**
  * Match share (#92) browser check. Run against a built site:
  *   APP_HOST=http://localhost:4175 node tests/browserless/match-share.mjs
+ * Build with EXPO_PUBLIC_SITE_URL=http://localhost:4175 (share links use SITE_URL, so without it recipient B
+ * is sent to the production domain), then `npm run build:web`.
  * (needs `playwright`; the vote and tally endpoints are mocked, nothing is voted for real.)
  *
  * Adult: A shares after answering; B opens the link, answers, and sees matched/different;
- *        B taps "Tell them"; A opens that link and sees the result.
- * Kids:  the same flow on /game/kf-2. The match flow itself (open link, result, "Tell them",
+ *        B taps "Send one back"; A opens that link and sees the result.
+ * Kids:  the same flow on /game/kf-2. The match flow itself (open link, result, "Send one back",
  *        "Ask them another") must make no request other than vote/tally, send no analytics, and
  *        write nothing to localStorage/sessionStorage/cookies after the vote.
  */
@@ -44,7 +46,8 @@ const clipFull = (page) => page.evaluate(() => navigator.clipboard.readText());
 const clip = async (page) => (await clipFull(page)).trim().split('\n').pop();
 async function vote(page, optionText) {
   await page.getByText(optionText, { exact: false }).first().click();
-  await page.getByText(/confirm/i).first().click();
+  // The sender confirms; a recipient (arrived via a share link) answers on the first tap (#134), so no Confirm exists.
+  await page.getByText(/confirm/i).first().click({ timeout: 2000 }).catch(() => {});
   await page.waitForTimeout(700);
 }
 
@@ -76,12 +79,12 @@ async function scenario(browser, { name, id, optA, optB, kids }) {
     const before = await B.page.evaluate(() => window.__writes.length);
     const reqsBefore = logB.length;
 
-    await B.page.getByRole('button', { name: 'Tell them' }).click();
+    await B.page.getByTestId('send-back').click(); // "Send one back" (was "Tell them" before #136)
     await B.page.waitForTimeout(400);
     const replyUrl = await clip(B.page);
-    check(new URL(replyUrl).searchParams.get('f') !== null, `B(${outcome}): "Tell them" link carries B's pick`, replyUrl);
+    check(new URL(replyUrl).searchParams.get('f') !== null, `B(${outcome}): "Send one back" link carries B's pick`, replyUrl);
     const tellText = await clipFull(B.page);
-    check(tellText.trim().split('\n').length >= 2 && /^(Plot twist|We picked differently|I picked an answer)/.test(tellText), `B(${outcome}): "Tell them" copies the message with the link`, JSON.stringify(tellText.slice(0, 60)));
+    check(tellText.trim().split('\n').length >= 2 && /^(Plot twist|We picked differently|I picked an answer)/.test(tellText), `B(${outcome}): "Send one back" copies the message with the link`, JSON.stringify(tellText.slice(0, 60)));
     const askBtn = B.page.getByRole('button', { name: 'Ask them another' });
     if (await askBtn.count()) {
       await askBtn.click();
@@ -129,13 +132,13 @@ async function scenario(browser, { name, id, optA, optB, kids }) {
     await B2.page.waitForLoadState('networkidle');
     await vote(B2.page, optB);
     const asked = B2.page.locator('[data-testid=match-card]');
-    check((await asked.count()) === 1 && /You picked one/.test(await asked.innerText()), 'before-answering: B sees "You picked one. Tell them" (no comparison)');
-    check((await B2.page.getByRole('button', { name: 'Tell them' }).count()) === 1, 'before-answering: B has a "Tell them" button');
-    await B2.page.getByRole('button', { name: 'Tell them' }).click();
+    check((await asked.count()) === 1 && /You picked one/.test(await asked.innerText()), 'before-answering: B sees "You picked one" (no comparison)');
+    check((await B2.page.getByTestId('send-back').count()) === 1, 'before-answering: B has a "Send one back" button');
+    await B2.page.getByTestId('send-back').click();
     await B2.page.waitForTimeout(400);
     const replyFull = await clipFull(B2.page);
     const reply = replyFull.trim().split('\n').pop();
-    check(replyFull.trim().split('\n').length >= 2 && new URL(reply).searchParams.get('f') !== pf, 'before-answering: "Tell them" copies message + a link carrying B\'s pick', reply);
+    check(replyFull.trim().split('\n').length >= 2 && new URL(reply).searchParams.get('f') !== pf, 'before-answering: "Send one back" copies message + a link carrying B\'s pick', reply);
     await A2.page.goto(reply, { waitUntil: 'load' });
     await A2.page.waitForURL(/\/game\//);
     await A2.page.waitForLoadState('networkidle');
