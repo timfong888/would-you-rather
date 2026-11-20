@@ -20,6 +20,7 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import SafeScrollView from '@/components/SafeScrollView';
+import VersionText from '@/components/VersionText';
 
 // react-native-web turns role="heading" + aria-level into a real <h1>/<h2>.
 const h1 = { role: 'heading', 'aria-level': 1 } as object;
@@ -179,6 +180,7 @@ export default function HomeScreen() {
         ))}
       </View>
 
+      <VersionText style={styles.version} />
       <View style={styles.bottomPadding} />
     </SafeScrollView>
   );
@@ -215,6 +217,13 @@ function makeStyles(colors: ThemeColors, viewportWidth: number) {
     },
     settingsIcon: {
       fontSize: 20,
+    },
+    version: {
+      fontSize: FONTS.sizes.xs,
+      color: colors.textMuted,
+      textAlign: 'center',
+      letterSpacing: 1,
+      marginTop: SPACING.lg,
     },
     hero: {
       gap: SPACING.md,
