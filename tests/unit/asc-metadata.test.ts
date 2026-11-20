@@ -67,8 +67,8 @@ test('no allowed call can submit for review', () => {
 });
 
 test('ALLOWED excludes review submission and age-rating writes', async () => {
-  assert.ok(!ALLOWED.some(([m, re]: [string, RegExp]) => m === 'POST' && re.test('/v1/reviewSubmissions')));
-  assert.ok(!ALLOWED.some(([m, re]: [string, RegExp]) => m === 'PATCH' && re.test('/v1/ageRatingDeclarations/1')));
+  assert.ok(!ALLOWED.some(([m, re]: any[]) => m === 'POST' && re.test('/v1/reviewSubmissions')));
+  assert.ok(!ALLOWED.some(([m, re]: any[]) => m === 'PATCH' && re.test('/v1/ageRatingDeclarations/1')));
 });
 
 test('the workflow is dry run by default and manual only', () => {
