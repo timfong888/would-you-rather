@@ -48,3 +48,10 @@ test('the paywall source carries the marker only in TEST_UNLOCK_UI-guarded UI', 
   assert.match(src, /\{TEST_UNLOCK_UI && purchasesAvailable && \(/);
   assert.match(src, /if \(!TEST_UNLOCK_UI \|\| paymentState !== 'sheet'\) return;/);
 });
+
+test('test-unlock builds get a version above any release that never equals one', async () => {
+  // @ts-ignore: plain CommonJS config
+  const { testUnlockVersion } = await import('../../app.config.js');
+  assert.equal(testUnlockVersion('1.0.0'), '99.1.0');
+  assert.equal(testUnlockVersion('2.3.4'), '99.2.3');
+});

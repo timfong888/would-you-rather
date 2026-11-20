@@ -57,10 +57,13 @@ id = entitlement id).
 
 **Release hazard, and the guard.** A `preview-test` build goes to the same App Store
 Connect app as the release. To stop one being picked for App Review, every build with
-the test unlock gets app version **0.0.1** (`app.config.js`). App Store Connect only
-attaches builds whose version matches the App Store version (1.0.0), so a test build
-cannot be submitted. Build 11 predates this guard: it is 1.0.0 *with* the test unlock.
-**Never submit build 11**; expire it in TestFlight once build 12 (0.0.1) is installed.
+the test unlock gets app version **99.<major>.<minor>** of the real one (1.0.0 -> 99.1.0,
+`app.config.js`). App Store Connect only attaches builds whose version matches the App
+Store version (1.0.0), so a test build cannot be submitted, and 99.x stays above every
+approved release, so test uploads keep working after launch. Use internal TestFlight
+testers only for these builds, and never create an App Store version 99.x.
+Build 11 predates this guard: it is 1.0.0 *with* the test unlock.
+**Never submit build 11**; expire it in TestFlight once the 99.1.0 build is installed.
 Running bare `npx expo start` without the npm script leaves the deploy env unset,
 which counts as production: no test unlock and no sandbox web key (fails closed).
 
@@ -108,8 +111,8 @@ Test Store app; App Store Connect has **0** in-app purchases for app 6836653723 
 
 ## Test script
 
-**A. TestFlight build 12 (`preview-test`, version 0.0.1, today, before setup).** No RevenueCat key yet, so this checks the flow, not billing.
-1. Install build 12 (0.0.1) from TestFlight. Open a paid category (e.g. The High Life), answer the free questions until the paywall.
+**A. TestFlight build 13 (`preview-test`, version 99.1.0, today, before setup).** No RevenueCat key yet, so this checks the flow, not billing.
+1. Install build 13 (99.1.0) from TestFlight. Open a paid category (e.g. The High Life), answer the free questions until the paywall.
 2. Tap "START N MORE CONVERSATIONS". The sheet shows "TEST MODE: NO CHARGE". Tap Pay. Success screen, then START PLAYING: question N+1 appears.
 3. Back out: the category shows unlocked without restarting the app.
 
