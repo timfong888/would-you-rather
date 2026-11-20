@@ -11,6 +11,9 @@
       "node": "20.19.4",
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
+      },
+      "env": {
+        "EXPO_PUBLIC_DEPLOY_ENV": "development"
       }
     },
     "development-simulator": {
@@ -26,6 +29,9 @@
       "node": "20.19.4",
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
+      },
+      "env": {
+        "EXPO_PUBLIC_DEPLOY_ENV": "preview"
       }
     },
     "production": {
@@ -35,6 +41,9 @@
       "node": "20.19.4",
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
+      },
+      "env": {
+        "EXPO_PUBLIC_DEPLOY_ENV": "production"
       }
     }
   },

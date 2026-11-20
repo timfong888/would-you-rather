@@ -23,6 +23,8 @@ if (profile === 'production' || profile === 'preview') {
     if ((platform === 'ios' || platform === '') && !ios.startsWith('appl_')) problems.push('EXPO_PUBLIC_RC_IOS_KEY must be an App Store key (appl_...) in a production iOS build.');
     if (platform === 'android' && !android.startsWith('goog_')) problems.push('EXPO_PUBLIC_RC_ANDROID_KEY must be a Google Play key (goog_...) in a production Android build.');
     if (web.startsWith('test_') || web.startsWith('rcb_sb_')) problems.push('EXPO_PUBLIC_RC_WEB_KEY is a test/sandbox key in a production build.');
+    if (process.env.EXPO_PUBLIC_TEST_UNLOCK) problems.push('EXPO_PUBLIC_TEST_UNLOCK must be unset in a production build: the free test unlock never ships (lib/testUnlockPolicy.ts).');
+    if (process.env.EXPO_PUBLIC_DEPLOY_ENV !== 'production') problems.push('EXPO_PUBLIC_DEPLOY_ENV must be "production" in a production build (eas.json env).');
     if (process.env.EXPO_PUBLIC_OWNER_ACCESS_SHA256) problems.push('EXPO_PUBLIC_OWNER_ACCESS_SHA256 must be unset in the iOS production build (App Store guideline 3.1.1).');
   }
 }

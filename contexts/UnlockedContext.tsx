@@ -8,17 +8,31 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
-import { FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, isCategoryEntitled, productForCategory } from '@/lib/catalog';
+import { FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
+import { canPlayCategory } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
+import { testUnlockAllowed } from '@/lib/testUnlockPolicy';
+
+/**
+ * Free test unlock (no payment). Off unless EXPO_PUBLIC_TEST_UNLOCK is "1" on a
+ * preview or development build; never on production (lib/testUnlockPolicy.ts).
+ * The inline env comparison lets Metro inline the value so the minifier drops
+ * the test-only paths from builds without the flag.
+ */
+export const TEST_UNLOCK =
+  process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' &&
+  testUnlockAllowed(process.env.EXPO_PUBLIC_DEPLOY_ENV, process.env.EXPO_PUBLIC_TEST_UNLOCK);
 
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */
   isUnlocked: (id: CategoryId) => boolean;
-  /** Record a (purchased) unlock for a single category. */
+  /** Test-only free unlock for a single category. A no-op unless TEST_UNLOCK. */
   unlock: (id: CategoryId) => void;
-  /** Clear purchased unlocks. Owner access is left in place. */
+  /** Clear test unlocks. Owner access and purchases are left in place. */
   reset: () => void;
-  /** True when real store purchases are wired up in this build (native + RevenueCat key). */
+  /** True when the free test unlock is compiled into this build (never on production). */
+  testUnlockEnabled: boolean;
+  /** True when real purchases are wired up: iOS (App Store key) or web (Web Billing key). */
   purchasesAvailable: boolean;
   /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
   applyEntitlements: (active: string[]) => void;
@@ -38,6 +52,7 @@ const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
   unlock: () => {},
   reset: () => {},
+  testUnlockEnabled: false,
   purchasesAvailable: false,
   applyEntitlements: () => {},
   priceForCategory: () => FALLBACK_PRICE_CATEGORY,
@@ -51,6 +66,10 @@ const UnlockedContext = createContext<UnlockedContextValue>({
 const STORAGE_KEY = 'wyr_unlocked_categories';
 
 function loadFromStorage(): Set<string> {
+  // Unlocks stored by the old simulated checkout (#53) or the test unlock only
+  // count where the test unlock exists. Production ignores them: access there
+  // comes from RevenueCat entitlements (or owner access) only.
+  if (!TEST_UNLOCK) return new Set();
   if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -69,9 +88,10 @@ function saveToStorage(set: Set<string>) {
 }
 
 export function UnlockedProvider({ children }: { children: React.ReactNode }) {
+  // Test unlocks (empty, and never written, unless TEST_UNLOCK).
   const [unlocked, setUnlocked] = useState<Set<string>>(() => loadFromStorage());
   const [ownerAccess, setOwnerAccess] = useState<boolean>(() => loadOwnerAccess());
-  // Active RevenueCat entitlement ids. Empty on web, where purchases are unavailable.
+  // Active RevenueCat entitlement ids (App Store on iOS, Web Billing on web).
   const [entitlements, setEntitlements] = useState<Set<string>>(() => new Set());
 
   // Bootstrap from RevenueCat on launch and stay in sync: the listener fires on
@@ -140,11 +160,13 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
   }, [ownerAccess]);
 
   const isUnlocked = useCallback(
-    (id: CategoryId) => ownerAccess || unlocked.has(id) || isCategoryEntitled(entitlements, id),
+    (id: CategoryId) =>
+      canPlayCategory({ ownerAccess, entitlements, testUnlocks: unlocked, testUnlockEnabled: TEST_UNLOCK }, id),
     [ownerAccess, unlocked, entitlements],
   );
 
   const unlock = useCallback((id: CategoryId) => {
+    if (!TEST_UNLOCK) return;
     setUnlocked((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -186,6 +208,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
         isUnlocked,
         unlock,
         reset,
+        testUnlockEnabled: TEST_UNLOCK,
         purchasesAvailable: purchases.isAvailable(),
         applyEntitlements,
         priceForCategory,

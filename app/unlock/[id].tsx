@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
-import { useUnlocked } from '@/contexts/UnlockedContext';
+import { useUnlocked, TEST_UNLOCK } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track as trackEvent } from '@/lib/analytics';
 import { requiresParentalGate } from '@/lib/parentalGate';
@@ -35,8 +35,15 @@ type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 const ICON_20_WEB = Platform.OS === 'web' ? { lineHeight: 22 } : null;
 type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
 
+// The free test unlock (simulated checkout) exists only on preview/dev builds
+// with EXPO_PUBLIC_TEST_UNLOCK=1 (lib/testUnlockPolicy.ts). The inline env
+// comparison is folded to `false` at build time when the flag is unset, so the
+// minifier drops every `TEST_UNLOCK_UI && ...` branch from production. The
+// production web export is scanned for the marker text "TEST MODE: NO CHARGE"
+// (scripts/check-web-build.mjs), so that text must only appear behind it.
+const TEST_UNLOCK_UI = process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;
+
 const PAYMENT_MS = 1800;
-const RESTORE_MS = 1400;
 
 function benefitsFor(lockedCount: number): { icon: IoniconsName; text: string }[] {
   return [
@@ -73,8 +80,8 @@ export default function UnlockScreen() {
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [useApplePay, setUseApplePay] = useState(true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
-  // Real purchases need iOS/Android with a RevenueCat key. On web the existing
-  // simulated sheet is kept until the web payments decision (issue #53).
+  // Real purchases: RevenueCat on iOS (App Store) and web (Web Billing / Stripe).
+  // The simulated sheet is the test-only free unlock (TEST_UNLOCK_UI).
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   // "Have a code?" on the payment sheet. Redeeming the owner code grants
@@ -189,12 +196,12 @@ export default function UnlockScreen() {
   const remainingCount = Math.max(questions.length - (freeCount + teaserQuestions.length), 0);
 
   const handlePay = async () => {
-    // The simulated checkout is web-only; native purchases go through handleBuy.
-    if (Platform.OS !== 'web' || paymentState !== 'sheet') return;
+    // The simulated checkout is the test-only free unlock; real purchases go through handleBuy.
+    if (!TEST_UNLOCK_UI || paymentState !== 'sheet') return;
     track('paywall_cta_clicked', {
       category_id: id,
       pack_type: isExpansion ? 'expansion' : 'premium',
-      payment_method: useApplePay ? 'apple_pay' : 'card',
+      payment_method: 'test_unlock',
     });
     setPaymentState('processing');
     await new Promise<void>((r) => setTimeout(r, PAYMENT_MS));
@@ -239,12 +246,12 @@ export default function UnlockScreen() {
   const handleRestorePurchases = async () => {
     setRestoreMsg(null);
     setPurchaseError(null);
-    if (!purchasesAvailable && Platform.OS !== 'web') {
-      setRestoreMsg('Purchases are not available in this build.');
+    if (!purchasesAvailable) {
+      setRestoreMsg('Purchases are not available right now.');
       return;
     }
     setPaymentState('processing');
-    if (purchasesAvailable) {
+    {
       try {
         const active = await purchases.restore();
         applyEntitlements(active);
@@ -255,7 +262,9 @@ export default function UnlockScreen() {
           setRestoreMsg(
             active.length > 0
               ? 'Your purchases were restored, but they do not include this category.'
-              : 'No previous purchases found for this account.',
+              : Platform.OS === 'web'
+                ? 'No purchases found in this browser. Web purchases stay with the browser you bought in.'
+                : 'No previous purchases found for this account.',
           );
           setPaymentState('idle');
         }
@@ -263,14 +272,6 @@ export default function UnlockScreen() {
         setRestoreMsg('Could not restore purchases right now. Check your connection and try again.');
         setPaymentState('idle');
       }
-      return;
-    }
-    await new Promise<void>((r) => setTimeout(r, RESTORE_MS));
-    if (isUnlocked(id as CategoryId)) {
-      setPaymentState('success');
-    } else {
-      setRestoreMsg('No previous purchases found for this account.');
-      setPaymentState('idle');
     }
   };
 
@@ -372,14 +373,13 @@ export default function UnlockScreen() {
           onPress={() => {
             if (purchasesAvailable) {
               handleBuy('category');
-            } else if (Platform.OS === 'web') {
-              // Web keeps the simulated sheet until the web payments decision (#53).
+            } else if (TEST_UNLOCK_UI) {
+              // Test build without a RevenueCat key: the free test unlock.
               setRestoreMsg(null);
               setPaymentState('sheet');
             } else {
-              // Native build without a RevenueCat key: never fall back to the
-              // simulated checkout, which would grant paid access for free.
-              setPurchaseError('Purchases are not available in this build.');
+              // No RevenueCat key: never fall back to a free unlock.
+              setPurchaseError('Purchases are not available right now. Please try again later.');
             }
           }}
           style={({ pressed }) => [
@@ -406,6 +406,21 @@ export default function UnlockScreen() {
           </Pressable>
         )}
 
+        {TEST_UNLOCK_UI && purchasesAvailable && (
+          <Pressable
+            onPress={() => {
+              setRestoreMsg(null);
+              setPurchaseError(null);
+              setPaymentState('sheet');
+            }}
+            style={({ pressed }) => [styles.restoreBtn, pressed && { opacity: 0.6 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Test unlock without paying"
+          >
+            <Text style={styles.restoreBtnText}>TEST MODE: NO CHARGE · unlock without paying</Text>
+          </Pressable>
+        )}
+
         {purchaseError !== null && <Text style={styles.restoreMsg}>{purchaseError}</Text>}
 
         {restoreMsg !== null && (
@@ -423,6 +438,71 @@ export default function UnlockScreen() {
         >
           <Text style={styles.restoreBtnText}>Restore Purchases</Text>
         </Pressable>
+
+        {/* Access code (owner / gifted). Only offered when a code is configured
+            for this build, and collapsed by default so it doesn't pull
+            attention from the purchase. */}
+        {ownerAccessAvailable && (
+          codeOpen ? (
+            <View style={styles.codeBlock}>
+              <TextInput
+                value={code}
+                onChangeText={(t) => { setCode(t); if (codeState === 'invalid') setCodeState('idle'); }}
+                onSubmitEditing={handleRedeemCode}
+                placeholder="Access code"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+                returnKeyType="go"
+                style={[
+                  styles.codeInput,
+                  codeState === 'invalid' && { borderColor: colors.secondary },
+                ]}
+                accessibilityLabel="Access code"
+              />
+              {codeState === 'invalid' && (
+                <Text style={styles.codeError}>That code didn't match. Check for extra spaces and try again.</Text>
+              )}
+              <View style={styles.codeActions}>
+                <Pressable
+                  onPress={() => { setCodeOpen(false); setCode(''); setCodeState('idle'); }}
+                  style={({ pressed }) => [styles.codeSecondaryBtn, pressed && { opacity: 0.6 }]}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.codeSecondaryBtnText}>Never mind</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleRedeemCode}
+                  disabled={!code.trim() || codeState === 'checking'}
+                  style={({ pressed }) => [
+                    styles.codeApplyBtn,
+                    { backgroundColor: category.color },
+                    (!code.trim() || codeState === 'checking') && { opacity: 0.5 },
+                    pressed && styles.btnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Apply access code"
+                >
+                  <Text style={styles.codeApplyBtnText}>
+                    {codeState === 'checking' ? 'CHECKING…' : 'APPLY CODE'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => setCodeOpen(true)}
+              style={({ pressed }) => [styles.codeLink, pressed && { opacity: 0.6 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Have a code?"
+            >
+              <Text style={styles.codeLinkText}>Have a code?</Text>
+            </Pressable>
+          )
+        )}
+
 
         {/* Social comparison hook */}
         <View style={styles.socialCard}>
@@ -490,7 +570,8 @@ export default function UnlockScreen() {
       </ScrollView>
 
       {/* ── Payment Sheet ── */}
-      {paymentState === 'sheet' && (
+      {/* ── Test-only simulated checkout (free unlock, never in production) ── */}
+      {TEST_UNLOCK_UI && paymentState === 'sheet' && (
         <View style={styles.overlayWrap} accessibilityViewIsModal>
           {/* Backdrop — tapping closes the sheet */}
           <Pressable
@@ -511,6 +592,7 @@ export default function UnlockScreen() {
             <View style={styles.sheetHandle} />
 
             <Text style={styles.sheetTitle}>Complete Your Purchase</Text>
+            <Text style={[styles.restoreMsg, { color: colors.secondary }]}>TEST MODE: NO CHARGE. Nothing is billed; this unlock only exists on test builds.</Text>
 
             {/* Product summary row */}
             <View style={[styles.productCard, { borderColor: `${category.color}30` }]}>
@@ -604,70 +686,6 @@ export default function UnlockScreen() {
               By completing this purchase you agree to our Terms of Service.
               {'\n'}Payments are processed securely. Non-refundable.
             </Text>
-
-            {/* Access code (owner / gifted). Only offered when a code is configured
-                for this build, and collapsed by default so it doesn't pull
-                attention from the purchase. */}
-            {ownerAccessAvailable && (
-              codeOpen ? (
-                <View style={styles.codeBlock}>
-                  <TextInput
-                    value={code}
-                    onChangeText={(t) => { setCode(t); if (codeState === 'invalid') setCodeState('idle'); }}
-                    onSubmitEditing={handleRedeemCode}
-                    placeholder="Access code"
-                    placeholderTextColor={colors.textMuted}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoFocus
-                    returnKeyType="go"
-                    style={[
-                      styles.codeInput,
-                      codeState === 'invalid' && { borderColor: colors.secondary },
-                    ]}
-                    accessibilityLabel="Access code"
-                  />
-                  {codeState === 'invalid' && (
-                    <Text style={styles.codeError}>That code didn't match. Check for extra spaces and try again.</Text>
-                  )}
-                  <View style={styles.codeActions}>
-                    <Pressable
-                      onPress={() => { setCodeOpen(false); setCode(''); setCodeState('idle'); }}
-                      style={({ pressed }) => [styles.codeSecondaryBtn, pressed && { opacity: 0.6 }]}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.codeSecondaryBtnText}>Never mind</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={handleRedeemCode}
-                      disabled={!code.trim() || codeState === 'checking'}
-                      style={({ pressed }) => [
-                        styles.codeApplyBtn,
-                        { backgroundColor: category.color },
-                        (!code.trim() || codeState === 'checking') && { opacity: 0.5 },
-                        pressed && styles.btnPressed,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Apply access code"
-                    >
-                      <Text style={styles.codeApplyBtnText}>
-                        {codeState === 'checking' ? 'CHECKING…' : 'APPLY CODE'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => setCodeOpen(true)}
-                  style={({ pressed }) => [styles.codeLink, pressed && { opacity: 0.6 }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Have a code?"
-                >
-                  <Text style={styles.codeLinkText}>Have a code?</Text>
-                </Pressable>
-              )
-            )}
 
             <Pressable
               onPress={() => setPaymentState('idle')}
