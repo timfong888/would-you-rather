@@ -3,6 +3,7 @@ import { track, ensureSessionInit, getSession, subscribeSession, type SessionInf
 import { usePathname } from 'expo-router';
 import { purgeVisitorId } from '@/lib/analytics';
 import { isKidsPath } from '@/lib/kidsPaths';
+import { purgeKidsVoteStorage } from '@/lib/votes';
 
 interface AnalyticsContextValue {
   /** Anonymous ID persisted across sessions ('' while on a kids route, where there is none). */
@@ -30,7 +31,10 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   // Kids routes keep no persisted visitor ID (COPPA): remove one a previous build or visit stored,
   // whenever such a route is shown (including after in-app navigation to it).
   useEffect(() => {
-    if (pathname && isKidsPath(pathname)) purgeVisitorId();
+    if (pathname && isKidsPath(pathname)) {
+      purgeVisitorId();
+      purgeKidsVoteStorage();
+    }
   }, [pathname]);
 
   useEffect(() => {

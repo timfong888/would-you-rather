@@ -42,16 +42,22 @@ eas submit --profile preview --platform ios         # upload to TestFlight
 `production` builds and `eas submit --profile production` only run on Tim's
 go; submitting for review is separate and also needs his go.
 
-## Known `npm audit` findings (Expo 51 build tooling)
+## Build image (Xcode 26)
 
-`package.json` carries scoped `overrides` so `expo prebuild` works on Expo 51:
+Apple rejects uploads built with an SDK older than iOS 26 (App Store Connect error 90725).
+`eas.json` pins the iOS image `macos-sequoia-15.6-xcode-26.2` on `development`, `preview` and
+`production`, and Node 20.19.4 (React Native 0.81 minimum). The app is on Expo SDK 54
+(React Native 0.81, React 19, Expo Router 6); SDK 51 did not compile under Xcode 26.
+
+## Known `npm audit` findings (Expo 54 build tooling)
+
+`package.json` carries scoped `overrides` so `expo prebuild` works:
 
 | Override | Why | Audit |
 |---|---|---|
-| `@expo/cli` -> `tar ^6.2.1` | `@expo/cli` needs the 6.x API; 7.x breaks prebuild | `tar` critical (advisories are 7.x ranges) |
-| `@expo/plist` -> `@xmldom/xmldom ~0.8.15` | `@expo/plist` needs the 0.8 `DOMParser`; 0.9+ breaks it | clean |
+| `@expo/plist` -> `@xmldom/xmldom ~0.8.15` | `@expo/plist` 0.4.x needs the 0.8 `DOMParser`; 0.9+ breaks prebuild (`mimeType "undefined" is not valid`) | clean |
 | `plist` -> `@xmldom/xmldom ^0.8.8` | same | clean |
 
-The `tar` flag stays until Expo is upgraded (`npm audit fix --force` jumps to Expo 58). It only
-affects build-time tooling reading registry tarballs, not the shipped app. The global pins
-(`tar >=7.5.19`, `@xmldom/xmldom >=0.9.10`) still apply to every other consumer.
+The former `@expo/cli` -> `tar ^6.2.1` override is gone: CLI 54 works with tar 7, so the
+critical `tar` finding is resolved (#90). `npm audit` reports no critical findings. The global
+pins (`tar >=7.5.19`, `@xmldom/xmldom >=0.9.10`) still apply to every other consumer.

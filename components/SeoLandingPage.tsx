@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Pressable,
   Platform,
   Share,
@@ -18,6 +17,7 @@ import { track, buildShareUrl } from '@/lib/analytics';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import SafeScrollView from '@/components/SafeScrollView';
 
 // react-native-web turns role="heading" + aria-level into a real <h1>/<h2>;
 // the prop is not in React Native's own Text types.
@@ -108,7 +108,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
     CATEGORIES.find((c) => c.id === catId)?.emoji ?? '🎲';
 
   return (
-    <ScrollView
+    <SafeScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -283,7 +283,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
           </Text>
         </View>
       </View>
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 

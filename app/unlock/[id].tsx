@@ -29,6 +29,10 @@ import {
 import { purchases } from '@/lib/purchases';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+// @expo/vector-icons 15 ships an Ionicons font with taller line metrics: a 20px icon lays out 23px
+// high on web instead of 22px (14.x), which shifts the paywall by a few pixels. Pin the old height.
+const ICON_20_WEB = Platform.OS === 'web' ? { lineHeight: 22 } : null;
 type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
 
 const PAYMENT_MS = 1800;
@@ -310,7 +314,7 @@ export default function UnlockScreen() {
           accessibilityLabel="Close"
           accessibilityRole="button"
         >
-          <Ionicons name="close" size={20} color={colors.textSecondary} />
+          <Ionicons name="close" size={20} color={colors.textSecondary} style={ICON_20_WEB} />
         </Pressable>
 
         {/* Premium Badge */}
@@ -351,7 +355,7 @@ export default function UnlockScreen() {
                 name={b.icon}
                 size={20}
                 color={colors.textSecondary}
-                style={styles.benefitIconStyle}
+                style={[styles.benefitIconStyle, ICON_20_WEB]}
               />
               <Text style={styles.benefitText}>{b.text}</Text>
             </View>
@@ -578,7 +582,7 @@ export default function UnlockScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Pay ${shownPrice} with Apple Pay`}
               >
-                <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+                <Ionicons name="logo-apple" size={20} color="#FFFFFF" style={ICON_20_WEB} />
                 <Text style={styles.applePayBtnText}>Pay  {shownPrice}</Text>
               </Pressable>
             ) : (
