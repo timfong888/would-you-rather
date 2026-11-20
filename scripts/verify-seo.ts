@@ -282,6 +282,35 @@ if (withDist) {
     const ld = JSON.stringify(categoryJsonLd(cat, free));
     for (const text of lockedTexts) if (ld.includes(text)) { fail(`categoryJsonLd(${cat.id}) contains locked text`); break; }
   }
+
+  // Share pages and the home page must carry crawler-readable Open Graph / Twitter tags in the
+  // static HTML (iMessage, Slack, WhatsApp, X, Facebook and LinkedIn do not run JavaScript) (#122).
+  const meta = (html: string, attr: string, key: string) =>
+    unescape(tag(html, new RegExp(`<meta[^>]*${attr}="${key}"[^>]*content="([^"]*)"`)));
+  const ogChecks: { file: string; url: string; image: RegExp; h: string }[] = [
+    { file: 'dist/index.html', url: SITE_URL, image: /\/api\/og$|\/api\/card\?/, h: '' },
+    ...QUESTIONS.map((q) => ({
+      file: `dist/p/${q.id}.html`,
+      url: `${SITE_URL}/p/${q.id}`,
+      image: new RegExp(`/api/og\\?id=${q.id}$`),
+      h: '630',
+    })),
+  ];
+  for (const c of ogChecks) {
+    if (!existsSync(resolve(ROOT, c.file))) { fail(`dist: ${c.file} was not exported`); continue; }
+    const html = read(c.file);
+    const og = (k: string) => meta(html, 'property', k);
+    if (!og('og:title')) fail(`${c.file}: og:title is missing`);
+    if (!og('og:description')) fail(`${c.file}: og:description is missing`);
+    if (og('og:url') !== c.url) fail(`${c.file}: og:url is "${og('og:url')}", expected ${c.url}`);
+    if (og('og:site_name') !== 'Would You Rather?') fail(`${c.file}: og:site_name is "${og('og:site_name')}"`);
+    if (!og('og:image') || !c.image.test(og('og:image')!) || !og('og:image')!.startsWith(SITE_URL)) fail(`${c.file}: og:image is "${og('og:image')}"`);
+    if (c.h && og('og:image:height') !== c.h) fail(`${c.file}: og:image:height is not ${c.h}`);
+    if (meta(html, 'name', 'twitter:card') !== 'summary_large_image') fail(`${c.file}: twitter:card is not summary_large_image`);
+    if (!meta(html, 'name', 'twitter:image')) fail(`${c.file}: twitter:image is missing`);
+    if (!/<link[^>]*rel="apple-touch-icon"/.test(html)) fail(`${c.file}: apple-touch-icon link is missing`);
+    if (!/<link[^>]*rel="(shortcut )?icon"/.test(html)) fail(`${c.file}: favicon link is missing`);
+  }
 }
 
 for (const w of warnings) console.warn(`verify-seo: warning: ${w}`);

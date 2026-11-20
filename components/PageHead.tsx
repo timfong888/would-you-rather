@@ -1,6 +1,7 @@
 import React from 'react';
 import Head from 'expo-router/head';
 import { SEO, SITE_URL } from '@/constants/config';
+import { SITE_NAME } from '@/lib/site';
 
 interface PageHeadProps {
   title: string;
@@ -18,10 +19,12 @@ export default function PageHead({
   canonicalUrl,
   imageUrl,
   imageWidth = 1200,
-  imageHeight = 628,
+  imageHeight,
   twitterCard = 'summary_large_image',
 }: PageHeadProps) {
-  const ogImage = imageUrl ?? `${SITE_URL}/api/card?id=hl-1&ratio=1.91x1`;
+  // Default: the static brand card (no vote reads). Callers passing a /api/card image are 1200x628.
+  const ogImage = imageUrl ?? `${SITE_URL}/api/og`;
+  const ogHeight = imageHeight ?? (imageUrl ? 628 : 630);
 
   return (
     <Head>
@@ -29,15 +32,16 @@ export default function PageHead({
       <meta name="description" content={description} />
       <meta name="robots" content="index, follow" />
       <link rel="canonical" href={canonicalUrl} />
+      <link rel="icon" href={`${SITE_URL}/favicon.ico`} />
       <link rel="apple-touch-icon" href={`${SITE_URL}/apple-touch-icon.png`} />
       <meta property="og:type" content="website" />
       <meta property="og:url" content={canonicalUrl} />
-      <meta property="og:site_name" content="Would You Rather" />
+      <meta property="og:site_name" content={SITE_NAME} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={ogImage} />
       <meta property="og:image:width" content={String(imageWidth)} />
-      <meta property="og:image:height" content={String(imageHeight)} />
+      <meta property="og:image:height" content={String(ogHeight)} />
       <meta property="og:image:type" content="image/png" />
       <meta name="twitter:card" content={twitterCard} />
       <meta name="twitter:site" content={SEO.twitterHandle} />

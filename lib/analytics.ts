@@ -3,7 +3,7 @@
  * All UI code calls track() / identify() / buildShareUrl() — never PostHog directly.
  */
 import { Platform } from 'react-native';
-import { SITE_URL } from '@/constants/config';
+import { CANONICAL_ORIGIN } from '@/lib/site';
 import PostHog from 'posthog-react-native';
 import { buildShareLink } from '@/lib/shareQuestion';
 import { isKidsPath } from '@/lib/kidsPaths';
@@ -151,11 +151,8 @@ export function buildShareUrl(
   const linkId = kids ? '' : generateLinkId();
   const gen = incomingGeneration + 1;
 
-  const origin =
-    Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.location.origin
-      : SITE_URL;
-
-  const url = buildShareLink({ origin, questionId, linkId, generation: gen, kids, friendPick });
+  // Always the canonical origin: a link shared from a preview deployment or the Vercel
+  // project domain must still point at (and preview from) the real domain.
+  const url = buildShareLink({ origin: CANONICAL_ORIGIN, questionId, linkId, generation: gen, kids, friendPick });
   return { url, linkId };
 }

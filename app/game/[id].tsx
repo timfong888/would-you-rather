@@ -139,6 +139,7 @@ export default function GameScreen() {
       nav: web ? (navigator as any) : undefined,
       legacyCopy: web ? legacyCopy : undefined,
       nativeShare: Platform.OS === 'web' ? undefined : (o) => Share.share(o),
+      os: Platform.OS === 'android' ? 'android' : 'ios',
     });
     const message = SHARE_FEEDBACK[result];
     if (message) {

@@ -22,6 +22,7 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { nativeShareOptions } from '@/lib/shareQuestion';
 import { useTally } from '@/lib/useTally';
 import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
 import SafeScrollView from '@/components/SafeScrollView';
@@ -80,7 +81,7 @@ export default function CompleteScreen() {
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+      Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
   }, [lastQuestion, incomingGeneration, incomingLinkId, visitorId]);
 
@@ -116,7 +117,7 @@ export default function CompleteScreen() {
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+      Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
   }, [lastQuestion, voted, incomingGeneration, incomingLinkId, visitorId]);
 
