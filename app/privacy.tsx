@@ -56,6 +56,14 @@ export default function PrivacyPolicyScreen() {
         use it for advertising or to track you across other apps or websites.
         PostHog is never started on Kids & Family screens.
       </Text>
+      <Text style={styles.body}>
+        On the website, we also record where a visit came from (the referring
+        site and any campaign tags in the link, such as utm_source), the first
+        page opened and the first source seen on your device, so we can tell
+        which sources bring people to the game. We do not record this for
+        Kids & Family pages, and the browser's record of the Kids & Family page
+        you came from is not sent.
+      </Text>
 
       <Text style={styles.heading}>Purchases</Text>
       <Text style={styles.body}>
