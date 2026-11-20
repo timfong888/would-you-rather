@@ -15,6 +15,16 @@ function captureStderr<T>(fn: () => Promise<T>): Promise<{ out: T; lines: string
   return fn().then((out) => ({ out, lines })).finally(() => { console.error = orig; });
 }
 
+test('scrub drops query strings from any scheme, blob/data payloads and scheme-less hosts', () => {
+  assert.equal(scrub('socket wss://rt.example.com/live?token=abc123&x=1 closed'), 'socket wss://rt.example.com/live closed');
+  assert.equal(scrub('fetch ftp://user:pw@files.example.com/a/b?k=v failed'), 'fetch ftp://files.example.com/a/b failed');
+  assert.equal(scrub('bad src blob:https://www.wouldyourather.fyi/3f2a-uuid here'), 'bad src <blob-uri> here');
+  assert.equal(scrub('img data:image/png;base64,AAAA1234 broke'), 'img <data-uri> broke');
+  assert.equal(scrub('went to www.example.com/p?link_id=abc&gen=2 and failed'), 'went to www.example.com/p and failed');
+  assert.equal(scrub('why did this fail? and what?'), 'why did this fail? and what?'); // plain question marks stay
+  assert.ok(!scrub('x https://a.test/p?link_id=secret#frag y').includes('secret'));
+});
+
 test('scrub drops query strings and emails and truncates', () => {
   assert.equal(scrub('failed https://www.wouldyourather.fyi/p/hl-1?link_id=abc&x=1#frag now'), 'failed https://www.wouldyourather.fyi/p/hl-1 now');
   assert.equal(scrub('mail me at kid@example.com please'), 'mail me at <email> please');
