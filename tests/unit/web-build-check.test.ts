@@ -60,3 +60,23 @@ test('test-unlock builds get a version above any release that never equals one',
   assert.equal(testUnlockVersion('1.0.0'), '99.1.0');
   assert.equal(testUnlockVersion('2.3.4'), '99.2.3');
 });
+
+test('test mode offers the pack: "unlock every category" renders and unlocks all', () => {
+  const src = readFileSync('app/unlock/[id].tsx', 'utf8');
+  // The pack button renders with real purchases OR the test unlock.
+  assert.match(src, /\{\(purchasesAvailable \|\| TEST_UNLOCK_UI\) && \(/);
+  // In test mode it opens the sheet as the pack, and paying calls unlockAll().
+  assert.match(src, /setSheetKind\('all'\);\s*setPaymentState\('sheet'\);/);
+  assert.match(src, /if \(sheetKind === 'all'\) unlockAll\(\);\s*else unlock\(id as CategoryId\);/);
+  // unlockAll is a test-only no-op outside TEST_UNLOCK (it goes through unlock()).
+  const ctx = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
+  assert.match(ctx, /const unlockAll = useCallback\(\(\) => unlock\(ENTITLEMENT_ALL as CategoryId\), \[unlock\]\);/);
+  assert.match(ctx, /const unlock = useCallback\(\(id: CategoryId\) => \{\s*if \(!TEST_UNLOCK\) return;/);
+});
+
+test('a locked question URL never renders blank: it shows a locked card and redirects to the paywall', () => {
+  const src = readFileSync('app/game/[id].tsx', 'utf8');
+  assert.doesNotMatch(src, /if \(mustRedirect\) return null;/);
+  assert.match(src, /router\.replace\(`\/unlock\/\$\{category\.id\}`\)/);
+  assert.match(src, /This question is part of \{category\.label\}/);
+});

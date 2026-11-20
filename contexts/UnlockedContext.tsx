@@ -8,7 +8,7 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
-import { FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
+import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
 import { canPlayCategory } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
 import { testUnlockAllowed } from '@/lib/testUnlockPolicy';
@@ -28,6 +28,8 @@ interface UnlockedContextValue {
   isUnlocked: (id: CategoryId) => boolean;
   /** Test-only free unlock for a single category. A no-op unless TEST_UNLOCK. */
   unlock: (id: CategoryId) => void;
+  /** Test-only free "unlock every category" (mirrors the $4.99 pack). A no-op unless TEST_UNLOCK. */
+  unlockAll: () => void;
   /** Clear test unlocks. Owner access and purchases are left in place. */
   reset: () => void;
   /** True when the free test unlock is compiled into this build (never on production). */
@@ -51,6 +53,7 @@ interface UnlockedContextValue {
 const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
   unlock: () => {},
+  unlockAll: () => {},
   reset: () => {},
   testUnlockEnabled: false,
   purchasesAvailable: false,
@@ -175,6 +178,8 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const unlockAll = useCallback(() => unlock(ENTITLEMENT_ALL as CategoryId), [unlock]);
+
   const reset = useCallback(() => {
     setUnlocked(() => {
       const empty = new Set<string>();
@@ -207,6 +212,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
       value={{
         isUnlocked,
         unlock,
+        unlockAll,
         reset,
         testUnlockEnabled: TEST_UNLOCK,
         purchasesAvailable: purchases.isAvailable(),

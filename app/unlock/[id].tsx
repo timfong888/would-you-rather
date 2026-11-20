@@ -69,6 +69,7 @@ export default function UnlockScreen() {
   const {
     isUnlocked,
     unlock,
+    unlockAll,
     ownerAccessAvailable,
     grantOwnerAccess,
     purchasesAvailable,
@@ -78,6 +79,8 @@ export default function UnlockScreen() {
   } = useUnlocked();
 
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
+  // What the test-only sheet is "selling": this category, or every category (the pack).
+  const [sheetKind, setSheetKind] = useState<'category' | 'all'>('category');
   const [useApplePay, setUseApplePay] = useState(true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
   // Real purchases: RevenueCat on iOS (App Store) and web (Web Billing / Stripe).
@@ -205,7 +208,8 @@ export default function UnlockScreen() {
     });
     setPaymentState('processing');
     await new Promise<void>((r) => setTimeout(r, PAYMENT_MS));
-    unlock(id as CategoryId);
+    if (sheetKind === 'all') unlockAll();
+    else unlock(id as CategoryId);
     setPaymentState('success');
   };
 
@@ -213,6 +217,7 @@ export default function UnlockScreen() {
   // Store price when loaded, else the approved price ($1.99 category, $4.99 pack).
   const shownPrice = priceForCategory(id as string);
   const allPrice = priceForAll();
+  const sheetPrice = sheetKind === 'all' ? allPrice : shownPrice;
 
   const handleBuy = async (kind: 'category' | 'all') => {
     if (paymentState !== 'idle') return;
@@ -376,6 +381,7 @@ export default function UnlockScreen() {
             } else if (TEST_UNLOCK_UI) {
               // Test build without a RevenueCat key: the free test unlock.
               setRestoreMsg(null);
+              setSheetKind('category');
               setPaymentState('sheet');
             } else {
               // No RevenueCat key: never fall back to a free unlock.
@@ -393,9 +399,18 @@ export default function UnlockScreen() {
           <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
         </Pressable>
 
-        {purchasesAvailable && (
+        {(purchasesAvailable || TEST_UNLOCK_UI) && (
           <Pressable
-            onPress={() => handleBuy('all')}
+            onPress={() => {
+              if (purchasesAvailable) {
+                handleBuy('all');
+              } else if (TEST_UNLOCK_UI) {
+                // Test build without a RevenueCat key: free test unlock of every category.
+                setRestoreMsg(null);
+                setSheetKind('all');
+                setPaymentState('sheet');
+              }
+            }}
             style={({ pressed }) => [styles.restoreBtn, pressed && { opacity: 0.6 }]}
             accessibilityRole="button"
             accessibilityLabel={`Unlock all categories for ${allPrice}`}
@@ -411,6 +426,7 @@ export default function UnlockScreen() {
             onPress={() => {
               setRestoreMsg(null);
               setPurchaseError(null);
+              setSheetKind('category');
               setPaymentState('sheet');
             }}
             style={({ pressed }) => [styles.restoreBtn, pressed && { opacity: 0.6 }]}
@@ -600,14 +616,16 @@ export default function UnlockScreen() {
                 <Text style={styles.productIcon}>{category.emoji}</Text>
               </View>
               <View style={styles.productInfo}>
-                <Text style={styles.productName}>{category.label}</Text>
+                <Text style={styles.productName}>{sheetKind === 'all' ? 'All Categories' : category.label}</Text>
                 <Text style={styles.productDesc}>
-                  {isExpansion
-                    ? `Expansion Pack · ${lockedCount} more dilemmas`
-                    : `Premium Pack · ${questions.length} dilemmas`}
+                  {sheetKind === 'all'
+                    ? 'Every premium category, plus future questions'
+                    : isExpansion
+                      ? `Expansion Pack · ${lockedCount} more dilemmas`
+                      : `Premium Pack · ${questions.length} dilemmas`}
                 </Text>
               </View>
-              <Text style={[styles.productPrice, { color: category.color }]}>{shownPrice}</Text>
+              <Text style={[styles.productPrice, { color: category.color }]}>{sheetPrice}</Text>
             </View>
 
             {/* Payment method selector */}
@@ -662,10 +680,10 @@ export default function UnlockScreen() {
                   pressed && styles.btnPressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={`Pay ${shownPrice} with Apple Pay`}
+                accessibilityLabel={`Pay ${sheetPrice} with Apple Pay`}
               >
                 <Ionicons name="logo-apple" size={20} color="#FFFFFF" style={ICON_20_WEB} />
-                <Text style={styles.applePayBtnText}>Pay  {shownPrice}</Text>
+                <Text style={styles.applePayBtnText}>Pay  {sheetPrice}</Text>
               </Pressable>
             ) : (
               <Pressable
@@ -676,9 +694,9 @@ export default function UnlockScreen() {
                   pressed && styles.btnPressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={`Pay ${shownPrice} with card`}
+                accessibilityLabel={`Pay ${sheetPrice} with card`}
               >
-                <Text style={styles.payBtnText}>PAY {shownPrice}</Text>
+                <Text style={styles.payBtnText}>PAY {sheetPrice}</Text>
               </Pressable>
             )}
 

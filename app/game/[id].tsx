@@ -74,8 +74,9 @@ export default function GameScreen() {
   const currentIdx = realIdx >= 0 ? realIdx : (idx !== undefined ? parseInt(idx, 10) || 0 : 0);
   const totalInCategory = categoryQuestions.length;
 
-  // Self-guard: a locked question reached by typing a URL is bounced to the
-  // category page (which shows it locked with an Unlock affordance).
+  // Self-guard: a locked question reached by typing a URL is sent to the
+  // category's paywall. Until the redirect lands (or if it cannot run), the
+  // screen shows a locked card with an Unlock button instead of a blank page.
   // Exception: arriving via a share link (link_id) — the shared question is
   // intentionally playable as the hook of the share loop; the gate still
   // applies the moment they try to continue.
@@ -99,7 +100,7 @@ export default function GameScreen() {
   // navigating before it is ready throws, so wait for the root state key.
   const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
-    if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
+    if (mustRedirect && category && navReady) router.replace(`/unlock/${category.id}`);
   }, [mustRedirect, category, navReady, router]);
 
   // Revisiting a question whose vote the server already holds (reload, back button,
@@ -206,7 +207,23 @@ export default function GameScreen() {
     );
   }
 
-  if (mustRedirect) return null;
+  if (mustRedirect && category) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>🔒 This question is part of {category.label}.</Text>
+        <Pressable
+          onPress={() => router.replace(`/unlock/${category.id}`)}
+          style={[styles.backButton, { backgroundColor: category.color }]}
+          accessibilityRole="button"
+        >
+          <Text style={styles.backButtonText}>Unlock {category.label}</Text>
+        </Pressable>
+        <Pressable onPress={() => router.replace(`/categories/${category.id}`)} accessibilityRole="button">
+          <Text style={styles.errorText}>Back to the category</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   const catColor = category?.color ?? colors.magenta;
   const isLastInCategory = catId ? currentIdx >= totalInCategory - 1 : false;

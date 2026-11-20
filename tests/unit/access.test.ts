@@ -41,3 +41,15 @@ test('test builds honor test unlocks', () => {
 test('owner access opens everything', () => {
   assert.equal(canPlayCategory({ ...base, ownerAccess: true }, 'wildest-dreams'), true);
 });
+
+test('test pack (ENTITLEMENT_ALL in test unlocks) opens every category on test builds', () => {
+  const s = { ...base, testUnlocks: new Set(['premium_all']), testUnlockEnabled: true };
+  for (const id of ['high-life', 'moral-compass', 'tech-dystopia', 'a-category-added-next-year']) {
+    assert.equal(canPlayCategory(s, id), true);
+  }
+});
+
+test('test pack is ignored on production', () => {
+  const s = { ...base, testUnlocks: new Set(['premium_all']), testUnlockEnabled: false };
+  assert.equal(canPlayCategory(s, 'high-life'), false);
+});
