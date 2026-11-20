@@ -34,11 +34,15 @@ export default function PrivacyPolicyScreen() {
 
       <Text style={styles.heading}>Kids & Family</Text>
       <Text style={styles.body}>
-        On Kids & Family screens we send no analytics and store no device ID,
-        no region and no persistent identifier of any kind. When a child answers
-        a Kids & Family question we store only the question, the option and the
-        time, so the answer cannot be linked to a device. Purchase screens in
-        Kids & Family are behind a grown-ups-only check.
+        On Kids & Family screens we send no analytics, and our servers store no
+        device ID, no region and no persistent identifier with an answer. When a
+        child answers a Kids & Family question we store only the question, the
+        option and the time, so the answer cannot be linked to a device. The
+        purchase service described under "Purchases" runs across the whole app
+        so that unlocked categories can be restored; it keeps an anonymous
+        purchase ID on the device, which is not linked to any Kids & Family
+        answer. Purchase screens in Kids & Family are behind a grown-ups-only
+        check.
       </Text>
 
       <Text style={styles.heading}>Analytics</Text>
@@ -58,7 +62,8 @@ export default function PrivacyPolicyScreen() {
         In-app purchases are processed by Apple. We use RevenueCat (a
         third-party purchase service) to check which categories you have
         unlocked and to restore them. RevenueCat receives an anonymous app user
-        ID and your purchase receipt from Apple. We never see your payment
+        ID and your purchase receipt from Apple. It starts when the app opens, on
+        every screen, so purchases can be restored. We never see your payment
         details or Apple ID.
       </Text>
 
@@ -74,7 +79,7 @@ export default function PrivacyPolicyScreen() {
       <Text style={styles.body}>
         The app is a general-audience app rated 13+ and is not in the Kids
         category of the App Store. The Kids & Family category is meant for
-        families to play together, and collects no personal data (see above). We
+        families to play together, and stores answers without any device identifier (see above). We
         do not knowingly collect personal information from children under 13.
       </Text>
 
