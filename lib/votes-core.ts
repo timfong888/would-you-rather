@@ -8,6 +8,7 @@
  * render as the invite to share (see formatResult in lib/results.js).
  */
 import type { Tally } from './results';
+import { isKidsQuestion } from './kidsPaths';
 
 export type Choice = 'A' | 'B';
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -35,7 +36,7 @@ async function request(fetchImpl: FetchLike, url: string, init?: RequestInit): P
 export async function postVote(
   fetchImpl: FetchLike,
   base: string,
-  vote: { questionId: string; choice: Choice; visitorId: string },
+  vote: { questionId: string; choice: Choice; visitorId?: string },
 ): Promise<{ tally: Tally | null; choice: Choice | null; retry: boolean }> {
   const res = await request(fetchImpl, `${base}/api/votes`, {
     method: 'POST',
@@ -91,6 +92,26 @@ export async function getTallies(
   }
 }
 
+
+// ── kids questions (COPPA) ───────────────────────────────────────────────────
+
+/**
+ * The POST /api/votes body. Kids questions carry no visitor ID at all: the server
+ * gives each kids vote a one-off key, so nothing ties it to a device.
+ */
+export function voteBody(questionId: string, choice: Choice, visitorId: string): { questionId: string; choice: Choice; visitorId?: string } {
+  return isKidsQuestion(questionId) ? { questionId, choice } : { questionId, choice, visitorId };
+}
+
+/** A stored answer map without kids questions (kids answers are never kept in storage). */
+export function withoutKidsAnswers<T extends Record<string, unknown>>(map: T): T {
+  return Object.fromEntries(Object.entries(map).filter(([id]) => !isKidsQuestion(id))) as T;
+}
+
+/** The retry queue without kids votes (they are never queued or retried). */
+export function withoutKidsPending(list: PendingVote[]): PendingVote[] {
+  return list.filter((p) => !isKidsQuestion(p.questionId));
+}
 
 // ── retry queue ──────────────────────────────────────────────────────────────
 

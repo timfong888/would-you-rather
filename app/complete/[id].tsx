@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Pressable,
   Platform,
   Animated,
@@ -25,6 +24,7 @@ import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { useTally } from '@/lib/useTally';
 import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
+import SafeScrollView from '@/components/SafeScrollView';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
@@ -145,7 +145,7 @@ export default function CompleteScreen() {
   const withMajority = myPct !== null && myPct >= 50;
 
   return (
-    <ScrollView
+    <SafeScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -307,7 +307,7 @@ export default function CompleteScreen() {
         </View>
 
       </Animated.View>
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 

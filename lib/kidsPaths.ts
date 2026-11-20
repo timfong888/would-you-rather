@@ -13,3 +13,8 @@ export function isKidsPath(pathname: string): boolean {
     /^\/(categories|complete|unlock)\/kids-family$/.test(path)
   );
 }
+
+/** True for a Kids & Family question id (`kf-*`). Votes on these persist nothing and send no visitor ID. */
+export function isKidsQuestion(questionId: string): boolean {
+  return /^kf-/.test(questionId);
+}
