@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { track, ensureSessionInit, getSession, subscribeSession, type SessionInfo } from '@/lib/analytics';
 import { usePathname } from 'expo-router';
-import { purgeVisitorId } from '@/lib/analytics';
+import { purgeVisitorId, setCurrentRoute } from '@/lib/analytics';
 import { isKidsPath } from '@/lib/kidsPaths';
 import { purgeKidsVoteStorage } from '@/lib/votes';
 
@@ -22,11 +22,15 @@ const toValue = (s: SessionInfo | null): AnalyticsContextValue =>
   s ? { visitorId: s.visitorId, incomingLinkId: s.linkId, incomingGeneration: s.generation } : EMPTY;
 
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  // The router path is the analytics gate's source of truth (web and native): set it during render so
+  // it is current before the session is initialised and before any child effect runs.
+  setCurrentRoute(pathname);
   // Initialise during render so identity, the first-session flag and the first-touch
-  // properties exist before any child effect (page_view, vote-retry flush) runs.
+  // properties exist before any child effect (page_view, vote-retry flush) runs. Native stays
+  // closed until the route is known and initialises from the effect below.
   const [ctx, setCtx] = useState<AnalyticsContextValue>(() => toValue(ensureSessionInit()));
   const announced = useRef<SessionInfo | null>(null);
-  const pathname = usePathname();
 
   // Kids routes keep no persisted visitor ID (COPPA): remove one a previous build or visit stored,
   // whenever such a route is shown (including after in-app navigation to it).

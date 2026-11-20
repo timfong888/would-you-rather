@@ -4,23 +4,23 @@
 
 ## Question lists for parents and families
 
-- [Would You Rather Questions for Kids](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-kids): 25 would you rather questions for kids, written for ages 5 to 10. Tap any question to play it with your child in seconds. Free, no sign-up.
-- [Funny Would You Rather Questions for Kids](https://wyr-timfong888.vercel.app/funny-would-you-rather-questions-for-kids): 20 funny would you rather questions for kids: spaghetti hair, penguin walks and sneezing confetti. Silly enough for giggles, clean enough for anyone.
-- [Would You Rather Questions for Kindergarten](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-kindergarten): 20 would you rather questions for kindergarten and preschool kids, ages 4 to 6. Short choices they can picture: puppies or kittens, swings or slide.
-- [Would You Rather Questions for Elementary Students](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-elementary-students): 20 would you rather questions for elementary students (grades 1–5). Mind-reading, volcano field trips and robot friends: great for class or the car.
-- [Gross Would You Rather Questions](https://wyr-timfong888.vercel.app/gross-would-you-rather-questions): 15 gross would you rather questions for kids: worm sandwiches, slime socks and pudding pools. Disgusting enough to delight, clean enough for dinner.
+- ["Would You Rather" Questions for Kids](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-kids): 25 would you rather questions for kids, written for ages 5 to 10. Tap any question to play it with your child in seconds. Free, no sign-up.
+- [Funny "Would You Rather" Questions for Kids](https://wyr-timfong888.vercel.app/funny-would-you-rather-questions-for-kids): 20 funny would you rather questions for kids: spaghetti hair, penguin walks and sneezing confetti. Silly enough for giggles, clean enough for anyone.
+- ["Would You Rather" Questions for Kindergarten](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-kindergarten): 20 would you rather questions for kindergarten and preschool kids, ages 4 to 6. Short choices they can picture: puppies or kittens, swings or slide.
+- ["Would You Rather" Questions for Elementary Students](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-elementary-students): 20 would you rather questions for elementary students (grades 1–5). Mind-reading, volcano field trips and robot friends: great for class or the car.
+- [Gross "Would You Rather" Questions](https://wyr-timfong888.vercel.app/gross-would-you-rather-questions): 15 gross would you rather questions for kids: worm sandwiches, slime socks and pudding pools. Disgusting enough to delight, clean enough for dinner.
 - [This or That Questions for Kids](https://wyr-timfong888.vercel.app/this-or-that-questions-for-kids): 20 this or that questions for kids: pizza or tacos, cats or dogs, space or ocean. Fast two-word picks for little kids, car rides and getting to know you.
-- [Thanksgiving Would You Rather Questions](https://wyr-timfong888.vercel.app/thanksgiving-would-you-rather-questions): 15 Thanksgiving would you rather questions for kids and family: pie vs turkey, kids table vs grown-ups table. Fun for the table while dinner cooks.
-- [Christmas Would You Rather Questions for Kids](https://wyr-timfong888.vercel.app/christmas-would-you-rather-questions-for-kids): 18 Christmas would you rather questions for kids: elves or reindeer, snowman or snowball fight. Festive, free and ready to play at the table or by the tree.
-- [Would You Rather Questions for Family](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-family): 20 would you rather questions for the whole family: switch jobs for a day, family band or sports team. Made for game night with kids and grandparents.
+- [Thanksgiving "Would You Rather" Questions](https://wyr-timfong888.vercel.app/thanksgiving-would-you-rather-questions): 15 Thanksgiving would you rather questions for kids and family: pie vs turkey, kids table vs grown-ups table. Fun for the table while dinner cooks.
+- [Christmas "Would You Rather" Questions for Kids](https://wyr-timfong888.vercel.app/christmas-would-you-rather-questions-for-kids): 18 Christmas would you rather questions for kids: elves or reindeer, snowman or snowball fight. Festive, free and ready to play at the table or by the tree.
+- ["Would You Rather" Questions for Family](https://wyr-timfong888.vercel.app/would-you-rather-questions-for-family): 20 would you rather questions for the whole family: switch jobs for a day, family band or sports team. Made for game night with kids and grandparents.
 - [Family Dinner Conversation Starters](https://wyr-timfong888.vercel.app/dinner-table-conversation-starters): 20 family dinner questions and conversation starters for kids: dinner on the moon, best part of your day, oldest or youngest. Phones down, talking up.
-- [Road Trip Would You Rather Questions](https://wyr-timfong888.vercel.app/road-trip-would-you-rather-questions): 20 road trip would you rather questions for kids: flying cars, rest-stop treasure, moose or bear. A no-screens car game for the whole family. Free.
-- [The Would You Rather App](https://wyr-timfong888.vercel.app/would-you-rather-app): A free would you rather app that runs in your browser: nothing to install, no account. Kids & Family pack, dinner, road trip and couples questions.
+- [Road Trip "Would You Rather" Questions](https://wyr-timfong888.vercel.app/road-trip-would-you-rather-questions): 20 road trip would you rather questions for kids: flying cars, rest-stop treasure, moose or bear. A no-screens car game for the whole family. Free.
+- [The "Would You Rather" App](https://wyr-timfong888.vercel.app/would-you-rather-app): A free would you rather app that runs in your browser: nothing to install, no account. Kids & Family pack, dinner, road trip and couples questions.
 
 ## Question lists for couples and adults
 
-- [Deep Would You Rather Questions](https://wyr-timfong888.vercel.app/deep-would-you-rather-questions): Deep Would You Rather questions about values, desires and what people rarely say out loud. Ideal for late nights and real conversations. Free to start.
-- [Would You Rather for Couples](https://wyr-timfong888.vercel.app/questions-for-couples): Would You Rather questions for couples that reveal how you really think. Ideal for date nights and long conversations. Free to start, no account needed.
+- [Deep "Would You Rather" Questions](https://wyr-timfong888.vercel.app/deep-would-you-rather-questions): Deep Would You Rather questions about values, desires and what people rarely say out loud. Ideal for late nights and real conversations. Free to start.
+- ["Would You Rather" for Couples](https://wyr-timfong888.vercel.app/questions-for-couples): Would You Rather questions for couples that reveal how you really think. Ideal for date nights and long conversations. Free to start, no account needed.
 
 ## Optional
 

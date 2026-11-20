@@ -14,6 +14,7 @@ import {
 } from '@/lib/activation';
 import { buildShareLink } from '@/lib/shareQuestion';
 import { purgeStoredVisitorId, VISITOR_KEY } from '@/lib/visitorId';
+import { analyticsOnFor, createTracker, type Props } from '@/lib/analyticsCore';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -59,25 +60,40 @@ function getClient(): PostHog | null {
   return _client;
 }
 
-type Props = Record<string, string | number | boolean | null | undefined>;
-
 // Kids pages (COPPA, #65: anonymous votes only): nothing is sent to PostHog while the
 // visitor is on a kids-bank page (lib/kidsPaths.ts). Console debug still logs.
 //
-// The router's pathname is the single source of truth: window.location lags an in-app navigation
-// (a click on /categories still reads /categories while /categories/kids-family is rendering), so
-// the layout hands the router path in synchronously during render (setRouterPath) and every gate
-// below prefers it. Before the router has reported (first render, tests) window.location is used.
+// The router's pathname is the single source of truth, on web and native: window.location lags an
+// in-app navigation (a click on /categories still reads /categories while /categories/kids-family is
+// rendering) and native has no window.location at all. The providers hand the router path in
+// synchronously during render (setRouterPath / setCurrentRoute) and every gate below prefers it.
+// Before the router has reported (first web render, tests) window.location is used; native stays
+// CLOSED until the route is known, so nothing is sent before we can tell whether it is kids content.
 let _routerPath: string | null = null;
 
-/** Called by the root layout while rendering, before any screen effect can emit an event. */
+/** Called while rendering, before any screen effect can emit an event. */
 export function setRouterPath(pathname: string | null | undefined): void {
   _routerPath = pathname || null;
 }
+/** Same function under the name the native analytics gate uses. */
+export const setCurrentRoute = setRouterPath;
 
+function currentPath(): string | null | undefined {
+  if (_routerPath !== null) return _routerPath;
+  if (Platform.OS === 'web') return typeof window !== 'undefined' ? window.location.pathname : undefined;
+  return undefined;
+}
+
+/** True when the route is known and is a kids route. */
 function onKidsPage(): boolean {
-  if (_routerPath !== null) return isKidsPath(_routerPath);
-  return typeof window !== 'undefined' && isKidsPath(window.location.pathname);
+  const p = currentPath();
+  return !!p && isKidsPath(p);
+}
+
+/** True when analytics may run on the current screen (web: route judged; native: closed until known). */
+function analyticsOn(): boolean {
+  if (Platform.OS === 'web' && typeof window === 'undefined') return true; // SSR: no client anyway
+  return analyticsOnFor({ platform: Platform.OS, pathname: currentPath(), isKids: isKidsPath });
 }
 
 // ── owner access flag ───────────────────────────────────────────────────────
@@ -103,29 +119,26 @@ function withGlobalProps(props?: Props): Props {
   return merged;
 }
 
-export function identify(distinctId: string, properties?: Props): void {
-  if (onKidsPage()) return;
-  try {
-    getClient()?.identify(distinctId, properties as any);
-  } catch (e) {
-    if (DEBUG) console.warn('[analytics] identify error', e);
-  }
-}
+const tracker = createTracker({
+  getClient: () => getClient() as any,
+  allowed: analyticsOn,
+  decorate: withGlobalProps,
+  onEvent: (event, props) => {
+    if (DEBUG) console.log('[analytics]', event, props);
+  },
+  onError: (where, e) => {
+    if (DEBUG) console.warn(`[analytics] ${where} error`, e);
+  },
+});
+
+export const identify = tracker.identify;
 
 export function track(event: string, props?: Props): void {
-  const kids = onKidsPage();
+  const allowed = analyticsOn();
   // Late init for visits that began on a kids page (no-op once initialised, and never on kids pages).
-  if (!kids && !_session) ensureSessionInit();
-  const finalProps = withGlobalProps(props);
-  if (DEBUG) {
-    console.log('[analytics]', kids ? '(not sent: kids page)' : '', event, finalProps);
-  }
-  if (kids) return;
-  try {
-    getClient()?.capture(event, finalProps as any);
-  } catch (e) {
-    if (DEBUG) console.warn('[analytics] capture error', e);
-  }
+  if (allowed && !_session) ensureSessionInit();
+  if (!allowed && DEBUG) console.log('[analytics] (not sent: kids page)', event, withGlobalProps(props));
+  tracker.track(event, props);
 }
 
 // ── activation ──────────────────────────────────────────────────────────────
@@ -295,8 +308,9 @@ export function ensureSessionInit(): SessionInfo | null {
   const isWeb = Platform.OS === 'web';
   if (isWeb && typeof window === 'undefined') return null;
   // Kids pages: no visitor id, identify, attribution or first touch (and nothing memoised).
-  if (onKidsPage()) {
-    _skippedForKids = true;
+  // Native before the route is known is closed too, but not "skipped for kids": it retries later.
+  if (!analyticsOn()) {
+    if (onKidsPage()) _skippedForKids = true;
     return null;
   }
 
