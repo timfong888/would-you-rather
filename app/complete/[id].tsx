@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import {
+  CATEGORIES,
   getCategoryById,
   getCategoryQuestions,
   getQuestionById,
@@ -25,6 +26,7 @@ import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
 import { useTally } from '@/lib/useTally';
 import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
+import { pickNextCategory } from '@/lib/nextCategory';
 import SafeScrollView from '@/components/SafeScrollView';
 
 export default function CompleteScreen() {
@@ -41,6 +43,10 @@ export default function CompleteScreen() {
   const safeVoted = voted === 'A' || voted === 'B' ? voted : null;
   const lastQuestion = q ? getQuestionById(q) : questions[questions.length - 1];
   const result = useTally(lastQuestion?.id);
+
+  useEffect(() => {
+    if (category) track('category_completed', { category: category.id, visitor_id: visitorId });
+  }, [category?.id]);
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -141,6 +147,8 @@ export default function CompleteScreen() {
   const remaining = questions.length - completedCount;
   const isExpansionUpsell = !isPremium && remaining > 0;
 
+  const nextCategory = pickNextCategory(CATEGORIES, id ?? '', (cid) => isUnlocked(cid as CategoryId));
+
   const myChoice = safeVoted;
   const myPct = result.kind === 'percent' ? (myChoice === 'A' ? result.a : result.b) : null;
   const withMajority = myPct !== null && myPct >= 50;
@@ -156,8 +164,8 @@ export default function CompleteScreen() {
         {/* Completion Header */}
         <View style={[styles.completionHeader, { borderColor: `${catColor}30`, backgroundColor: `${catColor}10` }]}>
           <Text style={styles.completionEmoji}>🏁</Text>
-          <Text style={[styles.completionTitle, { color: catColor }]}>
-            {category.label.toUpperCase()}
+          <Text style={[styles.completionTitle, { color: catColor }]} accessibilityRole="header">
+            {remaining > 0 ? `You've finished the free part of ${category.label}` : `You've finished ${category.label}`}
           </Text>
           <Text style={styles.completionSubtitle}>
             {completedCount} OF {questions.length} COMPLETED
@@ -262,9 +270,7 @@ export default function CompleteScreen() {
             </Text>
             <View style={styles.upsellCta}>
               <Text style={styles.upsellCtaText}>
-                {isExpansionUpsell
-                  ? `UNLOCK ${remaining} MORE · ${priceForCategory(id as string)}`
-                  : `EXTEND COLLECTION · ${priceForCategory(id as string)}`}
+                {`UNLOCK EVERYTHING · ${priceForCategory(id as string)}`}
               </Text>
             </View>
           </Pressable>
@@ -272,6 +278,19 @@ export default function CompleteScreen() {
 
         {/* Navigation Actions */}
         <View style={styles.actions}>
+          {nextCategory && (
+            <Pressable
+              onPress={() => {
+                track('next_category_clicked', { from: id, to: nextCategory.id, visitor_id: visitorId });
+                const first = getCategoryQuestions(nextCategory.id as CategoryId)[0];
+                router.push(`/game/${first.id}?cat=${nextCategory.id}&idx=0`);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.nextCta, { backgroundColor: nextCategory.color }, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.nextCtaText}>{`NEXT: ${nextCategory.emoji} ${nextCategory.label.toUpperCase()} →`}</Text>
+            </Pressable>
+          )}
           <Pressable
             onPress={() => router.push('/categories')}
             style={({ pressed }) => [
@@ -280,7 +299,7 @@ export default function CompleteScreen() {
               pressed && { opacity: 0.8 },
             ]}
           >
-            <Text style={[styles.exploreCtaText, { color: catColor }]}>EXPLORE NEW CATEGORIES →</Text>
+            <Text style={[styles.exploreCtaText, { color: catColor }]}>ALL CATEGORIES →</Text>
           </Pressable>
 
           <Pressable
@@ -355,9 +374,9 @@ function makeStyles(colors: ThemeColors) {
       fontSize: 48,
     },
     completionTitle: {
-      fontSize: FONTS.sizes.xxl,
+      fontSize: FONTS.sizes.xl,
       fontWeight: FONTS.weights.extrabold,
-      letterSpacing: 3,
+      letterSpacing: 0.5,
       textAlign: 'center',
     },
     completionSubtitle: {
@@ -507,6 +526,20 @@ function makeStyles(colors: ThemeColors) {
     },
     actions: {
       gap: SPACING.sm,
+    },
+    nextCta: {
+      borderRadius: RADIUS.full,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.md,
+      alignItems: 'center',
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    nextCtaText: {
+      color: colors.textOnColor,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.extrabold,
+      letterSpacing: 1.5,
+      textAlign: 'center',
     },
     exploreCta: {
       borderWidth: 1.5,
