@@ -14,7 +14,7 @@ The repo has no `CLAUDE.md`; this spec follows the conventions in `docs/`.
 - Each category: **8 free questions**, then a **$1.99 category unlock** (reuses the adult product model; the existing
   $4.99 all-categories pack covers these too). Parental gate before every purchase in "With kids" mode (already built).
 - After unlock, **"More like this"** serves new AI-written questions for that category and age range. They are generated
-  **server-side in batches into a reviewed pool**, never per child, and fetched as static files with no ID. Cost is under
+  **server-side in batches into a reviewed pool**, never per child, and served from a cacheable endpoint with no ID. Cost is under
   $1 per 100 accepted questions; human review of under-13 batches is the real cost.
 - Boundary for the no-tracking kids rule: **every category whose youngest age is under 13**. Teen categories (13–17)
   follow the adult rules but keep the purchase gate.
@@ -188,12 +188,17 @@ questions. Under the hood, generation runs **server-side, in batches, into a per
   approved** questions remain, it generates a batch of 50 candidates.
 - Candidates pass the safety pipeline (§4.3) and land as `draft`. Under-13 drafts need human approval; teen drafts
   auto-publish after the pipeline (decision D5).
-- Approved questions are written to static files `/kids-pool/<category>.json` (CDN, no cookies, no query string).
-- The app fetches that file on More like this. Locks are enforced on the device. No entitlement check reaches our server, so no RevenueCat ID is sent from a kids
+- Approved questions are served by a cacheable function, `GET /api/pool/<category>` (`api/pool/[category].js`), which
+  reads `status = 'approved'` rows from `kids_pool` and responds with `Cache-Control: public, s-maxage=3600`, no cookies,
+  no query string. Static files don't work here: `vercel.json` builds a static site fixed at deploy time, so a cron
+  can't add files, and the catch-all rewrite `/((?!api/).*)` → `/index.html` would answer a missing `/kids-pool/*.json`
+  with the SPA HTML and status 200. Paths under `/api/` skip that rewrite; an unknown category returns a JSON 404, and
+  `lib/pool.ts` treats any non-JSON or non-200 reply as offline.
+- The app fetches that endpoint on More like this. Locks are enforced on the device. No entitlement check reaches our server, so no RevenueCat ID is sent from a kids
   screen. **Trade-off, stated plainly:** this is weaker than today, where locked text sits only inside the app bundle;
-  the pool file is a public, guessable URL anyone can fetch. We accept that (the content is cheap to make and the
+  the pool endpoint is a public, guessable URL anyone can fetch. We accept that (the content is cheap to make and the
   buyer pays for the curated, age-matched flow, not secrecy). To keep paid questions out of search next to the free
-  SEO pages: `X-Robots-Tag: noindex` on `/kids-pool/*` (in `vercel.json`) and `Disallow: /kids-pool/` in robots.txt.
+  SEO pages: the endpoint sends `X-Robots-Tag: noindex`, and robots.txt gets `Disallow: /api/pool/`.
   The web simulated grant (§1.3.3) must be fixed before the pool exists.
 
 Why not live generation per tap: unreviewed output in front of a 6-year-old, a third-party call in the kids path, cost
@@ -228,7 +233,7 @@ and latency that scale with use, and a server-side entitlement check that would 
    `id, category, optionA, optionB, ages, model, prompt_version, classifier_verdict, reasons, status
    (draft|approved|rejected|retired), reviewed_by, created_at`. An owner-only review page (`/owner/kids-pool`, behind
    the existing owner access) lists drafts with approve/reject in bulk. A "report this question" link on paid questions
-   (behind the parental gate, sends only the question id) moves the question back to `draft` for owner review; it is
+   (behind the parental gate, `POST /api/report`, body `{questionId}` only, no ID) moves the question back to `draft` for owner review; it is
    **never retired automatically**, because an anonymous report cannot be told apart from a script. The report endpoint
    is rate-limited by IP at the edge (no stored ID), and reports only flag, so a scripted loop cannot empty a paid pool.
 
@@ -265,12 +270,13 @@ at 5x these estimates. **Money is not the constraint; Tim's review time is** (ab
 - Key: the Anthropic key from #93, stored as `ANTHROPIC_API_KEY` in **Vercel server env only** (used by the cron job),
   never `EXPO_PUBLIC_*`, never in the app. Requested through the credential form, never in chat. Note #93 planned a
   build-time-only key; this extends it to a server-side cron. No user-facing route calls the model.
-- Kids rule compliance: the model receives no child data, no IDs, no votes, no device info. Kids routes make two new
-  requests, both without query strings or cookies: the pool file and the usage counter (§5.4). Votes on pool questions (`kf-ai-*`) follow the
+- Kids rule compliance: the model receives no child data, no IDs, no votes, no device info. Kids routes make three new
+  requests, none with a query string, cookie or ID: the pool endpoint, the report endpoint (only when a parent taps
+  report) and the usage counter (§5.4). Votes on pool questions (`kf-ai-*`) follow the
   existing `kf-` rule (no visitor ID, nothing stored on device). The votes API must accept pool ids (read the same pool).
-  `tests/browserless/kids-no-tracking.mjs` gets exactly two URL patterns added to its allowlist and nothing else:
-  `GET /kids-pool/<category>.json` (Unit 6) and the counter endpoint `POST /api/count` with a body of
-  `{event, category, platform}` and no query string or identifier (Unit 7, §5.4).
+  `tests/browserless/kids-no-tracking.mjs` gets exactly three URL patterns added to its allowlist and nothing else,
+  none with a query string, cookie or identifier: `GET /api/pool/<category>` (Unit 6), `POST /api/report` with a body
+  of `{questionId}` only (Unit 6, §4.3), and `POST /api/count` with a body of `{event, category, platform}` (Unit 7, §5.4).
 
 ## 5. Kids-rule boundary, 13+ rating, privacy and listing
 
@@ -294,7 +300,8 @@ used on a parent's phone. Re-run the age-rating audit only if teen questions tou
 - Add: "Some paid questions are written with the help of an AI model (Anthropic's Claude). The model is given only our
   category descriptions and existing questions, never anything about you or your child. Every question for children
   under 13 is reviewed by a person before it appears."
-- Add: "With kids mode loads new questions from our server as a plain file; no ID is sent."
+- Add: "With kids mode loads new questions from our server, and a parent can report a question; neither request
+  sends an ID, only the category or the question."
 - If D6 is approved: "The app remembers on your device how far you have got in each category. It is not sent anywhere."
 - Teen categories: covered by the existing general section (analytics on), stated explicitly.
 
@@ -381,8 +388,8 @@ add coloured text or comments without rewriting the document, which would break 
 | 2 | Model + kids-rule plumbing: `audience`, `ages`, remove `kids-family`, redirect, derive `isKidsPath`/`requiresParentalGate`/`FAMILY_FRIENDLY` from `audience` | `constants/questions.ts`, `lib/kidsPaths.ts`, `lib/parentalGate.ts`, `constants/seoPages.ts` (D4), `tests/unit/*` | No (privacy rule, but no payments) | unit tests incl. "every kids category is a kids route"; `tests/browserless/kids-no-tracking.mjs` on every new route |
 | 3 | Browse UI: Grown-ups / With kids switch, age chips, age label on cards, mode-scoped random | `app/index.tsx`, `app/categories/index.tsx`, `components/CategoryCard.tsx` | No | screenshots at phone width; navigation test |
 | 4 | Payments: 9 products, catalog sync, paywall copy, gate on every With kids purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 17 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
-| 5 | AI pipeline (server): blocklist, generator, classifier, `kids_pool` table, cron, publish to `/kids-pool/*.json`, owner review page | `lib/kidsBlocklist.ts`, `api/cron/kids-pool.js`, `api/_lib/pool.js`, `db/migrations/*`, `app/owner/kids-pool.tsx`, `vercel.json` | **Yes** (key, spend cap, first batch review) | unit tests with a fake model client; dry run on one category; Tim approves the first 50 |
-| 6 | More like this (client) + votes accept pool ids + report link | `app/complete/[id].tsx`, `app/categories/[id].tsx`, `lib/pool.ts`, `api/_lib/votes.js`, `tests/browserless/kids-no-tracking.mjs` | **Yes** (touches the paid surface) | kids-no-tracking test passes with only the pool URL added (Unit 7 adds the counter URL); offline check |
+| 5 | AI pipeline (server): blocklist, generator, classifier, `kids_pool` table, cron, `GET /api/pool/<category>` endpoint, owner review page | `lib/kidsBlocklist.ts`, `api/cron/kids-pool.js`, `api/pool/[category].js`, `api/_lib/pool.js`, `db/migrations/*`, `app/owner/kids-pool.tsx`, `vercel.json` | **Yes** (key, spend cap, first batch review) | unit tests with a fake model client; dry run on one category; Tim approves the first 50 |
+| 6 | More like this (client) + votes accept pool ids + report link | `app/complete/[id].tsx`, `app/categories/[id].tsx`, `lib/pool.ts`, `api/_lib/votes.js`, `api/report.js`, `tests/browserless/kids-no-tracking.mjs` | **Yes** (touches the paid surface) | kids-no-tracking test passes with only the pool and report URLs added (Unit 7 adds the counter URL); offline check, including an HTML reply treated as offline |
 | 7 | Privacy policy (incl. the COPPA internal-operations notice, §5.4), listing kit, review notes, PRD, kids counters `api/count.js`, Smart App Banner + campaign links on landing pages | `app/privacy.tsx`, `api/count.js`, `tests/browserless/kids-no-tracking.mjs` (counter URL), `components/PageHead.tsx`, `docs/specs/app-store-listing.md`, `docs/kids-privacy.md` | **Yes** (policy text) | `tests/unit/legal-pages.test.ts` |
 
 Order: 1 and 2 together are shippable alone (clear categories, free tiers, nothing for sale yet, SEO decision applied).
