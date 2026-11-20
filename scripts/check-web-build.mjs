@@ -20,9 +20,13 @@ import { pathToFileURL } from 'node:url';
 
 export const TEST_UNLOCK_MARKER = 'TEST MODE: NO CHARGE';
 
-/** Same derivation as the build:web script: explicit value, else Vercel's, else development. */
+/**
+ * Same derivation as the build:web script: Vercel's VERCEL_ENV wins (a
+ * misconfigured EXPO_PUBLIC_DEPLOY_ENV must not downgrade a production deploy),
+ * else the explicit value, else development.
+ */
 export function deployEnvFrom(env) {
-  return env.EXPO_PUBLIC_DEPLOY_ENV || env.VERCEL_ENV || 'development';
+  return env.VERCEL_ENV || env.EXPO_PUBLIC_DEPLOY_ENV || 'development';
 }
 
 export function envProblems(env) {
@@ -30,6 +34,9 @@ export function envProblems(env) {
   const warnings = [];
   const deployEnv = deployEnvFrom(env);
   const key = env.EXPO_PUBLIC_RC_WEB_KEY ?? '';
+  if (env.VERCEL_ENV && env.EXPO_PUBLIC_DEPLOY_ENV && env.VERCEL_ENV !== env.EXPO_PUBLIC_DEPLOY_ENV) {
+    problems.push(`EXPO_PUBLIC_DEPLOY_ENV="${env.EXPO_PUBLIC_DEPLOY_ENV}" conflicts with VERCEL_ENV="${env.VERCEL_ENV}". Remove EXPO_PUBLIC_DEPLOY_ENV from the Vercel project; the build derives it from VERCEL_ENV.`);
+  }
   if (deployEnv === 'production') {
     if (env.EXPO_PUBLIC_TEST_UNLOCK) problems.push('EXPO_PUBLIC_TEST_UNLOCK is set on a production build. The free test unlock must never ship to production.');
     if (key.startsWith('rcb_sb_') || key.startsWith('test_')) problems.push('EXPO_PUBLIC_RC_WEB_KEY is a sandbox/test key on a production build. Use the live Web Billing key (rcb_...).');

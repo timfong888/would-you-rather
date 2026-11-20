@@ -8,7 +8,15 @@ test('deploy env follows the build:web derivation', () => {
   assert.equal(deployEnvFrom({}), 'development');
   assert.equal(deployEnvFrom({ VERCEL_ENV: 'preview' }), 'preview');
   assert.equal(deployEnvFrom({ VERCEL_ENV: 'production' }), 'production');
-  assert.equal(deployEnvFrom({ EXPO_PUBLIC_DEPLOY_ENV: 'preview', VERCEL_ENV: 'production' }), 'preview');
+  assert.equal(deployEnvFrom({ EXPO_PUBLIC_DEPLOY_ENV: 'preview' }), 'preview');
+  // Vercel's own value wins: an explicit value cannot downgrade production.
+  assert.equal(deployEnvFrom({ EXPO_PUBLIC_DEPLOY_ENV: 'preview', VERCEL_ENV: 'production' }), 'production');
+});
+
+test('a production Vercel build cannot be downgraded by EXPO_PUBLIC_DEPLOY_ENV', () => {
+  const r = envProblems({ VERCEL_ENV: 'production', EXPO_PUBLIC_DEPLOY_ENV: 'preview', EXPO_PUBLIC_TEST_UNLOCK: '1', EXPO_PUBLIC_RC_WEB_KEY: 'rcb_sb_x' });
+  assert.equal(r.deployEnv, 'production');
+  assert.equal(r.problems.length, 3); // conflict + flag + sandbox key
 });
 
 test('production fails with the test-unlock flag or a sandbox key', () => {
