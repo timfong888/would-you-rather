@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
+    "start": "EXPO_PUBLIC_DEPLOY_ENV=${EXPO_PUBLIC_DEPLOY_ENV:-development} expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web",
+    "web": "EXPO_PUBLIC_DEPLOY_ENV=${EXPO_PUBLIC_DEPLOY_ENV:-development} expo start --web",
     "export:web": "expo export --platform web",
     "build:web": "node scripts/check-web-build.mjs && npm run verify:data && npm run generate:sitemap && EXPO_PUBLIC_DEPLOY_ENV=${VERCEL_ENV:-${EXPO_PUBLIC_DEPLOY_ENV:-development}} expo export --clear --platform web && node scripts/check-web-build.mjs --dist dist && node scripts/web-export-compat.mjs && node scripts/generate-sharing-pages.mjs && npm run verify:seo -- --dist",
     "generate:sitemap": "tsx scripts/generate-sitemap.ts",
