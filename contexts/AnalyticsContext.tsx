@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
-import { track, identify, getOrCreateVisitorId, purgeVisitorId } from '@/lib/analytics';
+import { track, identify, getOrCreateVisitorId, purgeVisitorId, setCurrentRoute } from '@/lib/analytics';
 import { isKidsPath } from '@/lib/kidsPaths';
 import { purgeKidsVoteStorage } from '@/lib/votes';
 
@@ -23,6 +23,8 @@ const AnalyticsContext = createContext<AnalyticsContextValue>({
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const fired = useRef(false);
   const pathname = usePathname();
+  // Native analytics gate: set during render so it is current before any child effect runs.
+  if (Platform.OS !== 'web') setCurrentRoute(pathname);
 
   // Kids routes keep no persisted visitor ID (COPPA): remove one if it exists, whenever such a
   // route is shown (including after navigating there inside the app).
@@ -40,7 +42,8 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    if (fired.current) return;
+    // Wait for the first known route: the kids check needs it (native has no window.location).
+    if (fired.current || !pathname) return;
     fired.current = true;
 
     const { id: visitorId, isNew } = getOrCreateVisitorId();
@@ -71,7 +74,7 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
         visitor_id: visitorId,
       });
     }
-  }, []);
+  }, [pathname]);
 
   return (
     <AnalyticsContext.Provider value={ctx}>
