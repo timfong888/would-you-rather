@@ -104,6 +104,22 @@ for (const path of ['/game/kf-2', '/categories/kids-family', '/results/kf-2', '/
   await ctx.close();
 }
 
+// 4. in-app kids -> Settings with a campaign on the kids URL (Vercel Security Review on #85, a776c7d)
+{
+  const { ctx, page, ph } = await newPage(b);
+  await page.goto(`${HOST}/game/kf-2?utm_campaign=kidscampaign&utm_source=kidsnews&link_id=kidslink&gen=3`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(2500);
+  check(ph.length === 0, 'kids -> settings: nothing sent while on the kids route');
+  await page.getByText('⚙️').first().click();
+  await page.waitForURL(/settings/);
+  await page.waitForTimeout(12500);
+  const bodies = JSON.stringify(ph.map((r) => r.body));
+  check(!/kf-|kids|kidscampaign|kidsnews|kidslink/.test(bodies), 'kids -> settings: no kids path, campaign or link id in anything sent', (bodies.match(/kf-\S{0,12}|kids\w*/) || [''])[0]);
+  const names = events(ph).map((e) => e.event);
+  console.log('      events after settings:', names.join(',') || '(none)');
+  await ctx.close();
+}
+
 await b.close();
 console.log(`\n${results.filter(Boolean).length}/${results.length} checks passed`);
 process.exit(results.every(Boolean) ? 0 : 1);

@@ -269,6 +269,21 @@ function notifySession(): void {
 let _skippedForKids = false;
 
 /**
+ * The page the visitor is on, as the router sees it. When the browser URL has not caught up with the
+ * router (in-app navigation: window.location lags), use the router's path with no query string, never
+ * the stale URL's parameters.
+ */
+function currentRoute(): { href: string; search: string; inSync: boolean } {
+  const loc = window.location;
+  if (_routerPath !== null && _routerPath !== loc.pathname) {
+    let origin = '';
+    try { origin = new URL(loc.href).origin; } catch { origin = ''; }
+    return { href: `${origin}${_routerPath}`, search: '', inSync: false };
+  }
+  return { href: loc.href, search: loc.search, inSync: true };
+}
+
+/**
  * Initialises the visitor, first-session flag, identity and first-touch super
  * properties exactly once per page load. AnalyticsProvider calls it while rendering,
  * i.e. before any child effect (route page_view, vote-retry flush) can create the
@@ -293,14 +308,24 @@ export function ensureSessionInit(): SessionInfo | null {
   let linkId: string | null = null;
   let generation = 0;
   if (isWeb) {
+    // One URL for both the privacy gate and attribution: the router's. window.location lags an in-app
+    // navigation, so right after leaving a kids route it still holds the kids URL (path, utm_*, link_id).
+    const route = currentRoute();
     attribution = classifyAttribution({
-      referrer: !_skippedForKids && typeof document !== 'undefined' ? document.referrer : null,
-      url: window.location.href,
+      referrer: !_skippedForKids && route.inSync && typeof document !== 'undefined' ? document.referrer : null,
+      url: route.href,
       siteHost: window.location.host,
     });
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(route.search);
     linkId = params.get('link_id');
     generation = parseInt(params.get('gen') ?? '0', 10) || 0;
+    // Independently of the above: never emit a session that landed on a kids path, with its
+    // campaign or link parameters.
+    if (attribution.landing_path && isKidsPath(attribution.landing_path)) {
+      attribution = classifyAttribution({});
+      linkId = null;
+      generation = 0;
+    }
     if (!_skippedForKids) {
       let storage: Storage | null = null;
       try { storage = window.localStorage; } catch { storage = null; }

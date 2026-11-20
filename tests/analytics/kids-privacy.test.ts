@@ -213,3 +213,35 @@ test('no persistence option is read from the SDK on web: the client is created w
   assert.ok(init, 'a client was created');
   assert.equal((init!.args[1] as any)?.persistence, 'memory');
 });
+
+test('reverse navigation: the router has left a kids route but window.location still shows the kids URL (Vercel Security Review on #85, a776c7d)', async () => {
+  // A kids landing with a campaign, a referrer and a share link in the URL.
+  go('/game/kf-1', '?utm_campaign=kidscampaign&utm_source=kidsnews&link_id=kidslink&gen=3', 'https://www.google.com/');
+  const a = await load();
+  assert.equal(a.ensureSessionInit(), null);
+  a.syncKidsMode('/game/kf-1');
+  // AnalyticsProvider's subscriber, as in contexts/AnalyticsContext.tsx.
+  a.subscribeSession((s) => {
+    if (!s) return;
+    a.track('session_start', {
+      ...s.attribution,
+      source: s.linkId ? 'shared_link' : s.attribution.channel,
+      link_id: s.linkId ?? undefined,
+      visitor_id: s.visitorId,
+    });
+  });
+
+  // Kids -> Settings in-app: the router path advances, the browser URL has not caught up.
+  a.syncKidsMode('/settings');
+  a.track('page_view', { path: '/settings' });
+  const s = a.getSession();
+  assert.ok(s, 'an allowed route gets a session');
+
+  const sent = JSON.stringify([s!.attribution, s!.linkId, ...calls.map((c) => c.args)]);
+  for (const bad of ['kf-', 'kids', 'kidscampaign', 'kidsnews', 'kidslink']) {
+    assert.ok(!sent.includes(bad), `"${bad}" must not reach PostHog or the session: ${sent}`);
+  }
+  assert.equal(s!.linkId, null, 'no kids link id');
+  assert.ok(!('utm_campaign' in s!.attribution) && !('utm_source' in s!.attribution) && !('referrer' in s!.attribution));
+  assert.ok(!local.has('wyr_first_touch') || !local.get('wyr_first_touch')!.includes('kids'), 'no kids first touch persisted');
+});
