@@ -14,7 +14,7 @@ import {
 } from '@/lib/activation';
 import { buildShareLink } from '@/lib/shareQuestion';
 import { purgeStoredVisitorId, VISITOR_KEY } from '@/lib/visitorId';
-import { analyticsOnFor, createTracker, type Props } from '@/lib/analyticsCore';
+import { analyticsOnFor, createTracker, POSTHOG_PRIVACY_OPTIONS, type Props } from '@/lib/analyticsCore';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -46,6 +46,8 @@ function getClient(): PostHog | null {
   _client = new PostHog(key, {
     host: 'https://us.i.posthog.com',
     captureAppLifecycleEvents: false,
+    // No client IP property, no GeoIP lookup from the request IP (web and native share this client).
+    ...POSTHOG_PRIVACY_OPTIONS,
     // On web posthog-react-native finds no async-storage/expo-file-system and throws "No storage
     // available", so nothing was ever sent. Memory persistence needs no storage and keeps PostHog
     // from writing its own ids anywhere (kids routes: nothing of PostHog's to purge). Identity

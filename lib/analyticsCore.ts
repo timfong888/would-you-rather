@@ -62,3 +62,30 @@ export function createTracker(deps: {
     },
   };
 }
+
+/**
+ * Privacy: never send a client IP property and ask PostHog not to derive location from the request IP.
+ * The SDK itself adds no `$ip`; this is a defensive strip (events, $set, $set_once) plus `disableGeoip`,
+ * which adds `$geoip_disable: true`. The request's own source IP still reaches PostHog's servers: dropping
+ * it there needs the project setting "Discard client IP data".
+ */
+type EventLike = {
+  properties?: Record<string, unknown> | null;
+  $set?: Record<string, unknown> | null;
+  $set_once?: Record<string, unknown> | null;
+  [k: string]: unknown;
+};
+
+export function stripIp<T extends EventLike>(event: T): T {
+  for (const key of ['properties', '$set', '$set_once'] as const) {
+    const bag = event[key];
+    if (bag && typeof bag === 'object' && '$ip' in bag) delete (bag as Record<string, unknown>)['$ip'];
+  }
+  return event;
+}
+
+/** Options shared by the web and native PostHog clients (see lib/analytics.ts). */
+export const POSTHOG_PRIVACY_OPTIONS = {
+  disableGeoip: true,
+  before_send: (event: any) => stripIp(event),
+} as const;

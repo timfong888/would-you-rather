@@ -245,3 +245,15 @@ test('reverse navigation: the router has left a kids route but window.location s
   assert.ok(!('utm_campaign' in s!.attribution) && !('utm_source' in s!.attribution) && !('referrer' in s!.attribution));
   assert.ok(!local.has('wyr_first_touch') || !local.get('wyr_first_touch')!.includes('kids'), 'no kids first touch persisted');
 });
+
+test('the PostHog client is created with GeoIP disabled and an $ip strip (the policy says we store no IP)', async () => {
+  go('/categories');
+  const a = await load();
+  a.ensureSessionInit();
+  a.track('page_view', { path: '/categories' });
+  const opts = calls.find((c) => c.op === 'init')!.args[1] as any;
+  assert.equal(opts.disableGeoip, true);
+  assert.equal(typeof opts.before_send, 'function');
+  const out = opts.before_send({ event: 'page_view', properties: { $ip: '198.51.100.7', path: '/categories' } });
+  assert.ok(!('$ip' in out.properties), 'no $ip survives before_send');
+});
