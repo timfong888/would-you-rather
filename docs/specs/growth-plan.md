@@ -10,7 +10,7 @@ Markers: **[verified]** = checked in this session against a live source or tool.
 ## 0. Summary
 
 1. **SEO is the engine, and most of it can run on a weekly schedule.** A scheduled agent reads Search Console, picks the next 2–3 keywords from a scored backlog, writes pages with the existing `seo-content` process, runs the build checks plus a kids-safety and thin-content pass, and opens a PR. **It never merges.** Tim reads the kids questions and merges.
-2. **Search Console is already verified** for `sc-domain:wouldyourather.fyi` (Tim is owner) and already connected to OpenSEO's API **[verified, 2026-11-20]**. So the agent can read it today at no credit cost. But it shows **0 impressions in the last 28 days** **[verified]**. The first job is to find out why (sitemap not submitted, or pages not indexed yet). That's a 5-minute Tim task (section 1.7).
+2. **Search Console is done.** `sc-domain:wouldyourather.fyi` is verified, and the sitemap was submitted on 2026-11-16 (344 URLs, 0 indexed yet). The weekly agent can read and resubmit through Composio's Search Console toolkit, which works from this environment **[verified, 2026-11-20]**. The property's data starts on 2026-11-15 with 0 impressions so far, which is expected for a property this new (section 1.7).
 3. **Referral: no paid program.** At $1.99–$4.99 a referral payout is cents, and Apple gives no affiliate commission on in-app purchases. Recommendation: **the no-money "did your friend match?" loop already being built (#123/#129, recipient loop), plus App Store offer codes as a gifting and outreach tool.** No "share to unlock" rewards (section 3).
 4. **ASO:** keep the name and subtitle in `app-store-listing.md` Variant A, fill the 100-character keyword field with the gaps competitors don't own (family, dinner, road trip, icebreaker, conversation), ask for ratings only after a "match" moment on adult screens, and ship two icons in the first binary so an icon A/B test is possible after launch.
 5. **Android: about 1–2 weeks of engineering plus 2–3 weeks of Google's process**, so roughly 4–6 weeks on the calendar, and only after iOS v1 is stable. The calendar is set by Google's 14-day, 12-tester closed test for new personal accounts, not by the code. The biggest decision is the Play **target audience**: Kids & Family content can pull the app under Google's Families policy.
@@ -23,7 +23,7 @@ Markers: **[verified]** = checked in this session against a live source or tool.
 - **On `main`: 14 landing pages.** Twelve parent pages from batch 1 (kids, funny kids, kindergarten, elementary, gross, this-or-that kids, Thanksgiving, Christmas kids, family, dinner table, road trip, app), plus two thin couples pages from before batch 1 (`deep-would-you-rather-questions`, `questions-for-couples`). The two couples pages have no own question bank, intro or tips.
 - **Live:** sitemap 344 URLs, `robots.txt` and `llms.txt` on `https://www.wouldyourather.fyi` **[verified by curl]**. The copies committed in `public/` still say `wyr-timfong888.vercel.app`; the build regenerates them, so this is cosmetic, but a fresh build commit would stop confusing agents that read the repo.
 - **Draft, not merged: PR #66 (batch 2), 12 more pages:** the head term "would you rather questions" (246k, KD 14), funny (18.1k), hard (9.9k), teens (5.4k), work (4.4k), generator (590, $3.59 CPC), couples rebuilt (12.1k), questions to ask your partner (22.2k), first date (9.9k), couples games (14.8k), adults (8.1k), questions to ask your kids. It still needs Tim's human read of the Date Night and Party Pack questions.
-- **Search Console:** verified, 0 rows for 2026-10-21 to 2026-11-17 **[verified]**.
+- **Search Console:** verified; sitemap submitted 2026-11-16, 344 URLs, 0 indexed yet; data from 2026-11-15, 0 impressions so far **[verified]**.
 
 **The highest-leverage SEO action is not new pages. It is merging batch 2 (#66) and getting all 26 pages indexed.** Batch 2 holds most of the measurable volume.
 
@@ -66,11 +66,11 @@ Keep `components/SeoLandingPage.tsx` and the field rules in `docs/seo-content-sk
 
 ### 1.6 The autonomous loop
 
-A scheduled task, fresh session per run, **Monday 09:17 Pacific** (off the hour so it isn't delayed), repo `timfong888/would-you-rather`, with the OpenSEO connector only.
+A scheduled task, fresh session per run, **Monday 09:17 Pacific** (off the hour so it isn't delayed), repo `timfong888/would-you-rather`, with the Composio connector (Search Console) and OpenSEO (keyword and SERP data).
 
 | Step | What the agent does | Guardrail |
 |---|---|---|
-| 1. Read | `get_search_console_performance` (free): last 28 days by page and by query; "striking distance" queries (position 5–20, 50+ impressions); pages with 0 impressions after 3 weeks get `inspect_urls`. | Read-only. |
+| 1. Read | Composio `GOOGLE_SEARCH_CONSOLE_SEARCH_ANALYTICS_QUERY` (OpenSEO `get_search_console_performance` as fallback): last 28 days by page and by query, week over week; rising-impression queries and low-CTR queries; "striking distance" queries (position 5–20, 50+ impressions); pages with 0 impressions after 3 weeks get `INSPECT_URL`; resubmit the sitemap (`SUBMIT_SITEMAP`) after a merged batch. | Read-only, except the sitemap resubmit. |
 | 2. Pick | Score `docs/seo/backlog.md` (new file: keyword, cluster, volume, KD, season, status). Score = volume proxy × (1 / (KD+5)) × gap × season boost. Pick the top 2–3, or 1 refresh + 1–2 new. | Skip any keyword where it can't write one sentence on what the page does better than the current #1. |
 | 3. Research | SERP check for the picks (`get_serp_results`, about 5 credits each). | Weekly cap **600 OpenSEO credits**; stop and report if hit. |
 | 4. Draft | New questions written for the page, plus intro, tips, answer, FAQ, per the `seo-content` skill. Route file and `vercel.json` rewrite. | 10–25 new items per page; no item reused (build-enforced). Free content only. |
@@ -84,16 +84,18 @@ Quality guardrails, grounded in Google's policies:
 - Google's spam policies treat **"scaled content abuse"** (many pages made mainly to manipulate rankings, by automation, people or both) as spam, and its generative-AI guidance says using AI to produce many pages without adding value may violate that policy ([Google Search Central blog, March 2024](https://developers.google.com/search/blog/2024/03/core-update-spam-policies); [Using gen-AI content](https://developers.google.com/search/docs/fundamentals/using-gen-ai-content)) **[verified via search summaries; read the pages before quoting]**. The weekly cap, the one-intent-one-page rule, the "better than #1" sentence and the human merge are the answer to that.
 - Google's [helpful content guidance](https://developers.google.com/search/docs/fundamentals/creating-helpful-content) (people-first, original, satisfying) **[unverified: URL from memory]**. Our pages add something no ranking page has: one-tap play.
 
-### 1.7 Search Console: what Tim needs to do
+### 1.7 Search Console: done, and the agent can use it
 
-Already verified: `sc-domain:wouldyourather.fyi`, owner `tim@fong888.com`, connected to OpenSEO project "Would You Rather" **[verified]**. The API connection Tim asked about exists already; the weekly agent reads it through OpenSEO at no credit cost.
+Tim confirmed (2026-11-19) the loop should use Composio's Google Search Console toolkit. Checked from this session **[verified, 2026-11-20]**:
+- Composio `google_search_console` connection is active; `sc-domain:wouldyourather.fyi` is verified with owner permission. `GOOGLE_SEARCH_CONSOLE_SEARCH_ANALYTICS_QUERY` and `GOOGLE_SEARCH_CONSOLE_LIST_SITEMAPS` both returned data from this environment, with no proxy block. `SUBMIT_SITEMAP` and `INSPECT_URL` are in the same toolkit.
+- The sitemap `https://www.wouldyourather.fyi/sitemap.xml` was **already submitted on 2026-11-16**: 344 URLs submitted, 0 errors, last downloaded by Google 2026-11-19, **0 indexed so far**.
+- The property's data starts on 2026-11-15 and every day since shows 0 impressions. So the zeros are because the property is new, not because something is broken. Expect the first impressions within about 2–4 weeks **[unverified estimate]**.
+- OpenSEO's connection to the same property also works (free reads) and stays as a fallback.
 
-Tim, about 5 minutes:
-1. Submit the sitemap: https://search.google.com/search-console/sitemaps?resource_id=sc-domain%3Awouldyourather.fyi → enter `https://www.wouldyourather.fyi/sitemap.xml` → Submit.
-2. Check indexing: https://search.google.com/search-console/index?resource_id=sc-domain%3Awouldyourather.fyi. If pages show "Discovered, not indexed", request indexing for the hub pages with URL Inspection.
-3. Bing Webmaster Tools: https://www.bing.com/webmasters → "Import from Google Search Console" (one click; also covers DuckDuckGo and ChatGPT search, which use Bing's index **[unverified]**).
+**No Search Console verification needed from Tim.** Optional, about 2 minutes:
+1. Bing: https://www.bing.com/webmasters → "Import from Google Search Console" (also feeds DuckDuckGo and ChatGPT search, which use Bing's index **[unverified]**).
 
-If the property were ever lost, re-verify: https://search.google.com/search-console → Add property → Domain → `wouldyourather.fyi` → copy the TXT record → add it at the DNS host (Vercel: https://vercel.com/dashboard/domains) as a TXT on `@` → Verify. Keep the record.
+The weekly agent does the rest: it resubmits the sitemap after each merged page batch, and runs `INSPECT_URL` on the hub pages. If they are still "Discovered, not indexed" after 2 weeks, it asks Tim to click "Request indexing" in the URL Inspection tool. That click has no API; the Indexing API is only for job postings and livestream pages **[unverified]**.
 
 ## 2. Parent blogs and outreach
 
@@ -235,7 +237,7 @@ Ranked by impact per effort within each window. "Auto" = runs as a scheduled age
 
 | # | Action | Who | Metric |
 |---|---|---|---|
-| 1 | Submit sitemap, check indexing, Bing import (section 1.7) | **Tim**, 5 min | GSC indexed pages; impressions > 0 within 2 weeks |
+| 1 | Bing import (optional); the agent watches indexing of the submitted sitemap (section 1.7) | **Tim**, 2 min | GSC indexed pages; impressions > 0 within 2–4 weeks |
 | 2 | Human read of #66 questions, merge batch 2 | **Tim**: https://github.com/timfong888/would-you-rather/pull/66 | 26 pages indexed |
 | 3 | Valentine's pages (couples + kids) and winter page | Auto (first weekly run) → Tim merges | shipped by 2026-12-15 |
 | 4 | Turn on the weekly SEO agent (section 1.6) | Agent sets it up after Tim's go | weekly PR + report |
