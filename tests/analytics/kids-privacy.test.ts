@@ -213,3 +213,54 @@ test('no persistence option is read from the SDK on web: the client is created w
   assert.ok(init, 'a client was created');
   assert.equal((init!.args[1] as any)?.persistence, 'memory');
 });
+
+for (const kidsPath of ['/game/kf-1', '/results/kf-1', '/p/kf-1', '/categories/kids-family', '/complete/kids-family', '/unlock/kids-family', '/would-you-rather-questions-for-kids']) {
+  test(`kids -> adult with stale browser URL: session subscribers never send kids attribution (${kidsPath})`, () => {
+    go(kidsPath, '?utm_source=kids-source&utm_medium=email&utm_campaign=kids-campaign&link_id=kids-link&gen=7', 'https://www.google.com/');
+    analytics.syncKidsMode(kidsPath);
+    assert.equal(analytics.ensureSessionInit(), null);
+
+    // Exercise the provider's subscriber flow, including spreading attribution into session_start.
+    analytics.subscribeSession((s) => {
+      if (!s) return;
+      analytics.track('session_start', {
+        ...s.attribution,
+        source: s.linkId ? 'shared_link' : s.attribution.channel,
+        link_id: s.linkId ?? undefined,
+        visitor_id: s.visitorId,
+      });
+      if (s.linkId) analytics.track('shared_link_opened', { link_id: s.linkId, generation: s.generation });
+    });
+
+    // Render advances first; window.location is deliberately left on the kids URL.
+    analytics.setRouterPath('/settings');
+    analytics.syncKidsMode('/settings');
+    analytics.track('page_view', { path: '/settings' });
+    const s = analytics.getSession()!;
+    assert.deepEqual(s.attribution, { channel: 'internal', landing_path: '/settings' });
+    assert.equal(s.linkId, null);
+    assert.equal(s.generation, 0);
+    assert.equal(captures().filter((c) => c.args[0] === 'session_start').length, 1);
+    assert.ok(!captures().some((c) => c.args[0] === 'shared_link_opened'));
+    assert.ok(local.has('wyr_visitor_id'), 'adult session has a new persistent identity');
+    assert.ok(!local.has('wyr_first_touch'), 'kids visit is not stored as first touch');
+    assert.ok(!/kf-1|kids-|kids-family/.test(JSON.stringify([s, ...calls, ...local.values()])), 'no kids URL or campaign/link data in session, SDK calls or storage');
+
+    // Browser catches up: the clean session remains stable and is not announced twice.
+    go('/settings');
+    analytics.track('page_view', { path: '/settings' });
+    assert.equal(analytics.getSession(), s);
+    assert.equal(captures().filter((c) => c.args[0] === 'session_start').length, 1);
+  });
+}
+
+test('matching adult router/browser paths retain their own campaign and share parameters', () => {
+  go('/game/hl-1', '?utm_source=adult-source&utm_medium=email&utm_campaign=adult-campaign&link_id=adult-link&gen=2');
+  analytics.setRouterPath('/game/hl-1');
+  const s = analytics.ensureSessionInit()!;
+  assert.equal(s.attribution.landing_path, '/game/hl-1');
+  assert.equal(s.attribution.utm_campaign, 'adult-campaign');
+  assert.equal(s.attribution.channel, 'shared_link');
+  assert.equal(s.linkId, 'adult-link');
+  assert.equal(s.generation, 2);
+});

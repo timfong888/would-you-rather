@@ -36,3 +36,13 @@ test('outside referrers are unchanged (origin and path)', () => {
   assert.equal(a.referrer, 'https://www.google.com/search');
   assert.equal(a.channel, 'organic_search');
 });
+
+test('kids landing URLs cannot contribute landing, campaign, link or referrer attribution', () => {
+  for (const path of ['/game/kf-2', '/results/kf-1', '/p/kf-3', '/categories/kids-family', '/complete/kids-family', '/unlock/kids-family', '/would-you-rather-questions-for-kids']) {
+    assert.deepEqual(classifyAttribution({
+      url: `https://${SITE}${path}?utm_source=kids&utm_medium=email&utm_campaign=kids&link_id=kids&gen=3`,
+      referrer: 'https://www.google.com/search',
+      siteHost: SITE,
+    }), { channel: 'internal' }, path);
+  }
+});
