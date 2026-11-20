@@ -192,8 +192,9 @@ questions. Under the hood, generation runs **server-side, in batches, into a per
   (the last generation; below the cron interval so no monthly run is skipped by calendar drift), or whose approved
   pool has reached the cap (300 per category, then
   stop and revisit). The server never learns what any family has seen, so "unserved" is not a usable trigger.
-- Candidates pass the safety pipeline (§4.3) and land as `draft`. Under-13 drafts need human approval; teen drafts
-  auto-publish after the pipeline (decision D5).
+- Every candidate runs the safety pipeline (§4.3). Failures are logged as `rejected` at once; only passing candidates
+  are stored as `draft`. Under-13 drafts need human approval; teen candidates that pass go straight to `approved`
+  (decision D5), so a teen category never holds `draft` rows that would block the next run.
 - Approved questions are served by a cacheable function, `GET /api/pool/<category>` (`api/pool/[category].js`), which
   reads `status = 'approved'` rows from `kids_pool` and responds with `Cache-Control: public, max-age=3600, s-maxage=3600,
   stale-while-revalidate=86400` (CDN and browser fresh for an hour), no cookies,
@@ -235,7 +236,8 @@ and latency that scale with use, and a server-side entitlement check that would 
    info prompts ("what's your address"). Kept in `lib/kidsBlocklist.ts`, unit-tested.
 2. **Classifier pass** (Sonnet 5.5): pass/fail per question with reasons: safe for the age, on topic, not
    embarrassing or singling out (e.g. "would you rather have no friends"), both options acceptable to say aloud,
-   no duplicate of an existing question. Any fail is dropped, not edited.
+   no duplicate of an existing question. Any fail is logged with status `rejected` (never `draft`) and is not edited.
+   Unit 5's fake-model tests cover a teen batch with failures and check the next monthly run is not blocked.
 3. **Human-reviewable log**: every candidate, verdict and reason in a `kids_pool` table (Neon, already used for votes):
    `id, category, optionA, optionB, ages, model, prompt_version, classifier_verdict, reasons, status
    (draft|approved|rejected|retired), report_count, reported_at, reviewed_by, created_at`. An owner-only review page (`/owner/kids-pool`, behind
