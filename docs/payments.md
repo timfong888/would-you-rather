@@ -39,7 +39,7 @@ id = entitlement id).
 
 ## Web (RevenueCat Web Billing, Stripe)
 
-- Key `EXPO_PUBLIC_RC_WEB_KEY` per Vercel environment: **Preview** `rcb_sb_...` (sandbox, Stripe test mode), **Production** `rcb_...` (live). A sandbox or Test Store key on production fails the build and is also refused at runtime.
+- Key `EXPO_PUBLIC_RC_WEB_KEY` per Vercel environment: **Preview** `rcb_sb_...` (sandbox, Stripe test mode), **Production** `rcb_...` (live). A key on the wrong deploy (sandbox or Test Store key on production, live key on a preview or local build) fails the build and is also refused at runtime, so previews can never take a real charge.
 - No RevenueCat id is created while browsing. The first purchase creates an anonymous id (`$RCAnonymousID:...`) and stores it in this browser (`wyr_rc_web_user`). On kids routes that only happens after the parental gate.
 - Web purchases stay with the browser they were made in. Restore on web re-reads that browser's id; it cannot find a purchase made in another browser (see blind spots).
 - The paywall shows $1.99 / $4.99 until a purchase starts; the Web Billing checkout shows the real price before any charge.

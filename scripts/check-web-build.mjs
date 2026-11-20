@@ -8,6 +8,7 @@
  * Production (VERCEL_ENV=production, or EXPO_PUBLIC_DEPLOY_ENV=production):
  * - EXPO_PUBLIC_TEST_UNLOCK must be unset: the free test unlock never ships.
  * - EXPO_PUBLIC_RC_WEB_KEY must not be a sandbox (rcb_sb_) or Test Store (test_) key.
+ * Preview / development: EXPO_PUBLIC_RC_WEB_KEY must not be a live key (rcb_ without sb_).
  * - The exported bundle must not contain the test-unlock marker text, which
  *   only exists inside code the minifier drops when the flag is off. If it is
  *   there, a free unlock path was compiled into production.
@@ -41,6 +42,8 @@ export function envProblems(env) {
     if (env.EXPO_PUBLIC_TEST_UNLOCK) problems.push('EXPO_PUBLIC_TEST_UNLOCK is set on a production build. The free test unlock must never ship to production.');
     if (key.startsWith('rcb_sb_') || key.startsWith('test_')) problems.push('EXPO_PUBLIC_RC_WEB_KEY is a sandbox/test key on a production build. Use the live Web Billing key (rcb_...).');
     if (!key) warnings.push('EXPO_PUBLIC_RC_WEB_KEY is not set: the production paywall will say purchases are unavailable.');
+  } else if (key.startsWith('rcb_') && !key.startsWith('rcb_sb_')) {
+    problems.push(`EXPO_PUBLIC_RC_WEB_KEY is a live Web Billing key on a ${deployEnv} build. Previews and local builds must use the sandbox key (rcb_sb_...) so they can never take a real charge.`);
   }
   if (key && !key.startsWith('rcb_')) warnings.push('EXPO_PUBLIC_RC_WEB_KEY does not look like a Web Billing key (rcb_... or rcb_sb_...); web purchases stay off.');
   return { deployEnv, problems, warnings };

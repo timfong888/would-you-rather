@@ -42,12 +42,15 @@ function fakeSdk(instance: Partial<WebPurchasesInstance> = {}) {
 const SANDBOX = 'rcb_sb_123';
 const LIVE = 'rcb_456';
 
-test('key rules: sandbox key refused on production, live key anywhere, other keys never', () => {
+test('key rules: sandbox only off production, live only on production, other keys never', () => {
   assert.equal(webKeyUsable(SANDBOX, 'preview'), true);
   assert.equal(webKeyUsable(SANDBOX, 'development'), true);
   assert.equal(webKeyUsable(SANDBOX, 'production'), false);
   assert.equal(webKeyUsable(SANDBOX, undefined), false); // unknown env = production
   assert.equal(webKeyUsable(LIVE, 'production'), true);
+  // A preview or local build with the live key could take real charges: refused.
+  assert.equal(webKeyUsable(LIVE, 'preview'), false);
+  assert.equal(webKeyUsable(LIVE, 'development'), false);
   assert.equal(webKeyUsable('test_abc', 'preview'), false);
   assert.equal(webKeyUsable('appl_abc', 'preview'), false);
   assert.equal(webKeyUsable(undefined, 'preview'), false);

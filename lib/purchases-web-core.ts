@@ -6,8 +6,8 @@
  * Keys (public, safe in the client):
  *   rcb_sb_...  Web Billing sandbox: Stripe test mode, card 4242 4242 4242 4242
  *   rcb_...     Web Billing live: real charges, production only
- * A sandbox key on a production deploy is refused here and fails the build
- * (scripts/check-web-build.mjs).
+ * A key on the wrong deploy (sandbox on production, live on preview/local) is
+ * refused here and fails the build (scripts/check-web-build.mjs).
  *
  * Identity: Web Billing needs an app user id. No id is created until the
  * visitor starts a purchase (after the parental gate on kids routes), so
@@ -57,11 +57,16 @@ function cancelled(e: unknown): boolean {
   return (e as { errorCode?: unknown }).errorCode === CANCELLED_CODE;
 }
 
-/** True when this key may be used on this deploy: never a sandbox or Test Store key on production. */
+/**
+ * True when this key may be used on this deploy. Sandbox keys (rcb_sb_) only
+ * on preview/development; live keys (rcb_) only on production, so a preview
+ * or local build can never take a real charge. Anything else is refused.
+ */
 export function webKeyUsable(apiKey: string | undefined, deployEnvRaw: string | undefined): boolean {
   if (!apiKey || !apiKey.startsWith('rcb_')) return false;
   const sandbox = apiKey.startsWith('rcb_sb_');
-  return !(sandbox && parseDeployEnv(deployEnvRaw) === 'production');
+  const production = parseDeployEnv(deployEnvRaw) === 'production';
+  return sandbox ? !production : production;
 }
 
 export interface WebPurchasesDeps {
