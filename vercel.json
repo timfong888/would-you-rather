@@ -2,6 +2,12 @@
   "buildCommand": "npm run build:web && cp -r dist/. public/",
   "outputDirectory": "public",
   "framework": null,
+  "headers": [
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [{ "key": "Content-Type", "value": "application/json" }]
+    }
+  ],
   "rewrites": [
     { "source": "/p/:id",                                               "destination": "/p/:id.html" },
     { "source": "/game/:id",                                            "destination": "/game/[id].html" },
