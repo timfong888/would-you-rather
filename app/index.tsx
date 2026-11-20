@@ -96,17 +96,6 @@ export default function HomeScreen() {
             <Text style={styles.primaryButtonText}>START PLAYING</Text>
             <Text style={styles.buttonEmoji}>🎲</Text>
           </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/categories')}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-              <Text style={styles.secondaryButtonText}>Choose a vibe</Text>
-          </Pressable>
-
         </View>
       </View>
 
@@ -328,24 +317,6 @@ function makeStyles(colors: ThemeColors, viewportWidth: number) {
     },
     buttonEmoji: {
       fontSize: 16,
-    },
-    secondaryButton: {
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: RADIUS.full,
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-      ...Platform.select({
-        web: {
-          cursor: 'pointer',
-          transition: 'opacity 0.15s ease',
-        },
-      }),
-    },
-    secondaryButtonText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.medium,
     },
     buttonPressed: {
       opacity: 0.75,
