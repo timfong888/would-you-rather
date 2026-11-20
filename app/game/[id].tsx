@@ -272,6 +272,8 @@ export default function GameScreen() {
         setSelected(kept);
         markAnswered(votedQuestionId, kept);
       }
+      // After reconciliation, so `matched` agrees with what the recipient sees.
+      trackRecipient('answered', undefined, friendPick ? matchOutcome(kept, friendPick) : null);
     });
     track('question_answered', {
       question_id: question!.id,
@@ -279,7 +281,6 @@ export default function GameScreen() {
       choice,
       visitor_id: visitorId,
     });
-    trackRecipient('answered', undefined, friendPick ? matchOutcome(choice, friendPick) : null);
     if (incomingLinkId) {
       track('visitor_answered_after_link', {
         link_id: incomingLinkId,
@@ -309,28 +310,6 @@ export default function GameScreen() {
     }
     const key = outcome === 'matched' ? 'tell_matched' : outcome === 'different' ? 'tell_different' : 'tell_asked';
     await runShare(replyUrl, shareText(isKidsCategory, key, matchLine ?? ''), true);
-  };
-
-  // Share the next question in this category with the same friend, before answering.
-  const handleAskAnother = async () => {
-    if (!nextQuestion || nextLocked) return;
-    const { url: nextUrl, linkId: nextLinkId } = buildShareUrl(nextQuestion.id, incomingGeneration, isKidsCategory, 'ask');
-    for (const ev of shareEvents({
-      kids: isKidsCategory,
-      questionId: nextQuestion.id,
-      surface: 'game_match_next',
-      linkId: nextLinkId,
-      visitorId,
-      incomingLinkId,
-      incomingGeneration,
-    })) {
-      track(ev.name, ev.props);
-    }
-    await runShare(
-      nextUrl,
-      `${shareText(isKidsCategory, 'ask_another')}\n${nextQuestion.optionA} — OR — ${nextQuestion.optionB}`,
-      true,
-    );
   };
 
   const handleNext = () => {
@@ -601,37 +580,6 @@ export default function GameScreen() {
                     {theyPickedLine(isKidsCategory, friendPick === 'A' ? question.optionA : question.optionB)}
                   </Text>
                 )}
-                {!arrivedViaShare && (
-                <View style={styles.matchButtons}>
-                  <Pressable
-                    onPress={handleTellThem}
-                    accessibilityRole="button"
-                    accessibilityLabel={uiText(isKidsCategory, 'tell_them')}
-                    style={({ pressed }) => [
-                      styles.matchButton,
-                      { backgroundColor: catColor },
-                      pressed && { opacity: 0.8 },
-                    ]}
-                  >
-                    <Text style={styles.matchButtonText}>{copyFeedback ?? uiText(isKidsCategory, 'tell_them')}</Text>
-                  </Pressable>
-                  {nextQuestion && !nextLocked && (
-                    <Pressable
-                      onPress={handleAskAnother}
-                      accessibilityRole="button"
-                      accessibilityLabel={uiText(isKidsCategory, 'ask_another')}
-                      style={({ pressed }) => [
-                        styles.matchButton,
-                        styles.matchButtonOutline,
-                        { borderColor: catColor },
-                        pressed && { opacity: 0.8 },
-                      ]}
-                    >
-                      <Text style={[styles.matchButtonText, { color: catColor }]}>{uiText(isKidsCategory, 'ask_another')}</Text>
-                    </Pressable>
-                  )}
-                </View>
-                )}
               </View>
             )}
 
@@ -890,29 +838,6 @@ function makeStyles(colors: ThemeColors) {
     matchLine: {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.md,
-    },
-    matchButtons: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: SPACING.sm,
-      marginTop: SPACING.xs,
-    },
-    matchButton: {
-      flexGrow: 1,
-      alignItems: 'center',
-      paddingVertical: SPACING.sm,
-      paddingHorizontal: SPACING.md,
-      borderRadius: RADIUS.full,
-      ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    matchButtonOutline: {
-      backgroundColor: 'transparent',
-      borderWidth: 1.5,
-    },
-    matchButtonText: {
-      color: '#fff',
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.bold,
     },
     resultBanner: {
       flexDirection: 'row',
