@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "react-native": ["tests/stubs/react-native.ts"],
+      "posthog-react-native": ["tests/stubs/posthog.ts"],
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["../lib/**/*.ts", "../constants/**/*.ts", "./**/*.ts"]
+}
