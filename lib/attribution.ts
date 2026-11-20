@@ -93,6 +93,9 @@ function parseUrl(raw?: string | null): URL | null {
 
 export function classifyAttribution(input: AttributionInput): Attribution {
   const page = parseUrl(input.url);
+  // Never classify a kids landing, even if a caller has already reopened the tracking gate.
+  // Drop the whole acquisition (including campaigns and referrer), not just its channel.
+  if (page && isKidsPath(page.pathname)) return { channel: 'internal' };
   let ref = parseUrl(input.referrer);
   // Kids pages leave no trace (COPPA): a referrer on a kids path is ignored whatever the in-memory
   // kids flag says, since a new tab or full navigation from a kids page starts with a clean flag

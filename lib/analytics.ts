@@ -293,12 +293,19 @@ export function ensureSessionInit(): SessionInfo | null {
   let linkId: string | null = null;
   let generation = 0;
   if (isWeb) {
+    const browserUrl = new URL(window.location.href);
+    // Use the same path as the privacy gate. During in-app navigation the browser may still
+    // describe the previous (kids) page; its query/hash cannot be attributed to the new route.
+    const sessionUrl = _routerPath !== null && _routerPath !== browserUrl.pathname
+      ? new URL(_routerPath, browserUrl.origin)
+      : browserUrl;
     attribution = classifyAttribution({
       referrer: !_skippedForKids && typeof document !== 'undefined' ? document.referrer : null,
-      url: window.location.href,
-      siteHost: window.location.host,
+      url: sessionUrl.href,
+      siteHost: sessionUrl.host,
     });
-    const params = new URLSearchParams(window.location.search);
+    // Defence in depth: kids URLs must never supply share-link identity or generation either.
+    const params = isKidsPath(sessionUrl.pathname) ? new URLSearchParams() : sessionUrl.searchParams;
     linkId = params.get('link_id');
     generation = parseInt(params.get('gen') ?? '0', 10) || 0;
     if (!_skippedForKids) {
