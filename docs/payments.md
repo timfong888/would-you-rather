@@ -111,8 +111,8 @@ Test Store app; App Store Connect has **0** in-app purchases for app 6836653723 
 
 ## Test script
 
-**A. TestFlight build 13 (`preview-test`, version 99.1.0, today, before setup).** No RevenueCat key yet, so this checks the flow, not billing.
-1. Install build 13 (99.1.0) from TestFlight. Open a paid category (e.g. The High Life), answer the free questions until the paywall.
+**A. TestFlight build 14 (`preview-test`, version 99.1.0, today, before setup).** No RevenueCat key yet, so this checks the flow, not billing.
+1. Install build 14 (99.1.0) from TestFlight. Open a paid category (e.g. The High Life), answer the free questions until the paywall.
 2. Tap "START N MORE CONVERSATIONS". The sheet shows "TEST MODE: NO CHARGE". Tap Pay. Success screen, then START PLAYING: question N+1 appears.
 3. Back out: the category shows unlocked without restarting the app.
 
