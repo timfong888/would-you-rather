@@ -1,7 +1,7 @@
 // Client side of the vote API: what the app does with the server's answers (issue #65).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice, lockedChoice, parsePending, flushPending, type PendingVote, type AckMap } from '../../lib/votes-core';
+import { postVote, getTally, getTallies, queueAfterFlush, reconcileChoice, lockedChoice, parsePending, flushPending, voteBody, withoutKidsAnswers, withoutKidsPending, type PendingVote, type AckMap } from '../../lib/votes-core';
 
 const VOTE = { questionId: 'hl-1', choice: 'A' as const, visitorId: '00000000-0000-4000-8000-000000000001' };
 const json = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status });
@@ -153,4 +153,23 @@ test('flush: a vote queued while sending is kept', async () => {
     return { tally: { a: 1, b: 0 }, choice: 'A' as const, retry: false };
   }));
   assert.deepEqual(store.queue, [{ questionId: 'hl-2', choice: 'B' }]);
+});
+
+// Kids questions (COPPA): the request carries no visitor ID and kids answers never reach storage.
+test('a kids vote is sent with no visitor id; an adult vote keeps it', async () => {
+  let body: any;
+  const fetchImpl = async (_url: string, init?: RequestInit) => {
+    body = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ counted: true, tally: { a: 1, b: 0 } }), { status: 201 });
+  };
+  await postVote(fetchImpl, '', voteBody('kf-2', 'A', VOTE.visitorId));
+  assert.deepEqual(body, { questionId: 'kf-2', choice: 'A' });
+  assert.ok(!('visitorId' in body));
+  await postVote(fetchImpl, '', voteBody('hl-1', 'A', VOTE.visitorId));
+  assert.deepEqual(body, VOTE);
+});
+
+test('kids answers are dropped from stored answer maps and from the retry queue', () => {
+  assert.deepEqual(withoutKidsAnswers({ 'kf-1': 'A', 'hl-1': 'B', 'kf-20': 'B' }), { 'hl-1': 'B' });
+  assert.deepEqual(withoutKidsPending([{ questionId: 'kf-1', choice: 'A' }, { questionId: 'sb-2', choice: 'B' }]), [{ questionId: 'sb-2', choice: 'B' }]);
 });

@@ -8,7 +8,7 @@ App: ASC app id `6836653723`, record name "Would You Rather? Family Fun", bundle
 ## 0. What I found that changes the plan
 
 1. **The "see how everyone voted" story cannot be shown honestly yet.** The app shows a vote split only after 20 votes on a question (`VOTE_THRESHOLD`, PRD: never fake or seeded counts). The #87 screenshot `05-answered.png` shows the real state: no split, only "New question. Send it to someone and see if they pick the same." Captions and the description must sell the share/match loop now and the vote split only once real counts exist. Apple also wants screenshots to show the app as it is (guideline 2.3.3).
-2. **Kids rules in the code are web-path based.** `isKidsPath()` reads `window.location.pathname`; `analyticsOn()` in `lib/analytics.ts` returns `true` on every non-web platform. So on native, "no analytics on kids content" is not enforced by the current code, only by the absence of a PostHog key in the EAS env (PR #85 adds a default token but limits it to the web host; unverified for native). Decision 2 below removes the question for v1.
+2. **Kids rules in the code were web-path based.** `isKidsPath()` read `window.location.pathname`; `analyticsOn()` returned `true` on every non-web platform, so native "no analytics on kids content" was not enforced. **Fixed by Tim's decision of 2026-11-19 (PostHog stays on, adult screens only):** native analytics is now gated by the router path in `lib/analyticsCore.ts`, closed until the route is known, with tests (`tests/unit/analytics-core.test.ts`). The native build still needs `EXPO_PUBLIC_POSTHOG_KEY` in the EAS env; without it nothing is sent.
 3. **Privacy policy is still wrong on `main`** (`app/privacy.tsx`: "does not use any analytics ... or third-party SDKs", "one answer per question for each device" which PR #105 makes untrue for Kids & Family). The Privacy Policy URL is a hard submission blocker until #85 (and #105's kids change) are reflected.
 4. **There is no support contact anywhere in the repo.** `app/terms.tsx` says "the app's official support channel". Apple requires a working Support URL and, for TestFlight, a feedback email. Tim must pick an address.
 5. **`CLAUDE.md` is not on `main`** (it is in open PR #60), so the working agreements were not read from the repo.
@@ -230,11 +230,28 @@ Requirements to apply for the Kids Category (guidelines 1.3 and 5.1.4; Apple's p
 | B: later, separate kids-only app | New bundle id, only Kids & Family, no analytics, own listing and review. | The right way to enter the Kids Category and reach parents of 6 to 12. | A second app to build, review and maintain; do it after the parent loop is proven (PRD: native after web targets). |
 | C: put this app in the Kids Category | Remove the 7 adult categories and PostHog (and likely rework RevenueCat) on iOS. | Kids Category visibility. | Guts the product the PRD describes (couples, teens); big rework; Apple scrutiny of the whole binary. |
 
-**Recommend A now, B as a post-launch decision.**
+**Recommend A now, B as a post-launch decision.** **Decided: A** (Tim, 2026-11-19: "I'm fine with the general App Store's listing rated 13+ because of payments and so forth. So it's general listing.").
 
 ### 5.3 App Privacy ("nutrition label")
 
-The #87 `store/ios/privacy.md` table stands, with one change that depends on Decision 2: if PostHog is **not** initialised in the iOS build, drop the PostHog-only data (events beyond votes). Collected on iOS then: purchases (RevenueCat, anonymous app user id), identifiers (anonymous device-based player id, non-kids votes only), usage data (votes: question, choice, time), coarse location (country and region stored with non-kids votes). None is used for tracking; no ATT prompt; no `NSUserTrackingUsageDescription`. Kids votes: no id, no location. Backend storage counts as collection: re-check the table whenever an API route stores a new field. There is no public API for App Privacy (unverified), so Tim enters the answers, about 10 clicks.
+Updated 2026-11-20 for Tim's decisions of 2026-11-19: **general listing (not Kids Category)** and **PostHog on iOS, adult screens only**. The #87 `store/ios/privacy.md` table is superseded where it differs. Tim enters these in App Store Connect (no public API, unverified), about 10 clicks. **None is used for tracking** (no data is linked to third-party data for ads, no data broker sharing), so: no ATT prompt, no `NSUserTrackingUsageDescription`, and "Data Used to Track You" = none.
+
+| Apple data type | Collected | Linked to the user | Used for tracking | Purpose | Source |
+|---|---|---|---|---|---|
+| Purchases > Purchase History | Yes | Yes (anonymous RevenueCat app user id) | No | App Functionality | RevenueCat |
+| Identifiers > Device ID | Yes | Yes (random anonymous id, not Apple's IDFA or IDFV) | No | Analytics, App Functionality | PostHog, vote API (adult screens only) |
+| Usage Data > Product Interaction | Yes | Yes (via the anonymous id) | No | Analytics, App Functionality | PostHog events and votes (question, choice, time) |
+| Location > Coarse Location | Yes | Yes (via the anonymous id) | No | App Functionality | Vote API stores country and region from the request; IP address is not stored |
+| Diagnostics > Crash or performance data | No | | | | none collected by the app |
+| Contact info, User content, Browsing, Search, Health, Financial, Contacts, Sensitive info | No | | | | |
+
+Kids & Family screens: **no analytics, no device id, no region**; a vote there stores only question, option and time. Enforced in code: `analyticsOnFor()` (route and event-property guards, native fail-closed) and `castVote()` for `kf-*` questions; covered by `tests/unit/analytics-core.test.ts` and `tests/unit/votes-client.test.ts`.
+
+Caveats to re-check before Tim enters the answers:
+- The PostHog React Native SDK keeps its own anonymous id only if a storage package is installed; none is today, so it is in memory (a new id each launch). If persistence is added later, the id is still never sent from kids screens, but the answers above stay the same.
+- Events captured on an adult screen can be flushed shortly after the user opens a kids screen (PostHog batches). Nothing new is captured on kids screens.
+- Backend storage counts as collection: re-check this table whenever an API route stores a new field or an SDK is added.
+- The privacy policy page (`/privacy`) must say the same; it is updated in the same release.
 
 ### 5.4 Export compliance
 

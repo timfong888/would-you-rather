@@ -1,5 +1,7 @@
 /**
  * Kids routes keep no persisted visitor ID and send no analytics, even with a PostHog key configured.
+ * The kids vote request carries no visitorId, and nothing about a kids vote is stored (localStorage,
+ * sessionStorage, cookies); answers stored by older versions are purged when a kids route is shown.
  * Build with a (fake) key and analytics debug logging so the analytics path is live, serve it, then run
  * (use `npx expo export -p web --clear` if Metro served a stale env):
  *   EXPO_PUBLIC_ANALYTICS_DEBUG=true EXPO_PUBLIC_POSTHOG_DEBUG_KEY=phc_test EXPO_PUBLIC_POSTHOG_KEY=phc_test \
@@ -23,10 +25,14 @@ async function player(browser, preset) {
   const events = [];
   page.on('console', (m) => { const t = m.text(); if (t.startsWith('[analytics]')) events.push(t.slice(12).split(' ')[0]); });
   await page.route(/posthog\.com/, (r) => { ph.push(r.request().url()); r.abort(); });
-  await page.route('**/api/votes', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ tally: { a: 30, b: 20, total: 50 }, choice: 'A' }) }));
-  return { ctx, page, ph, events };
+  const votes = [];
+  await page.route('**/api/votes', (r) => { votes.push(JSON.parse(r.request().postData() || '{}')); return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ tally: { a: 30, b: 20, total: 50 }, choice: 'A' }) }); });
+  return { ctx, page, ph, events, votes };
 }
 const vid = (page) => page.evaluate(() => localStorage.getItem('wyr_visitor_id'));
+// Every stored value that mentions a kids question (kf-*), by key.
+const kidsStorage = (page) => page.evaluate(() => Object.fromEntries(
+  [...Object.entries(localStorage), ...Object.entries(sessionStorage)].filter(([, v]) => /kf-\d/.test(v))));
 
 const browser = await chromium.launch();
 { // adult: the key is live, so analytics goes out and the ID is persisted
@@ -38,7 +44,7 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 { // kids landing with a pre-existing stored ID: it is removed, nothing sent, nothing re-created
-  const { ctx, page, ph, events } = await player(browser, 'pre-existing-adult-id');
+  const { ctx, page, ph, events, votes } = await player(browser, 'pre-existing-adult-id');
   await page.goto(`${HOST}/game/kf-2`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
   check((await vid(page)) === null, 'kids landing: an existing wyr_visitor_id is removed and none is created');
@@ -50,6 +56,10 @@ const browser = await chromium.launch();
   check((await vid(page)) === null, 'kids: still no wyr_visitor_id after voting and sharing');
   check(events.length === 0, 'kids: no analytics event reaches track() on load, vote or share', events.join(','));
   check(ph.length === 0, 'kids: no analytics request on load, vote or share', ph.join(' '));
+  check(votes.length === 1 && !('visitorId' in votes[0]), 'kids: the vote request carries no visitorId', JSON.stringify(votes));
+  const stored = await kidsStorage(page);
+  check(Object.keys(stored).length === 0, 'kids: nothing about the kids vote is written to localStorage/sessionStorage', JSON.stringify(stored));
+  check((await ctx.cookies()).length === 0, 'kids: no cookies');
   await ctx.close();
 }
 { // adult first, then into a kids route inside the app: the ID is purged and nothing more is sent
@@ -61,6 +71,23 @@ const browser = await chromium.launch();
   await page.evaluate(() => { window.history.pushState({}, '', '/game/kf-2'); window.dispatchEvent(new PopStateEvent('popstate')); });
   await page.waitForTimeout(1500);
   check((await vid(page)) === null, 'adult then kids: the ID is removed when the kids route is shown');
+  await ctx.close();
+}
+{ // kids answers stored by an older version are removed when a kids route is shown; adult answers stay
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) {
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('wyr_voted_v1', JSON.stringify({ 'kf-1': 'A', 'hl-1': 'B' }));
+    localStorage.setItem('wyr_answered_questions', JSON.stringify({ 'kf-1': 'A' }));
+    localStorage.setItem('wyr_pending_votes', JSON.stringify([{ questionId: 'kf-3', choice: 'A' }]));
+  } } catch {} });
+  const page = await ctx.newPage();
+  await page.route(/posthog\.com|\/api\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+  await page.goto(`${HOST}/categories/kids-family`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  const left = await page.evaluate(() => ({ voted: localStorage.getItem('wyr_voted_v1'), answered: localStorage.getItem('wyr_answered_questions'), pending: localStorage.getItem('wyr_pending_votes') }));
+  check(!/kf-/.test(JSON.stringify(left)), 'kids route: older stored kids answers are purged', JSON.stringify(left));
+  check(left.voted === JSON.stringify({ 'hl-1': 'B' }), 'kids route: adult answers are kept', String(left.voted));
   await ctx.close();
 }
 await browser.close();

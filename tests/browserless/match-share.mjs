@@ -96,12 +96,17 @@ async function scenario(browser, { name, id, optA, optB, kids }) {
     check(extra.length === 0, `B(${outcome}): match actions made no network request`, extra.join(' '));
 
     if (outcome === 'different') {
-      // A opens B's reply link; A already voted on this device, so the result shows immediately.
+      // A opens B's reply link. Adult: A's vote is remembered on this device, so the result shows
+      // immediately. Kids: nothing about A's vote was stored (COPPA), so A answers again first.
       await A.page.goto(replyUrl, { waitUntil: 'load' });
       await A.page.waitForURL(/\/game\//);
       await A.page.waitForLoadState('networkidle');
       await A.page.waitForTimeout(800);
       const c2 = A.page.locator('[data-testid=match-card]');
+      if (kids) {
+        check((await c2.count()) === 0, 'A (kids): no stored answer, so no result before answering again');
+        await vote(A.page, optA);
+      }
       check((await c2.count()) === 1 && /picked differently/.test(await c2.innerText()), 'A: opening the reply link shows the result (A=A vs B=B)');
     }
     await B.ctx.close();

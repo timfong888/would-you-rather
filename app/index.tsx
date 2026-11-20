@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Pressable,
   Platform,
   useWindowDimensions,
@@ -20,6 +19,7 @@ import { homeJsonLd } from '@/lib/seo';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
+import SafeScrollView from '@/components/SafeScrollView';
 
 // react-native-web turns role="heading" + aria-level into a real <h1>/<h2>.
 const h1 = { role: 'heading', 'aria-level': 1 } as object;
@@ -50,7 +50,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView
+    <SafeScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -180,7 +180,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.bottomPadding} />
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 
