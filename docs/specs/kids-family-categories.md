@@ -186,12 +186,15 @@ Restore: the existing Restore Purchases button on the paywall, unchanged. Entitl
 Tim wants "AI spins off and generates them". The parent sees exactly that: after unlock, More like this keeps serving new
 questions. Under the hood, generation runs **server-side, in batches, into a per-category pool**, not once per child:
 
-- A scheduled job (Vercel cron, `api/cron/kids-pool.js`) checks each category's pool. When fewer than **50 unserved
-  approved** questions remain, it generates a batch of 50 candidates.
+- A scheduled job (Vercel cron, `api/cron/kids-pool.js`) runs monthly and generates one batch of 50 candidates per
+  category, using only data the server has: it skips a category whose newest approved row is under 30 days old (a
+  batch is still waiting or was just approved) or whose approved pool has reached the cap (300 per category, then
+  stop and revisit). The server never learns what any family has seen, so "unserved" is not a usable trigger.
 - Candidates pass the safety pipeline (§4.3) and land as `draft`. Under-13 drafts need human approval; teen drafts
   auto-publish after the pipeline (decision D5).
 - Approved questions are served by a cacheable function, `GET /api/pool/<category>` (`api/pool/[category].js`), which
-  reads `status = 'approved'` rows from `kids_pool` and responds with `Cache-Control: public, s-maxage=3600`, no cookies,
+  reads `status = 'approved'` rows from `kids_pool` and responds with `Cache-Control: public, max-age=3600, s-maxage=3600,
+  stale-while-revalidate=86400, stale-if-error=604800` (the same pattern as `api/card.js`), no cookies,
   no query string. Static files don't work here: `vercel.json` builds a static site fixed at deploy time, so a cron
   can't add files, and the catch-all rewrite `/((?!api/).*)` → `/index.html` would answer a missing `/kids-pool/*.json`
   with the SPA HTML and status 200. Paths under `/api/` skip that rewrite; an unknown category returns a JSON 404, and
@@ -252,18 +255,19 @@ Assumptions per batch of 50 candidates: ~6,000 input tokens (system, examples, d
 | **Total** | | **~$0.61** (~$0.31 with the Batch API, which suits a cron job) |
 | All-Haiku 5.5 alternative | | ~$0.02 |
 
-Seeding 100 extra per category (9 categories) costs about $6; a year of refills at 50/category/month is under $50 even
-at 5x these estimates. **Money is not the constraint; Tim's review time is** (about 10 minutes per 50 under-13 drafts).
+Seeding 100 extra per category (9 categories) costs about $6; a year of refills at 50 accepted per category per month
+(5,400 accepted) is about $33, and about $165 at 5x these estimates, within the $20/month ($240/year) spend cap. **Money is not the constraint; Tim's review time is** (about 10 minutes per 50 under-13 drafts).
 
 ### 4.5 Rate limits, caching, offline
 
-- Generation is bounded by the cron, not by users: max 1 batch per category per day, monthly spend cap enforced in the
+- Generation is bounded by the cron, not by users: max 1 batch per category per month (§4.1), monthly spend cap enforced in the
   job (stop at $20/month, alert via the daily report). No per-user rate limit is needed because users never trigger a
   model call.
 - Caching: generate once, serve forever to every family; prompt caching on the system block across the 9 categories.
 - Offline / no network: the app ships the written paid questions in the bundle, so an unlocked category still plays.
-  More like this shows "New questions need a connection" and falls back to replaying the category. The last fetched
-  pool file is kept in the HTTP cache only.
+  More like this shows "New questions need a connection" and falls back to replaying the category. The pool response's
+  `max-age` and `stale-if-error` let a browser reuse the last copy for up to a week when offline; on native, the app
+  keeps the last response in memory for the session only (no storage on kids routes).
 - "Seen" tracking: the kids rule forbids storing kids progress. Recommended (decision D6): allow one device-local,
   never-sent number per category ("next pool index"), which is not an identifier. Without it, More like this starts at a
   random point each visit and will repeat.
