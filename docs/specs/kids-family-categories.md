@@ -120,8 +120,11 @@ so SEO pages keep their own questions.
 ### 2.3 Data model change
 
 `CategoryDef` gains `audience: 'adult' | 'kids' | 'teen'` and `ages: [min, max]`. `kids` = min age under 13. `kids-family`
-is removed; `/categories/kids-family` redirects to "With kids" mode. `FAMILY_FRIENDLY`, `isKidsPath()` and
-`requiresParentalGate()` derive from `audience`, not a literal id, with a unit test that fails if any `kids` category is
+is removed; `/categories/kids-family` redirects to "With kids" mode. Two predicates replace the literal id: **no-tracking**
+(`isKidsPath()`, `FAMILY_FRIENDLY`) = `audience === 'kids'`; **parental gate** (`requiresParentalGate()`) =
+`audience === 'kids' || audience === 'teen'`. `app/unlock/[id].tsx` today uses one value (`kidsDirected`) for both the
+gate and turning off `track()`; Unit 4 splits it so the teen paywall keeps the gate and keeps analytics. Both derive
+from `audience`, with a unit test that fails if any `kids` category is
 missing from the kids-route set.
 
 ## 3. Upgrade path
@@ -186,9 +189,12 @@ questions. Under the hood, generation runs **server-side, in batches, into a per
 - Candidates pass the safety pipeline (§4.3) and land as `draft`. Under-13 drafts need human approval; teen drafts
   auto-publish after the pipeline (decision D5).
 - Approved questions are written to static files `/kids-pool/<category>.json` (CDN, no cookies, no query string).
-- The app fetches that file on More like this. Locks are enforced on the device, the same way locked written questions
-  already ship in the bundle today. No entitlement check reaches our server, so no RevenueCat ID is sent from a kids
-  screen. Leak risk equals today's (locked text is in the bundle).
+- The app fetches that file on More like this. Locks are enforced on the device. No entitlement check reaches our server, so no RevenueCat ID is sent from a kids
+  screen. **Trade-off, stated plainly:** this is weaker than today, where locked text sits only inside the app bundle;
+  the pool file is a public, guessable URL anyone can fetch. We accept that (the content is cheap to make and the
+  buyer pays for the curated, age-matched flow, not secrecy). To keep paid questions out of search next to the free
+  SEO pages: `X-Robots-Tag: noindex` on `/kids-pool/*` (in `vercel.json`) and `Disallow: /kids-pool/` in robots.txt.
+  The web simulated grant (§1.3.3) must be fixed before the pool exists.
 
 Why not live generation per tap: unreviewed output in front of a 6-year-old, a third-party call in the kids path, cost
 and latency that scale with use, and a server-side entitlement check that would need a persistent ID from a kids route.
@@ -205,7 +211,10 @@ and latency that scale with use, and a server-side entitlement check that would 
   avoid duplicates. User turn: "Write 50 new questions for [category], ages [x–y]". **No user or child data is ever in
   the prompt:** the input is category metadata and existing questions only.
 - Topic and age are enforced three ways: prompt, a classifier check ("fits the topic? fits ages x–y?"), and a
-  reading-level check (Flesch-Kincaid grade ≤ age − 3 for under-13 bands).
+  reading-level check for under-13 bands: each option is scored separately against the category's **oldest** age,
+  limit FK grade ≤ max(1, oldest age − 4), and the 3–5 and 4–8 bands use a word-count rule instead (≤ 8 words per option,
+  no word over 3 syllables), because FK is unreliable on 5-word sentences. Unit 5 must run the rule on the hand-picked
+  free 8 of every category first; if any fail, the rule is wrong, not the questions.
 
 ### 4.3 Kids-safety filtering
 
@@ -219,7 +228,9 @@ and latency that scale with use, and a server-side entitlement check that would 
    `id, category, optionA, optionB, ages, model, prompt_version, classifier_verdict, reasons, status
    (draft|approved|rejected|retired), reviewed_by, created_at`. An owner-only review page (`/owner/kids-pool`, behind
    the existing owner access) lists drafts with approve/reject in bulk. A "report this question" link on paid questions
-   (behind the parental gate, sends only the question id) retires it on the next publish.
+   (behind the parental gate, sends only the question id) moves the question back to `draft` for owner review; it is
+   **never retired automatically**, because an anonymous report cannot be told apart from a script. The report endpoint
+   is rate-limited by IP at the edge (no stored ID), and reports only flag, so a scripted loop cannot empty a paid pool.
 
 ### 4.4 Cost per 100 questions
 
@@ -254,10 +265,12 @@ at 5x these estimates. **Money is not the constraint; Tim's review time is** (ab
 - Key: the Anthropic key from #93, stored as `ANTHROPIC_API_KEY` in **Vercel server env only** (used by the cron job),
   never `EXPO_PUBLIC_*`, never in the app. Requested through the credential form, never in chat. Note #93 planned a
   build-time-only key; this extends it to a server-side cron. No user-facing route calls the model.
-- Kids rule compliance: the model receives no child data, no IDs, no votes, no device info. Kids routes make one new
-  request: `GET /kids-pool/<category>.json`, no query string, no cookies. Votes on pool questions (`kf-ai-*`) follow the
+- Kids rule compliance: the model receives no child data, no IDs, no votes, no device info. Kids routes make two new
+  requests, both without query strings or cookies: the pool file and the usage counter (§5.4). Votes on pool questions (`kf-ai-*`) follow the
   existing `kf-` rule (no visitor ID, nothing stored on device). The votes API must accept pool ids (read the same pool).
-  `tests/browserless/kids-no-tracking.mjs` gets this one URL pattern added to its allowlist and nothing else.
+  `tests/browserless/kids-no-tracking.mjs` gets exactly two URL patterns added to its allowlist and nothing else:
+  `GET /kids-pool/<category>.json` (Unit 6) and the counter endpoint `POST /api/count` with a body of
+  `{event, category, platform}` and no query string or identifier (Unit 7, §5.4).
 
 ## 5. Kids-rule boundary, 13+ rating, privacy and listing
 
@@ -323,7 +336,7 @@ Recommended default, validated against the above:
 | Band | What we measure | How | Not allowed |
 |---|---|---|---|
 | **Under 13** (every `audience: 'kids'` category: With kids mode except Real Talk) | Count-only usage: category opened, question answered (already a vote), "more like this" served, unlock screen shown. Per day x category x platform. | **First-party server-side counters** on our own endpoint (`api/count.js`, request with no ID, no cookie, IP never stored). Votes already give per-question counts. **No PostHog on these routes**, not even in memory-only mode: 5.1.4 discourages any third-party analytics in kids sections, and our own counters need no third party. | Persistent IDs, PostHog person profiles or any PostHog event, IDFA/IDFV, region, ads of any kind, ATT prompt. |
-| **13+** (Real Talk, all Grown-ups mode) | Product analytics: funnels, retention, paywall conversion. | PostHog as now (adult screens only, `lib/analyticsCore.ts`), IP discarded in the PostHog project, no ad networks, never linked with other companies' data, identifier kept in memory. Not "tracking" under ATT, so **no ATT prompt**. App Privacy: Usage Data → Product Interaction, purpose Analytics, **Not Linked to You** (holds while the ID is not persisted and there is no account; re-check if either changes). | Ad SDKs, data brokers, cross-app linking, demographic inference. |
+| **13+** (Real Talk, all Grown-ups mode) | Product analytics: funnels, retention, paywall conversion. | PostHog as now (adult screens only, `lib/analyticsCore.ts`), IP discarded in the PostHog project, no ad networks, never linked with other companies' data. Identifier: **in memory on iOS** (no storage package installed); **persisted on web** in `localStorage` (`wyr_visitor_id`, `lib/analytics.ts` `getOrCreateVisitorId`) on every non-kids route, Real Talk included. Not "tracking" under ATT, so **no ATT prompt**. App Privacy: Usage Data → Product Interaction, purpose Analytics, **Not Linked to You** for the iOS label (holds while the iOS ID is not persisted and there is no account; re-check if either changes). The web's persisted ID is covered by the privacy policy, not the App Store label. | Ad SDKs, data brokers, cross-app linking, demographic inference. |
 | **Bridge (Grown-ups → With kids)** | How many parents use With kids mode and come back. | One PostHog event, `with_kids_opened`, fired on the **Grown-ups** screen when the parent taps the switch (an adult route, before any kids screen). Nothing is sent after it. This gives a parent-level retention signal without measuring the child. | Any event from inside With kids mode; joining kids counters to the PostHog ID. |
 | **Web → app** | Which landing pages send installs. | Apple's **Smart App Banner** (`<meta name="apple-itunes-app" content="app-id=6836653723">`) and **App Store Connect campaign links** (`apps.apple.com/app/apple-store/id6836653723?pt=<provider>&ct=<page-slug>`), read in App Analytics. Apple-provided, no SDK, nothing sent to us. | Fingerprinting or deferred deep-link SDKs (AppsFlyer, Branch) on kids pages. |
 
@@ -340,7 +353,8 @@ What this costs Tim: no per-child retention or session length for under-13 bands
    operations", and which 312.5(c)(7) online notice wording does the privacy policy need?
 3. Is the `with_kids_opened` bridge event (fired on an adult screen) acceptable, or does it count as information about
    a child's use?
-4. Is "Not Linked to You" correct for PostHog with an in-memory anonymous ID?
+4. Is "Not Linked to You" correct for PostHog with an in-memory anonymous ID on iOS, and is the web's persisted
+   anonymous visitor ID (13+ routes only) adequately disclosed?
 5. Is a Smart App Banner for a 13+ app acceptable on kids-directed landing pages that address parents?
 
 ### 5.5 PRD changes (proposed; Tim applies or rejects)
@@ -368,8 +382,8 @@ add coloured text or comments without rewriting the document, which would break 
 | 3 | Browse UI: Grown-ups / With kids switch, age chips, age label on cards, mode-scoped random | `app/index.tsx`, `app/categories/index.tsx`, `components/CategoryCard.tsx` | No | screenshots at phone width; navigation test |
 | 4 | Payments: 9 products, catalog sync, paywall copy, gate on every With kids purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 17 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
 | 5 | AI pipeline (server): blocklist, generator, classifier, `kids_pool` table, cron, publish to `/kids-pool/*.json`, owner review page | `lib/kidsBlocklist.ts`, `api/cron/kids-pool.js`, `api/_lib/pool.js`, `db/migrations/*`, `app/owner/kids-pool.tsx`, `vercel.json` | **Yes** (key, spend cap, first batch review) | unit tests with a fake model client; dry run on one category; Tim approves the first 50 |
-| 6 | More like this (client) + votes accept pool ids + report link | `app/complete/[id].tsx`, `app/categories/[id].tsx`, `lib/pool.ts`, `api/_lib/votes.js`, `tests/browserless/kids-no-tracking.mjs` | **Yes** (touches the paid surface) | kids-no-tracking test passes with only the pool URL added; offline check |
-| 7 | Privacy policy (incl. the COPPA internal-operations notice, §5.4), listing kit, review notes, PRD, kids counters `api/count.js`, Smart App Banner + campaign links on landing pages | `app/privacy.tsx`, `api/count.js`, `components/PageHead.tsx`, `docs/specs/app-store-listing.md`, `docs/kids-privacy.md` | **Yes** (policy text) | `tests/unit/legal-pages.test.ts` |
+| 6 | More like this (client) + votes accept pool ids + report link | `app/complete/[id].tsx`, `app/categories/[id].tsx`, `lib/pool.ts`, `api/_lib/votes.js`, `tests/browserless/kids-no-tracking.mjs` | **Yes** (touches the paid surface) | kids-no-tracking test passes with only the pool URL added (Unit 7 adds the counter URL); offline check |
+| 7 | Privacy policy (incl. the COPPA internal-operations notice, §5.4), listing kit, review notes, PRD, kids counters `api/count.js`, Smart App Banner + campaign links on landing pages | `app/privacy.tsx`, `api/count.js`, `tests/browserless/kids-no-tracking.mjs` (counter URL), `components/PageHead.tsx`, `docs/specs/app-store-listing.md`, `docs/kids-privacy.md` | **Yes** (policy text) | `tests/unit/legal-pages.test.ts` |
 
 Order: 1 and 2 together are shippable alone (clear categories, free tiers, nothing for sale yet, SEO decision applied).
 3 next. 4 needs #53's web decision for the web half. 5–6 after 4. 7 must merge before or with 4 reaching the App Store.
