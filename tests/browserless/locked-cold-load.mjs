@@ -14,7 +14,7 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-const DIST = path.resolve(process.env.DIST || 'dist');
+const DIST = fs.realpathSync(path.resolve(process.env.DIST || 'dist'));
 const vercel = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
 const rewrites = (vercel.rewrites || []).map((r) => ({
   re: new RegExp('^' + r.source.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'),
@@ -29,20 +29,29 @@ function resolve(urlPath) {
   return urlPath;
 }
 
+// Only files inside DIST (after resolving `..` and symlinks) are served.
+function inDist(f) {
+  try {
+    const real = fs.realpathSync(f);
+    return (real === DIST || real.startsWith(DIST + path.sep)) && fs.statSync(real).isFile() ? real : null;
+  } catch {
+    return null;
+  }
+}
+
 // Like Vercel: an existing file wins; otherwise the first matching rewrite applies.
-const isFile = (f) => fs.existsSync(f) && fs.statSync(f).isFile();
 const server = http.createServer((req, res) => {
-  const urlPath = decodeURIComponent(req.url.split('?')[0]);
-  let f = path.join(DIST, urlPath);
-  if (!isFile(f)) f = path.join(DIST, resolve(urlPath));
-  if (!isFile(f) && isFile(f + '.html')) f += '.html';
-  if (!fs.existsSync(f)) { res.writeHead(404); return res.end('not found'); }
+  let urlPath;
+  try { urlPath = decodeURIComponent(req.url.split('?')[0]); } catch { res.writeHead(400); return res.end('bad request'); }
+  const candidates = [urlPath, resolve(urlPath)].flatMap((p) => [path.join(DIST, p), path.join(DIST, p) + '.html']);
+  const f = candidates.map(inDist).find(Boolean);
+  if (!f) { res.writeHead(404); return res.end('not found'); }
   const type = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json' }[path.extname(f)];
   res.writeHead(200, type ? { 'content-type': type } : {});
   fs.createReadStream(f).pipe(res);
 });
-await new Promise((r) => server.listen(0, r));
-const HOST = `http://localhost:${server.address().port}`;
+await new Promise((r) => server.listen(0, '127.0.0.1', r)); // loopback only
+const HOST = `http://127.0.0.1:${server.address().port}`;
 
 const CASES = [
   { url: '/game/hl-4?cat=high-life&idx=3', owner: false, expect: '/unlock/high-life', label: 'locked question, no access -> paywall' },
@@ -52,8 +61,19 @@ const CASES = [
   { url: '/game/hl-4?cat=high-life&idx=3', owner: true, expect: '/game/hl-4', label: 'owner on a locked question -> plays it' },
 ];
 
-const browser = await chromium.launch();
 let failed = 0;
+// The test server must not serve files outside dist/ (Vercel Security Review, PR #128).
+for (const [probe, marker] of [['/../package.json', '"devDependencies"'], ['/%2e%2e/package.json', '"devDependencies"'], ['/..%2fvercel.json', '"rewrites"']]) {
+  // Unknown paths fall through to the catch-all rewrite (index.html, like Vercel); the outside file must never come back.
+  const { status, body } = await new Promise((r) => http.get(HOST + probe, (res) => {
+    let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => r({ status: res.statusCode, body: b }));
+  }).on('error', () => r({ status: 0, body: '' })));
+  const ok = !body.includes(marker);
+  if (!ok) failed++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  no file outside dist/ for ${probe} (HTTP ${status}${ok ? '' : ', leaked'})`);
+}
+
+const browser = await chromium.launch();
 for (const c of CASES) {
   const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
   const page = await ctx.newPage();
