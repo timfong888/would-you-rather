@@ -80,7 +80,8 @@ export function setRouterPath(pathname: string | null | undefined): void {
 /** Same function under the name the native analytics gate uses. */
 export const setCurrentRoute = setRouterPath;
 
-function currentPath(): string | null | undefined {
+/** The route the gates judge: the router's path, else window.location on web, else unknown (native). Never throws. */
+export function currentPath(): string | null | undefined {
   if (_routerPath !== null) return _routerPath;
   if (Platform.OS === 'web') return typeof window !== 'undefined' ? window.location.pathname : undefined;
   return undefined;
@@ -93,7 +94,7 @@ function onKidsPage(): boolean {
 }
 
 /** True when analytics may run on the current screen (web: route judged; native: closed until known). */
-function analyticsOn(): boolean {
+export function analyticsOn(): boolean {
   if (Platform.OS === 'web' && typeof window === 'undefined') return true; // SSR: no client anyway
   return analyticsOnFor({ platform: Platform.OS, pathname: currentPath(), isKids: isKidsPath });
 }

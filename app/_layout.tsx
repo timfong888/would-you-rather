@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack, useRouter, usePathname } from 'expo-router';
+import { Stack, useRouter, usePathname, ErrorBoundary as ExpoErrorBoundary } from 'expo-router';
 import { SEO_PAGES } from '@/constants/seoPages';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
@@ -9,6 +9,7 @@ import { AnalyticsProvider } from '@/contexts/AnalyticsContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import { flushPendingVotes } from '@/lib/votes';
 import { track, syncKidsMode, setRouterPath } from '@/lib/analytics';
+import { installErrorTracking, reportError } from '@/lib/errorTracking';
 
 function HeaderActions() {
   const router = useRouter();
@@ -28,10 +29,16 @@ function HeaderActions() {
   );
 }
 
+/** Render errors: report them, then show expo-router's default error screen. */
+export function ErrorBoundary(props: { error: Error; retry: () => Promise<void> }) {
+  useEffect(() => { reportError(props.error, 'render'); }, [props.error]);
+  return <ExpoErrorBoundary {...props} />;
+}
+
 function AppLayout() {
   const { colors, isDark } = useTheme();
   // Retry any vote that could not be sent last time (issue #65).
-  useEffect(() => { flushPendingVotes(); }, []);
+  useEffect(() => { flushPendingVotes(); installErrorTracking(); }, []);
   // page_view on every route change, path only (no query string), so SEO
   // landing pages are measurable (#52).
   const pathname = usePathname();
