@@ -1,6 +1,8 @@
 /**
  * Match share (#92) browser check. Run against a built site:
  *   APP_HOST=http://localhost:4175 node tests/browserless/match-share.mjs
+ * Build with EXPO_PUBLIC_SITE_URL=http://localhost:4175 (share links use SITE_URL, so without it recipient B
+ * is sent to the production domain), then `npm run build:web`.
  * (needs `playwright`; the vote and tally endpoints are mocked, nothing is voted for real.)
  *
  * Adult: A shares after answering; B opens the link, answers, and sees matched/different;
