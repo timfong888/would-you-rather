@@ -3,18 +3,20 @@
  * under plain Node in tests. What reaches analytics is a short, scrubbed description:
  * no stack traces, no URLs with query strings (any scheme, blob:/data: payloads, scheme-less hosts), no email addresses.
  */
-// Input is capped before any regex runs, and every pattern below starts only at a token boundary or has no
-// leading greedy group, so cost stays linear: a large error payload (a JSON.stringify of an API body, say)
-// must not freeze the page, and this runs before the per-page rate limiter.
-const MAX_INPUT = 2000;
-const DELIMS = [' ', '\n', '\t', '\r', ',', ';', ')', "'", '"'];
+// Every pattern below starts only at a token boundary or has no leading greedy group, so scrub is linear in
+// the input. This cap is only a sanity limit for huge payloads (a JSON.stringify of an API body, say); it runs
+// before the per-page rate limiter and must not freeze the page. It cuts only at characters that every pattern
+// below treats as a token terminator (whitespace, ")", quotes), so no URL or email is ever split in half; text
+// of that size with no such character is replaced by a marker instead of being cut mid-token.
+const MAX_INPUT = 100_000;
+const TERMINATOR = /[\s)'"]/;
 
-/** Cap the input without cutting a token in half (a half email would no longer match the email pattern). */
 function capInput(text: string): string {
   if (text.length <= MAX_INPUT) return text;
-  const head = text.slice(0, MAX_INPUT);
-  const cut = Math.max(...DELIMS.map((c) => head.lastIndexOf(c)));
-  return cut > 0 ? head.slice(0, cut) : head;
+  for (let i = MAX_INPUT - 1; i > 0; i--) {
+    if (TERMINATOR.test(text[i])) return text.slice(0, i);
+  }
+  return '<truncated>';
 }
 
 function cleanUrl(u: string): string {
@@ -35,7 +37,8 @@ export function scrub(text: string, max = 200): string {
     .replace(/(^|[^a-z0-9])(blob|data):[^\s)'"]+/gi, (_m, pre: string, kind: string) => `${pre}<${kind.toLowerCase()}-uri>`)
     // Scheme-less hosts or paths with a query string (www.example.com/p?link_id=x): cut at the "?".
     .replace(/\?[^\s)'"?]*=[^\s)'"]*/g, '')
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email>')
+    // Starts only at the beginning of a [\w.+-] run, so a long run without "@" is scanned once, not once per character.
+    .replace(/(^|[^\w.+-])[\w.+-]+@[\w-]+\.[\w.-]+/g, '$1<email>')
     .slice(0, max);
 }
 

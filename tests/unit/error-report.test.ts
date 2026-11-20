@@ -25,13 +25,19 @@ test('scrub drops query strings from any scheme, blob/data payloads and scheme-l
   assert.ok(!scrub('x https://a.test/p?link_id=secret#frag y').includes('secret'));
 });
 
-test('scrub: the input cap never leaves half an email, and URLs after "_" or digits are still scrubbed', () => {
-  const pre = 'https://h.example.com/p?q=';
-  const out = scrub(pre + 'a'.repeat(2000 - pre.length - 14) + ' john.doe@gmail.com tail');
-  assert.ok(!/john|doe@|gmai/.test(out), out); // base returned "<email>"; the pre-cap must not leak a fragment
+test('scrub: the huge-input cap never splits a URL or email, and URLs after "_" or digits are still scrubbed', () => {
+  const FILL = 100_000;
+  // A cap that would land inside URL credentials (";" is part of the URL token, not a terminator):
+  const url = scrub('see https://admin:4821;' + 'z'.repeat(FILL) + '@db.example.com/x');
+  assert.ok(!/admin|4821/.test(url), url);
+  // Delimiter-free text over the cap is replaced, never cut mid-token (no "<email>/john" fragments):
+  assert.equal(scrub('x'.repeat(FILL - 10) + '@x.co/john.doe@gmail.com'), '<truncated>');
+  // A cap near an email with spaces around it leaves no fragment:
+  const mail = scrub('a '.repeat(FILL / 2 - 4) + 'john.doe@gmail.com tail');
+  assert.ok(!/john|doe|gmai/.test(mail), mail);
   assert.equal(scrub('Load_https://host.example.com/reset#token=SECRET'), 'Load_https://host.example.com/reset');
   assert.equal(scrub('code 404https://host.example.com/x?k=v'), 'code <url>'); // not a valid scheme: dropped whole, nothing leaks
-  assert.equal(scrub('see _data:text/plain;base64,QUJD end'), 'see _<data>-uri end'.replace('<data>-uri', '<data-uri>'));
+  assert.equal(scrub('see _data:text/plain;base64,QUJD end'), 'see _<data-uri> end');
   assert.equal(scrub('metadata:foo stays'), 'metadata:foo stays'); // not a data: URI
 });
 
@@ -39,7 +45,8 @@ test('scrub stays fast on large whitespace-free input (no quadratic backtracking
   const big = JSON.stringify({ rows: Array.from({ length: 4000 }, (_, i) => ({ id: i, v: 'abc' + i })) }); // ~100 KB, no spaces
   assert.ok(big.length > 50000 && !/\s/.test(big));
   const alnum = 'a'.repeat(100000);
-  for (const input of [big, alnum, 'a'.repeat(50000) + '?', 'x:' + 'a'.repeat(50000)]) {
+  const spaced = 'word '.repeat(300000); // 1.5 MB with spaces: capped, then linear
+  for (const input of [big, alnum, 'a'.repeat(50000) + '?', 'x:' + 'a'.repeat(50000), 'a'.repeat(1_000_000), spaced, 'a@'.repeat(50000), 'a.'.repeat(50000), 'a?'.repeat(50000), 'a:/'.repeat(30000), 'a@b'.repeat(30000), 'blob:'.repeat(20000)]) {
     const t0 = Date.now();
     scrub(input);
     assert.ok(Date.now() - t0 < 100, `scrub took ${Date.now() - t0} ms on ${input.length} chars`);
