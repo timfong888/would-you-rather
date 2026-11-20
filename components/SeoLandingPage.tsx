@@ -14,6 +14,7 @@ import { getRelatedSeoPages, getSeoPage, getSeoPageQuestions, getSeoPageUpdated,
 import { SITE_URL } from '@/constants/config';
 import { ORGANIZATION_DESCRIPTION, landingPageJsonLd } from '@/lib/seo';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { nativeShareOptions } from '@/lib/shareQuestion';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -78,7 +79,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
     if (Platform.OS !== 'web') {
       // Native app routes: the OS share sheet.
       try {
-        await Share.share({ title: 'Would You Rather?', message: `${text}\n\n${url}`, url });
+        await Share.share(nativeShareOptions({ title: 'Would You Rather?', text, url, os: Platform.OS }));
       } catch {
         // Dismissed or unavailable: nothing else to do.
       }

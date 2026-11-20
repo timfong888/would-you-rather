@@ -21,13 +21,29 @@ export interface ShareDeps {
   /** What to copy when the share sheet is unavailable (default: the url). Used to keep a message with its link. */
   copyText?: string;
   /** React Native's Share.share, used on native. */
-  nativeShare?: (opts: { title: string; message: string; url: string }) => unknown;
+  nativeShare?: (opts: { title: string; message: string; url?: string }) => unknown;
+  /** Native platform, for nativeShareOptions (default 'ios'). */
+  os?: 'ios' | 'android';
+}
+
+/**
+ * Options for React Native's Share.share. The link must reach the recipient exactly once:
+ * iOS shares `message` and `url` as separate items (a link in both shows twice and loses the
+ * rich preview), so the url goes only in `url`. Android ignores `url`, so there it goes in the message.
+ */
+export function nativeShareOptions(o: { title: string; text: string; url: string; os?: string }): {
+  title: string;
+  message: string;
+  url?: string;
+} {
+  if (o.os === 'android') return { title: o.title, message: `${o.text}\n\n${o.url}` };
+  return { title: o.title, message: o.text, url: o.url };
 }
 
 export async function shareLink(d: ShareDeps): Promise<ShareOutcome> {
   if (d.nativeShare) {
     try {
-      await d.nativeShare({ title: d.title, message: `${d.text}\n\n${d.url}`, url: d.url });
+      await d.nativeShare(nativeShareOptions({ title: d.title, text: d.text, url: d.url, os: d.os }));
       return 'shared';
     } catch {
       return 'failed';

@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "VJKU43W3C2.com.timfong888.wouldyourather",
+        "appIDs": ["VJKU43W3C2.com.timfong888.wouldyourather"],
+        "paths": ["/p/*"],
+        "components": [{ "/": "/p/*", "comment": "Shared questions (#134)" }]
+      }
+    ]
+  }
+}
