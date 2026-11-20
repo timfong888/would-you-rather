@@ -18,6 +18,7 @@ import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQ
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, TEST_UNLOCK } from '@/contexts/UnlockedContext';
 import { paywallEntry } from '@/lib/access';
+import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track as trackEvent } from '@/lib/analytics';
 import { requiresParentalGate } from '@/lib/parentalGate';
@@ -179,6 +180,8 @@ export default function UnlockScreen() {
   // sent to the category instead of being offered what they own, and is not a
   // paywall view (counting it would deflate conversion).
   const entryCheckedRef = useRef(false);
+  const cancelEntryNavRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => cancelEntryNavRef.current?.(), []);
   // Navigating before the root navigator mounts (cold deep link) throws.
   const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
@@ -187,7 +190,7 @@ export default function UnlockScreen() {
     if (entry === 'wait') return;
     entryCheckedRef.current = true;
     if (entry === 'to-category') {
-      router.replace(`/categories/${id as string}`);
+      cancelEntryNavRef.current = replaceWhenReady(router, `/categories/${id as string}`);
       return;
     }
     track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });

@@ -35,7 +35,7 @@ id = entitlement id).
 - `contexts/UnlockedContext.tsx` entitlements on launch, on purchase/restore, on every foreground and every 5 minutes. Access is React state, so purchased questions open at once, no reload.
 - `app/unlock/[id].tsx` the paywall: buy the category, "or unlock every category", Restore Purchases, "Have a code?" (owner code, web and native dev builds only). The simulated sheet renders only on test builds.
 - `scripts/check-web-build.mjs` web build guard (env + production bundle scan). `scripts/check-rc-keys.mjs` EAS guard.
-- `scripts/revenuecat/sync-catalog.ts` (`npm run rc:sync -- --app <id>`) idempotent catalog sync for Test Store, App Store and Web Billing apps.
+- `scripts/revenuecat/sync-catalog.ts` (`npm run rc:sync -- --app <id>`) idempotent catalog sync for Test Store, App Store and Web Billing apps. In the cloud agent container, run it with `NODE_USE_ENV_PROXY=1` so Node's fetch goes through the proxy that injects the RevenueCat key (without it: 401 Invalid API key). Done for the App Store app `appa3c231f9f4` on 2026-11-20.
 
 ## Web (RevenueCat Web Billing, Stripe)
 

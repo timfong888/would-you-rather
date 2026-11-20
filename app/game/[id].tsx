@@ -20,6 +20,7 @@ import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { questionGate } from '@/lib/access';
+import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
@@ -111,7 +112,8 @@ export default function GameScreen() {
   // navigating before it is ready throws, so wait for the root state key.
   const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
-    if (mustRedirect && category && navReady) router.replace(`/unlock/${category.id}`);
+    if (!(mustRedirect && category && navReady)) return;
+    return replaceWhenReady(router, `/unlock/${category.id}`);
   }, [mustRedirect, category, navReady, router]);
 
   // Revisiting a question whose vote the server already holds (reload, back button,
