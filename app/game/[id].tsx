@@ -19,6 +19,7 @@ import { questionPageJsonLd } from '@/lib/seo';
 import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
+import { questionGate } from '@/lib/access';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
@@ -100,12 +101,12 @@ export default function GameScreen() {
   const friendPick = friend === 'A' || friend === 'B' ? friend : null;
   const arrivedViaShare = (typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id)) || friend !== null;
   const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
-  const lockGated = currentLocked && !arrivedViaShare;
+  const gate = questionGate({ locked: currentLocked, arrivedViaShare, entitlementsLoaded });
   // A buyer's entitlements arrive asynchronously (RevenueCat). Until the first
   // fetch settles, a locked-looking question may belong to a paid category, so
   // show "checking" rather than bouncing the buyer to the paywall.
-  const checkingAccess = lockGated && !entitlementsLoaded;
-  const mustRedirect = lockGated && entitlementsLoaded;
+  const checkingAccess = gate === 'checking';
+  const mustRedirect = gate === 'paywall';
   // On a cold deep link the root navigator may not be mounted on first render;
   // navigating before it is ready throws, so wait for the root state key.
   const navReady = !!useRootNavigationState()?.key;

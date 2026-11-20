@@ -17,6 +17,7 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, TEST_UNLOCK } from '@/contexts/UnlockedContext';
+import { paywallEntry } from '@/lib/access';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track as trackEvent } from '@/lib/analytics';
 import { requiresParentalGate } from '@/lib/parentalGate';
@@ -181,9 +182,11 @@ export default function UnlockScreen() {
   // Navigating before the root navigator mounts (cold deep link) throws.
   const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
-    if (!entitlementsLoaded || !navReady || entryCheckedRef.current) return;
+    if (entryCheckedRef.current) return;
+    const entry = paywallEntry({ entitlementsLoaded, navReady, unlocked: isUnlocked(id as CategoryId) });
+    if (entry === 'wait') return;
     entryCheckedRef.current = true;
-    if (isUnlocked(id as CategoryId)) {
+    if (entry === 'to-category') {
       router.replace(`/categories/${id as string}`);
       return;
     }

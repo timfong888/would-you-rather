@@ -21,3 +21,27 @@ export function canPlayCategory(state: AccessState, id: string): boolean {
   if (isCategoryEntitled(state.entitlements, id)) return true;
   return state.testUnlockEnabled && (state.testUnlocks.has(id) || state.testUnlocks.has(ENTITLEMENT_ALL));
 }
+
+/**
+ * What a question screen does with a question that may be locked. A buyer's
+ * entitlements arrive asynchronously, so until the first fetch settles a
+ * locked-looking question shows "checking" instead of bouncing to the paywall.
+ */
+export type QuestionGate = 'play' | 'checking' | 'paywall';
+
+export function questionGate(input: { locked: boolean; arrivedViaShare: boolean; entitlementsLoaded: boolean }): QuestionGate {
+  if (!input.locked || input.arrivedViaShare) return 'play';
+  return input.entitlementsLoaded ? 'paywall' : 'checking';
+}
+
+/**
+ * What the paywall does on entry, decided once: wait until entitlements have
+ * loaded and navigation is ready; then an entitled visitor goes back to the
+ * category (not a paywall view) and anyone else is counted as a paywall view.
+ */
+export type PaywallEntry = 'wait' | 'to-category' | 'track-view';
+
+export function paywallEntry(input: { entitlementsLoaded: boolean; navReady: boolean; unlocked: boolean }): PaywallEntry {
+  if (!input.entitlementsLoaded || !input.navReady) return 'wait';
+  return input.unlocked ? 'to-category' : 'track-view';
+}

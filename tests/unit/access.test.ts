@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canPlayCategory } from '../../lib/access';
+import { canPlayCategory, paywallEntry, questionGate } from '../../lib/access';
 import type { AccessState } from '../../lib/access';
 
 const base: AccessState = { ownerAccess: false, entitlements: new Set(), testUnlocks: new Set(), testUnlockEnabled: false };
@@ -52,4 +52,25 @@ test('test pack (ENTITLEMENT_ALL in test unlocks) opens every category on test b
 test('test pack is ignored on production', () => {
   const s = { ...base, testUnlocks: new Set(['premium_all']), testUnlockEnabled: false };
   assert.equal(canPlayCategory(s, 'high-life'), false);
+});
+
+test('questionGate: a locked question waits for entitlements, then goes to the paywall', () => {
+  const g = (locked: boolean, arrivedViaShare: boolean, entitlementsLoaded: boolean) => questionGate({ locked, arrivedViaShare, entitlementsLoaded });
+  assert.equal(g(false, false, false), 'play');
+  assert.equal(g(false, false, true), 'play');
+  assert.equal(g(true, true, false), 'play'); // shared question stays playable
+  assert.equal(g(true, true, true), 'play');
+  assert.equal(g(true, false, false), 'checking'); // a buyer's entitlements may still be loading
+  assert.equal(g(true, false, true), 'paywall');
+});
+
+test('paywallEntry: decides only after load and nav; entitled visitors go to the category untracked', () => {
+  const e = (entitlementsLoaded: boolean, navReady: boolean, unlocked: boolean) => paywallEntry({ entitlementsLoaded, navReady, unlocked });
+  for (const unlocked of [true, false]) {
+    assert.equal(e(false, true, unlocked), 'wait');
+    assert.equal(e(true, false, unlocked), 'wait');
+    assert.equal(e(false, false, unlocked), 'wait');
+  }
+  assert.equal(e(true, true, true), 'to-category');
+  assert.equal(e(true, true, false), 'track-view');
 });

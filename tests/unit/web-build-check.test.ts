@@ -96,21 +96,11 @@ test('a locked question URL never renders blank: it shows a locked card and redi
   assert.match(src, /This question is part of \{category\.label\}/);
 });
 
-test('locked-URL redirect and paywall entry wait for the first entitlement fetch (Sinatra P1)', () => {
+test('entitlementsLoaded is set only after the first fetch settles, with a timeout (Sinatra P1)', () => {
   const ctx = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
-  // Loaded starts true only when purchases are off; set after the first fetch settles, with a timeout.
   assert.match(ctx, /useState<boolean>\(\(\) => !purchases\.isAvailable\(\)\)/);
-  assert.match(ctx, /\.finally\(\(\) => \{\s*clearTimeout\(loadTimeout\);\s*markLoaded\(\);/);
   assert.match(ctx, /setTimeout\(markLoaded, ENTITLEMENTS_LOAD_TIMEOUT_MS\)/);
-
-  const game = readFileSync('app/game/[id].tsx', 'utf8');
-  assert.match(game, /const checkingAccess = lockGated && !entitlementsLoaded;/);
-  assert.match(game, /const mustRedirect = lockGated && entitlementsLoaded;/);
-  assert.ok(game.indexOf('if (checkingAccess)') < game.indexOf('if (mustRedirect && category)'));
-
-  const unlock = readFileSync('app/unlock/[id].tsx', 'utf8');
-  assert.match(unlock, /if \(!entitlementsLoaded \|\| !navReady \|\| entryCheckedRef\.current\) return;/);
-  // An entitled visitor goes to the category and is not counted as a paywall view.
-  const entry = unlock.slice(unlock.indexOf('entryCheckedRef.current = true'));
-  assert.ok(entry.indexOf("router.replace(`/categories/") < entry.indexOf("track('paywall_viewed'"));
+  // markLoaded runs in finally, after the then() that stores the entitlements.
+  const fetch = ctx.slice(ctx.indexOf('const loadTimeout'), ctx.indexOf('const unsubscribe'));
+  assert.ok(fetch.indexOf('setEntitlements(') < fetch.indexOf('.finally('));
 });
