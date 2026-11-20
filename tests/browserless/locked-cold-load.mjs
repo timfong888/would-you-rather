@@ -65,9 +65,10 @@ let failed = 0;
 // The test server must not serve files outside dist/ (Vercel Security Review, PR #128).
 for (const [probe, marker] of [['/../package.json', '"devDependencies"'], ['/%2e%2e/package.json', '"devDependencies"'], ['/..%2fvercel.json', '"rewrites"']]) {
   // Unknown paths fall through to the catch-all rewrite (index.html, like Vercel); the outside file must never come back.
-  const { status, body } = await new Promise((r) => http.get(HOST + probe, (res) => {
+  // http.request's `path` is sent verbatim; a URL string would normalize the dot segments away first.
+  const { status, body } = await new Promise((r) => http.request({ host: '127.0.0.1', port: server.address().port, path: probe }, (res) => {
     let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => r({ status: res.statusCode, body: b }));
-  }).on('error', () => r({ status: 0, body: '' })));
+  }).on('error', () => r({ status: 0, body: '' })).end());
   const ok = !body.includes(marker);
   if (!ok) failed++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  no file outside dist/ for ${probe} (HTTP ${status}${ok ? '' : ', leaked'})`);
