@@ -16,6 +16,7 @@ import { resolve } from 'path';
 import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
 import { KIDS_CATEGORY, SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage } from '../constants/seoPages';
+import { CANONICAL_ORIGIN } from '../lib/site';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
 const ROOT = resolve(__dirname, '..');
@@ -25,6 +26,7 @@ const warnings: string[] = [];
 const fail = (msg: string) => failures.push(msg);
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), 'utf-8');
 const host = new URL(SITE_URL).host;
+if (SITE_URL.replace(/\/+$/, '') !== CANONICAL_ORIGIN) fail(`SITE_URL "${SITE_URL}" differs from CANONICAL_ORIGIN "${CANONICAL_ORIGIN}" (lib/site.js); share links use the latter`);
 
 // --- Registry ---------------------------------------------------------------
 const seen = { slug: new Set<string>(), title: new Set<string>(), description: new Set<string>() };

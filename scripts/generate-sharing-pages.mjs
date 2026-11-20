@@ -20,10 +20,15 @@ const { sharePageMeta } = await import('../lib/sharePage.js');
 const { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } =
   await import('../api/_lib/data.js');
 
-// Single source of truth: mirrors constants/config.ts SITE_URL.
-// Set EXPO_PUBLIC_SITE_URL in Vercel env vars for the canonical prod domain.
+// Share links point at CANONICAL_ORIGIN (lib/site.js), so the pages they land on must say the same
+// in og:url / og:image. EXPO_PUBLIC_SITE_URL may only repeat it; a different value fails the build.
 // Never use VERCEL_URL here — it is per-deployment and causes link rot.
-const BASE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? CANONICAL_ORIGIN;
+const BASE_URL = CANONICAL_ORIGIN;
+const override = process.env.EXPO_PUBLIC_SITE_URL;
+if (override && override.replace(/\/+$/, '') !== CANONICAL_ORIGIN) {
+  console.error(`generate-sharing-pages: EXPO_PUBLIC_SITE_URL="${override}" differs from CANONICAL_ORIGIN "${CANONICAL_ORIGIN}" (lib/site.js). Unset it or set it to the canonical origin.`);
+  process.exit(1);
+}
 
 // Build-time guard: og:url host must match every host in sitemap.xml.
 const sitemapXml = await readFile(join(__dirname, '../public/sitemap.xml'), 'utf-8');

@@ -41,7 +41,7 @@ test('shareLink on native hands Share.share a single URL', async () => {
 
 for (const id of ['kf-14', 'hl-1']) {
   test(`share page meta for ${id}: question title, canonical og:url and static og:image`, () => {
-    const q = QUESTIONS.find((x: any) => x.id === id);
+    const q = QUESTIONS.find((x: any) => x.id === id)!;
     const m = sharePageMeta(q, CANONICAL_ORIGIN);
     assert.ok(m.title.includes(q.optionA.slice(0, 20)));
     assert.equal(m.url, `${CANONICAL_ORIGIN}/p/${id}`);
