@@ -187,14 +187,16 @@ Tim wants "AI spins off and generates them". The parent sees exactly that: after
 questions. Under the hood, generation runs **server-side, in batches, into a per-category pool**, not once per child:
 
 - A scheduled job (Vercel cron, `api/cron/kids-pool.js`) runs monthly and generates one batch of 50 candidates per
-  category, using only data the server has: it skips a category whose newest approved row is under 30 days old (a
-  batch is still waiting or was just approved) or whose approved pool has reached the cap (300 per category, then
+  category, using only data the server has: it skips a category that has any `draft` row (a batch is still waiting
+  for review, so drafts never pile up in Tim's queue), whose newest row of any status was created under 25 days ago
+  (the last generation; below the cron interval so no monthly run is skipped by calendar drift), or whose approved
+  pool has reached the cap (300 per category, then
   stop and revisit). The server never learns what any family has seen, so "unserved" is not a usable trigger.
 - Candidates pass the safety pipeline (§4.3) and land as `draft`. Under-13 drafts need human approval; teen drafts
   auto-publish after the pipeline (decision D5).
 - Approved questions are served by a cacheable function, `GET /api/pool/<category>` (`api/pool/[category].js`), which
   reads `status = 'approved'` rows from `kids_pool` and responds with `Cache-Control: public, max-age=3600, s-maxage=3600,
-  stale-while-revalidate=86400, stale-if-error=604800` (the same pattern as `api/card.js`), no cookies,
+  stale-while-revalidate=86400` (CDN and browser fresh for an hour), no cookies,
   no query string. Static files don't work here: `vercel.json` builds a static site fixed at deploy time, so a cron
   can't add files, and the catch-all rewrite `/((?!api/).*)` → `/index.html` would answer a missing `/kids-pool/*.json`
   with the SPA HTML and status 200. Paths under `/api/` skip that rewrite; an unknown category returns a JSON 404, and
@@ -265,9 +267,9 @@ Seeding 100 extra per category (9 categories) costs about $6; a year of refills 
   model call.
 - Caching: generate once, serve forever to every family; prompt caching on the system block across the 9 categories.
 - Offline / no network: the app ships the written paid questions in the bundle, so an unlocked category still plays.
-  More like this shows "New questions need a connection" and falls back to replaying the category. The pool response's
-  `max-age` and `stale-if-error` let a browser reuse the last copy for up to a week when offline; on native, the app
-  keeps the last response in memory for the session only (no storage on kids routes).
+  More like this shows "New questions need a connection" and falls back to replaying the category. On web and native the
+  app keeps the last pool response in memory for the session only (no storage on kids routes); the browser's HTTP cache
+  helps for at most the one-hour `max-age`. After that, offline means the "New questions need a connection" fallback.
 - "Seen" tracking: the kids rule forbids storing kids progress. Recommended (decision D6): allow one device-local,
   never-sent number per category ("next pool index"), which is not an identifier. Without it, More like this starts at a
   random point each visit and will repeat.
