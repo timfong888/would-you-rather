@@ -18,6 +18,7 @@ import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import SafeScrollView from '@/components/SafeScrollView';
+import NativeBackBar from '@/components/NativeBackBar';
 
 // react-native-web turns role="heading" + aria-level into a real <h1>/<h2>;
 // the prop is not in React Native's own Text types.
@@ -122,6 +123,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
       <JsonLd data={landingPageJsonLd(page, questions)} />
 
       <View style={styles.column}>
+        <NativeBackBar />
         {/* Hero */}
         <View style={styles.hero}>
           <Link href="/" style={styles.appLabel}>Would You Rather?</Link>

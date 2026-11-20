@@ -26,6 +26,7 @@
     "@neondatabase/serverless": "^1.2.1",
     "@vercel/og": "^0.11.1",
     "expo": "~54.0.0",
+    "expo-application": "~7.0.8",
     "expo-constants": "~18.0.14",
     "expo-dev-client": "~6.0.21",
     "expo-font": "~14.0.12",
