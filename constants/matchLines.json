@@ -1,5 +1,5 @@
 {
-  "_readme": "All wording for 'share a question and see if your friend matched' (#92). Edit text here, no code change needed. {line} in a share message is replaced by the line the player just saw. 'adult' is used on every route except Kids & Family; 'kids' is used on Kids & Family routes. Keep kids copy kid-appropriate. 'ui' holds the button labels and result icons of the share and match screens.",
+  "_readme": "All wording for 'share a question and see if your friend matched' (#92). Edit text here, no code change needed. {line} in a share message is replaced by the line the player just saw. 'adult' is used on every route except Kids & Family; 'kids' is used on Kids & Family routes. Keep kids copy kid-appropriate. 'ui' holds the button labels and result icons of the share and match screens. Keys starting 'recipient_' are shown to someone who opened a shared link (#134); '{option}' is the option the sender picked.",
   "adult": {
     "heading": {
       "matched": "You matched the person who sent this",
@@ -45,7 +45,13 @@
       "icon_different": "⚡  ",
       "icon_asked": "💬  ",
       "send_question": "🔗  Send this question to a friend",
-      "challenge": "💬  Challenge a friend to this question first"
+      "challenge": "💬  Challenge a friend to this question first",
+      "recipient_intro_pick": "Your friend already picked. Tap yours to see if you match.",
+      "recipient_intro_ask": "Your friend wants your pick. Tap one.",
+      "recipient_intro_plain": "Tap one to see how everyone voted.",
+      "recipient_they_picked": "They picked: {option}",
+      "recipient_play_another": "PLAY ANOTHER →",
+      "recipient_send_back": "↩︎  Send one back"
     }
   },
   "kids": {
@@ -85,7 +91,13 @@
       "icon_different": "⚡  ",
       "icon_asked": "💬  ",
       "send_question": "🔗  Send this question to a friend",
-      "challenge": "💬  Challenge a friend to this question first"
+      "challenge": "💬  Challenge a friend to this question first",
+      "recipient_intro_pick": "Someone already picked. Tap yours to see if you match!",
+      "recipient_intro_ask": "Someone wants to know your pick. Tap one!",
+      "recipient_intro_plain": "Tap the one you'd pick!",
+      "recipient_they_picked": "They picked: {option}",
+      "recipient_play_another": "PLAY ANOTHER →",
+      "recipient_send_back": "↩︎  Send one back"
     }
   }
 }
