@@ -21,4 +21,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://www.wouldyourather.fyi/sitemap.xml
+Sitemap: https://wyr-timfong888.vercel.app/sitemap.xml
