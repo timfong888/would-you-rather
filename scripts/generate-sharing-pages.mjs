@@ -109,7 +109,7 @@ for (const question of QUESTIONS) {
   <meta property="og:image:width"  content="${meta.imageWidth}" />
   <meta property="og:image:height" content="${meta.imageHeight}" />
   <meta property="og:image:type"   content="image/png" />
-  <meta property="og:image:alt"    content="${esc(ogTitle)}" />
+  <meta property="og:image:alt"    content="${esc(meta.imageAlt)}" />
   <meta property="og:site_name"    content="${esc(meta.siteName)}" />
 
   <!-- Twitter Card -->
@@ -117,7 +117,7 @@ for (const question of QUESTIONS) {
   <meta name="twitter:title"       content="${esc(ogTitle)}" />
   <meta name="twitter:description" content="${esc(ogDescription)}" />
   <meta name="twitter:image"       content="${esc(cardUrl)}" />
-  <meta name="twitter:image:alt"   content="${esc(ogTitle)}" />
+  <meta name="twitter:image:alt"   content="${esc(meta.imageAlt)}" />
 
   <!-- JS redirect: real browsers jump immediately; OG scrapers (iMessage, WhatsApp)
        don't execute JS, so they read the meta tags above.
