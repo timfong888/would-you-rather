@@ -18,6 +18,8 @@ The repo has no `CLAUDE.md`; this spec follows the conventions in `docs/`.
   $1 per 100 accepted questions; human review of under-13 batches is the real cost.
 - Boundary for the no-tracking kids rule: **every category whose youngest age is under 13**. Teen categories (13–17)
   follow the adult rules but keep the purchase gate.
+- Tracking (§5.4): under 13, count-only first-party server counters and no PostHog; 13+, anonymous first-party
+  PostHog (not ATT tracking, no prompt); web→app via Apple's Smart App Banner and campaign links. Legal questions go to #114.
 
 ## 1. Audit (as of `main` at aecd745)
 
@@ -290,7 +292,58 @@ already declared. Labels unchanged. Update the listing text ("Kids & Family is f
 questions and an optional unlock") and the review notes (paths for the gate: any category in With kids mode → Unlock).
 Keep "kids" out of the app name/subtitle/keywords (guideline 2.3.8, per the listing spec).
 
-### 5.4 PRD changes (proposed; Tim applies or rejects)
+### 5.4 Tracking by age band
+
+Tim, 2026-11-19 (verbatim): "What are the actual guidelines for tracking? Like, for me, usage is the most important
+tracking, and probably getting to the web page to come to the apps. ... the more anonymous tracking we can get to
+improve the product, the better. But I don't want to reduce age or reduce the ability to gain approval from Apple"
+
+**Source status.** Apple's pages were read in this session (2026-11-20), but only partly: guideline 1.3 and 2.3.8 are
+quoted verbatim; 5.1.1, 5.1.2(i) and 5.1.4 came from a summary of the rest of the page, so treat them as **unverified**.
+The ATT tracking definition and App Privacy categories were read verbatim. **ftc.gov and ecfr.gov are blocked by this
+environment's network policy**, so every COPPA point below is from prior knowledge and **unverified**; check each
+against 16 CFR Part 312 and the FTC's 2025 final rule before relying on it.
+
+What the rules say:
+
+| Source | What it says | Status |
+|---|---|---|
+| COPPA, 16 CFR 312.2, "personal information" | Includes a persistent identifier that can recognise a user over time and across sites or services (examples given: cookie IDs, IP address, device serial numbers). | unverified |
+| COPPA 312.2, "support for the internal operations" | Includes maintaining or analysing how the service functions, personalising content, contextual ads, security, authentication, legal compliance. Excludes contacting a specific person, behavioural advertising, and building a profile of a specific person. | unverified |
+| COPPA 312.5(c)(7) | A persistent identifier may be collected without parental consent if it is used **only** for internal operations. The 2025 amendments add an online notice requirement: name the specific internal operations and how the identifier is kept from other uses. | unverified (amendments recalled as published April 2025, compliance from April 2026) |
+| COPPA 2025, "mixed audience" | A service directed to children that does not target them as its primary audience may screen ages neutrally and treat users under 13 as children. Whether "With kids" mode inside a 13+ general app is "mixed audience" or a child-directed section is a **legal judgement**. | unverified |
+| Apple 1.3 (Kids Category) | "In limited cases, third-party analytics may be permitted provided that the services do not collect or transmit the IDFA or any identifiable information about children (such as name, date of birth, email address), their location, or their devices." Links out and purchases only "behind a parental gate". | verified (verbatim) |
+| Apple 5.1.4 (Kids) | "Apps intended primarily for kids should not include third-party analytics or third-party advertising." | unverified (summary) |
+| Apple 2.3.8 | "Use of terms like 'For Kids' and 'For Children' in app metadata is reserved in the App Store for the Kids Category." | verified |
+| Apple ATT, "tracking" | "linking user or device data collected from your app with user or device data collected from other companies' apps, websites, or offline properties for targeted advertising or advertising measurement purposes", or sharing with data brokers. Linking that happens only on the device and is not sent off it is not tracking. First-party analytics that is never linked with other companies' data is outside this definition (our reading; Apple does not say it in so many words). | verified definition; reading is ours |
+| Apple App Privacy | Usage Data → **Product Interaction** ("app launches, taps, clicks, scrolling information…"); purpose **Analytics** ("evaluate user behavior… understand the effectiveness of existing product features, plan new features"). Data counts as linked to the user "unless specific privacy protections are put in place before collection to de-identify or anonymize it", and you "must not attempt to link the data back to the user's identity". | verified |
+
+Recommended default, validated against the above:
+
+| Band | What we measure | How | Not allowed |
+|---|---|---|---|
+| **Under 13** (every `audience: 'kids'` category: With kids mode except Real Talk) | Count-only usage: category opened, question answered (already a vote), "more like this" served, unlock screen shown. Per day x category x platform. | **First-party server-side counters** on our own endpoint (`api/count.js`, request with no ID, no cookie, IP never stored). Votes already give per-question counts. **No PostHog on these routes**, not even in memory-only mode: 5.1.4 discourages any third-party analytics in kids sections, and our own counters need no third party. | Persistent IDs, PostHog person profiles or any PostHog event, IDFA/IDFV, region, ads of any kind, ATT prompt. |
+| **13+** (Real Talk, all Grown-ups mode) | Product analytics: funnels, retention, paywall conversion. | PostHog as now (adult screens only, `lib/analyticsCore.ts`), IP discarded in the PostHog project, no ad networks, never linked with other companies' data, identifier kept in memory. Not "tracking" under ATT, so **no ATT prompt**. App Privacy: Usage Data → Product Interaction, purpose Analytics, **Not Linked to You** (holds while the ID is not persisted and there is no account; re-check if either changes). | Ad SDKs, data brokers, cross-app linking, demographic inference. |
+| **Bridge (Grown-ups → With kids)** | How many parents use With kids mode and come back. | One PostHog event, `with_kids_opened`, fired on the **Grown-ups** screen when the parent taps the switch (an adult route, before any kids screen). Nothing is sent after it. This gives a parent-level retention signal without measuring the child. | Any event from inside With kids mode; joining kids counters to the PostHog ID. |
+| **Web → app** | Which landing pages send installs. | Apple's **Smart App Banner** (`<meta name="apple-itunes-app" content="app-id=6836653723">`) and **App Store Connect campaign links** (`apps.apple.com/app/apple-store/id6836653723?pt=<provider>&ct=<page-slug>`), read in App Analytics. Apple-provided, no SDK, nothing sent to us. | Fingerprinting or deferred deep-link SDKs (AppsFlyer, Branch) on kids pages. |
+
+The Smart App Banner tag and the `pt`/`ct` campaign parameters are **unverified** here (Apple's page returned no body).
+Confirm both in Apple's docs and App Store Connect before building.
+
+What this costs Tim: no per-child retention or session length for under-13 bands. Retention comes from the bridge event
+(parents) and from 13+ analytics. That is the trade for keeping the kids rule and App Review clean.
+
+**For legal review before submission (added to #114):**
+1. Is "With kids" mode a child-directed section of a general-audience app or "mixed audience" under COPPA 2025, and
+   does either need an age screen?
+2. Do first-party server counters that see an IP for the request but never store it fall within "support for internal
+   operations", and which 312.5(c)(7) online notice wording does the privacy policy need?
+3. Is the `with_kids_opened` bridge event (fired on an adult screen) acceptable, or does it count as information about
+   a child's use?
+4. Is "Not Linked to You" correct for PostHog with an in-memory anonymous ID?
+5. Is a Smart App Banner for a 13+ app acceptable on kids-directed landing pages that address parents?
+
+### 5.5 PRD changes (proposed; Tim applies or rejects)
 
 These should go into the PRD as blue text with a comment each. They are not inserted: the available Drive tool cannot
 add coloured text or comments without rewriting the document, which would break "never edit the body".
@@ -316,7 +369,7 @@ add coloured text or comments without rewriting the document, which would break 
 | 4 | Payments: 9 products, catalog sync, paywall copy, gate on every With kids purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 17 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
 | 5 | AI pipeline (server): blocklist, generator, classifier, `kids_pool` table, cron, publish to `/kids-pool/*.json`, owner review page | `lib/kidsBlocklist.ts`, `api/cron/kids-pool.js`, `api/_lib/pool.js`, `db/migrations/*`, `app/owner/kids-pool.tsx`, `vercel.json` | **Yes** (key, spend cap, first batch review) | unit tests with a fake model client; dry run on one category; Tim approves the first 50 |
 | 6 | More like this (client) + votes accept pool ids + report link | `app/complete/[id].tsx`, `app/categories/[id].tsx`, `lib/pool.ts`, `api/_lib/votes.js`, `tests/browserless/kids-no-tracking.mjs` | **Yes** (touches the paid surface) | kids-no-tracking test passes with only the pool URL added; offline check |
-| 7 | Privacy policy, listing kit, review notes, PRD | `app/privacy.tsx`, `docs/specs/app-store-listing.md`, `docs/kids-privacy.md` | **Yes** (policy text) | `tests/unit/legal-pages.test.ts` |
+| 7 | Privacy policy (incl. the COPPA internal-operations notice, §5.4), listing kit, review notes, PRD, kids counters `api/count.js`, Smart App Banner + campaign links on landing pages | `app/privacy.tsx`, `api/count.js`, `components/PageHead.tsx`, `docs/specs/app-store-listing.md`, `docs/kids-privacy.md` | **Yes** (policy text) | `tests/unit/legal-pages.test.ts` |
 
 Order: 1 and 2 together are shippable alone (clear categories, free tiers, nothing for sale yet, SEO decision applied).
 3 next. 4 needs #53's web decision for the web half. 5–6 after 4. 7 must merge before or with 4 reaching the App Store.
