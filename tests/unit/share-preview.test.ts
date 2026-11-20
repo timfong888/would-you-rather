@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { nativeShareOptions, shareLink, buildShareLink } from '../../lib/shareQuestion';
 import { CANONICAL_ORIGIN } from '../../lib/site';
 import { SITE_URL } from '../../constants/config';
-import { sharePageMeta, lowerFirst } from '../../lib/sharePage';
+import { sharePageMeta, lowerFirst, SHARE_TITLE } from '../../lib/sharePage';
 // @ts-ignore plain JS
 import og from '../../api/og.js';
 // @ts-ignore plain JS
@@ -49,7 +49,9 @@ for (const id of ['kf-14', 'hl-1']) {
   test(`share page meta for ${id}: question title, canonical og:url and static og:image`, () => {
     const q = QUESTIONS.find((x: any) => x.id === id)!;
     const m = sharePageMeta(q, CANONICAL_ORIGIN);
-    assert.ok(m.title.includes(lowerFirst(q.optionA).slice(0, 20)));
+    assert.equal(m.title, SHARE_TITLE);
+    assert.ok(m.description.includes(lowerFirst(q.optionA).slice(0, 20)));
+    assert.equal(m.imageAlt, m.description);
     assert.equal(m.url, `${CANONICAL_ORIGIN}/p/${id}`);
     assert.equal(m.image, `${CANONICAL_ORIGIN}/api/og?id=${id}`);
     assert.equal(m.siteName, 'Would You Rather?');
@@ -89,9 +91,18 @@ test('a card without the logo is cached for a short time only', async () => {
   assert.match(res.headers.get('cache-control') ?? '', /s-maxage=60\b/);
 });
 
-test('share title lowercases each option mid-sentence and ends with "?"', () => {
+test('share description lowercases each option mid-sentence and ends with "?"', () => {
   const m = sharePageMeta({ id: 'kf-15', optionA: 'Have a magic paintbrush that makes drawings real', optionB: 'Have a magic pencil that finishes any homework' }, CANONICAL_ORIGIN);
-  assert.equal(m.title, 'Would you rather have a magic paintbrush that makes drawings real or have a magic pencil that finishes any homework?');
+  assert.equal(m.description, 'Would you rather have a magic paintbrush that makes drawings real or have a magic pencil that finishes any homework?');
+});
+
+test('og:title is a short hook that does not repeat the question (#131)', () => {
+  const q = QUESTIONS.find((x: any) => x.id === 'kf-17')!;
+  const m = sharePageMeta(q, CANONICAL_ORIGIN);
+  assert.ok(m.title.length <= 55, `title is ${m.title.length} chars`);
+  assert.ok(!m.title.toLowerCase().includes('would you rather'));
+  assert.ok(!m.title.toLowerCase().includes(lowerFirst(q.optionA).slice(0, 15).toLowerCase()));
+  assert.ok(m.description.startsWith('Would you rather'));
 });
 
 test('lowerFirst keeps "I" and acronyms as written', () => {

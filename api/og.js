@@ -46,9 +46,9 @@ export default async function handler(req) {
       flex({ color: "#FFFFFF", fontSize: optionSize(text), fontWeight: 800, lineHeight: 1.15 }, text));
 
   // Brand mark + app name, prominent. The logo is LOGO_PATH (swap the asset when the final icon lands).
-  const header = flex({ alignItems: "center", gap: 24 },
-    logo ? h("img", { src: logo, width: 104, height: 104, style: { borderRadius: 24 } }) : null,
-    flex({ color: "#FFFFFF", fontSize: 56, fontWeight: 800, letterSpacing: 1 }, SITE_NAME));
+  const header = flex({ alignItems: "center", gap: 28 },
+    logo ? h("img", { src: logo, width: 132, height: 132, style: { borderRadius: 30 } }) : null,
+    flex({ color: "#FFFFFF", fontSize: 68, fontWeight: 800, letterSpacing: 1 }, SITE_NAME));
 
   const body = question
     ? flex({ flex: 1, flexDirection: "column", gap: 10, justifyContent: "center" },
