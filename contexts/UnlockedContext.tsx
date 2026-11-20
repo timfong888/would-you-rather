@@ -37,6 +37,12 @@ interface UnlockedContextValue {
   testUnlockEnabled: boolean;
   /** True when real purchases are wired up: iOS (App Store key) or web (Web Billing key). */
   purchasesAvailable: boolean;
+  /**
+   * True once the first entitlement fetch has settled (or purchases are off).
+   * Until then isUnlocked() can say false for a buyer, so screens must not
+   * redirect to the paywall or count a paywall view before this is true.
+   */
+  entitlementsLoaded: boolean;
   /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
   applyEntitlements: (active: string[]) => void;
   /** Price label for a category unlock: the store price when loaded, else the approved $1.99. */
@@ -58,6 +64,7 @@ const UnlockedContext = createContext<UnlockedContextValue>({
   reset: () => {},
   testUnlockEnabled: false,
   purchasesAvailable: false,
+  entitlementsLoaded: true,
   applyEntitlements: () => {},
   priceForCategory: () => FALLBACK_PRICE_CATEGORY,
   priceForAll: () => FALLBACK_PRICE_ALL,
@@ -68,6 +75,7 @@ const UnlockedContext = createContext<UnlockedContextValue>({
 });
 
 const STORAGE_KEY = 'wyr_unlocked_categories';
+const ENTITLEMENTS_LOAD_TIMEOUT_MS = 8000;
 
 function loadFromStorage(): Set<string> {
   // Unlocks stored by the old simulated checkout (#53) or the test unlock only
@@ -97,18 +105,28 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
   const [ownerAccess, setOwnerAccess] = useState<boolean>(() => loadOwnerAccess());
   // Active RevenueCat entitlement ids (App Store on iOS, Web Billing on web).
   const [entitlements, setEntitlements] = useState<Set<string>>(() => new Set());
+  const [entitlementsLoaded, setEntitlementsLoaded] = useState<boolean>(() => !purchases.isAvailable());
 
   // Bootstrap from RevenueCat on launch and stay in sync: the listener fires on
   // purchase, restore, refund and expiry, so access is revoked without a restart.
   useEffect(() => {
     if (!purchases.isAvailable()) return;
     let cancelled = false;
+    const markLoaded = () => {
+      if (!cancelled) setEntitlementsLoaded(true);
+    };
+    // A hung network must not hold screens on "checking" forever.
+    const loadTimeout = setTimeout(markLoaded, ENTITLEMENTS_LOAD_TIMEOUT_MS);
     purchases
       .getEntitlements()
       .then((active) => {
         if (!cancelled) setEntitlements(new Set(active));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(loadTimeout);
+        markLoaded();
+      });
     const unsubscribe = purchases.onEntitlementsChange((active) => setEntitlements(new Set(active)));
     // RevenueCat does not push backend changes (refund, promo expiry) to the
     // listener; they appear on the next SDK fetch. Refresh whenever the app
@@ -128,6 +146,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     const timer = setInterval(refresh, 5 * 60 * 1000);
     return () => {
       cancelled = true;
+      clearTimeout(loadTimeout);
       unsubscribe();
       sub.remove();
       clearInterval(timer);
@@ -217,6 +236,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
         reset,
         testUnlockEnabled: TEST_UNLOCK,
         purchasesAvailable: purchases.isAvailable(),
+        entitlementsLoaded,
         applyEntitlements,
         priceForCategory,
         priceForAll,

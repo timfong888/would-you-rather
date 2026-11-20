@@ -10,7 +10,7 @@ import {
   Easing,
   TextInput,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useRootNavigationState } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
@@ -73,6 +73,7 @@ export default function UnlockScreen() {
     ownerAccessAvailable,
     grantOwnerAccess,
     purchasesAvailable,
+    entitlementsLoaded,
     applyEntitlements,
     priceForCategory,
     priceForAll,
@@ -172,13 +173,23 @@ export default function UnlockScreen() {
     }
   }, [paymentState, sheetAnim]);
 
+  // Once, after the first entitlement fetch settles: someone who already has
+  // this category (purchased or owner access) landing here by URL or reload is
+  // sent to the category instead of being offered what they own, and is not a
+  // paywall view (counting it would deflate conversion).
+  const entryCheckedRef = useRef(false);
+  // Navigating before the root navigator mounts (cold deep link) throws.
+  const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
-    // Someone who already has this category (purchased or owner access) landing
-    // here by URL is not a paywall view; counting it would deflate conversion.
-    if (isUnlocked(id as CategoryId)) return;
+    if (!entitlementsLoaded || !navReady || entryCheckedRef.current) return;
+    entryCheckedRef.current = true;
+    if (isUnlocked(id as CategoryId)) {
+      router.replace(`/categories/${id as string}`);
+      return;
+    }
     track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [entitlementsLoaded, navReady]);
 
   if (kidsDirected && !gatePassed) {
     return <ParentalGate onPass={() => setGatePassed(true)} onCancel={() => router.back()} />;

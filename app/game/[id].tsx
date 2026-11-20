@@ -51,7 +51,7 @@ function legacyCopy(value: string): boolean {
 export default function GameScreen() {
   const { id, cat, idx, link_id, f } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string; f: string }>();
   const router = useRouter();
-  const { isUnlocked } = useUnlocked();
+  const { isUnlocked, entitlementsLoaded } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -95,7 +95,12 @@ export default function GameScreen() {
   const friendPick = friend === 'A' || friend === 'B' ? friend : null;
   const arrivedViaShare = (typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id)) || friend !== null;
   const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
-  const mustRedirect = currentLocked && !arrivedViaShare;
+  const lockGated = currentLocked && !arrivedViaShare;
+  // A buyer's entitlements arrive asynchronously (RevenueCat). Until the first
+  // fetch settles, a locked-looking question may belong to a paid category, so
+  // show "checking" rather than bouncing the buyer to the paywall.
+  const checkingAccess = lockGated && !entitlementsLoaded;
+  const mustRedirect = lockGated && entitlementsLoaded;
   // On a cold deep link the root navigator may not be mounted on first render;
   // navigating before it is ready throws, so wait for the root state key.
   const navReady = !!useRootNavigationState()?.key;
@@ -203,6 +208,14 @@ export default function GameScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </Pressable>
+      </View>
+    );
+  }
+
+  if (checkingAccess) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Checking your unlocks…</Text>
       </View>
     );
   }
