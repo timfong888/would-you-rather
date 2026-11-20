@@ -250,6 +250,7 @@ Kids & Family screens: **no analytics, no device id, no region**; a vote there s
 Caveats to re-check before Tim enters the answers:
 - The PostHog React Native SDK keeps its own anonymous id only if a storage package is installed; none is today, so it is in memory (a new id each launch). If persistence is added later, the id is still never sent from kids screens, but the answers above stay the same.
 - Events captured on an adult screen can be flushed shortly after the user opens a kids screen (PostHog batches). Nothing new is captured on kids screens.
+- **RevenueCat starts at app launch on every route** (`UnlockedProvider` is mounted at the root and calls `getEntitlements()`/`getPrices()`), so its anonymous app user ID exists on the device even when the first screen is Kids & Family. The privacy policy says so; it is not linked to Kids & Family answers. Whether to defer RevenueCat on kids routes is an open code decision (#114).
 - Backend storage counts as collection: re-check this table whenever an API route stores a new field or an SDK is added.
 - The privacy policy page (`/privacy`) must say the same; it is updated in the same release.
 

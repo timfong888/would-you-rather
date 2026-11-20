@@ -128,6 +128,13 @@ function AppLayout() {
           }}
         />
         <Stack.Screen
+          name="support"
+          options={{
+            title: 'Support',
+            headerBackTitle: 'Settings',
+          }}
+        />
+        <Stack.Screen
           name="terms"
           options={{
             title: 'Terms of Service',
