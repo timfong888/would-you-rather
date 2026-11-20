@@ -15,13 +15,20 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const { CANONICAL_ORIGIN } = await import('../lib/site.js');
+const { sharePageMeta } = await import('../lib/sharePage.js');
 const { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } =
   await import('../api/_lib/data.js');
 
-// Single source of truth: mirrors constants/config.ts SITE_URL.
-// Set EXPO_PUBLIC_SITE_URL in Vercel env vars for the canonical prod domain.
+// Same value the app uses for share links (constants/config.ts SITE_URL): CANONICAL_ORIGIN, unless a
+// non-production build sets EXPO_PUBLIC_SITE_URL (local browserless checks, previews). A production
+// build must use the canonical origin, or share links and og:url would disagree with the real domain.
 // Never use VERCEL_URL here — it is per-deployment and causes link rot.
-const BASE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? 'https://wyr-timfong888.vercel.app';
+const BASE_URL = (process.env.EXPO_PUBLIC_SITE_URL ?? CANONICAL_ORIGIN).replace(/\/+$/, '');
+if (process.env.VERCEL_ENV === 'production' && BASE_URL !== CANONICAL_ORIGIN) {
+  console.error(`generate-sharing-pages: production build with EXPO_PUBLIC_SITE_URL="${BASE_URL}", expected CANONICAL_ORIGIN "${CANONICAL_ORIGIN}" (lib/site.js).`);
+  process.exit(1);
+}
 
 // Build-time guard: og:url host must match every host in sitemap.xml.
 const sitemapXml = await readFile(join(__dirname, '../public/sitemap.xml'), 'utf-8');
@@ -62,18 +69,13 @@ for (const question of QUESTIONS) {
   const themeName = THEME_FOR_CATEGORY[question.category] || 'bright';
   const isMoody = themeName === 'moody';
 
-  const shortA = truncate(question.optionA, 22);
-  const shortB = truncate(question.optionB, 22);
-  const rawTitle = `WYR: ${shortA} or ${shortB}?`;
-  const ogTitle = truncate(rawTitle, 60);
-
-  // Build-time pages never carry vote numbers: counts change after the build
-  // and below the threshold there is nothing real to show (#65). Live numbers
-  // come only from the card image (/api/card), which reads stored votes.
-  const ogDescription = 'Which side are you on? Tap to vote.';
-
-  const shareUrl = `${BASE_URL}/p/${id}`;
-  const cardUrl = `${BASE_URL}/api/card?id=${encodeURIComponent(id)}&ratio=1.91x1`;
+  // Build-time pages never carry vote numbers (#65) and the OG image (/api/og) is static
+  // brand + options only: no votes, IDs or records, so kids questions are safe too.
+  const meta = sharePageMeta(question, BASE_URL);
+  const ogTitle = meta.title;
+  const ogDescription = meta.description;
+  const shareUrl = meta.url;
+  const cardUrl = meta.image;
   const appUrl = `${BASE_URL}/game/${id}?cat=${encodeURIComponent(question.category)}`;
 
   const displayOptA = truncate(question.optionA, 200);
@@ -94,6 +96,9 @@ for (const question of QUESTIONS) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${esc(ogTitle)}</title>
+  <meta name="description" content="${esc(ogDescription)}" />
+  <link rel="icon" href="${BASE_URL}/favicon.ico" />
+  <link rel="apple-touch-icon" href="${BASE_URL}/apple-touch-icon.png" />
 
   <!-- Open Graph -->
   <meta property="og:type"         content="website" />
@@ -101,10 +106,11 @@ for (const question of QUESTIONS) {
   <meta property="og:title"        content="${esc(ogTitle)}" />
   <meta property="og:description"  content="${esc(ogDescription)}" />
   <meta property="og:image"        content="${esc(cardUrl)}" />
-  <meta property="og:image:width"  content="1200" />
-  <meta property="og:image:height" content="628" />
+  <meta property="og:image:width"  content="${meta.imageWidth}" />
+  <meta property="og:image:height" content="${meta.imageHeight}" />
   <meta property="og:image:type"   content="image/png" />
-  <meta property="og:site_name"    content="Would You Rather" />
+  <meta property="og:image:alt"    content="${esc(ogTitle)}" />
+  <meta property="og:site_name"    content="${esc(meta.siteName)}" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card"        content="summary_large_image" />

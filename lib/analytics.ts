@@ -151,11 +151,9 @@ export function buildShareUrl(
   const linkId = kids ? '' : generateLinkId();
   const gen = incomingGeneration + 1;
 
-  const origin =
-    Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.location.origin
-      : SITE_URL;
-
-  const url = buildShareLink({ origin, questionId, linkId, generation: gen, kids, friendPick });
+  // SITE_URL is the canonical origin unless a non-production build sets EXPO_PUBLIC_SITE_URL
+  // (local browserless runs, previews). Native builds set nothing, so they share real-domain links,
+  // and the share pages (generate-sharing-pages.mjs) use the same value, so links and pages agree.
+  const url = buildShareLink({ origin: SITE_URL, questionId, linkId, generation: gen, kids, friendPick });
   return { url, linkId };
 }
