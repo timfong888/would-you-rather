@@ -34,6 +34,13 @@
         "EXPO_PUBLIC_DEPLOY_ENV": "preview"
       }
     },
+    "preview-test": {
+      "extends": "preview",
+      "env": {
+        "EXPO_PUBLIC_DEPLOY_ENV": "preview",
+        "EXPO_PUBLIC_TEST_UNLOCK": "1"
+      }
+    },
     "production": {
       "distribution": "store",
       "environment": "production",

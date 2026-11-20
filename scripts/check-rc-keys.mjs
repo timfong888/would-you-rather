@@ -15,7 +15,7 @@ const web = process.env.EXPO_PUBLIC_RC_WEB_KEY ?? '';
 const platform = process.env.EAS_BUILD_PLATFORM ?? ''; // 'ios' | 'android' on EAS; empty when run by hand
 
 const problems = [];
-if (profile === 'production' || profile === 'preview') {
+if (profile === 'production' || profile === 'preview' || profile === 'preview-test') {
   if (ios.startsWith('test_')) problems.push(`EXPO_PUBLIC_RC_IOS_KEY is a Test Store key (test_...) in a ${profile} build.`);
   if (android.startsWith('test_')) problems.push(`EXPO_PUBLIC_RC_ANDROID_KEY is a Test Store key (test_...) in a ${profile} build.`);
   if (profile === 'production') {
