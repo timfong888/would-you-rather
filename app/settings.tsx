@@ -181,6 +181,14 @@ export default function SettingsScreen() {
           <Text style={styles.rowLabel}>Terms of Service</Text>
           <Text style={styles.rowChevron}>›</Text>
         </Pressable>
+        <View style={styles.divider} />
+        <Pressable
+          onPress={() => router.push('/support')}
+          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        >
+          <Text style={styles.rowLabel}>Support</Text>
+          <Text style={styles.rowChevron}>›</Text>
+        </Pressable>
       </View>
 
       <Text style={styles.version}>VERSION {appVersion}</Text>
