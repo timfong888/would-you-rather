@@ -112,10 +112,12 @@ Test Store app; App Store Connect has **0** in-app purchases for app 6836653723 
 
 ## Test script
 
-**A. TestFlight build 14 (`preview-test`, version 99.1.0, today, before setup).** No RevenueCat key yet, so this checks the flow, not billing.
-1. Install build 14 (99.1.0) from TestFlight. Open a paid category (e.g. The High Life), answer the free questions until the paywall.
+**A. TestFlight build 15 (`preview-test`, version 99.1.0, today, before setup).** No RevenueCat key yet, so this checks the flow, not billing.
+1. Install build 15 (99.1.0) from TestFlight. Open a paid category (e.g. The High Life), answer the free questions until the paywall.
 2. Tap "START N MORE CONVERSATIONS". The sheet shows "TEST MODE: NO CHARGE". Tap Pay. Success screen, then START PLAYING: question N+1 appears.
 3. Back out: the category shows unlocked without restarting the app.
+4. Open another paid category's paywall, tap "Or unlock every category · $4.99". The sheet shows All Categories, TEST MODE: NO CHARGE. Pay: every premium category opens.
+5. Open a locked question's link directly (e.g. /game/<id> on web): you land on that category's paywall, never a blank page.
 
 **B. TestFlight after checklist steps 1-5 and 8 (rebuild of `preview-test`).**
 1. Open The High Life, reach the paywall. Price shows $1.99 (from the App Store).
