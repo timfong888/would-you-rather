@@ -273,12 +273,14 @@ Ranked by impact per effort within each window. "Auto" = runs as a scheduled age
 
 | # | Decision | Recommendation | Issue |
 |---|---|---|---|
-| 1 | Turn on the weekly SEO agent (draft PRs only, Tim merges) | Yes, 3 pages/week max, 600 credits/week cap | SEO issue |
-| 2 | Review and merge #66 batch 2 | Yes, first | SEO issue |
-| 3 | Outreach: approve the monthly draft pipeline; who sends | Yes; Tim sends from his own mailbox | Outreach issue |
-| 4 | Referral approach | Match loop + offer codes; no paid program, no share-to-unlock | Referral issue |
-| 5 | ASO keyword field and ratings-prompt timing | As in section 4; alternate icons in the first binary | ASO issue |
-| 6 | Play account type and target audience | Personal account unless a D-U-N-S already exists; target 13+ | Android issue |
+| 1 | Turn on the weekly SEO agent (draft PRs only, Tim merges) | Yes, 3 pages/week max, 600 credits/week cap | #138 |
+| 2 | Review and merge #66 batch 2 | Yes, first | #138 |
+| 3 | Outreach: approve the monthly draft pipeline; who sends | Yes; Tim sends from his own mailbox | #139 |
+| 4 | Referral approach | Match loop + offer codes; no paid program, no share-to-unlock | #140 |
+| 5 | ASO keyword field and ratings-prompt timing | As in section 4; alternate icons in the first binary | #141 |
+| 6 | Play account type and target audience | Personal account unless a D-U-N-S already exists; target 13+ | #142 |
+
+Plan and metrics: #143.
 
 ## 8. Proposed PRD changes
 
