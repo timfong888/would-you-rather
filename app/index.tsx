@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Pressable,
   Platform,
   useWindowDimensions,
@@ -20,6 +19,8 @@ import { homeJsonLd } from '@/lib/seo';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
+import SafeScrollView from '@/components/SafeScrollView';
+import VersionText from '@/components/VersionText';
 
 // react-native-web turns role="heading" + aria-level into a real <h1>/<h2>.
 const h1 = { role: 'heading', 'aria-level': 1 } as object;
@@ -50,7 +51,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView
+    <SafeScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -95,17 +96,6 @@ export default function HomeScreen() {
             <Text style={styles.primaryButtonText}>START PLAYING</Text>
             <Text style={styles.buttonEmoji}>🎲</Text>
           </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/categories')}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-              <Text style={styles.secondaryButtonText}>Choose a vibe</Text>
-          </Pressable>
-
         </View>
       </View>
 
@@ -179,8 +169,9 @@ export default function HomeScreen() {
         ))}
       </View>
 
+      <VersionText style={styles.version} />
       <View style={styles.bottomPadding} />
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 
@@ -215,6 +206,13 @@ function makeStyles(colors: ThemeColors, viewportWidth: number) {
     },
     settingsIcon: {
       fontSize: 20,
+    },
+    version: {
+      fontSize: FONTS.sizes.xs,
+      color: colors.textMuted,
+      textAlign: 'center',
+      letterSpacing: 1,
+      marginTop: SPACING.lg,
     },
     hero: {
       gap: SPACING.md,
@@ -319,24 +317,6 @@ function makeStyles(colors: ThemeColors, viewportWidth: number) {
     },
     buttonEmoji: {
       fontSize: 16,
-    },
-    secondaryButton: {
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: RADIUS.full,
-      paddingHorizontal: SPACING.lg,
-      paddingVertical: SPACING.md,
-      ...Platform.select({
-        web: {
-          cursor: 'pointer',
-          transition: 'opacity 0.15s ease',
-        },
-      }),
-    },
-    secondaryButtonText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.medium,
     },
     buttonPressed: {
       opacity: 0.75,

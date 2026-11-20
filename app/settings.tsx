@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import Constants from 'expo-constants';
+import VersionText from '@/components/VersionText';
 import { useTheme, useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
@@ -30,7 +30,6 @@ export default function SettingsScreen() {
   } = useUnlocked();
   const { reset: resetAnswered } = useAnsweredQuestions();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
   // Owner access is redeemed on the payment sheet ("Have a code?" on the
   // unlock screen). Settings only shows status and lets the owner revoke it.
@@ -181,9 +180,17 @@ export default function SettingsScreen() {
           <Text style={styles.rowLabel}>Terms of Service</Text>
           <Text style={styles.rowChevron}>›</Text>
         </Pressable>
+        <View style={styles.divider} />
+        <Pressable
+          onPress={() => router.push('/support')}
+          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        >
+          <Text style={styles.rowLabel}>Support</Text>
+          <Text style={styles.rowChevron}>›</Text>
+        </Pressable>
       </View>
 
-      <Text style={styles.version}>VERSION {appVersion}</Text>
+      <VersionText style={styles.version} />
     </ScrollView>
   );
 }

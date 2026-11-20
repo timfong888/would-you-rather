@@ -11,7 +11,6 @@ import { useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import {
   QUESTIONS,
-  CATEGORIES,
   getCategoryById,
   type Question,
   type CategoryId,
@@ -22,6 +21,7 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import PageHead from '@/components/PageHead';
 import { SEO, SITE_URL } from '@/constants/config';
 import { fetchTallies } from '@/lib/votes';
+import { FEED_QUESTIONS, FEED_CATEGORIES } from '@/lib/feedQuestions';
 import { formatResult, INVITE_TITLE, type ResultDisplay, type Tally } from '@/lib/results';
 
 // ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ type FilterId = 'all' | CategoryId;
 
 const CATEGORY_FILTERS: { id: FilterId; label: string; emoji: string }[] = [
   { id: 'all', label: 'All', emoji: '✨' },
-  ...CATEGORIES.map((c) => ({ id: c.id as FilterId, label: c.label, emoji: c.emoji })),
+  ...FEED_CATEGORIES.map((c) => ({ id: c.id as FilterId, label: c.label, emoji: c.emoji })),
 ];
 
 // ---------------------------------------------------------------------------
@@ -491,7 +491,7 @@ export default function FeedScreen() {
   // The questions on screen, in a stable order. Ordering by real popularity
   // uses the counts below (only for what is shown); there are no seeded numbers.
   const visible = useMemo(() => {
-    let questions = [...QUESTIONS];
+    let questions = [...FEED_QUESTIONS];
     if (activeFilter !== 'all') {
       questions = questions.filter((q) => q.category === activeFilter);
     }
@@ -552,7 +552,7 @@ export default function FeedScreen() {
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>Discover</Text>
           <Text style={styles.headerSub}>
-            {QUESTIONS.length.toLocaleString()} dilemmas waiting
+            {FEED_QUESTIONS.length.toLocaleString()} dilemmas waiting
           </Text>
         </View>
         <Pressable

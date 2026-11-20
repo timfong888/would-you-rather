@@ -135,3 +135,125 @@ test('the provider is told when the allowed session ends and when a new one star
   assert.deepEqual(seen, [first.visitorId, null, second.visitorId]);
   assert.notEqual(second.visitorId, first.visitorId, 'a new anonymous id after kids pages');
 });
+
+test('a fresh document on an allowed route, opened from a kids page, sends no kids browsing path (Vercel Security Review on #85)', async () => {
+  // New tab / full navigation from /game/kf-2: the in-memory kids flag starts false, the referrer is the kids URL.
+  go('/categories', '', 'https://www.wouldyourather.fyi/game/kf-2');
+  const a = await load();
+  const s = a.ensureSessionInit()!;
+  assert.ok(s, 'an allowed page gets a session');
+  const blob = JSON.stringify([s.attribution, ...sentProps(), ...calls.map((c) => c.args)]);
+  assert.ok(!/kf-|kids/.test(blob), 'no kids path anywhere in what is sent: ' + blob);
+  assert.ok(!('referrer' in s.attribution), 'the kids referrer is dropped');
+  // An adult same-site referrer keeps only the origin.
+  analytics.__resetForTests(); calls.length = 0; local.clear(); session.clear();
+  go('/categories', '', 'https://www.wouldyourather.fyi/game/sb-1?x=1');
+  const b = (await load()).ensureSessionInit()!;
+  assert.equal(b.attribution.referrer, 'https://www.wouldyourather.fyi');
+});
+
+test('kids routes keep no first touch, activation counter, visitor id or ph_* keys, including a late shutdown flush', async () => {
+  go('/categories', '?utm_source=news');
+  const a = await load();
+  a.ensureSessionInit();
+  a.track('page_view', { path: '/categories' });
+  local.set('wyr_activation', JSON.stringify({ votes: 2 }));
+  local.set('ph_phc_test_posthog', '{"distinct_id":"x"}');
+  assert.ok(local.has('wyr_visitor_id') && local.has('wyr_first_touch'), 'adult page stores them');
+
+  go('/game/kf-2');
+  a.syncKidsMode('/game/kf-2');
+  for (const k of ['wyr_visitor_id', 'wyr_first_touch', 'wyr_activation', 'ph_phc_test_posthog']) assert.ok(!local.has(k), `${k} removed on a kids route`);
+
+  // PostHog's async shutdown flushing after the first clear rewrites a key: cleared again.
+  local.set('ph_phc_test_posthog', '{"late":true}');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(!local.has('ph_phc_test_posthog'), 'late ph_* write removed while still on the kids route');
+
+  // Back on an adult page the late clear must not run (it would wipe the new adult session's keys).
+  go('/categories');
+  a.syncKidsMode('/categories');
+  a.track('page_view', { path: '/categories' });
+  const keep = a.getOrCreateVisitorId().id;
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(local.get('wyr_visitor_id'), keep, 'adult visitor id survives');
+});
+
+test('in-app adult -> kids: the router path gates events while window.location still shows the adult page (verifier fail on #85)', async () => {
+  go('/categories');
+  const a = await load();
+  const s = a.ensureSessionInit()!;
+  a.track('page_view', { path: '/categories' });
+  const adultId = s.visitorId;
+  const before = captures().length;
+  const clientCalls = calls.length;
+
+  // The user clicks "Kids & Family": the router already reports the kids path (the layout calls
+  // setRouterPath while rendering) but window.location has not changed yet.
+  a.setRouterPath('/categories/kids-family');
+  a.track('page_view', { path: '/categories/kids-family' });
+  a.track('session_start', { source: 'internal' });
+  assert.equal(captures().length, before, 'nothing captured for the kids route');
+  assert.equal(a.ensureSessionInit(), a.getSession(), 'no new session is created');
+  assert.notEqual(a.getOrCreateVisitorId().id, adultId, 'kids routes never use the adult id');
+  a.syncKidsMode('/categories/kids-family'); // the layout effect, afterwards
+  assert.ok(!local.has('wyr_visitor_id'), 'the stored id is removed');
+  a.track('page_view', { path: '/categories/kids-family' });
+  assert.equal(captures().length, before, 'still nothing captured');
+  assert.ok(!calls.slice(clientCalls).some((c) => c.op === 'identify' || c.op === 'capture' && JSON.stringify(c.args).includes('kids-family')), 'no identify, no kids path');
+  assert.ok(!local.has('wyr_visitor_id'), 'no new persisted id was created');
+});
+
+test('no persistence option is read from the SDK on web: the client is created with memory persistence', async () => {
+  go('/categories');
+  const a = await load();
+  a.ensureSessionInit();
+  a.track('page_view', { path: '/categories' });
+  const init = calls.find((c) => c.op === 'init');
+  assert.ok(init, 'a client was created');
+  assert.equal((init!.args[1] as any)?.persistence, 'memory');
+});
+
+test('reverse navigation: the router has left a kids route but window.location still shows the kids URL (Vercel Security Review on #85, a776c7d)', async () => {
+  // A kids landing with a campaign, a referrer and a share link in the URL.
+  go('/game/kf-1', '?utm_campaign=kidscampaign&utm_source=kidsnews&link_id=kidslink&gen=3', 'https://www.google.com/');
+  const a = await load();
+  assert.equal(a.ensureSessionInit(), null);
+  a.syncKidsMode('/game/kf-1');
+  // AnalyticsProvider's subscriber, as in contexts/AnalyticsContext.tsx.
+  a.subscribeSession((s) => {
+    if (!s) return;
+    a.track('session_start', {
+      ...s.attribution,
+      source: s.linkId ? 'shared_link' : s.attribution.channel,
+      link_id: s.linkId ?? undefined,
+      visitor_id: s.visitorId,
+    });
+  });
+
+  // Kids -> Settings in-app: the router path advances, the browser URL has not caught up.
+  a.syncKidsMode('/settings');
+  a.track('page_view', { path: '/settings' });
+  const s = a.getSession();
+  assert.ok(s, 'an allowed route gets a session');
+
+  const sent = JSON.stringify([s!.attribution, s!.linkId, ...calls.map((c) => c.args)]);
+  for (const bad of ['kf-', 'kids', 'kidscampaign', 'kidsnews', 'kidslink']) {
+    assert.ok(!sent.includes(bad), `"${bad}" must not reach PostHog or the session: ${sent}`);
+  }
+  assert.equal(s!.linkId, null, 'no kids link id');
+  assert.ok(!('utm_campaign' in s!.attribution) && !('utm_source' in s!.attribution) && !('referrer' in s!.attribution));
+  assert.ok(!local.has('wyr_first_touch') || !local.get('wyr_first_touch')!.includes('kids'), 'no kids first touch persisted');
+});
+
+test('the PostHog client is created with GeoIP disabled and an $ip strip (the policy says we store no IP)', async () => {
+  go('/categories');
+  const a = await load();
+  a.ensureSessionInit();
+  a.track('page_view', { path: '/categories' });
+  const opts = calls.find((c) => c.op === 'init')!.args[1] as any;
+  assert.equal(opts.disableGeoip, true);
+  assert.equal(typeof opts.before_send, 'function');
+  const out = opts.before_send({ event: 'page_view', properties: { $ip: '198.51.100.7', path: '/categories' } });
+  assert.ok(!('$ip' in out.properties), 'no $ip survives before_send');
+});

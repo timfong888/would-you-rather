@@ -38,7 +38,7 @@ test('a store failure on POST /api/votes logs one api_error line with route and 
   const store = { insertVote: async () => { throw new Error('connect failed postgres://user:secret@host/db'); } };
   const questionsById = new Map([['hl-1', { id: 'hl-1', category: 'high-life' }]]);
   const { out, lines } = await captureStderr(() =>
-    recordVote({ store, questionsById, body: { questionId: 'hl-1', choice: 'A', visitorId: '00000000-0000-4000-8000-000000000009' }, geo: {}, secret: 's' }),
+    recordVote({ store, questionsById, body: { questionId: 'hl-1', choice: 'A', visitorId: '00000000-0000-4000-8000-000000000009' }, geo: {} }),
   );
   assert.equal(out.status, 503);
   assert.equal(lines.length, 1);

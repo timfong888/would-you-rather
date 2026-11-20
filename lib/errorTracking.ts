@@ -5,7 +5,7 @@
  * path (no query string), source. No stack traces.
  */
 import { Platform } from 'react-native';
-import { track } from '@/lib/analytics';
+import { track, analyticsOn } from '@/lib/analytics';
 import { describeError, createLimiter } from '@/lib/errorReport';
 
 let installed = false;
@@ -17,6 +17,9 @@ function currentPath(): string | undefined {
 
 export function reportError(err: unknown, source: 'window.onerror' | 'unhandledrejection' | 'render' | 'manual'): void {
   try {
+    // Errors that cannot be sent (kids routes, native before the route is known) must not use up the
+    // per-page budget, or a burst on a kids page would silence later errors on adult pages.
+    if (!analyticsOn()) return;
     const { type, message } = describeError(err);
     if (!allow(`${type}:${message}`)) return;
     track('$exception', {

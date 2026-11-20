@@ -6,7 +6,8 @@ import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
 import { getOrCreateVisitorId, track } from '@/lib/analytics';
 import type { Tally } from '@/lib/results';
-import { postVote, getTally, getTallies, flushPending, lockedChoice, parsePending, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
+import { postVote, getTally, getTallies, flushPending, lockedChoice, parsePending, voteBody, withoutKidsAnswers, withoutKidsPending, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
+import { isKidsQuestion } from '@/lib/kidsPaths';
 
 export type { Choice };
 
@@ -20,7 +21,7 @@ function apiBase(): string {
 function readPending(): PendingVote[] {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return [];
   try {
-    return parsePending(localStorage.getItem(PENDING_KEY));
+    return withoutKidsPending(parsePending(localStorage.getItem(PENDING_KEY)));
   } catch {
     return [];
   }
@@ -29,7 +30,8 @@ function readPending(): PendingVote[] {
 function writePending(list: PendingVote[]): void {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
   try {
-    if (list.length) localStorage.setItem(PENDING_KEY, JSON.stringify(list));
+    const kept = withoutKidsPending(list);
+    if (kept.length) localStorage.setItem(PENDING_KEY, JSON.stringify(kept));
     else localStorage.removeItem(PENDING_KEY);
   } catch {
     // storage unavailable: the vote is simply not retried
@@ -40,14 +42,14 @@ function readAcknowledged(): AckMap {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return {};
   try {
     const parsed = JSON.parse(localStorage.getItem(ACK_KEY) ?? '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    return parsed && typeof parsed === 'object' ? withoutKidsAnswers(parsed) : {};
   } catch {
     return {};
   }
 }
 
 function writeAcknowledged(questionId: string, choice: Choice): void {
-  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined' || isKidsQuestion(questionId)) return;
   try {
     localStorage.setItem(ACK_KEY, JSON.stringify({ ...readAcknowledged(), [questionId]: choice }));
   } catch {
@@ -68,8 +70,11 @@ export async function castVote(
   questionId: string,
   choice: Choice,
 ): Promise<{ tally: Tally | null; choice: Choice | null }> {
-  const { id: visitorId } = getOrCreateVisitorId();
-  const { tally, choice: stored, retry } = await postVote(fetch, apiBase(), { questionId, choice, visitorId });
+  // Kids questions (COPPA): no visitor ID is created, sent or stored, and nothing is written below.
+  const kids = isKidsQuestion(questionId);
+  const visitorId = kids ? '' : getOrCreateVisitorId().id;
+  const { tally, choice: stored, retry } = await postVote(fetch, apiBase(), voteBody(questionId, choice, visitorId));
+  if (kids) return { tally, choice: stored };
   // The vote API failed (down, rate limited or timed out): count it so the daily report shows it.
   if (retry) track('api_error', { route: '/api/votes', kind: 'vote_failed' });
   if (retry) writePending([...readPending().filter((p) => p.questionId !== questionId), { questionId, choice }]);
@@ -86,6 +91,29 @@ export function fetchTally(questionId: string): Promise<Tally | null> {
 /** Real counts for several questions (e.g. the feed), or null. */
 export function fetchTallies(questionIds: string[]): Promise<Record<string, Tally> | null> {
   return getTallies(fetch, apiBase(), questionIds);
+}
+
+/**
+ * Remove kids questions from the stored vote and answer maps (called when a kids route is
+ * shown, so answers kept by older versions of the app are cleared).
+ */
+export function purgeKidsVoteStorage(): void {
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
+  for (const key of [ACK_KEY, 'wyr_answered_questions']) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') continue;
+      const kept = withoutKidsAnswers(parsed);
+      if (Object.keys(kept).length === Object.keys(parsed).length) continue;
+      if (Object.keys(kept).length) localStorage.setItem(key, JSON.stringify(kept));
+      else localStorage.removeItem(key);
+    } catch {
+      // storage unavailable or unreadable: nothing to purge
+    }
+  }
+  writePending(readPending()); // both drop kids entries
 }
 
 /** Retry votes that could not be sent earlier. Call once on app load. */

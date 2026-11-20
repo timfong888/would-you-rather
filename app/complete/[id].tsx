@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Pressable,
   Platform,
   Animated,
@@ -23,13 +22,15 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { nativeShareOptions } from '@/lib/shareQuestion';
 import { useTally } from '@/lib/useTally';
 import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
+import SafeScrollView from '@/components/SafeScrollView';
 
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
-  const { isUnlocked } = useUnlocked();
+  const { isUnlocked, priceForCategory } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -80,7 +81,7 @@ export default function CompleteScreen() {
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+      Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
   }, [lastQuestion, incomingGeneration, incomingLinkId, visitorId]);
 
@@ -116,7 +117,7 @@ export default function CompleteScreen() {
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+      Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
   }, [lastQuestion, voted, incomingGeneration, incomingLinkId, visitorId]);
 
@@ -145,7 +146,7 @@ export default function CompleteScreen() {
   const withMajority = myPct !== null && myPct >= 50;
 
   return (
-    <ScrollView
+    <SafeScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -261,7 +262,9 @@ export default function CompleteScreen() {
             </Text>
             <View style={styles.upsellCta}>
               <Text style={styles.upsellCtaText}>
-                {isExpansionUpsell ? `UNLOCK ${remaining} MORE · $2.99` : 'EXTEND COLLECTION · $2.99'}
+                {isExpansionUpsell
+                  ? `UNLOCK ${remaining} MORE · ${priceForCategory(id as string)}`
+                  : `EXTEND COLLECTION · ${priceForCategory(id as string)}`}
               </Text>
             </View>
           </Pressable>
@@ -305,7 +308,7 @@ export default function CompleteScreen() {
         </View>
 
       </Animated.View>
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 

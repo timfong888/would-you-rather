@@ -23,7 +23,8 @@ export function indexQuestions(questions) {
 
 /**
  * Validate a POST /api/votes body.
- * @returns {{ ok: true, value: { questionId: string, choice: 'A'|'B', visitorId: string } } | { ok: false, field: string }}
+ * Kids questions need no visitor ID, and one that is sent is dropped here, so it never reaches storage.
+ * @returns {{ ok: true, value: { questionId: string, choice: 'A'|'B', visitorId: string | null } } | { ok: false, field: string }}
  */
 export function validateVoteBody(body, questionsById) {
   if (!body || typeof body !== 'object') return { ok: false, field: 'body' };
@@ -32,6 +33,7 @@ export function validateVoteBody(body, questionsById) {
     return { ok: false, field: 'questionId' };
   }
   if (choice !== 'A' && choice !== 'B') return { ok: false, field: 'choice' };
+  if (questionsById.get(questionId).category === KIDS_CATEGORY) return { ok: true, value: { questionId, choice, visitorId: null } };
   if (typeof visitorId !== 'string' || !UUID_V4.test(visitorId)) return { ok: false, field: 'visitorId' };
   return { ok: true, value: { questionId, choice, visitorId: visitorId.toLowerCase() } };
 }
@@ -55,23 +57,15 @@ export function geoFromHeaders(headers) {
   };
 }
 
-async function hmacHex(secret, message) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
-  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 /**
  * The key that makes a vote unique per voter per question (spec 3.4).
  * Not kids: the visitor UUID, also stored as player_id.
- * Kids: HMAC(secret, visitor + ':' + question), player_id null, so two kids'
- * votes cannot be joined to one device.
+ * Kids (COPPA): the client sends no visitor ID, so every kids vote gets a one-off random
+ * key and player_id null. No kids vote can be joined to a device or to another vote.
  */
-export async function buildVoterKey({ kids, visitorId, questionId, secret }) {
+export async function buildVoterKey({ kids, visitorId }) {
   if (!kids) return { voterKey: visitorId, playerId: visitorId };
-  if (!secret) throw new UnavailableError('VOTER_KEY_SECRET is not set');
-  return { voterKey: await hmacHex(secret, `${visitorId}:${questionId}`), playerId: null };
+  return { voterKey: `kids:${crypto.randomUUID()}`, playerId: null };
 }
 
 /**
@@ -98,13 +92,13 @@ function withTimeout(promise, ms = DB_TIMEOUT_MS) {
  * 400 invalid, 503 storage unavailable. The tally in the response already
  * includes this vote (or the earlier one from the same voter).
  */
-export async function recordVote({ store, questionsById, body, geo, secret }) {
+export async function recordVote({ store, questionsById, body, geo }) {
   const parsed = validateVoteBody(body, questionsById);
   if (!parsed.ok) return { status: 400, body: { error: 'invalid', field: parsed.field } };
   const { questionId, choice, visitorId } = parsed.value;
   const kids = questionsById.get(questionId).category === KIDS_CATEGORY;
   try {
-    const { voterKey, playerId } = await buildVoterKey({ kids, visitorId, questionId, secret });
+    const { voterKey, playerId } = await buildVoterKey({ kids, visitorId });
     const result = await withTimeout(
       store.insertVote({
         questionId,

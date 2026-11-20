@@ -8,7 +8,7 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AnalyticsProvider } from '@/contexts/AnalyticsContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import { flushPendingVotes } from '@/lib/votes';
-import { track, syncKidsMode } from '@/lib/analytics';
+import { track, syncKidsMode, setRouterPath } from '@/lib/analytics';
 import { installErrorTracking, reportError } from '@/lib/errorTracking';
 
 function HeaderActions() {
@@ -42,6 +42,10 @@ function AppLayout() {
   // page_view on every route change, path only (no query string), so SEO
   // landing pages are measurable (#52).
   const pathname = usePathname();
+  // The router's path is the source of truth for the kids gate: set it while rendering, before any
+  // screen's effects run, so nothing is sent for a kids route that is still resolving (window.location
+  // lags in-app navigation).
+  setRouterPath(pathname);
   useEffect(() => {
     syncKidsMode(pathname);
     track('page_view', { path: pathname });
@@ -127,6 +131,13 @@ function AppLayout() {
           name="privacy"
           options={{
             title: 'Privacy Policy',
+            headerBackTitle: 'Settings',
+          }}
+        />
+        <Stack.Screen
+          name="support"
+          options={{
+            title: 'Support',
             headerBackTitle: 'Settings',
           }}
         />

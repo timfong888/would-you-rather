@@ -38,6 +38,17 @@ test('an error on a kids route sends nothing and writes nothing', () => {
   assert.deepEqual(writes, []);
 });
 
+test('errors on a kids route do not use up the per-page budget', () => {
+  go('/game/kf-1');
+  analytics.syncKidsMode('/game/kf-1');
+  for (let i = 0; i < 30; i++) reportError(new Error(`kids ${i}`), 'render');
+  assert.equal(exceptions().length, 0);
+  go('/categories');
+  analytics.syncKidsMode('/categories');
+  for (let i = 0; i < 12; i++) reportError(new Error(`adult ${i}`), 'render');
+  assert.equal(exceptions().length, 10);
+});
+
 test('a render loop cannot flood analytics: same error at most twice, ten overall', () => {
   analytics.syncKidsMode('/');
   for (let i = 0; i < 20; i++) reportError(new Error('same'), 'render');

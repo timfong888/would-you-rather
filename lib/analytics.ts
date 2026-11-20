@@ -12,6 +12,9 @@ import {
   parseActivationState,
   recordActivationVote,
 } from '@/lib/activation';
+import { buildShareLink } from '@/lib/shareQuestion';
+import { purgeStoredVisitorId, VISITOR_KEY } from '@/lib/visitorId';
+import { analyticsOnFor, createTracker, POSTHOG_PRIVACY_OPTIONS, type Props } from '@/lib/analyticsCore';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -43,6 +46,13 @@ function getClient(): PostHog | null {
   _client = new PostHog(key, {
     host: 'https://us.i.posthog.com',
     captureAppLifecycleEvents: false,
+    // No client IP property, no GeoIP lookup from the request IP (web and native share this client).
+    ...POSTHOG_PRIVACY_OPTIONS,
+    // On web posthog-react-native finds no async-storage/expo-file-system and throws "No storage
+    // available", so nothing was ever sent. Memory persistence needs no storage and keeps PostHog
+    // from writing its own ids anywhere (kids routes: nothing of PostHog's to purge). Identity
+    // comes from our own persisted visitor id via identify() at session start.
+    ...(Platform.OS === 'web' ? { persistence: 'memory' as const } : {}),
   });
   if (_needsOptIn) {
     // A kids route opted the previous client out (persisted); this visit is on an allowed page.
@@ -52,12 +62,40 @@ function getClient(): PostHog | null {
   return _client;
 }
 
-type Props = Record<string, string | number | boolean | null | undefined>;
-
 // Kids pages (COPPA, #65: anonymous votes only): nothing is sent to PostHog while the
 // visitor is on a kids-bank page (lib/kidsPaths.ts). Console debug still logs.
+//
+// The router's pathname is the single source of truth, on web and native: window.location lags an
+// in-app navigation (a click on /categories still reads /categories while /categories/kids-family is
+// rendering) and native has no window.location at all. The providers hand the router path in
+// synchronously during render (setRouterPath / setCurrentRoute) and every gate below prefers it.
+// Before the router has reported (first web render, tests) window.location is used; native stays
+// CLOSED until the route is known, so nothing is sent before we can tell whether it is kids content.
+let _routerPath: string | null = null;
+
+/** Called while rendering, before any screen effect can emit an event. */
+export function setRouterPath(pathname: string | null | undefined): void {
+  _routerPath = pathname || null;
+}
+/** Same function under the name the native analytics gate uses. */
+export const setCurrentRoute = setRouterPath;
+
+function currentPath(): string | null | undefined {
+  if (_routerPath !== null) return _routerPath;
+  if (Platform.OS === 'web') return typeof window !== 'undefined' ? window.location.pathname : undefined;
+  return undefined;
+}
+
+/** True when the route is known and is a kids route. */
 function onKidsPage(): boolean {
-  return typeof window !== 'undefined' && isKidsPath(window.location.pathname);
+  const p = currentPath();
+  return !!p && isKidsPath(p);
+}
+
+/** True when analytics may run on the current screen (web: route judged; native: closed until known). */
+export function analyticsOn(): boolean {
+  if (Platform.OS === 'web' && typeof window === 'undefined') return true; // SSR: no client anyway
+  return analyticsOnFor({ platform: Platform.OS, pathname: currentPath(), isKids: isKidsPath });
 }
 
 // ── owner access flag ───────────────────────────────────────────────────────
@@ -83,29 +121,26 @@ function withGlobalProps(props?: Props): Props {
   return merged;
 }
 
-export function identify(distinctId: string, properties?: Props): void {
-  if (onKidsPage()) return;
-  try {
-    getClient()?.identify(distinctId, properties as any);
-  } catch (e) {
-    if (DEBUG) console.warn('[analytics] identify error', e);
-  }
-}
+const tracker = createTracker({
+  getClient: () => getClient() as any,
+  allowed: analyticsOn,
+  decorate: withGlobalProps,
+  onEvent: (event, props) => {
+    if (DEBUG) console.log('[analytics]', event, props);
+  },
+  onError: (where, e) => {
+    if (DEBUG) console.warn(`[analytics] ${where} error`, e);
+  },
+});
+
+export const identify = tracker.identify;
 
 export function track(event: string, props?: Props): void {
-  const kids = onKidsPage();
+  const allowed = analyticsOn();
   // Late init for visits that began on a kids page (no-op once initialised, and never on kids pages).
-  if (!kids && !_session) ensureSessionInit();
-  const finalProps = withGlobalProps(props);
-  if (DEBUG) {
-    console.log('[analytics]', kids ? '(not sent: kids page)' : '', event, finalProps);
-  }
-  if (kids) return;
-  try {
-    getClient()?.capture(event, finalProps as any);
-  } catch (e) {
-    if (DEBUG) console.warn('[analytics] capture error', e);
-  }
+  if (allowed && !_session) ensureSessionInit();
+  if (!allowed && DEBUG) console.log('[analytics] (not sent: kids page)', event, withGlobalProps(props));
+  tracker.track(event, props);
 }
 
 // ── activation ──────────────────────────────────────────────────────────────
@@ -139,8 +174,6 @@ export function trackVoteForActivation(props?: Props): void {
 }
 
 // ── visitor_id ──────────────────────────────────────────────────────────────
-
-const VISITOR_KEY = 'wyr_visitor_id';
 
 function uuid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -176,6 +209,16 @@ export function getOrCreateVisitorId(): { id: string; isNew: boolean } {
   }
 }
 
+/** Remove the persisted visitor ID (called when a kids route is shown). */
+export function purgeVisitorId(): void {
+  if (Platform.OS !== 'web') return;
+  try {
+    purgeStoredVisitorId(typeof localStorage !== 'undefined' ? localStorage : null);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 // ── link_id / share URL construction ────────────────────────────────────────
 
 export function generateLinkId(): string {
@@ -187,19 +230,23 @@ export function generateLinkId(): string {
  * `incomingGeneration` is the generation the current session arrived with;
  * the new link's generation is incomingGeneration + 1.
  */
-export function buildShareUrl(questionId: string, incomingGeneration: number): {
+export function buildShareUrl(
+  questionId: string,
+  incomingGeneration: number,
+  kids = false,
+  friendPick: 'A' | 'B' | 'ask' | null = null,
+): {
   url: string;
   linkId: string;
 } {
-  const linkId = generateLinkId();
+  // Kids routes: no link id is generated and none is put in the URL.
+  const linkId = kids ? '' : generateLinkId();
   const gen = incomingGeneration + 1;
 
-  const origin =
-    Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.location.origin
-      : SITE_URL;
-
-  const url = `${origin}/p/${questionId}?link_id=${linkId}&gen=${gen}`;
+  // SITE_URL is the canonical origin unless a non-production build sets EXPO_PUBLIC_SITE_URL
+  // (local browserless runs, previews). Native builds set nothing, so they share real-domain links,
+  // and the share pages (generate-sharing-pages.mjs) use the same value, so links and pages agree.
+  const url = buildShareLink({ origin: SITE_URL, questionId, linkId, generation: gen, kids, friendPick });
   return { url, linkId };
 }
 
@@ -235,6 +282,21 @@ function notifySession(): void {
 let _skippedForKids = false;
 
 /**
+ * The page the visitor is on, as the router sees it. When the browser URL has not caught up with the
+ * router (in-app navigation: window.location lags), use the router's path with no query string, never
+ * the stale URL's parameters.
+ */
+function currentRoute(): { href: string; search: string; inSync: boolean } {
+  const loc = window.location;
+  if (_routerPath !== null && _routerPath !== loc.pathname) {
+    let origin = '';
+    try { origin = new URL(loc.href).origin; } catch { origin = ''; }
+    return { href: `${origin}${_routerPath}`, search: '', inSync: false };
+  }
+  return { href: loc.href, search: loc.search, inSync: true };
+}
+
+/**
  * Initialises the visitor, first-session flag, identity and first-touch super
  * properties exactly once per page load. AnalyticsProvider calls it while rendering,
  * i.e. before any child effect (route page_view, vote-retry flush) can create the
@@ -246,8 +308,9 @@ export function ensureSessionInit(): SessionInfo | null {
   const isWeb = Platform.OS === 'web';
   if (isWeb && typeof window === 'undefined') return null;
   // Kids pages: no visitor id, identify, attribution or first touch (and nothing memoised).
-  if (onKidsPage()) {
-    _skippedForKids = true;
+  // Native before the route is known is closed too, but not "skipped for kids": it retries later.
+  if (!analyticsOn()) {
+    if (onKidsPage()) _skippedForKids = true;
     return null;
   }
 
@@ -259,14 +322,24 @@ export function ensureSessionInit(): SessionInfo | null {
   let linkId: string | null = null;
   let generation = 0;
   if (isWeb) {
+    // One URL for both the privacy gate and attribution: the router's. window.location lags an in-app
+    // navigation, so right after leaving a kids route it still holds the kids URL (path, utm_*, link_id).
+    const route = currentRoute();
     attribution = classifyAttribution({
-      referrer: !_skippedForKids && typeof document !== 'undefined' ? document.referrer : null,
-      url: window.location.href,
+      referrer: !_skippedForKids && route.inSync && typeof document !== 'undefined' ? document.referrer : null,
+      url: route.href,
       siteHost: window.location.host,
     });
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(route.search);
     linkId = params.get('link_id');
     generation = parseInt(params.get('gen') ?? '0', 10) || 0;
+    // Independently of the above: never emit a session that landed on a kids path, with its
+    // campaign or link parameters.
+    if (attribution.landing_path && isKidsPath(attribution.landing_path)) {
+      attribution = classifyAttribution({});
+      linkId = null;
+      generation = 0;
+    }
     if (!_skippedForKids) {
       let storage: Storage | null = null;
       try { storage = window.localStorage; } catch { storage = null; }
@@ -300,7 +373,27 @@ let _inKidsMode = false;
  * player into kids pages. Leaving kids re-enables capture; the session then re-initialises
  * from the current page only (no referrer, no first touch).
  */
+/**
+ * Everything analytics keeps in storage: the visitor ID, PostHog's own ph_* keys, the first-touch
+ * attribution and the activation counter. None of it may be kept while a kids route is shown.
+ */
+function clearKidsStorage(): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.removeItem(VISITOR_KEY);
+    localStorage.removeItem(FIRST_TOUCH_KEY);
+    localStorage.removeItem(ACTIVATION_KEY);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ph_')) localStorage.removeItem(k);
+    }
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export function syncKidsMode(pathname: string): void {
+  setRouterPath(pathname);
   const kids = isKidsPath(pathname);
   if (kids === _inKidsMode) return;
   _inKidsMode = kids;
@@ -313,31 +406,27 @@ export function syncKidsMode(pathname: string): void {
     );
     // Stop the client for good while on kids routes: opt out, shut it down and drop it.
     // No reset(): the SDK's reset clears the opt-out flag and restarts flag requests.
+    let shutdownDone: unknown;
     try {
       (_client as any)?.optOut?.();
-      (_client as any)?.shutdown?.();
+      shutdownDone = (_client as any)?.shutdown?.();
     } catch (e) {
       if (DEBUG) console.warn('[analytics] kids shutdown error', e);
     }
     if (_client) _needsOptIn = true;
     _client = null;
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem(VISITOR_KEY);
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('ph_')) localStorage.removeItem(k);
-        }
-      }
-    } catch {
-      /* storage unavailable */
-    }
+    clearKidsStorage();
+    // shutdown() is async and may flush (and rewrite ph_* keys) after the clear above: clear once
+    // more when it settles, but only if the visitor is still on a kids route.
+    const again = () => { if (_inKidsMode) clearKidsStorage(); };
+    Promise.resolve(shutdownDone).then(again, again);
     if (hadSession) notifySession();
   }
 }
 
 /** Test hook: back to a fresh page load (module state only; storage is the test's to manage). */
 export function __resetForTests(): void {
+  _routerPath = null;
   _client = null;
   _needsOptIn = false;
   _session = null;
