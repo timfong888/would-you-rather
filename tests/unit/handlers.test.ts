@@ -43,12 +43,10 @@ test('bad requests: wrong method 405, bad body 400, bad ids 400, oversized body 
   assert.equal((await tallies(new Request('https://x.test/api/tallies'))).status, 400);
 });
 
-test('kids votes work through the handler when the secret is set, and fail closed when not', async () => {
+test('kids votes work through the handler with no visitor id and no secret', async () => {
   delete process.env.VOTER_KEY_SECRET;
-  assert.equal((await post({ questionId: 'kf-1', choice: 'A', visitorId: V1 })).status, 503);
-  process.env.VOTER_KEY_SECRET = 'test-secret';
-  assert.equal((await post({ questionId: 'kf-1', choice: 'A', visitorId: V1 })).status, 201);
-  delete process.env.VOTER_KEY_SECRET;
+  assert.equal((await post({ questionId: 'kf-1', choice: 'A' })).status, 201);
+  assert.equal((await post({ questionId: 'hl-1', choice: 'A' })).status, 400);
 });
 
 test('with no storage configured both endpoints answer 503, never an error page', async () => {

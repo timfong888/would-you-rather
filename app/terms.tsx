@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { FONTS, SPACING, type ThemeColors } from '@/constants/theme';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import LegalFooter from '@/components/LegalFooter';
 
 export default function TermsOfServiceScreen() {
   const { styles } = useThemedStyles(makeStyles);
@@ -51,6 +52,8 @@ export default function TermsOfServiceScreen() {
         For questions about these terms, contact us through the app's official
         support channel.
       </Text>
+
+      <LegalFooter />
 
       <View style={styles.bottomPadding} />
     </ScrollView>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,16 +21,37 @@ import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
-import { track, buildShareUrl } from '@/lib/analytics';
+import { track, buildShareUrl, trackVoteForActivation } from '@/lib/analytics';
+import { shareLink, shareEvents, SHARE_FEEDBACK } from '@/lib/shareQuestion';
+import { decodeFriend, matchOutcome, pickLine, headingFor, shareText, uiText, matchEvent } from '@/lib/matchShare';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
+import { APP_STORE_LIVE, appStoreUrl, shareCampaign, isIphoneBrowser } from '@/lib/appStore';
+import { recipientEvents, recipientIntro, theyPickedLine, type RecipientAction } from '@/lib/recipient';
 
 // Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
 const SHARE_LINK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Copy for browsers without the async clipboard API (e.g. an insecure context). */
+function legacyCopy(value: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.createElement('textarea');
+  el.value = value;
+  el.setAttribute('readonly', '');
+  el.style.position = 'fixed';
+  el.style.opacity = '0';
+  document.body.appendChild(el);
+  el.select();
+  try {
+    return document.execCommand('copy');
+  } finally {
+    document.body.removeChild(el);
+  }
+}
+
 export default function GameScreen() {
-  const { id, cat, idx, link_id } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string }>();
+  const { id, cat, idx, link_id, f } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string; f: string }>();
   const router = useRouter();
   const { isUnlocked } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
@@ -42,6 +63,9 @@ export default function GameScreen() {
   const { markAnswered, refresh } = useAnsweredQuestions();
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  // Arriving from a share link, the reveal sits below the options: scroll to it after the tap (#134).
+  const scrollRef = useRef<ScrollView>(null);
+  const actionsY = useRef(0);
   const { incomingLinkId, incomingGeneration, visitorId } = useAnalytics();
 
   const question = getQuestionById(id);
@@ -68,7 +92,12 @@ export default function GameScreen() {
   // question per URL. The shape check only keeps accidental or malformed
   // params from triggering the exception. Real enforcement needs server-side
   // entitlements (see docs/owner-access.md, "Related client-side gating limits").
-  const arrivedViaShare = typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id);
+  // The friend's pick from a match-share link (#92). It also counts as arriving via a share
+  // link, so a shared kids question (whose link has no link_id) stays playable.
+  // `friend` is their pick, or 'ask' for a link shared before answering (no pick yet).
+  const friend = decodeFriend(f);
+  const friendPick = friend === 'A' || friend === 'B' ? friend : null;
+  const arrivedViaShare = (typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id)) || friend !== null;
   const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
   const mustRedirect = currentLocked && !arrivedViaShare;
   // On a cold deep link the root navigator may not be mounted on first render;
@@ -100,42 +129,82 @@ export default function GameScreen() {
   // Every hook must run before the early returns below: revoking owner access
   // while this screen is mounted flips `mustRedirect` and the next render
   // returns early, which would otherwise render fewer hooks and throw.
-  // Voluntary pre-answer challenge: share the question before confirming
-  const handleChallengeShare = useCallback(async () => {
-    const title = 'Would You Rather?';
-    const text = `${question?.optionA} — OR — ${question?.optionB}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
-
-    track('share_clicked', {
-      question_id: id,
-      surface: 'game_challenge',
-      link_id: linkId,
-      visitor_id: visitorId,
+  // Share the question: before confirming ("challenge a friend first") and after
+  // (the "send it to someone" prompt). Works in every category. The Kids & Family
+  // category sends no analytics at all (the shared link is the bare question URL: no link_id or generation).
+  const isKidsCategory = catId === 'kids-family';
+  const runShare = useCallback(async (shareUrl: string, text: string, copyMessage = false) => {
+    const web = Platform.OS === 'web' && typeof navigator !== 'undefined';
+    const result = await shareLink({
+      title: 'Would You Rather?',
+      text,
+      url: shareUrl,
+      // Without a share sheet, keep the message with its link (match actions).
+      copyText: copyMessage ? `${text}\n${shareUrl}` : undefined,
+      nav: web ? (navigator as any) : undefined,
+      legacyCopy: web ? legacyCopy : undefined,
+      nativeShare: Platform.OS === 'web' ? undefined : (o) => Share.share(o),
+      os: Platform.OS === 'android' ? 'android' : 'ios',
     });
-    if (incomingLinkId) {
-      track('visitor_shared_after_link', {
-        link_id: incomingLinkId,
-        generation: incomingGeneration,
-        new_link_id: linkId,
-        visitor_id: visitorId,
-      });
+    const message = SHARE_FEEDBACK[result];
+    if (message) {
+      setCopyFeedback(message);
+      setTimeout(() => setCopyFeedback(null), 2500);
+    }
+  }, [setCopyFeedback]);
+
+  const handleChallengeShare = useCallback(async (surface: 'game_challenge' | 'game_result' = 'game_challenge') => {
+    // After answering, the link carries this player's pick so the friend can see if they match (#92).
+    // Before answering the link says so ('ask'), so the friend's answer can be sent back.
+    const myPick = surface === 'game_result' && confirmed && selected ? selected : 'ask';
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategory, myPick);
+
+    // Kids & Family: no events and no link_id/gen in the shared URL (see shareEvents).
+    for (const ev of shareEvents({
+      kids: isKidsCategory,
+      questionId: id ?? '',
+      surface,
+      linkId,
+      visitorId,
+      incomingLinkId,
+      incomingGeneration,
+    })) {
+      track(ev.name, ev.props);
     }
 
-    if (Platform.OS === 'web') {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try { await navigator.share({ title, text, url: shareUrl }); return; } catch {}
-      }
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          setCopyFeedback('Link copied!');
-          setTimeout(() => setCopyFeedback(null), 2000);
-        } catch {}
-      }
-    } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+    const intro = shareText(isKidsCategory, myPick === 'ask' ? 'first_before' : 'first_after');
+    await runShare(shareUrl, `${intro}\n${question?.optionA} — OR — ${question?.optionB}`);
+  }, [question, id, selected, confirmed, incomingGeneration, incomingLinkId, visitorId, isKidsCategory, runShare]);
+
+  // Match share (#92): once this player has an answer, compare it with the friend's pick
+  // from the link. Computed in the browser only; nothing is stored or sent.
+  const outcome = confirmed && selected && friendPick ? matchOutcome(selected, friendPick) : null;
+  // Arrived on a share made before answering, and has now answered: offer "Tell them".
+  const asked = confirmed && !!selected && friend === 'ask';
+  const matchLine = useMemo(
+    () => (outcome ? pickLine(isKidsCategory, outcome) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [outcome, isKidsCategory, id],
+  );
+  useEffect(() => {
+    if (!friend || !question) return;
+    for (const ev of matchEvent('opened', { kids: isKidsCategory, questionId: question.id, visitorId })) {
+      track(ev.name, ev.props);
     }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId, setCopyFeedback]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question?.id, friend]);
+  useEffect(() => {
+    if (!confirmed || !arrivedViaShare) return;
+    const t = setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, actionsY.current - SPACING.lg), animated: true }), 50);
+    return () => clearTimeout(t);
+  }, [confirmed, arrivedViaShare]);
+  useEffect(() => {
+    if (!outcome || !question) return;
+    for (const ev of matchEvent('answered', { kids: isKidsCategory, questionId: question.id, visitorId, outcome })) {
+      track(ev.name, ev.props);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outcome, question?.id]);
 
   if (!question) {
     return (
@@ -169,12 +238,31 @@ export default function GameScreen() {
     category.tier === 'free' &&
     currentIdx + 1 === getFreeQuestionCount(category);
 
-  const handleConfirm = () => {
-    if (!selected) return;
+  // Funnel events for someone who opened a shared link (#134). Kids items send nothing.
+  const trackRecipient = (action: RecipientAction, surface?: string, outcomeNow = outcome) => {
+    if (!arrivedViaShare || !question) return;
+    for (const ev of recipientEvents(action, {
+      kids: isKidsCategory,
+      questionId: question.id,
+      category: catId,
+      linkId: incomingLinkId,
+      generation: incomingGeneration,
+      visitorId,
+      friend,
+      outcome: outcomeNow,
+      surface,
+    })) {
+      track(ev.name, ev.props);
+    }
+  };
+
+  const confirmChoice = (choice: 'A' | 'B') => {
+    if (confirmed) return;
+    setSelected(choice);
     setConfirmed(true);
-    markAnswered(question!.id, selected);
+    markAnswered(question!.id, choice);
     const votedQuestionId = question!.id;
-    const tapped = selected;
+    const tapped = choice;
     castVote(votedQuestionId, tapped).then(({ tally, choice }) => {
       // Ignore a late answer if the player has already moved to another question.
       if (votedQuestionId !== question?.id) return;
@@ -185,13 +273,16 @@ export default function GameScreen() {
         setSelected(kept);
         markAnswered(votedQuestionId, kept);
       }
+      // After reconciliation, so `matched` agrees with what the recipient sees.
+      trackRecipient('answered', undefined, friendPick ? matchOutcome(kept, friendPick) : null);
     });
     track('question_answered', {
       question_id: question!.id,
       category: catId ?? undefined,
-      choice: selected,
+      choice,
       visitor_id: visitorId,
     });
+    trackVoteForActivation({ visitor_id: visitorId });
     if (incomingLinkId) {
       track('visitor_answered_after_link', {
         link_id: incomingLinkId,
@@ -199,6 +290,28 @@ export default function GameScreen() {
         visitor_id: visitorId,
       });
     }
+  };
+
+  const handleConfirm = () => {
+    if (selected) confirmChoice(selected);
+  };
+
+  // Arriving from a share link, one tap answers: no confirm step (#134).
+  const handleOptionPress = (choice: 'A' | 'B') => {
+    if (confirmed) return;
+    if (arrivedViaShare) confirmChoice(choice);
+    else setSelected(choice);
+  };
+
+  // Send the result back: the link carries this player's pick, so the friend sees it too.
+  const handleTellThem = async () => {
+    if (!(outcome || asked) || !selected) return;
+    const { url: replyUrl } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategory, selected);
+    for (const ev of matchEvent('reply_sent', { kids: isKidsCategory, questionId: id ?? '', visitorId, outcome: outcome ?? undefined })) {
+      track(ev.name, ev.props);
+    }
+    const key = outcome === 'matched' ? 'tell_matched' : outcome === 'different' ? 'tell_different' : 'tell_asked';
+    await runShare(replyUrl, shareText(isKidsCategory, key, matchLine ?? ''), true);
   };
 
   const handleNext = () => {
@@ -222,6 +335,29 @@ export default function GameScreen() {
     } else {
       router.push('/');
     }
+  };
+
+  // Recipient next steps (#134): the next question in this category, or a share back with this pick.
+  const handlePlayAnother = () => {
+    trackRecipient('play_another');
+    handleNext();
+  };
+  const handleSendBack = async () => {
+    trackRecipient('send_back', outcome || asked ? 'tell_them' : 'share_pick');
+    if (outcome || asked) await handleTellThem();
+    else await handleChallengeShare('game_result');
+  };
+
+  // "Get the app" (#134): iPhone browsers only, hidden until the app is public (APP_STORE_LIVE).
+  // The App Store link carries a campaign name, so App Store Connect counts installs by source.
+  const showGetApp =
+    APP_STORE_LIVE &&
+    Platform.OS === 'web' &&
+    typeof navigator !== 'undefined' &&
+    isIphoneBrowser(navigator.userAgent);
+  const handleGetApp = () => {
+    trackRecipient('app_cta_click', 'game_recipient');
+    if (typeof window !== 'undefined') window.location.href = appStoreUrl({ campaign: shareCampaign(isKidsCategory) });
   };
 
   // Skip is hidden in the UI when the next question is locked, but keep the
@@ -258,6 +394,7 @@ export default function GameScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -316,6 +453,13 @@ export default function GameScreen() {
         </View>
       )}
 
+      {/* Opened from a share link: say what one tap does (#134). */}
+      {arrivedViaShare && !confirmed && (
+        <Text style={[styles.recipientIntro, { color: catColor }]} testID="recipient-intro">
+          {recipientIntro(isKidsCategory, friend)}
+        </Text>
+      )}
+
       {/* WYR Label */}
       <Text style={styles.wyrLabel}>WOULD YOU RATHER...</Text>
 
@@ -325,7 +469,7 @@ export default function GameScreen() {
           label="A"
           text={question.optionA}
           selected={selected === 'A'}
-          onPress={() => { if (!confirmed) setSelected('A'); }}
+          onPress={() => handleOptionPress('A')}
           disabled={confirmed}
           percentage={pctFor('A')}
         />
@@ -342,15 +486,19 @@ export default function GameScreen() {
           label="B"
           text={question.optionB}
           selected={selected === 'B'}
-          onPress={() => { if (!confirmed) setSelected('B'); }}
+          onPress={() => handleOptionPress('B')}
           disabled={confirmed}
           percentage={pctFor('B')}
         />
       </View>
 
       {/* Actions */}
-      <View style={styles.actions}>
-        {!confirmed ? (
+      <View style={styles.actions} onLayout={(e) => { actionsY.current = e.nativeEvent.layout.y; }}>
+        {!confirmed && arrivedViaShare ? (
+          <Text style={styles.disclosure}>
+            Your answer is recorded anonymously to show how others voted.
+          </Text>
+        ) : !confirmed ? (
           <>
             <Pressable
               onPress={handleConfirm}
@@ -375,13 +523,13 @@ export default function GameScreen() {
             {/* Contextual challenge invite — shown when user picked but hasn't confirmed */}
             {selected && (
               <Pressable
-                onPress={handleChallengeShare}
+                onPress={() => handleChallengeShare('game_challenge')}
                 style={({ pressed }) => [
                   styles.challengeButton,
                   pressed && { opacity: 0.7 },
                 ]}
               >
-                <Text style={styles.challengeText}>{copyFeedback ?? '💬  Challenge a friend to this question first'}</Text>
+                <Text style={styles.challengeText}>{copyFeedback ?? uiText(isKidsCategory, 'challenge')}</Text>
               </Pressable>
             )}
 
@@ -434,6 +582,80 @@ export default function GameScreen() {
               </View>
             </View>
 
+            {((outcome && matchLine !== null) || asked) && (
+              <View style={[styles.matchCard, { borderColor: `${catColor}60` }]} testID="match-card">
+                <Text style={styles.matchTitle}>
+                  {uiText(isKidsCategory, outcome === 'matched' ? 'icon_matched' : outcome === 'different' ? 'icon_different' : 'icon_asked')}
+                  {headingFor(isKidsCategory, outcome ?? 'asked')}
+                </Text>
+                {outcome && <Text style={styles.matchLine}>{matchLine}</Text>}
+                {friendPick && (
+                  <Text style={styles.theyPicked} testID="they-picked">
+                    {theyPickedLine(isKidsCategory, friendPick === 'A' ? question.optionA : question.optionB)}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Recipient next steps (#134): play more, or send one back. */}
+            {arrivedViaShare && (
+              <View style={styles.recipientActions} testID="recipient-actions">
+                <Pressable
+                  onPress={handlePlayAnother}
+                  accessibilityRole="button"
+                  testID="play-another"
+                  style={({ pressed }) => [
+                    styles.nextButton,
+                    { backgroundColor: catColor },
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.nextButtonText}>{uiText(isKidsCategory, 'recipient_play_another')}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleSendBack}
+                  accessibilityRole="button"
+                  testID="send-back"
+                  style={({ pressed }) => [
+                    styles.shareButton,
+                    { borderColor: catColor },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Text style={[styles.shareButtonText, { color: catColor }]}>
+                    {copyFeedback ?? uiText(isKidsCategory, 'recipient_send_back')}
+                  </Text>
+                </Pressable>
+                {showGetApp && (
+                  <Pressable
+                    onPress={handleGetApp}
+                    accessibilityRole="link"
+                    testID="get-app"
+                    style={({ pressed }) => [styles.getAppButton, pressed && { opacity: 0.7 }]}
+                  >
+                    <Text style={styles.getAppText}>{uiText(isKidsCategory, 'recipient_get_app')}</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            {!arrivedViaShare && (
+            <>
+            <Pressable
+              onPress={() => handleChallengeShare('game_result')}
+              accessibilityRole="button"
+              accessibilityLabel="Share this question"
+              style={({ pressed }) => [
+                styles.shareButton,
+                { borderColor: catColor },
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <Text style={[styles.shareButtonText, { color: catColor }]}>
+                {copyFeedback ?? uiText(isKidsCategory, 'send_question')}
+              </Text>
+            </Pressable>
+
             <Pressable
               onPress={handleNext}
               style={({ pressed }) => [
@@ -446,12 +668,14 @@ export default function GameScreen() {
                 {isLastInCategory || endsFreeSet ? 'SEE RESULTS →' : 'NEXT QUESTION →'}
               </Text>
             </Pressable>
+            </>
+            )}
 
           </>
         )}
       </View>
 
-      {!selected && !confirmed && (
+      {!selected && !confirmed && !arrivedViaShare && (
         <Text style={styles.hint}>Tap an option to make your choice</Text>
       )}
     </ScrollView>
@@ -593,6 +817,18 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
       ...Platform.select({ web: { cursor: 'pointer' } }),
     },
+    shareButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.md,
+      borderWidth: 1.5,
+      borderRadius: RADIUS.full,
+      backgroundColor: colors.surface,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    shareButtonText: {
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
     challengeText: {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.sm,
@@ -609,6 +845,22 @@ function makeStyles(colors: ThemeColors) {
     },
     skipText: {
       color: colors.textMuted,
+      fontSize: FONTS.sizes.md,
+    },
+    matchCard: {
+      backgroundColor: colors.surface,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1.5,
+      padding: SPACING.md,
+      gap: SPACING.sm,
+    },
+    matchTitle: {
+      color: colors.text,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    matchLine: {
+      color: colors.textSecondary,
       fontSize: FONTS.sizes.md,
     },
     resultBanner: {
@@ -667,6 +919,29 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.sm,
       textAlign: 'center',
       fontStyle: 'italic',
+    },
+    recipientIntro: {
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+      textAlign: 'center',
+    },
+    theyPicked: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.semibold,
+    },
+    getAppButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    getAppText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
+    },
+    recipientActions: {
+      gap: SPACING.md,
     },
     leaveActionText: {
       color: colors.textMuted,

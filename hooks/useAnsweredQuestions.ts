@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Platform } from 'react-native';
+import { isKidsQuestion } from '@/lib/kidsPaths';
+import { withoutKidsAnswers } from '@/lib/votes-core';
 
 const STORAGE_KEY = 'wyr_answered_questions';
 
@@ -9,7 +11,7 @@ function loadAnswered(): AnsweredMap {
   if (Platform.OS !== 'web') return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AnsweredMap) : {};
+    return raw ? withoutKidsAnswers(JSON.parse(raw) as AnsweredMap) : {};
   } catch {
     return {};
   }
@@ -30,7 +32,8 @@ export function useAnsweredQuestions() {
   const markAnswered = useCallback((questionId: string, choice: 'A' | 'B') => {
     setAnswered((prev) => {
       const next = { ...prev, [questionId]: choice };
-      saveAnswered(next);
+      // Kids questions (COPPA): kept in memory for this screen only, never written to storage.
+      if (!isKidsQuestion(questionId)) saveAnswered(withoutKidsAnswers(next));
       return next;
     });
   }, []);

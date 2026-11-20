@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, usePathname } from 'expo-router';
 import { SEO_PAGES } from '@/constants/seoPages';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AnalyticsProvider } from '@/contexts/AnalyticsContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import { flushPendingVotes } from '@/lib/votes';
+import { track, syncKidsMode, setRouterPath } from '@/lib/analytics';
 
 function HeaderActions() {
   const router = useRouter();
@@ -31,6 +32,17 @@ function AppLayout() {
   const { colors, isDark } = useTheme();
   // Retry any vote that could not be sent last time (issue #65).
   useEffect(() => { flushPendingVotes(); }, []);
+  // page_view on every route change, path only (no query string), so SEO
+  // landing pages are measurable (#52).
+  const pathname = usePathname();
+  // The router's path is the source of truth for the kids gate: set it while rendering, before any
+  // screen's effects run, so nothing is sent for a kids route that is still resolving (window.location
+  // lags in-app navigation).
+  setRouterPath(pathname);
+  useEffect(() => {
+    syncKidsMode(pathname);
+    track('page_view', { path: pathname });
+  }, [pathname]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -112,6 +124,13 @@ function AppLayout() {
           name="privacy"
           options={{
             title: 'Privacy Policy',
+            headerBackTitle: 'Settings',
+          }}
+        />
+        <Stack.Screen
+          name="support"
+          options={{
+            title: 'Support',
             headerBackTitle: 'Settings',
           }}
         />

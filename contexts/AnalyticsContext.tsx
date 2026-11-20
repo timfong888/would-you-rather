@@ -1,9 +1,12 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
-import { track, identify, getOrCreateVisitorId } from '@/lib/analytics';
+import { track, ensureSessionInit, getSession, subscribeSession, type SessionInfo } from '@/lib/analytics';
+import { usePathname } from 'expo-router';
+import { purgeVisitorId, setCurrentRoute } from '@/lib/analytics';
+import { isKidsPath } from '@/lib/kidsPaths';
+import { purgeKidsVoteStorage } from '@/lib/votes';
 
 interface AnalyticsContextValue {
-  /** Anonymous ID persisted across sessions. */
+  /** Anonymous ID persisted across sessions ('' while on a kids route, where there is none). */
   visitorId: string;
   /** link_id from the URL if this session arrived via a shared link. */
   incomingLinkId: string | null;
@@ -11,52 +14,59 @@ interface AnalyticsContextValue {
   incomingGeneration: number;
 }
 
-const AnalyticsContext = createContext<AnalyticsContextValue>({
-  visitorId: '',
-  incomingLinkId: null,
-  incomingGeneration: 0,
-});
+const EMPTY: AnalyticsContextValue = { visitorId: '', incomingLinkId: null, incomingGeneration: 0 };
+
+const AnalyticsContext = createContext<AnalyticsContextValue>(EMPTY);
+
+const toValue = (s: SessionInfo | null): AnalyticsContextValue =>
+  s ? { visitorId: s.visitorId, incomingLinkId: s.linkId, incomingGeneration: s.generation } : EMPTY;
 
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
-  const fired = useRef(false);
-  const [ctx, setCtx] = useState<AnalyticsContextValue>({
-    visitorId: '',
-    incomingLinkId: null,
-    incomingGeneration: 0,
-  });
+  const pathname = usePathname();
+  // The router path is the analytics gate's source of truth (web and native): set it during render so
+  // it is current before the session is initialised and before any child effect runs.
+  setCurrentRoute(pathname);
+  // Initialise during render so identity, the first-session flag and the first-touch
+  // properties exist before any child effect (page_view, vote-retry flush) runs. Native stays
+  // closed until the route is known and initialises from the effect below.
+  const [ctx, setCtx] = useState<AnalyticsContextValue>(() => toValue(ensureSessionInit()));
+  const announced = useRef<SessionInfo | null>(null);
+
+  // Kids routes keep no persisted visitor ID (COPPA): remove one a previous build or visit stored,
+  // whenever such a route is shown (including after in-app navigation to it).
+  useEffect(() => {
+    if (pathname && isKidsPath(pathname)) {
+      purgeVisitorId();
+      purgeKidsVoteStorage();
+    }
+  }, [pathname]);
 
   useEffect(() => {
-    if (fired.current) return;
-    fired.current = true;
-
-    const { id: visitorId, isNew } = getOrCreateVisitorId();
-    identify(visitorId);
-
-    let linkId: string | null = null;
-    let generation = 0;
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      linkId = params.get('link_id');
-      generation = parseInt(params.get('gen') ?? '0', 10) || 0;
-    }
-
-    setCtx({ visitorId, incomingLinkId: linkId, incomingGeneration: generation });
-
-    track('session_start', {
-      source: linkId ? 'shared_link' : 'direct',
-      link_id: linkId ?? undefined,
-      visitor_id: visitorId,
-    });
-
-    if (linkId) {
-      track('shared_link_opened', {
-        link_id: linkId,
-        is_new_visitor: isNew,
-        generation,
-        visitor_id: visitorId,
+    // The allowed session can change after mount: it is cleared on kids routes and created
+    // again on the next allowed page. Keep the context in step and announce each new session.
+    const sync = (s: SessionInfo | null) => {
+      setCtx(toValue(s));
+      if (!s || announced.current === s) return;
+      announced.current = s;
+      track('session_start', {
+        ...s.attribution,
+        source: s.linkId ? 'shared_link' : s.attribution.channel,
+        link_id: s.linkId ?? undefined,
+        visitor_id: s.visitorId,
+        is_new_visitor: s.isNew,
       });
-    }
+      if (s.linkId) {
+        track('shared_link_opened', {
+          link_id: s.linkId,
+          is_new_visitor: s.isNew,
+          generation: s.generation,
+          visitor_id: s.visitorId,
+        });
+      }
+    };
+    const unsubscribe = subscribeSession(sync);
+    sync(getSession() ?? ensureSessionInit());
+    return unsubscribe;
   }, []);
 
   return (

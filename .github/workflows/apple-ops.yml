@@ -1,0 +1,43 @@
+name: Apple ops (read-only)
+
+# Manual only. Calls the App Store Connect API with the ASC_* Actions secrets.
+# Read-only: builds, processing state/errors, app and bundle ID lookup.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to read from App Store Connect
+        type: choice
+        required: true
+        default: builds
+        options:
+          - builds
+          - uploads
+          - app
+          - bundle-ids
+      app_id:
+        description: ASC app id (Apple ID of the app)
+        type: string
+        required: true
+        default: '6836653723'
+
+permissions:
+  contents: read
+
+jobs:
+  asc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Query App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ACTION: ${{ inputs.action }}
+          APP_ID: ${{ inputs.app_id }}
+        run: node scripts/asc-api.mjs "$ACTION" --app "$APP_ID"

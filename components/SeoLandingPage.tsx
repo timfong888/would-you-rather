@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Pressable,
   Platform,
   Share,
@@ -15,9 +14,12 @@ import { getRelatedSeoPages, getSeoPage, getSeoPageQuestions, getSeoPageUpdated,
 import { SITE_URL } from '@/constants/config';
 import { ORGANIZATION_DESCRIPTION, landingPageJsonLd } from '@/lib/seo';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { nativeShareOptions } from '@/lib/shareQuestion';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import SafeScrollView from '@/components/SafeScrollView';
+import NativeBackBar from '@/components/NativeBackBar';
 
 // react-native-web turns role="heading" + aria-level into a real <h1>/<h2>;
 // the prop is not in React Native's own Text types.
@@ -77,7 +79,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
     if (Platform.OS !== 'web') {
       // Native app routes: the OS share sheet.
       try {
-        await Share.share({ title: 'Would You Rather?', message: `${text}\n\n${url}`, url });
+        await Share.share(nativeShareOptions({ title: 'Would You Rather?', text, url, os: Platform.OS }));
       } catch {
         // Dismissed or unavailable: nothing else to do.
       }
@@ -108,7 +110,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
     CATEGORIES.find((c) => c.id === catId)?.emoji ?? '🎲';
 
   return (
-    <ScrollView
+    <SafeScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -122,6 +124,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
       <JsonLd data={landingPageJsonLd(page, questions)} />
 
       <View style={styles.column}>
+        <NativeBackBar />
         {/* Hero */}
         <View style={styles.hero}>
           <Link href="/" style={styles.appLabel}>Would You Rather?</Link>
@@ -283,7 +286,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
           </Text>
         </View>
       </View>
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 
