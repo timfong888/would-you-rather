@@ -203,7 +203,7 @@ export default function UnlockScreen() {
     if (!TEST_UNLOCK_UI || paymentState !== 'sheet') return;
     track('paywall_cta_clicked', {
       category_id: id,
-      pack_type: isExpansion ? 'expansion' : 'premium',
+      pack_type: sheetKind === 'all' ? 'all' : isExpansion ? 'expansion' : 'premium',
       payment_method: 'test_unlock',
     });
     setPaymentState('processing');
