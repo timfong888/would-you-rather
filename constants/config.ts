@@ -2,8 +2,9 @@ export const APP_NAME = 'WOULD YOU RATHER';
 
 import { CANONICAL_ORIGIN } from '../lib/site';
 
-// Canonical production origin (single value: lib/site.js). EXPO_PUBLIC_SITE_URL may override it
-// for the web build only; share links always use CANONICAL_ORIGIN (see lib/analytics buildShareUrl).
+// Canonical production origin (single value: lib/site.js). EXPO_PUBLIC_SITE_URL may override it in
+// non-production web builds (local browserless checks, previews); production builds must match it
+// (generate-sharing-pages.mjs and verify-seo fail otherwise). Share links use this same value.
 export const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL ?? CANONICAL_ORIGIN;
 
 export const SEO = {

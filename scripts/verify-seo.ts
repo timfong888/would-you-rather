@@ -26,7 +26,7 @@ const warnings: string[] = [];
 const fail = (msg: string) => failures.push(msg);
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), 'utf-8');
 const host = new URL(SITE_URL).host;
-if (SITE_URL.replace(/\/+$/, '') !== CANONICAL_ORIGIN) fail(`SITE_URL "${SITE_URL}" differs from CANONICAL_ORIGIN "${CANONICAL_ORIGIN}" (lib/site.js); share links use the latter`);
+if (process.env.VERCEL_ENV === 'production' && SITE_URL.replace(/\/+$/, '') !== CANONICAL_ORIGIN) fail(`SITE_URL "${SITE_URL}" differs from CANONICAL_ORIGIN "${CANONICAL_ORIGIN}" in a production build (lib/site.js)`);
 
 // --- Registry ---------------------------------------------------------------
 const seen = { slug: new Set<string>(), title: new Set<string>(), description: new Set<string>() };

@@ -3,6 +3,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { nativeShareOptions, shareLink, buildShareLink } from '../../lib/shareQuestion';
 import { CANONICAL_ORIGIN } from '../../lib/site';
+import { SITE_URL } from '../../constants/config';
 import { sharePageMeta } from '../../lib/sharePage';
 // @ts-ignore plain JS
 import og from '../../api/og.js';
@@ -18,6 +19,11 @@ test('canonical origin is the real domain, not the Vercel project domain', () =>
   const link = buildShareLink({ origin: CANONICAL_ORIGIN, questionId: 'kf-14', linkId: '', generation: 1, kids: true, friendPick: null });
   assert.equal(link, 'https://www.wouldyourather.fyi/p/kf-14');
   assert.ok(!link.includes('vercel.app'));
+});
+
+test('without an override, the app origin (SITE_URL) is the canonical domain', () => {
+  assert.ok(!process.env.EXPO_PUBLIC_SITE_URL, 'run the unit tests without EXPO_PUBLIC_SITE_URL');
+  assert.equal(SITE_URL, CANONICAL_ORIGIN);
 });
 
 test('iOS: the URL is only in `url`, never repeated in the message', () => {
