@@ -39,30 +39,33 @@ export default async function handler(req) {
   const t = THEMES[question ? THEME_FOR_CATEGORY[question.category] === "moody" ? "moody" : "bright" : "bright"];
   const logo = await logoDataUri(url.origin);
   const flex = (style, ...children) => h("div", { style: { display: "flex", ...style } }, ...children);
-  const option = (label, text, color) =>
-    flex({ flex: 1, flexDirection: "column", justifyContent: "center", background: t.box, border: `2px solid ${t.border}`, borderRadius: 28, padding: "28px 36px", gap: 14 },
-      flex({ color, fontSize: 26, fontWeight: 800, letterSpacing: 3, background: "#FFFFFF", borderRadius: 999, padding: "4px 18px", alignSelf: "flex-start" }, label),
-      flex({ color: "#FFFFFF", fontSize: text.length > 60 ? 38 : 46, fontWeight: 800, lineHeight: 1.2 }, text));
+  // Big, bold option text; shrink only for long options so it stays at most ~2 lines at iMessage card size.
+  const optionSize = (text) => (text.length <= 30 ? 68 : text.length <= 52 ? 58 : 48);
+  const option = (text) =>
+    flex({ flex: 1, alignItems: "center", background: t.box, border: `2px solid ${t.border}`, borderRadius: 28, padding: "0 40px" },
+      flex({ color: "#FFFFFF", fontSize: optionSize(text), fontWeight: 800, lineHeight: 1.15 }, text));
 
-  const header = flex({ alignItems: "center", gap: 20 },
-    logo ? h("img", { src: logo, width: 72, height: 72, style: { borderRadius: 16 } }) : null,
-    flex({ color: "#FFFFFF", fontSize: 38, fontWeight: 800, letterSpacing: 1 }, SITE_NAME));
+  // Brand mark + app name, prominent. The logo is LOGO_PATH (swap the asset when the final icon lands).
+  const header = flex({ alignItems: "center", gap: 24 },
+    logo ? h("img", { src: logo, width: 104, height: 104, style: { borderRadius: 24 } }) : null,
+    flex({ color: "#FFFFFF", fontSize: 56, fontWeight: 800, letterSpacing: 1 }, SITE_NAME));
 
   const body = question
-    ? flex({ flex: 1, flexDirection: "column", gap: 16, justifyContent: "center" },
-        option("A", truncate(question.optionA, 90), t.accentA),
-        flex({ justifyContent: "center", color: "rgba(255,255,255,0.8)", fontSize: 28, fontWeight: 800, letterSpacing: 4 }, "OR"),
-        option("B", truncate(question.optionB, 90), t.accentB))
+    ? flex({ flex: 1, flexDirection: "column", gap: 10, justifyContent: "center" },
+        option(truncate(question.optionA, 90)),
+        flex({ justifyContent: "center", color: "rgba(255,255,255,0.85)", fontSize: 30, fontWeight: 800, letterSpacing: 6 }, "OR"),
+        option(truncate(question.optionB, 90)))
     : flex({ flex: 1, flexDirection: "column", justifyContent: "center", gap: 18 },
         flex({ color: "#FFFFFF", fontSize: 84, fontWeight: 800, lineHeight: 1.1 }, "Pick a side."),
         flex({ color: "rgba(255,255,255,0.85)", fontSize: 40, fontWeight: 600 }, "Spark real conversations with friends and family."));
 
-  const footer = flex({ justifyContent: "space-between", color: "rgba(255,255,255,0.8)", fontSize: 28, fontWeight: 700 },
+  // Category name comes from CATEGORIES, so renamed/replaced categories (#125) show up with no change here.
+  const footer = flex({ justifyContent: "space-between", color: "rgba(255,255,255,0.85)", fontSize: 28, fontWeight: 700 },
     flex({}, question ? (CATEGORIES.find((c) => c.id === question.category)?.label ?? "") : "Free, no sign-up"),
     flex({}, "wouldyourather.fyi"));
 
   const image = new ImageResponse(
-    flex({ width: "100%", height: "100%", flexDirection: "column", background: t.bg, padding: "44px 56px", gap: 20 }, header, body, footer),
+    flex({ width: "100%", height: "100%", flexDirection: "column", background: t.bg, padding: "36px 56px 32px", gap: 16 }, header, body, footer),
     { width: 1200, height: 630 }
   );
   const res = new Response(image.body, image);
