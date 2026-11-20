@@ -64,11 +64,10 @@ test('Get the app is off by default (TestFlight only)', () => {
 
 test('Smart App Banner meta', () => {
   assert.equal(smartBannerContent(), 'app-id=6836653723');
-  const page = '<html><head><meta property="og:url"          content="https://www.wouldyourather.fyi/p/kf-17" /></head></html>';
-  const out = addSmartBanner(page, true);
-  assert.ok(out.includes('<meta name="apple-itunes-app" content="app-id=6836653723, app-argument=https://www.wouldyourather.fyi/p/kf-17" />'));
-  assert.equal(addSmartBanner(out, true), out, 'idempotent');
-  assert.ok(addSmartBanner('<head></head>').includes('content="app-id=6836653723"'));
+  const out = addSmartBanner('<html><head><title>x</title></head></html>');
+  assert.ok(out.includes('<meta name="apple-itunes-app" content="app-id=6836653723" /></head>'));
+  assert.equal(addSmartBanner(out), out, 'idempotent');
+  assert.throws(() => addSmartBanner('<html></html>'));
 });
 
 test('iPhone browser detection', () => {

@@ -1,10 +1,10 @@
 /**
  * Apple Smart App Banner on every exported page (#134).
  *
- * Adds <meta name="apple-itunes-app" content="app-id=…"> to each HTML file in dist/. Share pages
- * (dist/p/<id>.html) also get `app-argument=<the share URL>`, so opening the app from the banner
- * lands on that question. Runs after generate-sharing-pages.mjs. It must be in the served HTML:
- * Safari reads it at load, not from tags the client adds later.
+ * Adds <meta name="apple-itunes-app" content="app-id=…"> to each HTML file in dist/, share pages
+ * included. Runs after generate-sharing-pages.mjs. It must be in the served HTML: Safari reads it
+ * at load, not from tags the client adds later. No app-argument (see addSmartBanner in
+ * lib/appStore.js); a tapped share link opens the installed app through Universal Links.
  *
  * Kids pages get the banner too: it is Apple's, loads nothing from us and sends us nothing
  * (docs/specs/kids-family-categories.md, "Web → app"). Safari shows no banner while the app is
@@ -28,7 +28,7 @@ const walk = (dir, rel) => {
     if (!name.endsWith('.html')) continue;
     const isShare = rel === 'p/';
     const html = readFileSync(path, 'utf8');
-    const out = addBanner(html, isShare);
+    const out = addBanner(html);
     if (out !== html) {
       writeFileSync(path, out);
       pages++;

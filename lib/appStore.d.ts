@@ -5,4 +5,4 @@ export function appStoreUrl(o: { campaign: string; providerToken?: string }): st
 export function shareCampaign(kids: boolean): string;
 export function smartBannerContent(appArgument?: string): string;
 export function isIphoneBrowser(userAgent: unknown): boolean;
-export function addSmartBanner(html: string, isSharePage?: boolean): string;
+export function addSmartBanner(html: string): string;
