@@ -104,8 +104,9 @@ written question in the category beyond the first 8, new written questions added
 | 8 | **Real Talk** | 💬 | 13–17 | Friends, school, phones, independence. Light enough to start, real enough to keep going. | (new) Lose your phone for a week or your weekend plans for a month? · (new) Always know when a friend is upset, or always know what to say? | 0 → 30 (new writing) |
 | S | **Holiday Table** | 🎄 | 4–12 | Thanksgiving, winter holidays, birthdays. Seasonal. | (from the christmas / thanksgiving sets) | 33 → 33 |
 
-Totals: 223 existing retagged (20+41+55+20+47+3+4+33), about 73 new written to fill thin categories before launch.
-Free: 9 x 8 = **72** (down from 223). Paid written: about 224, plus AI.
+Totals: 223 existing retagged (20+41+55+20+47+3+4+33), **103** new written to reach the targets
+(Tiny Choices +10, Road Trip Rally +10, Heart to Heart +27, Future Me +26, Real Talk +30). Target total: 326 written.
+Free: 9 x 8 = **72** (down from 223). Paid written: **254** (326 − 72), plus AI.
 
 Retag rule (default by SEO tag, then per-question review in Unit 1):
 `little`→Tiny Choices; `kids`, `app`, and `elementary` 66/72/75/79/82/85→Make-Believe; `funny`, `gross`,
@@ -134,7 +135,8 @@ missing from the kids-route set.
 1. Category screen: 8 playable questions, then the locked rows ("👑 N more · Unlock") already used by adult categories.
 2. Question 8's result screen and `/complete/<id>` show "Want more [Category]? Ask a grown-up" → `/unlock/<id>`.
 3. `/unlock/<id>`: **parental gate first** (existing `ParentalGate`), then the paywall: price, "includes new questions
-   added over time and More like this", "Unlock everything $4.99", Restore Purchases. No analytics on this path.
+   added over time and More like this", "Unlock everything $4.99", Restore Purchases. No analytics on this path for `audience: 'kids'`
+   categories; the Real Talk (teen) paywall keeps the gate and keeps analytics (§2.3).
 4. After purchase: back to the category, all written questions open, plus a **More like this** button at the end.
 
 Web: until #53 decides web payments, **the web paywall must not grant anything.** Recommended: on web, kids paywalls
@@ -231,11 +233,12 @@ and latency that scale with use, and a server-side entitlement check that would 
    no duplicate of an existing question. Any fail is dropped, not edited.
 3. **Human-reviewable log**: every candidate, verdict and reason in a `kids_pool` table (Neon, already used for votes):
    `id, category, optionA, optionB, ages, model, prompt_version, classifier_verdict, reasons, status
-   (draft|approved|rejected|retired), reviewed_by, created_at`. An owner-only review page (`/owner/kids-pool`, behind
+   (draft|approved|rejected|retired), report_count, reported_at, reviewed_by, created_at`. An owner-only review page (`/owner/kids-pool`, behind
    the existing owner access) lists drafts with approve/reject in bulk. A "report this question" link on paid questions
-   (behind the parental gate, `POST /api/report`, body `{questionId}` only, no ID) moves the question back to `draft` for owner review; it is
-   **never retired automatically**, because an anonymous report cannot be told apart from a script. The report endpoint
-   is rate-limited by IP at the edge (no stored ID), and reports only flag, so a scripted loop cannot empty a paid pool.
+   (behind the parental gate, `POST /api/report`, body `{questionId}` only, no ID) increments `report_count` and sets `reported_at`; the question stays
+   `approved` and keeps being served. Only an owner action on the review page (which lists reported questions first)
+   changes `status`. An anonymous report cannot be told apart from a script, so a report never hides content by itself;
+   the worst a scripted loop can do is fill the review list. The endpoint is rate-limited by IP at the edge (no stored ID).
 
 ### 4.4 Cost per 100 questions
 
@@ -384,7 +387,7 @@ add coloured text or comments without rewriting the document, which would break 
 | Unit | PR | Files it owns | Tim review? | Verifiable by |
 |---|---|---|---|---|
 | 0 | This spec | `docs/specs/kids-family-categories.md` | Decisions only | Read |
-| 1 | Content: categories, retag, hand-pick free 8, write ~73 new questions | `constants/kidsQuestions.ts` (split per category file if large), `api/_lib/data.js`, `scripts/verify-questions.ts` (new checks: every kids question in exactly one category, free count 8, ages set, blocklist clean) | **Yes**: read every new question (73) | `npm run verify:data`, `npm test` |
+| 1 | Content: categories, retag, hand-pick free 8, write 103 new questions | `constants/kidsQuestions.ts` (split per category file if large), `api/_lib/data.js`, `scripts/verify-questions.ts` (new checks: every kids question in exactly one category, free count 8, ages set, blocklist clean) | **Yes**: read every new question (103) | `npm run verify:data`, `npm test` |
 | 2 | Model + kids-rule plumbing: `audience`, `ages`, remove `kids-family`, redirect, derive `isKidsPath`/`requiresParentalGate`/`FAMILY_FRIENDLY` from `audience` | `constants/questions.ts`, `lib/kidsPaths.ts`, `lib/parentalGate.ts`, `constants/seoPages.ts` (D4), `tests/unit/*` | No (privacy rule, but no payments) | unit tests incl. "every kids category is a kids route"; `tests/browserless/kids-no-tracking.mjs` on every new route |
 | 3 | Browse UI: Grown-ups / With kids switch, age chips, age label on cards, mode-scoped random | `app/index.tsx`, `app/categories/index.tsx`, `components/CategoryCard.tsx` | No | screenshots at phone width; navigation test |
 | 4 | Payments: 9 products, catalog sync, paywall copy, gate on every With kids purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 17 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
