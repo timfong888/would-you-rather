@@ -14,14 +14,15 @@ import { purchases } from '@/lib/purchases';
 import { testUnlockAllowed } from '@/lib/testUnlockPolicy';
 
 /**
- * Free test unlock (no payment). Off unless EXPO_PUBLIC_TEST_UNLOCK is "1" on a
- * preview or development build; never on production (lib/testUnlockPolicy.ts).
- * The inline env comparison lets Metro inline the value so the minifier drops
- * the test-only paths from builds without the flag.
+ * Free test unlock (no payment). Web only: off unless EXPO_PUBLIC_TEST_UNLOCK is
+ * "1" on a preview or development web build; never on production and never on
+ * iOS/Android (lib/testUnlockPolicy.ts). The inline env and Platform.OS checks
+ * let Metro inline both so the minifier drops the test-only paths elsewhere.
  */
 export const TEST_UNLOCK =
+  Platform.OS === 'web' &&
   process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' &&
-  testUnlockAllowed(process.env.EXPO_PUBLIC_DEPLOY_ENV, process.env.EXPO_PUBLIC_TEST_UNLOCK);
+  testUnlockAllowed(process.env.EXPO_PUBLIC_DEPLOY_ENV, process.env.EXPO_PUBLIC_TEST_UNLOCK, Platform.OS);
 
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */

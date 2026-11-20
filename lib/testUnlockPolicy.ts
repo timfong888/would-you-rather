@@ -5,10 +5,11 @@
  * RevenueCat paywall is what customers get. The free unlock (the simulated
  * checkout sheet, issue #53) is therefore a test-only switch:
  *
- * - never on production (web production deploy, App Store build), whatever
- *   the flag says;
- * - on a preview (Vercel preview, TestFlight `preview` build) or a local /
- *   development build only when EXPO_PUBLIC_TEST_UNLOCK is exactly "1";
+ * - web only. iOS/Android builds never have it (Tim, 2026-11-20, decision A:
+ *   TestFlight is tested with Apple sandbox purchases, the real paywall);
+ * - never on production (web production deploy), whatever the flag says;
+ * - on a Vercel preview or a local web build only when EXPO_PUBLIC_TEST_UNLOCK
+ *   is exactly "1";
  * - an unknown or missing deploy environment counts as production (fail closed).
  *
  * The deploy environment comes from EXPO_PUBLIC_DEPLOY_ENV, set by
@@ -31,6 +32,10 @@ export function parseDeployEnv(raw: string | undefined | null): DeployEnv {
   return raw === 'preview' || raw === 'development' ? raw : 'production';
 }
 
-export function testUnlockAllowed(deployEnvRaw: string | undefined | null, flag: string | undefined | null): boolean {
-  return parseDeployEnv(deployEnvRaw) !== 'production' && flag === '1';
+export function testUnlockAllowed(
+  deployEnvRaw: string | undefined | null,
+  flag: string | undefined | null,
+  platform: string,
+): boolean {
+  return platform === 'web' && parseDeployEnv(deployEnvRaw) !== 'production' && flag === '1';
 }

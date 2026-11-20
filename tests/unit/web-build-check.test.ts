@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 // @ts-ignore: plain .mjs build script
 import { envProblems, filesWithMarker, TEST_UNLOCK_MARKER, deployEnvFrom } from '../../scripts/check-web-build.mjs';
 
@@ -48,17 +49,31 @@ test('the paywall source carries the marker only in TEST_UNLOCK_UI-guarded UI', 
   const uiLines = lines.filter((l) => l.includes(TEST_UNLOCK_MARKER) && !l.trim().startsWith('//'));
   assert.ok(uiLines.length >= 1, 'marker must label the test-unlock UI so the production scan can see it');
   // The test-only UI and the simulated sheet are rendered behind the inline-folded constant.
-  assert.match(src, /const TEST_UNLOCK_UI = process\.env\.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;/);
+  assert.match(src, /const TEST_UNLOCK_UI = Platform\.OS === 'web' && process\.env\.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;/);
   assert.match(src, /\{TEST_UNLOCK_UI && paymentState === 'sheet' && \(/);
   assert.match(src, /\{TEST_UNLOCK_UI && purchasesAvailable && \(/);
   assert.match(src, /if \(!TEST_UNLOCK_UI \|\| paymentState !== 'sheet'\) return;/);
 });
 
-test('test-unlock builds get a version above any release that never equals one', async () => {
-  // @ts-ignore: plain CommonJS config
-  const { testUnlockVersion } = await import('../../app.config.js');
-  assert.equal(testUnlockVersion('1.0.0'), '99.1.0');
-  assert.equal(testUnlockVersion('2.3.4'), '99.2.3');
+test('no EAS build carries the free test unlock (web-only, decision A 2026-11-20)', () => {
+  const eas = JSON.parse(readFileSync('eas.json', 'utf8'));
+  for (const [name, profile] of Object.entries<any>(eas.build)) {
+    assert.equal(profile.env?.EXPO_PUBLIC_TEST_UNLOCK, undefined, `eas.json profile ${name}`);
+  }
+  assert.equal(existsSync('app.config.js'), false, 'no 99.x test version layer');
+  for (const profile of ['preview', 'development', 'production']) {
+    const r = spawnSync(process.execPath, ['scripts/check-rc-keys.mjs'], {
+      env: { ...process.env, EAS_BUILD_PROFILE: profile, EXPO_PUBLIC_TEST_UNLOCK: '1', EXPO_PUBLIC_DEPLOY_ENV: profile, EXPO_PUBLIC_RC_IOS_KEY: 'appl_x' },
+      encoding: 'utf8',
+    });
+    assert.equal(r.status, 1, `${profile}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /EXPO_PUBLIC_TEST_UNLOCK is set/);
+  }
+});
+
+test('TEST_UNLOCK is gated on Platform.OS === web inline (native bundles drop it)', () => {
+  const src = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
+  assert.match(src, /export const TEST_UNLOCK =\s*Platform\.OS === 'web' &&\s*process\.env\.EXPO_PUBLIC_TEST_UNLOCK === '1' &&/);
 });
 
 test('test mode offers the pack: "unlock every category" renders and unlocks all', () => {

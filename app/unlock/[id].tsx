@@ -41,7 +41,7 @@ type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
 // minifier drops every `TEST_UNLOCK_UI && ...` branch from production. The
 // production web export is scanned for the marker text "TEST MODE: NO CHARGE"
 // (scripts/check-web-build.mjs), so that text must only appear behind it.
-const TEST_UNLOCK_UI = process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;
+const TEST_UNLOCK_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;
 
 const PAYMENT_MS = 1800;
 
