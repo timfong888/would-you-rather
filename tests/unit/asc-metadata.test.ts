@@ -57,6 +57,18 @@ test('apply writes only localization and copyright endpoints', async () => {
   assert.ok(!calls.some((c) => /submission|reviewSubmission|screenshot|build|ageRating|price/i.test(c)));
 });
 
+test('a non-editable version blocks ALL writes, including the app-info update', async () => {
+  const { api, calls } = fakeApi({ infoState: 'PREPARE_FOR_SUBMISSION', verState: 'IN_REVIEW', withLocs: true });
+  await assert.rejects(syncListing({ api, appId: '1', listing, apply: true }), /No editable iOS version/);
+  assert.ok(calls.every((c) => c.startsWith('GET ')), `no writes expected, got: ${calls.join(' | ')}`);
+});
+
+test('a non-editable app info blocks all writes', async () => {
+  const { api, calls } = fakeApi({ infoState: 'READY_FOR_SALE', withLocs: true });
+  await assert.rejects(syncListing({ api, appId: '1', listing, apply: true }), /No editable appInfo/);
+  assert.ok(calls.every((c) => c.startsWith('GET ')));
+});
+
 test('refuses versions that are in review or released', async () => {
   const { api } = fakeApi({ verState: 'IN_REVIEW' });
   await assert.rejects(syncListing({ api, appId: '1', listing, apply: true }), /No editable iOS version/);

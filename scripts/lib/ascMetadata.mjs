@@ -68,55 +68,61 @@ const diff = (current, wanted) => {
 
 /**
  * Compare the listing with App Store Connect and, if apply is true, write the differences.
+ * Two phases: (1) read everything and verify BOTH the app info and the iOS version are editable,
+ * building a list of writes; (2) only then perform the writes. So a refusal never leaves a
+ * partial update behind.
  * `api(method, path, body)` returns parsed JSON:API and throws on HTTP errors.
  * Returns the list of planned or performed changes, never secrets.
  */
 export async function syncListing({ api, appId, listing, apply }) {
   const call = checked(api);
   const log = [];
+  const writes = []; // [method, path, body]
   const loc = listing.locale;
+  const v = listing.version;
 
-  // App-level text: name, subtitle, privacy policy URL (appInfoLocalizations).
+  // Phase 1a: app-level text (appInfoLocalizations).
   const infos = (await call('GET', `/v1/apps/${appId}/appInfos`)).data ?? [];
-  const info = infos.find((i) => EDITABLE_STATES.includes(i.attributes?.appStoreState)) ;
+  const info = infos.find((i) => EDITABLE_STATES.includes(i.attributes?.appStoreState));
   if (!info) throw new Error(`No editable appInfo (states: ${infos.map((i) => i.attributes?.appStoreState).join(', ') || 'none'})`);
   const infoLocs = (await call('GET', `/v1/appInfos/${info.id}/appInfoLocalizations`)).data ?? [];
   const infoLoc = infoLocs.find((x) => x.attributes?.locale === loc);
   const infoWanted = { name: listing.appInfo.name, subtitle: listing.appInfo.subtitle, privacyPolicyUrl: listing.appInfo.privacyPolicyUrl };
   if (!infoLoc) {
     log.push({ target: 'appInfoLocalization', action: 'create', locale: loc, fields: Object.keys(infoWanted) });
-    if (apply) await call('POST', '/v1/appInfoLocalizations', { data: { type: 'appInfoLocalizations', attributes: { locale: loc, ...infoWanted }, relationships: { appInfo: { data: { type: 'appInfos', id: info.id } } } } });
+    writes.push(['POST', '/v1/appInfoLocalizations', { data: { type: 'appInfoLocalizations', attributes: { locale: loc, ...infoWanted }, relationships: { appInfo: { data: { type: 'appInfos', id: info.id } } } } }]);
   } else {
     const d = diff(infoLoc.attributes, infoWanted);
     if (Object.keys(d).length) {
       log.push({ target: 'appInfoLocalization', action: 'update', locale: loc, fields: Object.keys(d) });
-      if (apply) await call('PATCH', `/v1/appInfoLocalizations/${infoLoc.id}`, { data: { type: 'appInfoLocalizations', id: infoLoc.id, attributes: d } });
+      writes.push(['PATCH', `/v1/appInfoLocalizations/${infoLoc.id}`, { data: { type: 'appInfoLocalizations', id: infoLoc.id, attributes: d } }]);
     }
   }
 
-  // Version-level text (appStoreVersionLocalizations) and copyright (appStoreVersions).
+  // Phase 1b: version-level text (appStoreVersionLocalizations) and copyright (appStoreVersions).
   const versions = (await call('GET', `/v1/apps/${appId}/appStoreVersions?filter[platform]=IOS&limit=10`)).data ?? [];
-  const ver = versions.find((v) => EDITABLE_STATES.includes(v.attributes?.appStoreState));
-  if (!ver) throw new Error(`No editable iOS version (states: ${versions.map((v) => v.attributes?.appStoreState).join(', ') || 'none'})`);
-  const wantVer = { copyright: listing.version.copyright };
-  const dv = diff(ver.attributes, wantVer);
+  const ver = versions.find((x) => EDITABLE_STATES.includes(x.attributes?.appStoreState));
+  if (!ver) throw new Error(`No editable iOS version (states: ${versions.map((x) => x.attributes?.appStoreState).join(', ') || 'none'})`);
+  const dv = diff(ver.attributes, { copyright: v.copyright });
   if (Object.keys(dv).length) {
     log.push({ target: 'appStoreVersion', action: 'update', version: ver.attributes?.versionString, fields: Object.keys(dv) });
-    if (apply) await call('PATCH', `/v1/appStoreVersions/${ver.id}`, { data: { type: 'appStoreVersions', id: ver.id, attributes: dv } });
+    writes.push(['PATCH', `/v1/appStoreVersions/${ver.id}`, { data: { type: 'appStoreVersions', id: ver.id, attributes: dv } }]);
   }
   const verLocs = (await call('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations`)).data ?? [];
   const verLoc = verLocs.find((x) => x.attributes?.locale === loc);
-  const v = listing.version;
   const verWanted = { description: v.description, keywords: v.keywords, promotionalText: v.promotionalText, supportUrl: v.supportUrl, marketingUrl: v.marketingUrl, ...(v.whatsNew != null ? { whatsNew: v.whatsNew } : {}) };
   if (!verLoc) {
     log.push({ target: 'appStoreVersionLocalization', action: 'create', locale: loc, fields: Object.keys(verWanted) });
-    if (apply) await call('POST', '/v1/appStoreVersionLocalizations', { data: { type: 'appStoreVersionLocalizations', attributes: { locale: loc, ...verWanted }, relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: ver.id } } } } });
+    writes.push(['POST', '/v1/appStoreVersionLocalizations', { data: { type: 'appStoreVersionLocalizations', attributes: { locale: loc, ...verWanted }, relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: ver.id } } } } }]);
   } else {
     const d = diff(verLoc.attributes, verWanted);
     if (Object.keys(d).length) {
       log.push({ target: 'appStoreVersionLocalization', action: 'update', locale: loc, fields: Object.keys(d) });
-      if (apply) await call('PATCH', `/v1/appStoreVersionLocalizations/${verLoc.id}`, { data: { type: 'appStoreVersionLocalizations', id: verLoc.id, attributes: d } });
+      writes.push(['PATCH', `/v1/appStoreVersionLocalizations/${verLoc.id}`, { data: { type: 'appStoreVersionLocalizations', id: verLoc.id, attributes: d } }]);
     }
   }
+
+  // Phase 2: writes, only after every check above passed.
+  if (apply) for (const [method, path, body] of writes) await call(method, path, body);
   return log;
 }
