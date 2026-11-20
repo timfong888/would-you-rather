@@ -27,6 +27,7 @@ import { decodeFriend, matchOutcome, pickLine, headingFor, shareText, uiText, ma
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
 import { formatResult, INVITE_TITLE, INVITE_TEXT, type ResultDisplay } from '@/lib/results';
+import { APP_STORE_LIVE, appStoreUrl, shareCampaign, isIphoneBrowser } from '@/lib/appStore';
 import { recipientEvents, recipientIntro, theyPickedLine, type RecipientAction } from '@/lib/recipient';
 
 // Shape of the link_id that buildShareUrl() emits (RFC 4122 v4 UUID).
@@ -367,6 +368,18 @@ export default function GameScreen() {
     else await handleChallengeShare('game_result');
   };
 
+  // "Get the app" (#134): iPhone browsers only, hidden until the app is public (APP_STORE_LIVE).
+  // The App Store link carries a campaign name, so App Store Connect counts installs by source.
+  const showGetApp =
+    APP_STORE_LIVE &&
+    Platform.OS === 'web' &&
+    typeof navigator !== 'undefined' &&
+    isIphoneBrowser(navigator.userAgent);
+  const handleGetApp = () => {
+    trackRecipient('app_cta_click', 'game_recipient');
+    if (typeof window !== 'undefined') window.location.href = appStoreUrl({ campaign: shareCampaign(isKidsCategory) });
+  };
+
   // Skip is hidden in the UI when the next question is locked, but keep the
   // routing consistent with handleNext in case that changes.
   const handleSkip = () => {
@@ -664,6 +677,16 @@ export default function GameScreen() {
                     {copyFeedback ?? uiText(isKidsCategory, 'recipient_send_back')}
                   </Text>
                 </Pressable>
+                {showGetApp && (
+                  <Pressable
+                    onPress={handleGetApp}
+                    accessibilityRole="link"
+                    testID="get-app"
+                    style={({ pressed }) => [styles.getAppButton, pressed && { opacity: 0.7 }]}
+                  >
+                    <Text style={styles.getAppText}>{uiText(isKidsCategory, 'recipient_get_app')}</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -980,6 +1003,16 @@ function makeStyles(colors: ThemeColors) {
       color: colors.textSecondary,
       fontSize: FONTS.sizes.sm,
       fontWeight: FONTS.weights.semibold,
+    },
+    getAppButton: {
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      ...Platform.select({ web: { cursor: 'pointer' } }),
+    },
+    getAppText: {
+      color: colors.textSecondary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.bold,
     },
     recipientActions: {
       gap: SPACING.md,

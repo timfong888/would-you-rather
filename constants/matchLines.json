@@ -51,7 +51,8 @@
       "recipient_intro_plain": "Tap one to see how everyone voted.",
       "recipient_they_picked": "They picked: {option}",
       "recipient_play_another": "PLAY ANOTHER →",
-      "recipient_send_back": "↩︎  Send one back"
+      "recipient_send_back": "↩︎  Send one back",
+      "recipient_get_app": "📲  Get the app"
     }
   },
   "kids": {
@@ -97,7 +98,8 @@
       "recipient_intro_plain": "Tap the one you'd pick!",
       "recipient_they_picked": "They picked: {option}",
       "recipient_play_another": "PLAY ANOTHER →",
-      "recipient_send_back": "↩︎  Send one back"
+      "recipient_send_back": "↩︎  Send one back",
+      "recipient_get_app": "📲  Get the app"
     }
   }
 }
