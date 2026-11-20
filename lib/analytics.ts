@@ -7,7 +7,8 @@ import { SITE_URL } from '@/constants/config';
 import PostHog from 'posthog-react-native';
 import { buildShareLink } from '@/lib/shareQuestion';
 import { isKidsPath } from '@/lib/kidsPaths';
-import { resolveVisitorId, purgeStoredVisitorId, analyticsAllowed } from '@/lib/visitorId';
+import { resolveVisitorId, purgeStoredVisitorId } from '@/lib/visitorId';
+import { analyticsOnFor, createTracker, type Props } from '@/lib/analyticsCore';
 
 export const DEBUG = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
@@ -32,8 +33,6 @@ function getClient(): PostHog | null {
   return _client;
 }
 
-type Props = Record<string, string | number | boolean | null | undefined>;
-
 // ── owner access flag ───────────────────────────────────────────────────────
 // Set by UnlockedProvider. While true, every event carries owner_access: true
 // so the owner's / testers' activity can be filtered out of paywall funnels.
@@ -48,36 +47,43 @@ function withGlobalProps(props?: Props): Props | undefined {
   return { ...(props ?? {}), owner_access: true };
 }
 
+// Native has no window.location: the router path is pushed here by AnalyticsProvider, on every
+// render and before any child effect runs. Null means "not known yet", and analytics stays off.
+let _nativePath: string | null = null;
+
+export function setCurrentRoute(pathname: string | null | undefined): void {
+  _nativePath = pathname || null;
+}
+
 /**
- * True when analytics may run on the page the browser is on. Kids routes (COPPA) never send
- * analytics: no events, no identify. Web only; the native app does not use a web path.
+ * True when analytics may run on the current screen. Kids routes (COPPA) never send analytics:
+ * no events, no identify, on web and on native alike. Native is closed until the route is known.
  */
 function analyticsOn(): boolean {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return true;
-  return analyticsAllowed(window.location.pathname, isKidsPath);
+  const pathname =
+    Platform.OS === 'web'
+      ? typeof window !== 'undefined'
+        ? window.location.pathname
+        : undefined
+      : _nativePath;
+  if (Platform.OS === 'web' && typeof window === 'undefined') return true; // SSR: no client anyway
+  return analyticsOnFor({ platform: Platform.OS, pathname, isKids: isKidsPath });
 }
 
-export function identify(distinctId: string, properties?: Props): void {
-  if (!analyticsOn()) return;
-  try {
-    getClient()?.identify(distinctId, properties as any);
-  } catch (e) {
-    if (DEBUG) console.warn('[analytics] identify error', e);
-  }
-}
+const tracker = createTracker({
+  getClient: () => getClient() as any,
+  allowed: analyticsOn,
+  decorate: withGlobalProps,
+  onEvent: (event, props) => {
+    if (DEBUG) console.log('[analytics]', event, props);
+  },
+  onError: (where, e) => {
+    if (DEBUG) console.warn(`[analytics] ${where} error`, e);
+  },
+});
 
-export function track(event: string, props?: Props): void {
-  if (!analyticsOn()) return;
-  const finalProps = withGlobalProps(props);
-  if (DEBUG) {
-    console.log('[analytics]', event, finalProps);
-  }
-  try {
-    getClient()?.capture(event, finalProps as any);
-  } catch (e) {
-    if (DEBUG) console.warn('[analytics] capture error', e);
-  }
-}
+export const identify = tracker.identify;
+export const track = tracker.track;
 
 // ── visitor_id ──────────────────────────────────────────────────────────────
 
