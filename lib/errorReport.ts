@@ -3,10 +3,16 @@
  * under plain Node in tests. What reaches analytics is a short, scrubbed description:
  * no stack traces, no URLs with query strings (any scheme, blob:/data: payloads, scheme-less hosts), no email addresses.
  */
+// Input is capped before any regex runs, and every pattern below is anchored to a token start (\b) or has no
+// leading greedy group, so cost stays linear: a large error payload (a JSON.stringify of an API body, say)
+// must not freeze the page, and this runs before the per-page rate limiter.
+const MAX_INPUT = 2000;
+
 export function scrub(text: string, max = 200): string {
   return text
+    .slice(0, MAX_INPUT)
     // Any scheme:// URL (https, wss, ftp, ...): keep scheme, host (no credentials) and path; drop query and fragment.
-    .replace(/[a-z][a-z0-9+.-]*:\/\/[^\s)'"]+/gi, (u) => {
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s)'"]+/gi, (u) => {
       try {
         const url = new URL(u);
         return `${url.protocol}//${url.host}${url.pathname}`;
@@ -17,7 +23,7 @@ export function scrub(text: string, max = 200): string {
     // blob: and data: URIs carry a payload or an object ID; drop all of it.
     .replace(/\b(blob|data):[^\s)'"]+/gi, '<$1-uri>')
     // Scheme-less hosts or paths with a query string (www.example.com/p?link_id=x): cut at the "?".
-    .replace(/([^\s?]+)\?[^\s)'"]*=[^\s)'"]*/g, '$1')
+    .replace(/\?[^\s)'"?]*=[^\s)'"]*/g, '')
     .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email>')
     .slice(0, max);
 }

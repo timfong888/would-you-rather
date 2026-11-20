@@ -25,6 +25,17 @@ test('scrub drops query strings from any scheme, blob/data payloads and scheme-l
   assert.ok(!scrub('x https://a.test/p?link_id=secret#frag y').includes('secret'));
 });
 
+test('scrub stays fast on large whitespace-free input (no quadratic backtracking)', () => {
+  const big = JSON.stringify({ rows: Array.from({ length: 4000 }, (_, i) => ({ id: i, v: 'abc' + i })) }); // ~100 KB, no spaces
+  assert.ok(big.length > 50000 && !/\s/.test(big));
+  const alnum = 'a'.repeat(100000);
+  for (const input of [big, alnum, 'a'.repeat(50000) + '?', 'x:' + 'a'.repeat(50000)]) {
+    const t0 = Date.now();
+    scrub(input);
+    assert.ok(Date.now() - t0 < 100, `scrub took ${Date.now() - t0} ms on ${input.length} chars`);
+  }
+});
+
 test('scrub drops query strings and emails and truncates', () => {
   assert.equal(scrub('failed https://www.wouldyourather.fyi/p/hl-1?link_id=abc&x=1#frag now'), 'failed https://www.wouldyourather.fyi/p/hl-1 now');
   assert.equal(scrub('mail me at kid@example.com please'), 'mail me at <email> please');
