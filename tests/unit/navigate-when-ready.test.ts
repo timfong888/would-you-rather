@@ -66,3 +66,10 @@ test('both gated screens navigate through replaceWhenReady, not a bare router.re
   const unlock = readFileSync('app/unlock/[id].tsx', 'utf8');
   assert.match(unlock, /cancelEntryNavRef\.current = replaceWhenReady\(router, `\/categories\/\$\{id as string\}`\);/);
 });
+
+test('the paywall re-checks after entry: late entitlements route through paywallLateUnlock', async () => {
+  const { readFileSync } = await import('node:fs');
+  const unlock = readFileSync('app/unlock/[id].tsx', 'utf8');
+  assert.match(unlock, /paywallLateUnlock\(\{/);
+  assert.match(unlock, /\}, \[unlockedNow, paymentState, codeState, navReady\]\);/);
+});

@@ -17,7 +17,7 @@ import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, TEST_UNLOCK } from '@/contexts/UnlockedContext';
-import { paywallEntry } from '@/lib/access';
+import { paywallEntry, paywallLateUnlock } from '@/lib/access';
 import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track as trackEvent } from '@/lib/analytics';
@@ -196,6 +196,25 @@ export default function UnlockScreen() {
     track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entitlementsLoaded, navReady]);
+
+  // Entitlements that arrive after the entry decision (Sinatra P2 on PR #128):
+  // a buyer whose first fetch outlived the load timeout is sent on once their
+  // category unlocks, as long as the paywall is idle.
+  const unlockedNow = isUnlocked(id as CategoryId);
+  useEffect(() => {
+    if (
+      !paywallLateUnlock({
+        entryChecked: entryCheckedRef.current,
+        navReady,
+        unlocked: unlockedNow,
+        idle: paymentState === 'idle',
+        redeemingCode: codeState === 'checking',
+      }) ||
+      cancelEntryNavRef.current
+    ) return;
+    cancelEntryNavRef.current = replaceWhenReady(router, `/categories/${id as string}`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlockedNow, paymentState, codeState, navReady]);
 
   if (kidsDirected && !gatePassed) {
     return <ParentalGate onPass={() => setGatePassed(true)} onCancel={() => router.back()} />;

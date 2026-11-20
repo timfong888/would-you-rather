@@ -45,3 +45,20 @@ export function paywallEntry(input: { entitlementsLoaded: boolean; navReady: boo
   if (!input.entitlementsLoaded || !input.navReady) return 'wait';
   return input.unlocked ? 'to-category' : 'track-view';
 }
+
+/**
+ * After the entry decision, entitlements can still arrive late (the first fetch
+ * outlived the load timeout on a slow connection). If the category becomes
+ * unlocked while the paywall is idle, send the visitor to it instead of
+ * offering to sell what they own. Never while a purchase, restore or owner
+ * code is in flight: those show their own success screen.
+ */
+export function paywallLateUnlock(input: {
+  entryChecked: boolean;
+  navReady: boolean;
+  unlocked: boolean;
+  idle: boolean;
+  redeemingCode: boolean;
+}): boolean {
+  return input.entryChecked && input.navReady && input.unlocked && input.idle && !input.redeemingCode;
+}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canPlayCategory, paywallEntry, questionGate } from '../../lib/access';
+import { canPlayCategory, paywallEntry, paywallLateUnlock, questionGate } from '../../lib/access';
 import type { AccessState } from '../../lib/access';
 
 const base: AccessState = { ownerAccess: false, entitlements: new Set(), testUnlocks: new Set(), testUnlockEnabled: false };
@@ -73,4 +73,18 @@ test('paywallEntry: decides only after load and nav; entitled visitors go to the
   }
   assert.equal(e(true, true, true), 'to-category');
   assert.equal(e(true, true, false), 'track-view');
+});
+
+test('paywallLateUnlock: entitlements arriving after the timeout send an idle visitor to the category (Sinatra P2)', () => {
+  const base = { entryChecked: true, navReady: true, unlocked: true, idle: true, redeemingCode: false };
+  // The late-fetch case: entry already decided "track-view", then the category unlocks.
+  assert.equal(paywallLateUnlock(base), true);
+  // Not before the entry decision (the entry effect handles that) or before navigation is ready.
+  assert.equal(paywallLateUnlock({ ...base, entryChecked: false }), false);
+  assert.equal(paywallLateUnlock({ ...base, navReady: false }), false);
+  // Still locked: stay on the paywall.
+  assert.equal(paywallLateUnlock({ ...base, unlocked: false }), false);
+  // A purchase/restore in flight or its success screen, or an owner code being redeemed: those own the flow.
+  assert.equal(paywallLateUnlock({ ...base, idle: false }), false);
+  assert.equal(paywallLateUnlock({ ...base, redeemingCode: true }), false);
 });
