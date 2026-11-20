@@ -66,6 +66,7 @@ Build 11 predates this guard: it is 1.0.0 *with* the test unlock.
 **Never submit build 11**; expire it in TestFlight once the 99.1.0 build is installed.
 Running bare `npx expo start` without the npm script leaves the deploy env unset,
 which counts as production: no test unlock and no sandbox web key (fails closed).
+Do not add a `.env.development` for this: `expo export` loads it too.
 
 Production also ignores unlocks stored by the old simulated checkout (`wyr_unlocked_categories`): on production, access comes from RevenueCat entitlements or owner access only.
 
@@ -136,7 +137,7 @@ Test Store app; App Store Connect has **0** in-app purchases for app 6836653723 
 
 ## Blind spots / decisions for Tim
 
-- **Go-live blocker for live web charges: the web buyer's id is not durable.** Access hangs on one anonymous RevenueCat id in `localStorage`. Safari (and every iOS browser) deletes script-written storage after 7 days of browsing without visiting the site, so an iPhone buyer who returns two weeks later finds the category locked, and Restore cannot find the purchase. The same applies to clearing site data, private windows and other devices. Fine for sandbox testing; **do not set the live `rcb_` key on Production until the id is tied to something durable** (RevenueCat redemption links / email identity, or a server-issued id in an HTTP-only cookie). Needs your call on sign-in vs email; follow-up issue.
+- **Go-live blocker for live web charges: the web buyer's id is not durable.** Access hangs on one anonymous RevenueCat id in `localStorage`. Safari (and every iOS browser) deletes script-written storage after 7 days of browsing without visiting the site, so an iPhone buyer who returns two weeks later finds the category locked, and Restore cannot find the purchase. The same applies to clearing site data, private windows and other devices. Fine for sandbox testing; **do not set the live `rcb_` key on Production until the id is tied to something durable** (RevenueCat redemption links / email identity, or a server-issued id in an HTTP-only cookie). Needs your call on sign-in vs email: #135.
 - **Midnight Secrets and Deep Desires** are paid on web but have no product (they were left out of the iOS catalog). On web their Unlock says "not available". Decide: add web-only products (config in `lib/catalog.ts`), or keep them unsold.
 - **Old free unlocks are dropped on production**: visitors who "bought" through the old simulated sheet lose that access (they never paid).
 - **Owner code on production web** still unlocks everything for anyone with the code (hash brute-forceable offline). Unchanged here.
