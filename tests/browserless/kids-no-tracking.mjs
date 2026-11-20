@@ -23,7 +23,8 @@ async function player(browser, preset) {
   const page = await ctx.newPage();
   const ph = [];
   const events = [];
-  page.on('console', (m) => { const t = m.text(); if (t.startsWith('[analytics]')) events.push(t.slice(12).split(' ')[0]); });
+  // "(not sent: kids page)" debug markers are the gate working, not events
+  page.on('console', (m) => { const t = m.text(); if (t.startsWith('[analytics]') && !t.startsWith('[analytics] (not sent')) events.push(t.slice(12).split(' ')[0]); });
   await page.route(/posthog\.com/, (r) => { ph.push(r.request().url()); r.abort(); });
   const votes = [];
   await page.route('**/api/votes', (r) => { votes.push(JSON.parse(r.request().postData() || '{}')); return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ tally: { a: 30, b: 20, total: 50 }, choice: 'A' }) }); });
