@@ -66,6 +66,7 @@ export default async function handler(req) {
     { width: 1200, height: 630 }
   );
   const res = new Response(image.body, image);
-  res.headers.set("cache-control", "public, max-age=3600, s-maxage=86400");
+  // A card rendered without the logo (self-fetch failed) must not be cached for long.
+  res.headers.set("cache-control", logo ? "public, max-age=3600, s-maxage=86400" : "public, max-age=60, s-maxage=60");
   return res;
 }

@@ -83,3 +83,8 @@ for (const q of ['id=kf-14', 'id=hl-1', '']) {
 test('GET /api/og for an unknown question is a 404', async () => {
   assert.equal((await og(new Request('https://x.test/api/og?id=nope'))).status, 404);
 });
+
+test('a card without the logo is cached for a short time only', async () => {
+  const res = await og(new Request('https://x.test/api/og?id=hl-1'));
+  assert.match(res.headers.get('cache-control') ?? '', /s-maxage=60\b/);
+});
