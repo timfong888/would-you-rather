@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "export:web": "expo export --platform web",
     "verify:attribution": "tsx scripts/verify-attribution.ts",
-    "build:web": "npm run verify:data && npm run verify:attribution && npm run generate:sitemap && expo export --platform web && node scripts/web-export-compat.mjs && node scripts/generate-sharing-pages.mjs && npm run verify:seo -- --dist",
+    "build:web": "npm run verify:data && npm run verify:attribution && npm run generate:sitemap && expo export --platform web && node scripts/web-export-compat.mjs && node scripts/generate-sharing-pages.mjs && node scripts/inject-smart-banner.mjs && npm run verify:seo -- --dist",
     "generate:sitemap": "tsx scripts/generate-sitemap.ts",
     "verify:data": "tsx scripts/verify-questions.ts",
     "owner:hash": "node scripts/owner-code-hash.mjs",

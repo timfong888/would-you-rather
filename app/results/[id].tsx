@@ -19,6 +19,7 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
+import { nativeShareOptions } from '@/lib/shareQuestion';
 
 export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
@@ -95,7 +96,7 @@ export default function ResultsScreen() {
         copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+      Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
   }, [question, id, incomingGeneration, incomingLinkId, visitorId]);
 
@@ -138,7 +139,7 @@ export default function ResultsScreen() {
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${myTakeUrl}`, url: myTakeUrl });
+      Share.share(nativeShareOptions({ title, text, url: myTakeUrl, os: Platform.OS }));
     }
   }, [voted, question, id, incomingGeneration, incomingLinkId, visitorId]);
 
@@ -208,7 +209,7 @@ export default function ResultsScreen() {
         copyTimerRef.current = setTimeout(() => setCopyFeedback(null), 2000);
       }
     } else {
-      Share.share({ title, message: `${text}\n\n${shareUrl}`, url: shareUrl });
+      Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
   }, [question, id, incomingGeneration, incomingLinkId, visitorId, hashtags]);
 
