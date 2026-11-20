@@ -1,0 +1,55 @@
+name: Apple IAP create (writes to App Store Connect)
+
+# Manual only, and only with Tim's explicit go. Creates the in-app purchases in
+# store/ios/iap-products.json (8 Non-Consumables: $4.99 pack, $1.99 per
+# category) with en-US text, USA base price and all territories.
+# Default is a dry run (GET only). Skips product ids that already exist.
+# Never submits for review; review screenshots stay manual.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Write to App Store Connect (false = dry run)
+        type: boolean
+        required: true
+        default: false
+      confirm:
+        description: Type CREATE-8-IAPS to allow apply=true
+        type: string
+        required: false
+        default: ''
+      app_id:
+        description: ASC app id (Apple ID of the app)
+        type: string
+        required: true
+        default: '6836653723'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-iap-create
+  cancel-in-progress: false
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Refuse apply without confirmation
+        if: ${{ inputs.apply && inputs.confirm != 'CREATE-8-IAPS' }}
+        run: |
+          echo "apply=true needs confirm=CREATE-8-IAPS."
+          exit 1
+      - name: Create in-app purchases
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APP_ID: ${{ inputs.app_id }}
+          APPLY: ${{ inputs.apply && '--apply' || '' }}
+        run: node scripts/asc-iap-create.mjs --app "$APP_ID" $APPLY
