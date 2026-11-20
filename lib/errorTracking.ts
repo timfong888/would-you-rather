@@ -5,15 +5,11 @@
  * path (no query string), source. No stack traces.
  */
 import { Platform } from 'react-native';
-import { track, analyticsOn } from '@/lib/analytics';
+import { track, analyticsOn, currentPath } from '@/lib/analytics';
 import { describeError, createLimiter } from '@/lib/errorReport';
 
 let installed = false;
 let allow = createLimiter();
-
-function currentPath(): string | undefined {
-  return typeof window !== 'undefined' ? window.location.pathname : undefined;
-}
 
 export function reportError(err: unknown, source: 'window.onerror' | 'unhandledrejection' | 'render' | 'manual'): void {
   try {
@@ -26,8 +22,7 @@ export function reportError(err: unknown, source: 'window.onerror' | 'unhandledr
       $exception_type: type,
       $exception_message: message,
       $exception_source: source,
-      $exception_list: JSON.stringify([{ type, value: message, mechanism: { handled: source === 'manual', type: source } }]),
-      path: currentPath(),
+      path: currentPath() ?? undefined,
     });
   } catch {
     /* error reporting must never throw */

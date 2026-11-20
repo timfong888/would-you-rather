@@ -28,6 +28,15 @@ test('an error on an adult page is sent with type, scrubbed message, path and so
   assert.ok(!JSON.stringify(e).includes('link_id'));
 });
 
+test('path comes from the router (same source as the kids gate), not window.location', () => {
+  go('/categories');
+  analytics.setRouterPath('/settings'); // in-app navigation: window.location still shows the old page
+  reportError(new Error('boom'), 'render');
+  const [e] = exceptions();
+  assert.equal(e.path, '/settings');
+  assert.ok(!('$exception_list' in e), '$exception_list is not sent (a JSON string is not PostHog\'s array format)');
+});
+
 test('an error on a kids route sends nothing and writes nothing', () => {
   go('/game/kf-1');
   analytics.syncKidsMode('/game/kf-1');
