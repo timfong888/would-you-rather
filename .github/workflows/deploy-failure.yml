@@ -21,8 +21,9 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: read   # the cleanup runs gh pr list (open PRs); the commit-to-PRs lookup for comments
+  issues: write         # issues AND the PR note: comments go through the REST issues-comments endpoint, which accepts issues: write for PRs too
+  pull-requests: read   # the cleanup runs gh pr list (open PRs); the commit-to-PRs lookup. Deliberately not write: `gh issue comment` on a PR
+                        # uses GraphQL addComment (needs pull-requests: write), and write on a secret-holding workflow is more than needed
 
 jobs:
   failure:

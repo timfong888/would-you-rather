@@ -9,7 +9,7 @@ import * as coreModule from '../../.github/scripts/deploy-failure-core.mjs';
 
 // The scripts are plain JS, so tsc (allowJs) would infer every parameter as required; these tests pass partial inputs
 // on purpose. Treat the modules as loosely typed.
-const { handleDeploymentFailure, neonWarning, neonApi }: Record<string, any> = runnerModule;
+const { handleDeploymentFailure, neonWarning, neonApi, ghApi }: Record<string, any> = runnerModule;
 const { normalizeError, decideAutofix, confirmNeonBranchLimit, failureIssueBody, fenced, inlineCode, neutralizeMentions, isPreview, recurrenceReached, neonWarnThreshold, deploymentRefFromEvent, signatureId }: Record<string, any> = coreModule;
 
 const CAUSES = [{ id: 'neon-branch-limit', match: 'Resource provisioning failed', confirm: 'neon-branch-limit', preview_fix: 'neon-cleanup-then-redeploy' }];
@@ -368,4 +368,76 @@ test('real event shape: the same real error on two commits is one issue with the
   await run(api, vercel, fixes, realEvent({ sha: 'b'.repeat(40), ref: 'b'.repeat(40), description: 'Deployment has failed — npx vercel inspect dpl_OTHER999 --logs', targetUrl: 'https://wyr-other-timfong888.vercel.app' }));
   assert.equal(api.issues.length, 1);
   assert.equal((api.comments.get(100) ?? []).filter((c: string) => c.includes('deploy-event')).length, 2);
+});
+
+// ---- #167 re-verify: a failing PR comment (GraphQL addComment needs pull-requests: write) crashed the run ----
+const PR_NUMBER = 172;
+// the real symptom: commenting on a PR throws "Resource not accessible by integration"; commenting on an issue works
+function apiWithBrokenPrComment(prs: any[], extra: (n: number, body: string) => void = () => {}) {
+  const api = fakeApi(prs);
+  const ok = api.comment.bind(api);
+  api.comment = async (n: number, body: string) => { if (n === PR_NUMBER) throw new Error('GraphQL: Resource not accessible by integration (addComment)'); extra(n, body); return ok(n, body); };
+  return api;
+}
+
+test('a PR comment that throws does not stop the Neon check or the auto-fix (real payload shapes)', async () => {
+  const api = apiWithBrokenPrComment([{ number: PR_NUMBER, state: 'OPEN', isCrossRepository: false }]);
+  const vercel = fakeVercel(NEON_ERR, 'dpl_2FL6affbJ4zGLKdnbYJBRaQpXekS'), fixes = cleanup(7);
+  const r = await run(api, vercel, fixes, realEvent());
+  assert.equal(r.decision.autofix, true, 'the Neon cause was still checked and confirmed');
+  assert.equal(fixes.calls, 1, 'cleanup ran');
+  assert.deepEqual(vercel.calls.redeployed, ['dpl_2FL6affbJ4zGLKdnbYJBRaQpXekS'], 'redeploy ran');
+  const text = (api.comments.get(100) ?? []).join('\n');
+  assert.match(text, /Cause check for neon-branch-limit: CONFIRMED/);
+  assert.match(text, /non-critical steps failed[\s\S]*comment on PR #172[\s\S]*Resource not accessible/, 'the failure is written on the issue');
+});
+
+test('a PR comment that throws does not stop the needs-rca path either', async () => {
+  const api = apiWithBrokenPrComment([{ number: PR_NUMBER, state: 'OPEN', isCrossRepository: false }]);
+  const vercel = fakeVercel(NEON_ERR), fixes = cleanup(7);
+  const r = await run(api, vercel, fixes, realEvent(), NOW, fakeNeon({ count: 3 })); // below the limit: not the Neon limit
+  assert.equal(r.decision.autofix, false);
+  assert.ok(api.issues.some((i: any) => i.labels.includes('needs-rca')), 'unconfirmed cause still opens the root-cause issue');
+  assert.equal(fixes.calls, 0);
+  assert.equal(vercel.calls.redeploy, 0);
+});
+
+test('label and informational comment failures never block the auto-fix', async () => {
+  const api = fakeApi();
+  api.ensureLabels = async () => { throw new Error('labels forbidden'); };
+  const ok = api.comment.bind(api);
+  api.comment = async (n: number, body: string) => { if (body.includes('deploy-event') || body.includes('Cause check')) throw new Error('comment forbidden'); return ok(n, body); };
+  const vercel = fakeVercel(NEON_ERR, 'dpl_REAL1'), fixes = cleanup(4);
+  const r = await run(api, vercel, fixes, realEvent());
+  assert.equal(r.decision.autofix, true);
+  assert.deepEqual(vercel.calls.redeployed, ['dpl_REAL1']);
+  assert.match((api.comments.get(100) ?? []).join('\n'), /ensure labels: labels forbidden[\s\S]*event comment on the issue: comment forbidden/);
+});
+
+test('the retry-cap marker is NOT soft: if it cannot be recorded, nothing is cleaned up or redeployed', async () => {
+  const api = fakeApi();
+  const ok = api.comment.bind(api);
+  api.comment = async (n: number, body: string) => { if (body.includes('deploy-autofix')) throw new Error('cannot write marker'); return ok(n, body); };
+  const vercel = fakeVercel(NEON_ERR), fixes = cleanup(4);
+  await assert.rejects(run(api, vercel, fixes, realEvent()), /cannot write marker/);
+  assert.equal(fixes.calls, 0, 'no cleanup without the cap marker');
+  assert.equal(vercel.calls.redeploy, 0, 'no redeploy without the cap marker');
+});
+
+test('the real GitHub adapter posts comments through the REST issues-comments endpoint (works for PRs with issues: write)', async () => {
+  const { mkdtempSync, writeFileSync, chmodSync, readFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'fakegh-'));
+  const log = join(dir, 'calls.json');
+  writeFileSync(join(dir, 'gh'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\n`);
+  chmodSync(join(dir, 'gh'), 0o755);
+  const oldPath = process.env.PATH;
+  process.env.PATH = `${dir}:${oldPath}`;
+  try {
+    await ghApi('timfong888/would-you-rather').comment(183, 'hello');
+  } finally { process.env.PATH = oldPath; }
+  const call = readFileSync(log, 'utf8');
+  assert.match(call, /api -X POST repos\/timfong888\/would-you-rather\/issues\/183\/comments -f body=hello/);
+  assert.doesNotMatch(call, /issue comment/, 'not `gh issue comment` (GraphQL addComment needs pull-requests: write)');
 });

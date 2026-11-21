@@ -25,7 +25,26 @@ async function issuesFor(api, sigKey) {
   return all.filter((i) => (i.body ?? '').includes(marker.signature(sigKey)));
 }
 
-export async function handleDeploymentFailure({ event, api, vercel, neon, fixes, causes, now, log = console.log, dryRun = false }) {
+// Steps that only report (labels, comments, the PR note) must never stop the cause check or the auto-fix.
+// A failure there is logged and, best effort, written on the tracking issue at the end of the run.
+// Steps the safety rules depend on (opening the issue, the retry-cap marker, the needs-rca issue) are NOT soft: they throw.
+export async function handleDeploymentFailure(args) {
+  const ctx = { failures: [], issue: null };
+  const log = args.log ?? console.log;
+  try {
+    return await run({ ...args, log }, ctx);
+  } finally {
+    if (ctx.failures.length && ctx.issue && !args.dryRun) {
+      try { await args.api.comment(ctx.issue, neutralizeMentions(`Some non-critical steps failed in this run; the cause check and auto-fix were not blocked by them:\n${ctx.failures.map((f) => `- ${f}`).join('\n')}`)); }
+      catch (e) { log(`WARN could not record the failed steps on #${ctx.issue}: ${e.message}`); }
+    }
+  }
+}
+
+async function run({ event, api, vercel, neon, fixes, causes, now, log, dryRun = false }, ctx) {
+  const soft = async (what, fn) => {
+    try { return await fn(); } catch (e) { const m = String(e?.message ?? e).split('\n')[0].slice(0, 200); log(`WARN ${what} failed: ${m}`); ctx.failures.push(`${what}: ${m}`); return undefined; }
+  };
   if (!['failure', 'error'].includes(event.state)) { log(`ignore: state ${event.state}`); return { handled: false }; }
   const preview = isPreview(event.environment);
   const ref = deploymentRefFromEvent(event) ?? `unknown-${event.sha.slice(0, 7)}`;
@@ -39,7 +58,7 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
   log(`failure ${dpl} (${event.environment}) signature ${sig}: ${sigText}`);
   if (dryRun) { log(`DRY-RUN: would upsert issue for ${sig}; candidate cause: ${cause ? cause.id : 'none'} (not confirmed in dry-run)`); return { handled: true, sig, dryRun: true }; }
 
-  await api.ensureLabels(LABELS);
+  await soft('ensure labels', () => api.ensureLabels(LABELS));
   const at = now.toISOString();
   const logTail = errorText ? await vercel.getEventsTail(dpl).catch(() => '') : '';
 
@@ -64,8 +83,9 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
     }
     existing.splice(0, existing.length, ...(await issuesFor(api, sig)));
   } else if (!preview && !(issue.labels ?? []).includes(LABEL_HUMAN)) {
-    await api.addLabels(issue.number, [LABEL_HUMAN]);
+    await soft('add needs-human label', () => api.addLabels(issue.number, [LABEL_HUMAN]));
   }
+  ctx.issue = issue.number;
 
   // record this failure once per deployment (event redelivery must not double count)
   const commentsByIssue = new Map();
@@ -73,12 +93,12 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
   const allBodies = [...commentsByIssue.values()].flat();
   const events = parseEvents(allBodies, sig);
   if (!events.some((e) => e.dpl === dpl)) {
-    await api.comment(issue.number, `${marker.event({ sig, sha: event.sha, dpl, at })}\nFailed again: ${event.environment}, ${event.targetUrl}, commit ${event.sha}.`);
+    await soft('event comment on the issue', () => api.comment(issue.number, `${marker.event({ sig, sha: event.sha, dpl, at })}\nFailed again: ${event.environment}, ${event.targetUrl}, commit ${event.sha}.`));
     events.push({ sha: event.sha, dpl, at });
     // deployment.ref is the commit SHA for Vercel deployments, not a branch: look PRs up by commit
     const prs = await api.prsForCommit(event.sha).catch(() => []);
     const own = prs.filter((p) => p.state === 'OPEN' && !p.isCrossRepository);
-    for (const p of own) await api.comment(p.number, `Deploy failed: ${inlineCode(sigText)}. Tracked in #${issue.number}.`);
+    for (const p of own) await soft(`comment on PR #${p.number}`, () => api.comment(p.number, `Deploy failed: ${inlineCode(sigText)}. Tracked in #${issue.number}.`));
   }
 
   // recurrence: 3 failures of one signature in 7 days => root-cause issue, auto-fix paused
@@ -88,7 +108,7 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
   const lastRca = Math.max(0, ...rcaIssues.map((i) => Date.parse(i.createdAt ?? 0) || 0));
   if (!rcaOpen && recurrenceReached(events.filter((e) => Date.parse(e.at) > lastRca), now)) {
     const n = await api.createIssue({ title: `Root cause needed: ${sigText}`.slice(0, 120), body: rcaIssueBody({ sig, sigText, issueNumber: issue.number }), labels: [LABEL_FAILURE, LABEL_RCA] });
-    await api.comment(issue.number, `Recurred ${3}+ times in 7 days. Root-cause issue: #${n}. Auto-fix is paused until it is closed.`);
+    await soft('recurrence comment', () => api.comment(issue.number, `Recurred ${3}+ times in 7 days. Root-cause issue: #${n}. Auto-fix is paused until it is closed.`));
     rcaOpen = true;
     log(`opened needs-rca issue #${n}`);
   }
@@ -99,11 +119,11 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
     confirmation = await neon.facts(at).then((f) => confirmNeonBranchLimit(f)).catch((e) => ({ confirmed: false, evidence: [], ruledOut: [`could not read the Neon API: ${e.message}`] }));
     log(`confirm ${cause.id}: ${confirmation.confirmed ? 'confirmed' : 'NOT confirmed'} | ${[...confirmation.evidence, ...confirmation.ruledOut].join(' | ')}`);
     if (!allBodies.some((b) => b.includes(marker.confirm({ sig, dpl })))) {
-      await api.comment(issue.number, `${marker.confirm({ sig, dpl })}\n${neutralizeMentions(`Cause check for ${cause.id}: ${confirmation.confirmed ? 'CONFIRMED' : 'NOT confirmed'}.\nEvidence: ${confirmation.evidence.join('; ') || 'none'}.\nRuled out: ${confirmation.ruledOut.join('; ') || 'nothing'}.`)}`);
+      await soft('cause-check comment', () => api.comment(issue.number, `${marker.confirm({ sig, dpl })}\n${neutralizeMentions(`Cause check for ${cause.id}: ${confirmation.confirmed ? 'CONFIRMED' : 'NOT confirmed'}.\nEvidence: ${confirmation.evidence.join('; ') || 'none'}.\nRuled out: ${confirmation.ruledOut.join('; ') || 'nothing'}.`)}`));
     }
     if (!confirmation.confirmed && !rcaOpen) {
       const n = await api.createIssue({ title: `Root cause needed: ${sigText}`.slice(0, 120), body: rcaIssueBody({ sig, sigText, issueNumber: issue.number, evidence: confirmation.evidence, ruledOut: confirmation.ruledOut, reason: 'looked like a known cause but it was not confirmed' }), labels: [LABEL_FAILURE, LABEL_RCA] });
-      await api.comment(issue.number, `Known cause not confirmed. Root-cause issue: #${n}. No auto-fix.`);
+      await soft('not-confirmed comment', () => api.comment(issue.number, `Known cause not confirmed. Root-cause issue: #${n}. No auto-fix.`));
       rcaOpen = true;
       log(`opened needs-rca issue #${n} (cause not confirmed)`);
     }
@@ -119,9 +139,9 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
   await api.comment(issue.number, `${marker.autofix({ sig, sha: event.sha })}\nAuto-fix attempt for commit ${event.sha} (${cause.id}), preview only.`);
   const cleanup = await fixes.neonCleanup();
   if (cleanup.deleted === 0) {
-    await api.comment(issue.number, cleanup.failed
+    await soft('cleanup-result comment', () => api.comment(issue.number, cleanup.failed
       ? `The cleanup run failed and freed 0 branches (see the workflow log), so a redeploy would fail the same way. Not redeploying. Needs a human.`
-      : `Cleanup freed 0 branches, so a redeploy would fail the same way. Not redeploying. Every remaining preview branch has an open PR or is protected: needs a decision.`);
+      : `Cleanup freed 0 branches, so a redeploy would fail the same way. Not redeploying. Every remaining preview branch has an open PR or is protected: needs a decision.`));
     return { handled: true, sig, issue: issue.number, decision, redeployed: false };
   }
   let next;
@@ -129,11 +149,11 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
     next = await vercel.redeploy(dpl);
   } catch (e) {
     // the retry is already spent, so say what happened where people look
-    await api.comment(issue.number, `Cleanup freed ${cleanup.deleted} Neon branch(es), but the redeploy FAILED: ${neutralizeMentions(e.message)}. The one automatic retry for commit ${event.sha} is used. Needs a human.`);
-    await api.addLabels(issue.number, [LABEL_HUMAN]);
+    await soft('redeploy-failed comment', () => api.comment(issue.number, `Cleanup freed ${cleanup.deleted} Neon branch(es), but the redeploy FAILED: ${neutralizeMentions(e.message)}. The one automatic retry for commit ${event.sha} is used. Needs a human.`));
+    await soft('add needs-human label', () => api.addLabels(issue.number, [LABEL_HUMAN]));
     return { handled: true, sig, issue: issue.number, decision, redeployed: false, redeployError: e.message };
   }
-  await api.comment(issue.number, `Cleanup deleted ${cleanup.deleted} Neon branch(es); redeployed as ${next}. No further automatic retry for commit ${event.sha}.`);
+  await soft('redeploy comment', () => api.comment(issue.number, `Cleanup deleted ${cleanup.deleted} Neon branch(es); redeployed as ${next}. No further automatic retry for commit ${event.sha}.`));
   return { handled: true, sig, issue: issue.number, decision, redeployed: true };
 }
 
@@ -174,7 +194,9 @@ export function ghApi(repo) {
     },
     async closeIssue(n, comment) { gh(['issue', 'close', String(n), '--repo', repo, '--reason', 'not planned', '--comment', comment]); },
     async addLabels(n, labels) { gh(['issue', 'edit', String(n), '--repo', repo, ...labels.flatMap((l) => ['--add-label', l])]); },
-    async comment(n, body) { gh(['issue', 'comment', String(n), '--repo', repo, '--body', body]); },
+    // REST, not `gh issue comment`: that uses the GraphQL addComment mutation, which needs pull-requests: write when n is a PR.
+    // The REST issues-comments endpoint accepts issues: write for issues and PRs alike.
+    async comment(n, body) { gh(['api', '-X', 'POST', `repos/${repo}/issues/${n}/comments`, '-f', `body=${body}`, '--silent']); },
     async listComments(n) { return lines(gh(['api', `repos/${repo}/issues/${n}/comments`, '--paginate', '--jq', '.[] | {body}'])).map((c) => c.body); },
     async prsForCommit(sha) {
       const jq = `[.[] | {number: .number, state: (.state | ascii_upcase), isCrossRepository: ((.head.repo.full_name // "") != "${repo}")}]`;
