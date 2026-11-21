@@ -17,7 +17,7 @@ App: ASC app id `6836653723`, record name "Would You Rather? Family Fun", bundle
 
 ## 1. App icon
 
-Apple's rules: 1024x1024 px PNG, **opaque (no alpha)**, square (iOS rounds the corners; do not pre-round), no screenshots of the UI, little or no text. The current file (`assets/images/icon.png`, PR #99) is 1024x1024 RGB with no alpha, so it passes validation, but it is placeholder art (gradient and a "?"). `adaptive-icon.png`, `favicon.png` and `splash.png` are still 1x1 and also need art (they do not block iOS).
+Apple's rules: 1024x1024 px PNG, **opaque (no alpha)**, square (iOS rounds the corners; do not pre-round), no screenshots of the UI, little or no text. The current file (`assets/images/icon.png`) is the interim "Hmm" mascot (PR #148, see `app-icon-final.md`): 1024x1024 RGB with no alpha, so it passes validation. `adaptive-icon.png`, `favicon.png`, `public/apple-touch-icon.png`, the iOS dark and tinted icons and `splash.png` (mascot on transparent) are filled in too (#148, #174). Still open: the vector redraw and the final A/B/C direction (Tim).
 
 An icon change ships in the binary: **it needs a new build**, it cannot be changed in ASC alone.
 
