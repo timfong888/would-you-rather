@@ -4,7 +4,7 @@
  */
 import { Platform } from 'react-native';
 import { SITE_URL } from '@/constants/config';
-import { getOrCreateVisitorId } from '@/lib/analytics';
+import { getOrCreateVisitorId, track } from '@/lib/analytics';
 import type { Tally } from '@/lib/results';
 import { postVote, getTally, getTallies, flushPending, lockedChoice, parsePending, voteBody, withoutKidsAnswers, withoutKidsPending, type AckMap, type Choice, type PendingVote } from '@/lib/votes-core';
 import { isKidsQuestion } from '@/lib/kidsPaths';
@@ -75,6 +75,8 @@ export async function castVote(
   const visitorId = kids ? '' : getOrCreateVisitorId().id;
   const { tally, choice: stored, retry } = await postVote(fetch, apiBase(), voteBody(questionId, choice, visitorId));
   if (kids) return { tally, choice: stored };
+  // The vote API failed (down, rate limited or timed out): count it so the daily report shows it.
+  if (retry) track('api_error', { route: '/api/votes', kind: 'vote_failed' });
   if (retry) writePending([...readPending().filter((p) => p.questionId !== questionId), { questionId, choice }]);
   // The server answered: remember the choice it holds, so a revisit locks it.
   else if (stored || tally) writeAcknowledged(questionId, stored ?? choice);

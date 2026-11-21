@@ -31,7 +31,7 @@ export default function SettingsScreen() {
   const { reset: resetAnswered } = useAnsweredQuestions();
   const { styles, colors } = useThemedStyles(makeStyles);
 
-  // Owner access is redeemed on the payment sheet ("Have a code?" on the
+  // Owner access is redeemed on the paywall ("Have a code?" on the
   // unlock screen). Settings only shows status and lets the owner revoke it.
   const handleRevokeOwnerAccess = () => {
     revokeOwnerAccess();

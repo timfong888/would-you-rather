@@ -1,0 +1,64 @@
+name: Apple TestFlight group (attach build)
+
+# Manual only. Attaches an already-uploaded build to a TestFlight beta group with the ASC REST API.
+# Dry run by default (lists groups and finds the build); set apply=true to change anything.
+# Never submits for App Review and never edits groups or testers.
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: CFBundleVersion of the uploaded build
+        type: string
+        required: true
+      version:
+        description: CFBundleShortVersionString
+        type: string
+        required: true
+        default: '1.0.0'
+      group:
+        description: Beta group name (empty = the only internal group)
+        type: string
+        required: false
+        default: ''
+      apply:
+        description: Actually attach the build (false = dry run)
+        type: boolean
+        required: true
+        default: false
+      app_id:
+        description: ASC app id (Apple ID of the app)
+        type: string
+        required: true
+        default: '6836653723'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-testflight-group
+  cancel-in-progress: false
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Attach build to beta group
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APP_ID: ${{ inputs.app_id }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          APP_VERSION: ${{ inputs.version }}
+          GROUP: ${{ inputs.group }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          args=(--app "$APP_ID" --build "$BUILD_NUMBER" --version "$APP_VERSION")
+          if [ -n "$GROUP" ]; then args+=(--group "$GROUP"); fi
+          if [ "$APPLY" = "true" ]; then args+=(--apply); fi
+          node scripts/asc-testflight-group.mjs "${args[@]}"

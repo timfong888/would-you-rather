@@ -1,7 +1,9 @@
 # Payments (RevenueCat)
 
-Status: iOS code complete, sandbox-tested against the RevenueCat **Test Store** catalog.
-Device purchase tests need an EAS development build (Unit 2, issue #75).
+Status (issue #126, 2026-11-20): the real paywall is wired on **iOS** (App Store via
+`react-native-purchases`) and **web** (RevenueCat Web Billing / Stripe via
+`@revenuecat/purchases-js`). The old free "Pay" sheet is now a test-only switch that
+never exists on production. What is left is store setup by Tim (checklist below).
 
 ## Product model (Tim, issue #54, 2026-11-18)
 
@@ -25,13 +27,56 @@ id = entitlement id).
 
 ## Files
 
-- `lib/catalog.ts` ids, prices, access rule. Pure; unit-tested.
-- `lib/purchases-core.ts` the logic, SDK injected, unit-tested with a fake SDK (`tests/unit/purchases-core.test.ts`).
-- `lib/purchases.native.ts` iOS/Android: binds `react-native-purchases` and the platform key.
-- `lib/purchases.ts` web: unavailable. Metro picks `.native.ts` on devices, so the web bundle never contains the SDK (checked with `expo export`).
-- `contexts/UnlockedContext.tsx` entitlements from RevenueCat on launch, a customer-info listener, and a refresh on every app foreground (RevenueCat does not push backend changes, so a refund or expiry shows up on the next foreground).
-- `app/unlock/[id].tsx` real purchase, "unlock every category", Restore Purchases, quiet user-cancel. On web the old simulated sheet is unchanged (decision pending in #53). The simulated sheet is web-only: a native build without a RevenueCat key shows "Purchases are not available in this build" and never grants access.
-- `scripts/revenuecat/sync-catalog.ts` (`npm run rc:sync`) idempotent Test Store catalog sync.
+- `lib/catalog.ts` ids, prices, entitlement rule. Pure; unit-tested. Adding a product (e.g. the kids products in `docs/specs/kids-family-categories.md`) is a catalog entry plus `npm run rc:sync`; no UI change.
+- `lib/access.ts` the access rule the app uses: owner access, or an entitlement, or (test builds only) a test unlock.
+- `lib/purchases-core.ts` iOS logic, SDK injected, unit-tested. `lib/purchases.native.ts` binds `react-native-purchases`.
+- `lib/purchases-web-core.ts` web logic, SDK injected, unit-tested. `lib/purchases.ts` binds `@revenuecat/purchases-js`, loaded only when needed (separate chunk).
+- `lib/testUnlockPolicy.ts` where the free test unlock may exist (never production).
+- `contexts/UnlockedContext.tsx` entitlements on launch, on purchase/restore, on every foreground and every 5 minutes. Access is React state, so purchased questions open at once, no reload.
+- `app/unlock/[id].tsx` the paywall: buy the category, "or unlock every category", Restore Purchases, "Have a code?" (owner code, web and native dev builds only). The simulated sheet renders only on test builds.
+- `scripts/check-web-build.mjs` web build guard (env + production bundle scan). `scripts/check-rc-keys.mjs` EAS guard.
+- `scripts/revenuecat/sync-catalog.ts` (`npm run rc:sync -- --app <id>`) idempotent catalog sync for Test Store, App Store and Web Billing apps. In the cloud agent container, run it with `NODE_USE_ENV_PROXY=1` so Node's fetch goes through the proxy that injects the RevenueCat key (without it: 401 Invalid API key). Done for the App Store app `appa3c231f9f4` on 2026-11-20.
+
+## Web (RevenueCat Web Billing, Stripe)
+
+- Key `EXPO_PUBLIC_RC_WEB_KEY` per Vercel environment: **Preview** `rcb_sb_...` (sandbox, Stripe test mode), **Production** `rcb_...` (live). A key on the wrong deploy (sandbox or Test Store key on production, live key on a preview or local build) fails the build and is also refused at runtime, so previews can never take a real charge.
+- No RevenueCat id is created while browsing. The first purchase creates an anonymous id (`$RCAnonymousID:...`) and stores it in this browser (`wyr_rc_web_user`). On kids routes that only happens after the parental gate.
+- Web purchases stay with the browser they were made in. Restore on web re-reads that browser's id; it cannot find a purchase made in another browser (see blind spots).
+- The paywall shows $1.99 / $4.99 until a purchase starts; the Web Billing checkout shows the real price before any charge.
+
+## Temporary production web free unlock (`EXPO_PUBLIC_WEB_FREE_UNLOCK`)
+
+Tim, 2026-11-21 ("128 b"): until web payments exist (blocked on #135), the production
+web paywall unlocks for free.
+
+- **On:** Vercel, project would-you-rather, Settings, Environment Variables:
+  `EXPO_PUBLIC_WEB_FREE_UNLOCK` = `1`, scope **Production** (add Preview to try it there), then redeploy.
+- **Off:** delete that variable from Vercel Production and redeploy production (Deployments, latest production, Redeploy). `EXPO_PUBLIC_*` values are compiled into the bundle, so it only changes with a new deploy.
+- What users see: the price reads "Free" with "FREE FOR NOW · NO PAYMENT NEEDED". The CTA and "Or unlock every category · free" unlock right away. There is no fake checkout. The success screen then appears. Analytics logs `paywall_cta_clicked` with `payment_method: free_unlock`.
+- Unlocks are stored in the browser (`wyr_unlocked_categories`), as were unlocks from the old simulated checkout. Both count while the flag is on. **When it is turned off, they stop counting**: those visitors see the paywall again.
+- Web only. iOS/Android never get it (`Platform.OS === 'web'` is checked inline, and `check-rc-keys` fails any EAS build that sets the variable).
+- Guards (`scripts/check-web-build.mjs`): the value must be exactly `1`. A production build fails if it is combined with a live `rcb_` web key, so remove the flag when web payments go live. With the flag off, the production bundle is scanned for "FREE FOR NOW" and fails if it is still there. It never relaxes the test-unlock rules: `EXPO_PUBLIC_TEST_UNLOCK` still fails production, and "TEST MODE" never ships.
+
+## Free test unlock (web previews only)
+
+Tim, 2026-11-20 (decision A): the free unlock is out of TestFlight. iOS is tested with
+Apple sandbox purchases: the real paywall, a free sandbox account, normal 1.x versions.
+
+| Build | `EXPO_PUBLIC_DEPLOY_ENV` | Test unlock |
+|---|---|---|
+| Vercel Production | `production` (from `VERCEL_ENV`) | never; build fails if `EXPO_PUBLIC_TEST_UNLOCK` is set; exported bundle scanned for the test UI |
+| Vercel Preview | `preview` | only with `EXPO_PUBLIC_TEST_UNLOCK=1` (Preview scope) |
+| Local `npm run build:web`, `npm start`, `npm run web` | `development` (the scripts default it) | only with `EXPO_PUBLIC_TEST_UNLOCK=1`, web only |
+| Any EAS build (iOS/Android: `development`, `preview`, `production`) | per profile | never; `check-rc-keys` fails the build if the flag is set, and `Platform.OS === 'web'` is checked inline so native bundles do not contain the test UI |
+
+TestFlight builds 14 and 15 (version 99.1.0) and build 11 (1.0.0) predate this and carry
+the test unlock: internal testers only, **never submit them**, expire them once a sandbox
+build is installed.
+Running bare `npx expo start` without the npm script leaves the deploy env unset,
+which counts as production: no test unlock and no sandbox web key (fails closed).
+Do not add a `.env.development` for this: `expo export` loads it too.
+
+Production also ignores unlocks stored by the old simulated checkout (`wyr_unlocked_categories`): on production, access comes from RevenueCat entitlements or owner access only.
 
 ## Kids and family
 
@@ -45,21 +90,62 @@ content exists; the listing kit's review notes mention it.
 
 ## Keys
 
-| Stage | `EXPO_PUBLIC_RC_IOS_KEY` | Purchases |
+| Where | Variable | Value |
 |---|---|---|
-| development | `test_...` (Test Store, public) | simulated, no money |
-| preview | `appl_...` | App Store sandbox |
-| production | `appl_...` | real |
+| EAS `development` | `EXPO_PUBLIC_RC_IOS_KEY` | `test_...` Test Store |
+| EAS `preview` (TestFlight) | `EXPO_PUBLIC_RC_IOS_KEY` | `appl_...` (App Store sandbox in TestFlight) |
+| EAS `production` | `EXPO_PUBLIC_RC_IOS_KEY` | `appl_...` |
+| Vercel Preview | `EXPO_PUBLIC_RC_WEB_KEY` | `rcb_sb_...` |
+| Vercel Production | `EXPO_PUBLIC_RC_WEB_KEY` | `rcb_...` |
 
-Set per EAS profile, never in the repo. The app is inert without the key
-(`purchases.isAvailable()` is false), which is also the web behavior.
-Owner-code field: `EXPO_PUBLIC_*` values ship inside the app bundle, so the code's
-SHA-256 digest could be extracted from an .ipa and brute-forced offline. Native
-release builds (`__DEV__` false: preview and production) therefore never offer the
-code field, whatever the environment says (`lib/ownerAccessPolicy.ts`); the #84 guard
-also fails a production build that has the variable set. Web and native dev builds
-keep it. Grant yourself access in release builds with a RevenueCat promotional
-entitlement.
+All are public SDK keys, set in EAS / Vercel, never in the repo. Owner code: native
+release builds never offer it (`lib/ownerAccessPolicy.ts`); grant yourself access in
+release builds with a RevenueCat promotional entitlement.
+
+## Tim's setup checklist
+
+State on 2026-11-20 (read by the agent): RevenueCat project `proj686a561d` has only the
+Test Store app; App Store Connect has **0** in-app purchases for app 6836653723 (Apple ops
+`iap`); EAS `preview` has no environment variables.
+
+1. **Paid Apps agreement, banking, tax** (Account Holder): https://appstoreconnect.apple.com/business . Products do not load in sandbox until the agreement is Active.
+2. **Create the 8 in-app purchases in App Store Connect**: https://appstoreconnect.apple.com/apps/6836653723/distribution/iaps , "+", type **Non-Consumable**, for each row of `store/ios/iap.md` (Product ID, Reference Name, price $4.99 for `wyr_premium_all`, $1.99 for each `wyr_unlock_*`, English (U.S.) display name and description from the table). Availability: all countries. The review screenshot can wait until App Review; sandbox works without it once the product is "Ready to Submit".
+   (Alternative: the Apple ops action `iap-create` creates all 8 with prices and English (U.S.) text from `store/ios/iap.md` through the ASC API. It is in the repo but is only run with your explicit go; the review screenshots stay manual.)
+3. **In-App Purchase key for RevenueCat**: https://appstoreconnect.apple.com/access/integrations/api , tab "In-App Purchase", Generate. Download the `.p8` once.
+4. **RevenueCat App Store app**: https://app.revenuecat.com/projects/proj686a561d/apps/new , App Store, bundle ID `com.timfong888.wouldyourather`; upload the In-App Purchase key (`.p8`, Key ID, Issuer ID `fdddb19e-f1ba-4bf9-94cf-6fe46ee043ce`). Tell the agent the new app id (`app...`); it runs `npm run rc:sync -- --app <id>`, which creates the 8 products (same ids), attaches each to its entitlement (`premium_all`, `cat_<category>`) and to the matching package in offering `default`.
+5. **`appl_` key into EAS**: copy the app's public SDK key (`appl_...`) to https://expo.dev/accounts/blockstitch/projects/would-you-rather/environment-variables as `EXPO_PUBLIC_RC_IOS_KEY`, environment **preview** (later also **production**), visibility "Plain text". Then the agent builds `preview` (normal 1.x version) and submits it to TestFlight.
+6. **Stripe + RevenueCat Web Billing (test mode)**: https://app.revenuecat.com/projects/proj686a561d/apps/new , "Web Billing", connect Stripe (OAuth, test mode is fine), app name "Would You Rather Web", support email, default currency USD. Copy the **Sandbox** public key (`rcb_sb_...`). Give the agent the app id; it runs `rc:sync` (if RevenueCat asks for prices in the dashboard: $4.99 pack, $1.99 each).
+7. **Vercel env vars** (sandbox only until the durable-id blocker below is solved): https://vercel.com/ (project would-you-rather, Settings, Environment Variables): `EXPO_PUBLIC_RC_WEB_KEY` = `rcb_sb_...` for **Preview** only; optionally `EXPO_PUBLIC_TEST_UNLOCK` = `1` for **Preview** only. Production gets the live `rcb_...` key only at go-live (your call). Never set `EXPO_PUBLIC_TEST_UNLOCK` on Production (the build fails if you do).
+8. **Sandbox tester**: https://appstoreconnect.apple.com/access/users/sandbox , "+", a new email you control (not your real Apple ID), region United States. On the iPhone: Settings, App Store, Sandbox Account, sign in when the purchase sheet asks. TestFlight purchases are free and show "[Environment: Sandbox]".
+
+## Test script
+
+**A. TestFlight after checklist steps 1-5 and 8 (`preview` build, version 1.x, Apple sandbox).**
+1. Open The High Life, reach the paywall. Price shows $1.99 (from the App Store).
+2. Tap Unlock. Apple's sheet shows **[Environment: Sandbox]**; confirm with the sandbox tester. You are not charged.
+3. Success, START PLAYING: question N+1 appears at once.
+4. Open another paid category: still locked. Tap "Or unlock every category · $4.99", confirm: every paid category opens.
+5. Delete the app, reinstall from TestFlight, open the paywall, tap **Restore Purchases**: both unlocks return.
+6. Cancel the Apple sheet once: no error, nothing unlocked.
+7. In RevenueCat (Customers, sandbox data on) the customer shows `cat_high-life` and `premium_all`.
+
+**B. Web preview.** Use the Vercel preview link of this PR.
+0. Free flow test (needs only `EXPO_PUBLIC_TEST_UNLOCK=1` on Vercel Preview): the paywall shows "TEST MODE: NO CHARGE · unlock without paying". It unlocks the category, or every category from the pack, with no charge; question N+1 appears without a reload. A locked question's link lands on its paywall.
+Steps 1-5 need checklist steps 6-7:
+1. Open a paid category, reach the paywall, tap Unlock. RevenueCat's checkout opens (test mode).
+2. Email: any address you read. Card **4242 4242 4242 4242**, any future date (e.g. 12/34), any CVC (123), any ZIP.
+3. Pay: question N+1 appears at once, no reload. Reload the page: still unlocked.
+4. Open a private window: locked (web purchases stay with the browser). Card **4000 0000 0000 0002** shows a decline and unlocks nothing.
+5. The payment appears in Stripe test mode and in RevenueCat (sandbox).
+
+**C. Production stays safe.** On https://www.wouldyourather.fyi : the paywall never shows "TEST MODE". With `EXPO_PUBLIC_WEB_FREE_UNLOCK=1`, it shows "FREE FOR NOW", and Unlock opens the category with no checkout. Without the flag and without the live key, Unlock says purchases are unavailable and unlocks nothing.
+
+## Blind spots / decisions for Tim
+
+- **Go-live blocker for live web charges: the web buyer's id is not durable.** Access hangs on one anonymous RevenueCat id in `localStorage`. Safari (and every iOS browser) deletes script-written storage after 7 days of browsing without visiting the site, so an iPhone buyer who returns two weeks later finds the category locked, and Restore cannot find the purchase. The same applies to clearing site data, private windows and other devices. Fine for sandbox testing; **do not set the live `rcb_` key on Production until the id is tied to something durable** (RevenueCat redemption links / email identity, or a server-issued id in an HTTP-only cookie). Needs your call on sign-in vs email: #135.
+- **Midnight Secrets and Deep Desires** are paid on web but have no product (they were left out of the iOS catalog). On web their Unlock says "not available". Decide: add web-only products (config in `lib/catalog.ts`), or keep them unsold.
+- **Old free unlocks are dropped on production**: visitors who "bought" through the old simulated sheet lose that access (they never paid).
+- **Owner code on production web** still unlocks everything for anyone with the code (hash brute-forceable offline). Unchanged here.
 
 ## Sandbox test plan
 

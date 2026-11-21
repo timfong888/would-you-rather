@@ -82,3 +82,33 @@ test('web: adult routes still send', () => {
   t.track('x');
   assert.deepEqual(t.sent, ['capture:x']);
 });
+
+import { stripIp, POSTHOG_PRIVACY_OPTIONS } from '../../lib/analyticsCore';
+
+test('stripIp removes $ip from properties, $set and $set_once and keeps everything else', () => {
+  const e: any = {
+    event: 'page_view',
+    properties: { $ip: '203.0.113.9', path: '/feed', platform: 'web' },
+    $set: { $ip: '203.0.113.9', plan: 'free' },
+    $set_once: { $ip: '203.0.113.9', first_channel: 'direct' },
+  };
+  const out: any = stripIp(e);
+  assert.equal('$ip' in out.properties, false);
+  assert.equal('$ip' in out.$set, false);
+  assert.equal('$ip' in out.$set_once, false);
+  assert.equal(out.properties.path, '/feed');
+  assert.equal(out.$set.plan, 'free');
+  assert.equal(out.$set_once.first_channel, 'direct');
+});
+
+test('stripIp tolerates events with no property bags', () => {
+  assert.deepEqual(stripIp({ event: 'x' } as any), { event: 'x' });
+  assert.doesNotThrow(() => stripIp({ event: 'x', properties: null } as any));
+});
+
+test('the PostHog privacy options disable GeoIP and strip $ip before send', () => {
+  assert.equal(POSTHOG_PRIVACY_OPTIONS.disableGeoip, true);
+  const out: any = POSTHOG_PRIVACY_OPTIONS.before_send({ event: 'e', properties: { $ip: '1.2.3.4', a: 1 } });
+  assert.equal('$ip' in out.properties, false);
+  assert.equal(out.properties.a, 1);
+});

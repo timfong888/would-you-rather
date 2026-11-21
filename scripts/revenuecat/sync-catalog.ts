@@ -6,10 +6,17 @@
  * lib/catalog.ts, which derives them from constants/questions.ts, so the
  * catalog cannot drift from the code. Running it twice changes nothing.
  *
- * Scope: a RevenueCat Test Store app only (simulated purchases, no money).
- * For App Store / Play apps the store products are created by hand in the
- * store consoles; extend this script to create RevenueCat entries that
- * reference those store identifiers (see docs/payments.md).
+ * Apps it accepts (issue #126):
+ *   test_store   creates the products and their Test Store prices.
+ *   app_store    creates RevenueCat products that reference the App Store
+ *                product ids (create those in App Store Connect first).
+ *   rc_billing   Web Billing (Stripe): creates the RevenueCat products. If the
+ *                API asks for a price, set it on the product in the dashboard
+ *                ($1.99 / $4.99) and re-run.
+ * In every case the product joins the same entitlement and the same package
+ * of the `default` offering, so one purchase on any store grants the same
+ * access. Adding a product to lib/catalog.ts and re-running is all a new
+ * product needs (e.g. the kids products in docs/specs/kids-family-categories.md).
  *
  * Auth: REVENUECAT_API_KEY (secret v2 key). In the cloud agent environment the
  * proxy injects it for api.revenuecat.com, so any dummy value works there.
@@ -49,8 +56,9 @@ async function listAll(path: string): Promise<any[]> {
 async function main() {
   const app = (await listAll('/apps')).find((a) => a.id === APP_ID);
   if (!app) throw new Error(`App ${APP_ID} not found in project ${PROJECT}`);
-  if (app.type !== 'test_store') {
-    throw new Error(`App ${APP_ID} is ${app.type}. This script only creates Test Store products.`);
+  const SUPPORTED = ['test_store', 'app_store', 'rc_billing'];
+  if (!SUPPORTED.includes(app.type)) {
+    throw new Error(`App ${APP_ID} is ${app.type}. This script handles ${SUPPORTED.join(', ')}.`);
   }
 
   const catalog = buildCatalog();
@@ -76,7 +84,7 @@ async function main() {
     // Test Store price. A repeat run gets 409 "already exists": that is the
     // idempotent case. To change a Test Store price, delete the product in the
     // dashboard and re-run.
-    try {
+    if (app.type === 'test_store') try {
       await api('POST', `/products/${product.id}/test_store_prices`, {
         prices: [{ currency: 'USD', amount_micros: item.priceMicros }],
       });
