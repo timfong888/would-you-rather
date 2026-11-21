@@ -25,9 +25,17 @@ async function issuesFor(api, sigKey) {
   return all.filter((i) => (i.body ?? '').includes(marker.signature(sigKey)));
 }
 
-// Steps that only report (labels, comments, the PR note) must never stop the cause check or the auto-fix.
+// Steps that only report (labels, the PR note, informational comments) must never stop the cause check or the auto-fix.
 // A failure there is logged and, best effort, written on the tracking issue at the end of the run.
-// Steps the safety rules depend on (opening the issue, the retry-cap marker, the needs-rca issue) are NOT soft: they throw.
+// Steps the safety rules depend on are NOT soft, they throw: opening the issue, the deploy-event record (the recurrence
+// count and the redelivery dedupe read it), the retry-cap marker, and the needs-rca issue.
+
+// The useful part of an adapter error. execFileSync builds `Command failed: <argv joined>\n<stderr>`, so line 0 is the
+// command (it echoes the comment body), not the cause. Prefer stderr, else the last line of the message (the command can span lines when the body does), and make the text safe to embed.
+export function describeError(e) {
+  const raw = String(e?.stderr ?? '').trim() || String(e?.message ?? e).split('\n').map((l) => l.trim()).filter(Boolean).pop() || 'unknown error';
+  return raw.replace(/\s+/g, ' ').replace(/</g, '\u2039').replace(/>/g, '\u203a').slice(0, 200);
+}
 export async function handleDeploymentFailure(args) {
   const ctx = { failures: [], issue: null };
   const log = args.log ?? console.log;
@@ -43,7 +51,7 @@ export async function handleDeploymentFailure(args) {
 
 async function run({ event, api, vercel, neon, fixes, causes, now, log, dryRun = false }, ctx) {
   const soft = async (what, fn) => {
-    try { return await fn(); } catch (e) { const m = String(e?.message ?? e).split('\n')[0].slice(0, 200); log(`WARN ${what} failed: ${m}`); ctx.failures.push(`${what}: ${m}`); return undefined; }
+    try { return await fn(); } catch (e) { const m = describeError(e); log(`WARN ${what} failed: ${m}`); ctx.failures.push(`${what}: ${m}`); return undefined; }
   };
   if (!['failure', 'error'].includes(event.state)) { log(`ignore: state ${event.state}`); return { handled: false }; }
   const preview = isPreview(event.environment);
@@ -93,7 +101,8 @@ async function run({ event, api, vercel, neon, fixes, causes, now, log, dryRun =
   const allBodies = [...commentsByIssue.values()].flat();
   const events = parseEvents(allBodies, sig);
   if (!events.some((e) => e.dpl === dpl)) {
-    await soft('event comment on the issue', () => api.comment(issue.number, `${marker.event({ sig, sha: event.sha, dpl, at })}\nFailed again: ${event.environment}, ${event.targetUrl}, commit ${event.sha}.`));
+    // not soft: this marker is what the 3-in-7-days recurrence rule and the redelivery dedupe read
+    await api.comment(issue.number, `${marker.event({ sig, sha: event.sha, dpl, at })}\nFailed again: ${event.environment}, ${event.targetUrl}, commit ${event.sha}.`);
     events.push({ sha: event.sha, dpl, at });
     // deployment.ref is the commit SHA for Vercel deployments, not a branch: look PRs up by commit
     const prs = await api.prsForCommit(event.sha).catch(() => []);
