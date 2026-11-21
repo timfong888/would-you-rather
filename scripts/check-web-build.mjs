@@ -6,9 +6,11 @@
  *   node scripts/check-web-build.mjs --dist dist  after export: bundle scan
  *
  * Production (VERCEL_ENV=production, or EXPO_PUBLIC_DEPLOY_ENV=production):
- * - EXPO_PUBLIC_TEST_UNLOCK must be unset: the free test unlock never ships.
  * - EXPO_PUBLIC_RC_WEB_KEY must not be a sandbox (rcb_sb_) or Test Store (test_) key.
- * Preview / development: EXPO_PUBLIC_RC_WEB_KEY must not be a live key (rcb_ without sb_).
+ * Preview / development: EXPO_PUBLIC_RC_WEB_KEY must not be a live key (rcb_ without sb_). Use the
+ *   RevenueCat Test Store key (test_), which never charges (Tim, 2026-11-21, "Test Store yes").
+ * Any build: EXPO_PUBLIC_TEST_UNLOCK must be unset. The old preview free unlock was removed in
+ *   favour of the Test Store; the marker scan below still guards production against its UI.
  * - The exported bundle must not contain the test-unlock marker text, which
  *   only exists inside code the minifier drops when the flag is off. If it is
  *   there, a free unlock path was compiled into production.
@@ -45,8 +47,8 @@ export function envProblems(env) {
   if (env.VERCEL_ENV && env.EXPO_PUBLIC_DEPLOY_ENV && env.VERCEL_ENV !== env.EXPO_PUBLIC_DEPLOY_ENV) {
     problems.push(`EXPO_PUBLIC_DEPLOY_ENV="${env.EXPO_PUBLIC_DEPLOY_ENV}" conflicts with VERCEL_ENV="${env.VERCEL_ENV}". Remove EXPO_PUBLIC_DEPLOY_ENV from the Vercel project; the build derives it from VERCEL_ENV.`);
   }
+  if (env.EXPO_PUBLIC_TEST_UNLOCK) problems.push(`EXPO_PUBLIC_TEST_UNLOCK is set on a ${deployEnv} build. The free test unlock was removed: delete the variable and use the RevenueCat Test Store key (test_...) as EXPO_PUBLIC_RC_WEB_KEY on previews.`);
   if (deployEnv === 'production') {
-    if (env.EXPO_PUBLIC_TEST_UNLOCK) problems.push('EXPO_PUBLIC_TEST_UNLOCK is set on a production build. The free test unlock must never ship to production.');
     if (key.startsWith('rcb_sb_') || key.startsWith('test_')) problems.push('EXPO_PUBLIC_RC_WEB_KEY is a sandbox/test key on a production build. Use the live Web Billing key (rcb_...).');
     if (env.EXPO_PUBLIC_WEB_FREE_UNLOCK && env.EXPO_PUBLIC_WEB_FREE_UNLOCK !== '1') problems.push(`EXPO_PUBLIC_WEB_FREE_UNLOCK must be exactly "1" or unset (got "${env.EXPO_PUBLIC_WEB_FREE_UNLOCK}").`);
     if (env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1') {
@@ -54,9 +56,10 @@ export function envProblems(env) {
       warnings.push('EXPO_PUBLIC_WEB_FREE_UNLOCK=1: the production web paywall unlocks for free (temporary, until web payments exist).');
     } else if (!key) warnings.push('EXPO_PUBLIC_RC_WEB_KEY is not set: the production paywall will say purchases are unavailable.');
   } else if (key.startsWith('rcb_') && !key.startsWith('rcb_sb_')) {
-    problems.push(`EXPO_PUBLIC_RC_WEB_KEY is a live Web Billing key on a ${deployEnv} build. Previews and local builds must use the sandbox key (rcb_sb_...) so they can never take a real charge.`);
+    problems.push(`EXPO_PUBLIC_RC_WEB_KEY is a live Web Billing key on a ${deployEnv} build. Previews and local builds must use the Test Store key (test_...) or the sandbox key (rcb_sb_...) so they can never take a real charge.`);
   }
-  if (key && !key.startsWith('rcb_')) warnings.push('EXPO_PUBLIC_RC_WEB_KEY does not look like a Web Billing key (rcb_... or rcb_sb_...); web purchases stay off.');
+  if (key && !key.startsWith('rcb_') && !key.startsWith('test_')) warnings.push('EXPO_PUBLIC_RC_WEB_KEY does not look like a RevenueCat web key (test_..., rcb_sb_... or rcb_...); web purchases stay off.');
+  if (key.startsWith('test_') && deployEnv !== 'production') warnings.push(`EXPO_PUBLIC_RC_WEB_KEY is the RevenueCat Test Store key: purchases on this ${deployEnv} build are simulated and never charge.`);
   return { deployEnv, problems, warnings };
 }
 
