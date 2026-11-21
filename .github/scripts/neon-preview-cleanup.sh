@@ -52,6 +52,15 @@ delete_branch() { # delete_branch <neon-branch-json> <reason>
   fi
 }
 
+# prs <head-ref> <state> -> JSON array of this repo's own PRs (not fork PRs) with that head branch.
+# `gh pr list --head` matches the branch name only, so drop cross-repository (fork) PRs.
+# Used only to decide a branch is stale. The open-PR guards deliberately count fork PRs too:
+# for "keep" the conservative answer is to count any open PR with that head name.
+prs() {
+  gh pr list --repo "$GITHUB_REPOSITORY" --head "$1" --state "$2" --json number,state,isCrossRepository \
+    --jq '[.[] | select(.isCrossRepository | not)]'
+}
+
 # Prints "delete:<reason>" or "keep:<reason>" for a git head ref.
 decide() {
   local ref="$1" open all status
@@ -66,7 +75,7 @@ decide() {
     *)   echo "keep:could not check git branch (HTTP ${status:-?})"; return ;;
   esac
 
-  all=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$ref" --state all --json state --jq 'map(.state) | unique | join(",")') \
+  all=$(prs "$ref" all | jq -r 'map(.state) | unique | join(",")') \
     || { echo "keep:could not read PRs"; return; }
   if [ -n "$all" ]; then echo "delete:PR for $ref is ${all} (no open PR)"; else echo "keep:branch $ref exists, no PR"; fi
 }
