@@ -8,7 +8,7 @@ A failed Vercel check is yours to read. Do not wait for Tim to notice.
 
 1. **Read it yourself.** With the Vercel connector: `get_deployment` for `errorCode` and `errorMessage`, then the build events/logs. "No logs" is evidence: the build never started (provisioning stage).
 2. **Your code?** If the log points at code or config in your PR, fix it, run the failing check locally, push, and show the failure and then the passing check.
-3. **Known cause?** Check the table below. Follow its action; do not change code to work around infrastructure.
+3. **Known cause?** The table below only *nominates* a cause from the error text. Confirm it against the real system first (for the Neon limit: the Neon API branch count vs the limit, and failed `create_branch` operations; Vercel has no events for a provisioning failure). Confirmed: follow the action; do not change code to work around infrastructure. Not confirmed: open a `needs-rca` issue listing what you ruled out; no auto-fix.
 4. **Not yours or unknown?** Report once, with the exact error text, the deployment link, the commit and what you ruled out. Do not close anything without a confirmed cause.
 5. **Never** redeploy, promote or roll back production. That needs Tim's go.
 
@@ -16,11 +16,13 @@ A failed Vercel check is yours to read. Do not wait for Tim to notice.
 
 Machine-readable copy: `.github/deploy-known-causes.json` (used by the backstop Action, #165).
 
-| Signature | Meaning | Action |
+| Error text (candidate) | Confirm with | Action once confirmed |
 |---|---|---|
-| `BUILD_FAILED: Resource provisioning failed` | Neon branch limit (10). No build logs. | Check the Neon branch count. The cleanup workflow deletes branches of merged/closed PRs; run it (`Neon preview cleanup`, untick `dry_run`) if previews are blocked. Do not change code. Preview: the backstop Action cleans up and redeploys once per commit. |
+| `BUILD_FAILED: Resource provisioning failed` | Neon API: branch count at the limit (10; the project API does not expose the plan limit, so it is configured), and no failed `create_branch` operation with a different error. A limit rejection returns before an operation exists, so "no failed operation" is expected. | Run the cleanup (`Neon preview cleanup`, untick `dry_run`). Preview: the backstop Action cleans up and redeploys once per commit. Do not change code. |
 
-Add a row here, and to the JSON file, when an RCA ends with a cause that can be recognised from the error text.
+Not confirmed (for example the branch count is below the limit): the error stays unexplained. Open a `needs-rca` issue with what was ruled out. Do not retry or clean up as a guess.
+
+Add a row here, and to the JSON file (with its `confirm` check), when an RCA ends with a cause that can be recognised from the error text and checked against the real system.
 
 ## Root-cause standard (every deploy-failure issue)
 
