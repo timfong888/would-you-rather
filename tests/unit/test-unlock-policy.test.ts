@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDeployEnv, testUnlockAllowed } from '../../lib/testUnlockPolicy';
+import { parseDeployEnv, testUnlockAllowed, webFreeUnlockAllowed } from '../../lib/testUnlockPolicy';
 
 test('production never allows the free test unlock, whatever the flag', () => {
   for (const flag of ['1', 'true', 'yes', '', undefined]) assert.equal(testUnlockAllowed('production', flag, 'web'), false);
@@ -24,4 +24,10 @@ test('iOS and Android never allow it, whatever the env and flag (Tim, 2026-11-20
   for (const platform of ['ios', 'android', '']) {
     for (const env of ['preview', 'development', 'production']) assert.equal(testUnlockAllowed(env, '1', platform), false);
   }
+});
+
+test('the temporary web free unlock: web only, flag exactly "1" (Tim, 2026-11-21, "128 b")', () => {
+  assert.equal(webFreeUnlockAllowed('1', 'web'), true);
+  for (const flag of ['0', 'true', '', ' 1', undefined, null]) assert.equal(webFreeUnlockAllowed(flag, 'web'), false);
+  for (const platform of ['ios', 'android', '']) assert.equal(webFreeUnlockAllowed('1', platform), false);
 });

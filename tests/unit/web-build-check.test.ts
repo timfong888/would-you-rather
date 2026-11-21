@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 // @ts-ignore: plain .mjs build script
-import { envProblems, filesWithMarker, TEST_UNLOCK_MARKER, deployEnvFrom } from '../../scripts/check-web-build.mjs';
+import { envProblems, filesWithMarker, TEST_UNLOCK_MARKER, WEB_FREE_UNLOCK_MARKER, deployEnvFrom } from '../../scripts/check-web-build.mjs';
 
 test('deploy env follows the build:web derivation', () => {
   assert.equal(deployEnvFrom({}), 'development');
@@ -79,14 +79,14 @@ test('TEST_UNLOCK is gated on Platform.OS === web inline (native bundles drop it
 test('test mode offers the pack: "unlock every category" renders and unlocks all', () => {
   const src = readFileSync('app/unlock/[id].tsx', 'utf8');
   // The pack button renders with real purchases OR the test unlock.
-  assert.match(src, /\{\(purchasesAvailable \|\| TEST_UNLOCK_UI\) && \(/);
+  assert.match(src, /\{\(purchasesAvailable \|\| TEST_UNLOCK_UI \|\| WEB_FREE_UI\) && \(/);
   // In test mode it opens the sheet as the pack, and paying calls unlockAll().
   assert.match(src, /setSheetKind\('all'\);\s*setPaymentState\('sheet'\);/);
   assert.match(src, /if \(sheetKind === 'all'\) unlockAll\(\);\s*else unlock\(id as CategoryId\);/);
-  // unlockAll is a test-only no-op outside TEST_UNLOCK (it goes through unlock()).
+  // unlockAll is a no-op without a free unlock (it goes through unlock()).
   const ctx = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
   assert.match(ctx, /const unlockAll = useCallback\(\(\) => unlock\(ENTITLEMENT_ALL as CategoryId\), \[unlock\]\);/);
-  assert.match(ctx, /const unlock = useCallback\(\(id: CategoryId\) => \{\s*if \(!TEST_UNLOCK\) return;/);
+  assert.match(ctx, /const unlock = useCallback\(\(id: CategoryId\) => \{\s*if \(!FREE_UNLOCK\) return;/);
 });
 
 test('a locked question URL never renders blank: it shows a locked card and redirects to the paywall', () => {
@@ -103,4 +103,49 @@ test('entitlementsLoaded is set only after the first fetch settles, with a timeo
   // markLoaded runs in finally, after the then() that stores the entitlements.
   const fetch = ctx.slice(ctx.indexOf('const loadTimeout'), ctx.indexOf('const unsubscribe'));
   assert.ok(fetch.indexOf('setEntitlements(') < fetch.indexOf('.finally('));
+});
+
+// Temporary production web free unlock (Tim, 2026-11-21, "128 b").
+test('production allows EXPO_PUBLIC_WEB_FREE_UNLOCK=1 without a key, and warns', () => {
+  const r = envProblems({ VERCEL_ENV: 'production', EXPO_PUBLIC_WEB_FREE_UNLOCK: '1' });
+  assert.deepEqual(r.problems, []);
+  assert.ok(r.warnings.some((w: string) => /unlocks for free/.test(w)));
+});
+
+test('production refuses the web free unlock with a live key, or a value other than "1"', () => {
+  assert.equal(envProblems({ VERCEL_ENV: 'production', EXPO_PUBLIC_WEB_FREE_UNLOCK: '1', EXPO_PUBLIC_RC_WEB_KEY: 'rcb_live' }).problems.length, 1);
+  assert.equal(envProblems({ VERCEL_ENV: 'production', EXPO_PUBLIC_WEB_FREE_UNLOCK: 'true' }).problems.length, 1);
+  // It never relaxes the test-unlock rule.
+  assert.equal(envProblems({ VERCEL_ENV: 'production', EXPO_PUBLIC_WEB_FREE_UNLOCK: '1', EXPO_PUBLIC_TEST_UNLOCK: '1' }).problems.length, 1);
+});
+
+test('the web free-unlock copy carries its marker only behind WEB_FREE_UI, and never the test marker', () => {
+  const src = readFileSync('app/unlock/[id].tsx', 'utf8');
+  assert.match(src, /const WEB_FREE_UI = Platform\.OS === 'web' && process\.env\.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' && WEB_FREE_UNLOCK;/);
+  const uiLines = src.split('\n').filter((l) => l.includes(WEB_FREE_UNLOCK_MARKER) && !l.trim().startsWith('//'));
+  assert.equal(uiLines.length, 1);
+  assert.match(uiLines[0], /WEB_FREE_UI \? 'FREE FOR NOW/);
+  assert.match(src, /if \(!WEB_FREE_UI \|\| paymentState !== 'idle'\) return;/);
+  assert.deepEqual(filesWithMarker([{ path: 'a.js', text: 'FREE FOR NOW · NO PAYMENT NEEDED' }], WEB_FREE_UNLOCK_MARKER), ['a.js']);
+  assert.deepEqual(filesWithMarker([{ path: 'a.js', text: 'FREE FOR NOW · NO PAYMENT NEEDED' }]), []);
+});
+
+test('WEB_FREE_UNLOCK is web-only inline and yields to the test unlock', () => {
+  const ctx = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
+  assert.match(ctx, /export const WEB_FREE_UNLOCK =\s*Platform\.OS === 'web' &&\s*process\.env\.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' &&\s*!TEST_UNLOCK &&/);
+  assert.match(ctx, /export const FREE_UNLOCK = TEST_UNLOCK \|\| WEB_FREE_UNLOCK;/);
+  assert.match(ctx, /if \(!FREE_UNLOCK\) return new Set\(\);/);
+});
+
+test('no EAS build carries the web free unlock', () => {
+  const eas = JSON.parse(readFileSync('eas.json', 'utf8'));
+  for (const [name, profile] of Object.entries<any>(eas.build)) {
+    assert.equal(profile.env?.EXPO_PUBLIC_WEB_FREE_UNLOCK, undefined, `eas.json profile ${name}`);
+  }
+  const r = spawnSync(process.execPath, ['scripts/check-rc-keys.mjs'], {
+    env: { ...process.env, EAS_BUILD_PROFILE: 'production', EXPO_PUBLIC_WEB_FREE_UNLOCK: '1', EXPO_PUBLIC_DEPLOY_ENV: 'production', EXPO_PUBLIC_RC_IOS_KEY: 'appl_x', EXPO_PUBLIC_OWNER_ACCESS_SHA256: '', EXPO_PUBLIC_TEST_UNLOCK: '' },
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /EXPO_PUBLIC_WEB_FREE_UNLOCK is set/);
 });

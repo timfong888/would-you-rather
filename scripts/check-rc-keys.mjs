@@ -9,7 +9,8 @@
  * exercise the App Store sandbox.
  * No EAS (iOS/Android) build may set EXPO_PUBLIC_TEST_UNLOCK: the free test
  * unlock is web-only (Tim, 2026-11-20, decision A); TestFlight is tested with
- * Apple sandbox purchases.
+ * Apple sandbox purchases. EXPO_PUBLIC_WEB_FREE_UNLOCK (the temporary
+ * production web free unlock) is web-only too.
  */
 const profile = process.env.EAS_BUILD_PROFILE ?? process.env.APP_STAGE ?? '';
 const ios = process.env.EXPO_PUBLIC_RC_IOS_KEY ?? '';
@@ -19,6 +20,7 @@ const platform = process.env.EAS_BUILD_PLATFORM ?? ''; // 'ios' | 'android' on E
 
 const problems = [];
 if (process.env.EXPO_PUBLIC_TEST_UNLOCK) problems.push(`EXPO_PUBLIC_TEST_UNLOCK is set in the "${profile}" EAS build. The free test unlock is web-only; test iOS with Apple sandbox purchases (docs/payments.md).`);
+if (process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK) problems.push(`EXPO_PUBLIC_WEB_FREE_UNLOCK is set in the "${profile}" EAS build. The temporary free unlock is web-only; iOS uses App Store purchases.`);
 if (profile === 'production' || profile === 'preview') {
   if (ios.startsWith('test_')) problems.push(`EXPO_PUBLIC_RC_IOS_KEY is a Test Store key (test_...) in a ${profile} build.`);
   if (android.startsWith('test_')) problems.push(`EXPO_PUBLIC_RC_ANDROID_KEY is a Test Store key (test_...) in a ${profile} build.`);

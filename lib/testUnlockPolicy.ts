@@ -39,3 +39,16 @@ export function testUnlockAllowed(
 ): boolean {
   return platform === 'web' && parseDeployEnv(deployEnvRaw) !== 'production' && flag === '1';
 }
+
+/**
+ * Temporary production web free unlock (Tim, 2026-11-21, "128 b"): until web
+ * payments exist (issue #135), the web paywall may unlock for free on any
+ * deploy, production included, when EXPO_PUBLIC_WEB_FREE_UNLOCK is exactly "1".
+ * Web only: iOS/Android never get it (they use App Store purchases).
+ * Turn it off by deleting the variable from Vercel and redeploying.
+ * Callers must also test `process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1'`
+ * inline so the minifier drops the free path from builds without the flag.
+ */
+export function webFreeUnlockAllowed(flag: string | undefined | null, platform: string): boolean {
+  return platform === 'web' && flag === '1';
+}

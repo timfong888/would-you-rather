@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
-import { useUnlocked, TEST_UNLOCK } from '@/contexts/UnlockedContext';
+import { useUnlocked, TEST_UNLOCK, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
 import { paywallEntry, paywallLateUnlock } from '@/lib/access';
 import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -44,6 +44,14 @@ type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
 // production web export is scanned for the marker text "TEST MODE: NO CHARGE"
 // (scripts/check-web-build.mjs), so that text must only appear behind it.
 const TEST_UNLOCK_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;
+
+// Temporary production web free unlock (Tim, 2026-11-21, "128 b"), until web
+// payments exist: EXPO_PUBLIC_WEB_FREE_UNLOCK=1 on Vercel. No fake checkout:
+// the CTA unlocks directly and the paywall says it is free. It takes priority
+// over a web RevenueCat key (production refuses both together, see
+// scripts/check-web-build.mjs). Its copy carries the marker "FREE FOR NOW",
+// which the production bundle scan rejects when the flag is off.
+const WEB_FREE_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' && WEB_FREE_UNLOCK;
 
 const PAYMENT_MS = 1800;
 
@@ -255,6 +263,21 @@ export default function UnlockScreen() {
   const allPrice = priceForAll();
   const sheetPrice = sheetKind === 'all' ? allPrice : shownPrice;
 
+  // Temporary web free unlock: no checkout, no charge.
+  const handleFreeUnlock = (kind: 'category' | 'all') => {
+    if (!WEB_FREE_UI || paymentState !== 'idle') return;
+    setPurchaseError(null);
+    setRestoreMsg(null);
+    track('paywall_cta_clicked', {
+      category_id: id,
+      pack_type: kind === 'all' ? 'all' : isExpansion ? 'expansion' : 'premium',
+      payment_method: 'free_unlock',
+    });
+    if (kind === 'all') unlockAll();
+    else unlock(id as CategoryId);
+    setPaymentState('success');
+  };
+
   const handleBuy = async (kind: 'category' | 'all') => {
     if (paymentState !== 'idle') return;
     setPurchaseError(null);
@@ -406,13 +429,17 @@ export default function UnlockScreen() {
 
         {/* Price + CTA */}
         <View style={styles.priceBlock}>
-          <Text style={styles.price}>{shownPrice}</Text>
-          <Text style={styles.priceNote}>ONE-TIME CATEGORY UNLOCK · NO SUBSCRIPTION</Text>
+          <Text style={styles.price}>{WEB_FREE_UI ? 'Free' : shownPrice}</Text>
+          <Text style={styles.priceNote}>
+            {WEB_FREE_UI ? 'FREE FOR NOW · NO PAYMENT NEEDED' : 'ONE-TIME CATEGORY UNLOCK · NO SUBSCRIPTION'}
+          </Text>
         </View>
 
         <Pressable
           onPress={() => {
-            if (purchasesAvailable) {
+            if (WEB_FREE_UI) {
+              handleFreeUnlock('category');
+            } else if (purchasesAvailable) {
               handleBuy('category');
             } else if (TEST_UNLOCK_UI) {
               // Test build without a RevenueCat key: the free test unlock.
@@ -430,15 +457,17 @@ export default function UnlockScreen() {
             pressed && styles.btnPressed,
           ]}
           accessibilityRole="button"
-          accessibilityLabel={`Unlock ${lockedCount} more dilemmas for ${shownPrice}`}
+          accessibilityLabel={WEB_FREE_UI ? `Unlock ${lockedCount} more dilemmas for free` : `Unlock ${lockedCount} more dilemmas for ${shownPrice}`}
         >
           <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
         </Pressable>
 
-        {(purchasesAvailable || TEST_UNLOCK_UI) && (
+        {(purchasesAvailable || TEST_UNLOCK_UI || WEB_FREE_UI) && (
           <Pressable
             onPress={() => {
-              if (purchasesAvailable) {
+              if (WEB_FREE_UI) {
+                handleFreeUnlock('all');
+              } else if (purchasesAvailable) {
                 handleBuy('all');
               } else if (TEST_UNLOCK_UI) {
                 // Test build without a RevenueCat key: free test unlock of every category.
@@ -449,10 +478,10 @@ export default function UnlockScreen() {
             }}
             style={({ pressed }) => [styles.restoreBtn, pressed && { opacity: 0.6 }]}
             accessibilityRole="button"
-            accessibilityLabel={`Unlock all categories for ${allPrice}`}
+            accessibilityLabel={WEB_FREE_UI ? 'Unlock all categories for free' : `Unlock all categories for ${allPrice}`}
           >
             <Text style={[styles.restoreBtnText, { color: category.color }]}>
-              Or unlock every category · {allPrice}
+              Or unlock every category · {WEB_FREE_UI ? 'free' : allPrice}
             </Text>
           </Pressable>
         )}

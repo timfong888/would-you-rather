@@ -14,12 +14,19 @@
  *   there, a free unlock path was compiled into production.
  * A production build without a web key only warns: the paywall then says
  * purchases are unavailable (no free unlock either).
+ *
+ * Temporary production web free unlock (Tim, 2026-11-21, "128 b"):
+ * EXPO_PUBLIC_WEB_FREE_UNLOCK=1 is allowed on production until web payments
+ * exist. It may not be combined with a live web key (the free unlock would
+ * hide real purchases). When it is unset on production, the bundle must not
+ * contain its marker text, so turning it off really removes it.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const TEST_UNLOCK_MARKER = 'TEST MODE: NO CHARGE';
+export const WEB_FREE_UNLOCK_MARKER = 'FREE FOR NOW';
 
 /**
  * Same derivation as the build:web script: Vercel's VERCEL_ENV wins (a
@@ -41,7 +48,11 @@ export function envProblems(env) {
   if (deployEnv === 'production') {
     if (env.EXPO_PUBLIC_TEST_UNLOCK) problems.push('EXPO_PUBLIC_TEST_UNLOCK is set on a production build. The free test unlock must never ship to production.');
     if (key.startsWith('rcb_sb_') || key.startsWith('test_')) problems.push('EXPO_PUBLIC_RC_WEB_KEY is a sandbox/test key on a production build. Use the live Web Billing key (rcb_...).');
-    if (!key) warnings.push('EXPO_PUBLIC_RC_WEB_KEY is not set: the production paywall will say purchases are unavailable.');
+    if (env.EXPO_PUBLIC_WEB_FREE_UNLOCK && env.EXPO_PUBLIC_WEB_FREE_UNLOCK !== '1') problems.push(`EXPO_PUBLIC_WEB_FREE_UNLOCK must be exactly "1" or unset (got "${env.EXPO_PUBLIC_WEB_FREE_UNLOCK}").`);
+    if (env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1') {
+      if (key.startsWith('rcb_') && !key.startsWith('rcb_sb_')) problems.push('EXPO_PUBLIC_WEB_FREE_UNLOCK is set together with the live web key. Web payments are live: delete EXPO_PUBLIC_WEB_FREE_UNLOCK from Vercel Production.');
+      warnings.push('EXPO_PUBLIC_WEB_FREE_UNLOCK=1: the production web paywall unlocks for free (temporary, until web payments exist).');
+    } else if (!key) warnings.push('EXPO_PUBLIC_RC_WEB_KEY is not set: the production paywall will say purchases are unavailable.');
   } else if (key.startsWith('rcb_') && !key.startsWith('rcb_sb_')) {
     problems.push(`EXPO_PUBLIC_RC_WEB_KEY is a live Web Billing key on a ${deployEnv} build. Previews and local builds must use the sandbox key (rcb_sb_...) so they can never take a real charge.`);
   }
@@ -49,9 +60,9 @@ export function envProblems(env) {
   return { deployEnv, problems, warnings };
 }
 
-/** Files (path, text) that contain the marker. */
-export function filesWithMarker(files) {
-  return files.filter((f) => f.text.includes(TEST_UNLOCK_MARKER)).map((f) => f.path);
+/** Files (path, text) that contain the marker (the test-unlock marker by default). */
+export function filesWithMarker(files, marker = TEST_UNLOCK_MARKER) {
+  return files.filter((f) => f.text.includes(marker)).map((f) => f.path);
 }
 
 function walk(dir) {
@@ -72,11 +83,18 @@ function main() {
 
   if (distIdx > -1) {
     const dir = args[distIdx + 1] ?? 'dist';
-    const hits = filesWithMarker(walk(dir));
+    const files = walk(dir);
+    const hits = filesWithMarker(files);
     if (deployEnv === 'production' && hits.length) {
       problems.push(`The production bundle contains the test-unlock UI ("${TEST_UNLOCK_MARKER}") in: ${hits.join(', ')}`);
     } else {
       console.log(`Test-unlock UI in bundle: ${hits.length ? 'yes' : 'no'} (deploy env "${deployEnv}").`);
+    }
+    const freeHits = filesWithMarker(files, WEB_FREE_UNLOCK_MARKER);
+    if (deployEnv === 'production' && freeHits.length && process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK !== '1') {
+      problems.push(`The production bundle contains the web free-unlock UI ("${WEB_FREE_UNLOCK_MARKER}") but EXPO_PUBLIC_WEB_FREE_UNLOCK is off, in: ${freeHits.join(', ')}`);
+    } else {
+      console.log(`Web free-unlock UI in bundle: ${freeHits.length ? 'yes' : 'no'} (deploy env "${deployEnv}").`);
     }
   }
 

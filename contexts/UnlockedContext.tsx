@@ -11,7 +11,7 @@ import { setOwnerAccessFlag } from '@/lib/analytics';
 import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
 import { canPlayCategory } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
-import { testUnlockAllowed } from '@/lib/testUnlockPolicy';
+import { testUnlockAllowed, webFreeUnlockAllowed } from '@/lib/testUnlockPolicy';
 
 /**
  * Free test unlock (no payment). Web only: off unless EXPO_PUBLIC_TEST_UNLOCK is
@@ -24,14 +24,29 @@ export const TEST_UNLOCK =
   process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' &&
   testUnlockAllowed(process.env.EXPO_PUBLIC_DEPLOY_ENV, process.env.EXPO_PUBLIC_TEST_UNLOCK, Platform.OS);
 
+/**
+ * Temporary production web free unlock (Tim, 2026-11-21, "128 b"), until web
+ * payments exist. Web only, on when EXPO_PUBLIC_WEB_FREE_UNLOCK is "1" on the
+ * Vercel deploy (production included). Off: delete the Vercel variable and
+ * redeploy. The test unlock wins on preview/dev builds that set both.
+ */
+export const WEB_FREE_UNLOCK =
+  Platform.OS === 'web' &&
+  process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' &&
+  !TEST_UNLOCK &&
+  webFreeUnlockAllowed(process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK, Platform.OS);
+
+/** Any free (no payment) unlock is compiled into this build: test or temporary web. */
+export const FREE_UNLOCK = TEST_UNLOCK || WEB_FREE_UNLOCK;
+
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */
   isUnlocked: (id: CategoryId) => boolean;
-  /** Test-only free unlock for a single category. A no-op unless TEST_UNLOCK. */
+  /** Free unlock for a single category. A no-op unless FREE_UNLOCK (test or temporary web). */
   unlock: (id: CategoryId) => void;
-  /** Test-only free "unlock every category" (mirrors the $4.99 pack). A no-op unless TEST_UNLOCK. */
+  /** Free "unlock every category" (mirrors the $4.99 pack). A no-op unless FREE_UNLOCK. */
   unlockAll: () => void;
-  /** Clear test unlocks. Owner access and purchases are left in place. */
+  /** Clear free unlocks. Owner access and purchases are left in place. */
   reset: () => void;
   /** True when the free test unlock is compiled into this build (never on production). */
   testUnlockEnabled: boolean;
@@ -78,10 +93,10 @@ const STORAGE_KEY = 'wyr_unlocked_categories';
 const ENTITLEMENTS_LOAD_TIMEOUT_MS = 8000;
 
 function loadFromStorage(): Set<string> {
-  // Unlocks stored by the old simulated checkout (#53) or the test unlock only
-  // count where the test unlock exists. Production ignores them: access there
-  // comes from RevenueCat entitlements (or owner access) only.
-  if (!TEST_UNLOCK) return new Set();
+  // Unlocks stored by the old simulated checkout (#53), the test unlock or the
+  // temporary web free unlock only count while a free unlock exists. Without
+  // one, access comes from RevenueCat entitlements (or owner access) only.
+  if (!FREE_UNLOCK) return new Set();
   if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -100,7 +115,7 @@ function saveToStorage(set: Set<string>) {
 }
 
 export function UnlockedProvider({ children }: { children: React.ReactNode }) {
-  // Test unlocks (empty, and never written, unless TEST_UNLOCK).
+  // Free unlocks (empty, and never written, unless FREE_UNLOCK).
   const [unlocked, setUnlocked] = useState<Set<string>>(() => loadFromStorage());
   const [ownerAccess, setOwnerAccess] = useState<boolean>(() => loadOwnerAccess());
   // Active RevenueCat entitlement ids (App Store on iOS, Web Billing on web).
@@ -184,12 +199,12 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
 
   const isUnlocked = useCallback(
     (id: CategoryId) =>
-      canPlayCategory({ ownerAccess, entitlements, testUnlocks: unlocked, testUnlockEnabled: TEST_UNLOCK }, id),
+      canPlayCategory({ ownerAccess, entitlements, testUnlocks: unlocked, testUnlockEnabled: FREE_UNLOCK }, id),
     [ownerAccess, unlocked, entitlements],
   );
 
   const unlock = useCallback((id: CategoryId) => {
-    if (!TEST_UNLOCK) return;
+    if (!FREE_UNLOCK) return;
     setUnlocked((prev) => {
       const next = new Set(prev);
       next.add(id);

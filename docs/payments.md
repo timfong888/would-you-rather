@@ -44,6 +44,19 @@ id = entitlement id).
 - Web purchases stay with the browser they were made in. Restore on web re-reads that browser's id; it cannot find a purchase made in another browser (see blind spots).
 - The paywall shows $1.99 / $4.99 until a purchase starts; the Web Billing checkout shows the real price before any charge.
 
+## Temporary production web free unlock (`EXPO_PUBLIC_WEB_FREE_UNLOCK`)
+
+Tim, 2026-11-21 ("128 b"): until web payments exist (blocked on #135), the production
+web paywall unlocks for free.
+
+- **On:** Vercel, project would-you-rather, Settings, Environment Variables:
+  `EXPO_PUBLIC_WEB_FREE_UNLOCK` = `1`, scope **Production** (add Preview to try it there), then redeploy.
+- **Off:** delete that variable from Vercel Production and redeploy production (Deployments, latest production, Redeploy). `EXPO_PUBLIC_*` values are compiled into the bundle, so it only changes with a new deploy.
+- What users see: the price reads "Free" with "FREE FOR NOW · NO PAYMENT NEEDED". The CTA and "Or unlock every category · free" unlock right away. There is no fake checkout. The success screen then appears. Analytics logs `paywall_cta_clicked` with `payment_method: free_unlock`.
+- Unlocks are stored in the browser (`wyr_unlocked_categories`), as were unlocks from the old simulated checkout. Both count while the flag is on. **When it is turned off, they stop counting**: those visitors see the paywall again.
+- Web only. iOS/Android never get it (`Platform.OS === 'web'` is checked inline, and `check-rc-keys` fails any EAS build that sets the variable).
+- Guards (`scripts/check-web-build.mjs`): the value must be exactly `1`. A production build fails if it is combined with a live `rcb_` web key, so remove the flag when web payments go live. With the flag off, the production bundle is scanned for "FREE FOR NOW" and fails if it is still there. It never relaxes the test-unlock rules: `EXPO_PUBLIC_TEST_UNLOCK` still fails production, and "TEST MODE" never ships.
+
 ## Free test unlock (web previews only)
 
 Tim, 2026-11-20 (decision A): the free unlock is out of TestFlight. iOS is tested with
@@ -125,7 +138,7 @@ Steps 1-5 need checklist steps 6-7:
 4. Open a private window: locked (web purchases stay with the browser). Card **4000 0000 0000 0002** shows a decline and unlocks nothing.
 5. The payment appears in Stripe test mode and in RevenueCat (sandbox).
 
-**C. Production stays safe.** On https://www.wouldyourather.fyi : the paywall never shows "TEST MODE"; without the live key, Unlock says purchases are unavailable and unlocks nothing.
+**C. Production stays safe.** On https://www.wouldyourather.fyi : the paywall never shows "TEST MODE". With `EXPO_PUBLIC_WEB_FREE_UNLOCK=1`, it shows "FREE FOR NOW", and Unlock opens the category with no checkout. Without the flag and without the live key, Unlock says purchases are unavailable and unlocks nothing.
 
 ## Blind spots / decisions for Tim
 
