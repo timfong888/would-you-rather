@@ -18,7 +18,7 @@ All 8 are **Non-Consumable** (the pack plus 7 categories). Price tier: USD $4.99
 (`kids-family` is free and has no product. **Midnight Secrets and Deep Desires have no product**: they are left out of iOS v1 (Tim, 2026-11-18). The pack covers the 7 categories that ship, plus questions added to them later.)
 
 ## Review screenshot (required per product)
-Apple wants a screenshot of the purchase screen for each product. One paywall capture per product (the category's own paywall; the pack can reuse any). These need a native build showing the real store price, so they are **pending Unit 2** (EAS dev build). The web paywall now uses RevenueCat Web Billing (issue #126), but the review screenshot should come from the iOS build.
+Apple wants a screenshot of the purchase screen for each product, used for review only. They are in `store/ios/iap-review/<productId>.png` (1290x2796, iPhone 6.7"): each category's own paywall at $1.99, and for `wyr_premium_all` the paywall framed on "Or unlock every category · $4.99". They are rendered from the same paywall component in a browser at iPhone size (`scripts/render-iap-review-screenshots.mjs`; no free unlock, approved prices), not captured on an iPhone. If App Review asks for a device capture, replace the files with screenshots from a TestFlight build and re-run the upload with replace=true. Uploaded by the **Apple IAP review screenshots** workflow (`.github/workflows/apple-iap-review-screenshot.yml`): dry run by default, writes only with `apply=true` and `confirm=UPLOAD-IAP-SCREENSHOTS`. Never submits for review.
 
 ## Review notes (all products)
 `Purchase from the paywall that appears after the free questions in a category. "Or unlock every category" buys the pack. Restore Purchases is on the same screen.`
