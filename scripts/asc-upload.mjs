@@ -8,6 +8,7 @@ import { createPrivateKey, createHash, sign } from 'node:crypto';
 import { createWriteStream, createReadStream, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
+import { uploadOutcome } from './lib/ascUploadOutcome.mjs';
 
 const OFFICIAL_BASE = 'https://api.appstoreconnect.apple.com';
 // Test-only override (local mock). Refused unless ASC_ALLOW_ANY_IPA_URL is also set, so the JWT
@@ -135,7 +136,8 @@ console.log('upload committed; polling processing state');
 
 // 6. Poll the upload state (attributes only).
 let last = '';
-for (let i = 0; i < 30; i++) {
+// 15 s per poll; 80 polls = 20 min. Apple can take 15+ min on a good upload (see lib/ascUploadOutcome.mjs).
+for (let i = 0; i < 80; i++) {
   const s = await asc('GET', `/v1/buildUploads/${uploadId}`);
   const st = s.data.attributes?.state || {};
   last = st.state || 'UNKNOWN';
@@ -145,8 +147,8 @@ for (let i = 0; i < 30; i++) {
   if (['COMPLETE', 'FAILED'].includes(last)) break;
   await new Promise((r) => setTimeout(r, 15000));
 }
-if (!['COMPLETE', 'FAILED'].includes(last)) {
-  console.error(`Timed out waiting for COMPLETE; last state: ${last}. Check TestFlight / run Apple ops "builds".`);
-  process.exit(1);
-}
-process.exit(last === 'FAILED' ? 1 : 0);
+const outcome = uploadOutcome(last);
+if (outcome.kind === 'still-processing') console.log(`::notice title=Upload still processing::${outcome.message}`);
+else if (outcome.exitCode !== 0) console.error(outcome.message);
+else console.log(outcome.message);
+process.exit(outcome.exitCode);
