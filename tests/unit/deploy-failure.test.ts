@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 // @ts-ignore plain JS
 import { handleDeploymentFailure, neonWarning, neonApi } from '../../.github/scripts/deploy-failure.mjs';
 // @ts-ignore plain JS
-import { normalizeError, decideAutofix, confirmNeonBranchLimit, failureIssueBody, fenced, inlineCode, neutralizeMentions, isPreview, recurrenceReached, neonWarnThreshold, deploymentIdFromTargetUrl, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
+import { normalizeError, decideAutofix, confirmNeonBranchLimit, failureIssueBody, fenced, inlineCode, neutralizeMentions, isPreview, recurrenceReached, neonWarnThreshold, deploymentRefFromEvent, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
 
 const CAUSES = [{ id: 'neon-branch-limit', match: 'Resource provisioning failed', confirm: 'neon-branch-limit', preview_fix: 'neon-cleanup-then-redeploy' }];
 const NOW = new Date('2026-11-21T12:00:00Z');
@@ -22,13 +22,14 @@ function fakeApi(prs: any[] = []) {
     async addLabels(n: number, labels: string[]) { issues.find((i) => i.number === n).labels.push(...labels); },
     async comment(n: number, body: string) { (comments.get(n) ?? comments.set(n, []).get(n)!).push(body); },
     async listComments(n: number) { return comments.get(n) ?? []; },
-    async listPrs() { return prs; },
+    prCalls: [] as string[],
+    async prsForCommit(sha: string) { this.prCalls.push(sha); return prs; },
   };
 }
 
-function fakeVercel(error: any) {
-  const calls = { redeploy: 0 };
-  return { calls, getDeployment: async () => { if (error instanceof Error) throw error; return error; }, getEventsTail: async () => '', redeploy: async () => { calls.redeploy++; return 'dpl_new'; } };
+function fakeVercel(error: any, id?: string) {
+  const calls = { redeploy: 0, asked: [] as string[], redeployed: [] as string[] };
+  return { calls, getDeployment: async (ref: string) => { calls.asked.push(ref); if (error instanceof Error) throw error; return id ? { ...error, id } : error; }, getEventsTail: async () => '', redeploy: async (dpl: string) => { calls.redeploy++; calls.redeployed.push(dpl); return 'dpl_new'; } };
 }
 
 function fakeNeon(facts: any) { return { facts: async () => { if (facts instanceof Error) throw facts; return { limit: 10, failedCreates: [], ...facts }; } }; }
@@ -44,7 +45,7 @@ test('signature ignores ids, urls and shas', () => {
   const b = normalizeError('BUILD_FAILED', 'Failed at dpl_zzz999 https://y.vercel.app/2 sha 0123456789ab');
   assert.equal(a, b);
   assert.equal(signatureId(a), signatureId(b));
-  assert.equal(deploymentIdFromTargetUrl('https://vercel.com/t/wyr/AbC123'), 'dpl_AbC123');
+  assert.equal(deploymentRefFromEvent({ targetUrl: 'https://vercel.com/t/wyr/AbC123' }), 'dpl_AbC123');
 });
 
 test('decideAutofix: production never, unknown never, one retry per commit, paused by an open RCA', () => {
@@ -310,4 +311,56 @@ test('build output cannot close the code block or mention people', () => {
   assert.ok(!inline.includes('@user'));
   const body = failureIssueBody({ sig: 'x', sigText: 'err @user `x`', event: { environment: 'Preview', targetUrl: 'u', sha: 's', at: 't' }, errorText: 'e @team', logTail: log, preview: true });
   assert.ok(!/@(octocat|org|user|team)/.test(body), 'no live mention anywhere in the body');
+});
+
+// Shapes seen on real deployment_status events (run 44941596043 and the #167 verification):
+const REAL_SHA = 'fffe6748' + 'a'.repeat(32);
+const realEvent = (over: any = {}) => ({
+  state: 'failure',
+  environment: 'Preview',
+  targetUrl: 'https://wyr-27hb0cqmt-timfong888.vercel.app',
+  description: 'Deployment has failed — run this Vercel CLI command: npx vercel inspect dpl_2FL6affbJ4zGLKdnbYJBRaQpXekS --logs',
+  sha: REAL_SHA,
+  ref: REAL_SHA, // for Vercel deployments the ref is the commit sha, not a branch
+  ...over,
+});
+const SYNTAX_ERR = { errorCode: 'syntax_error', errorMessage: 'Command "npm run build:web && cp -r dist/. public/" exited with 1' };
+
+test('deployment ref: the id in the description wins; else the inspector URL; else the deployment host', () => {
+  const e = realEvent();
+  assert.equal(deploymentRefFromEvent(e), 'dpl_2FL6affbJ4zGLKdnbYJBRaQpXekS');
+  assert.equal(deploymentRefFromEvent({ ...e, description: 'Deployment has failed' }), 'wyr-27hb0cqmt-timfong888.vercel.app');
+  assert.equal(deploymentRefFromEvent({ ...e, description: 'x', targetUrl: 'https://vercel.com/timfong888/wyr/2FL6affbJ4zGLKdnbYJBRaQpXekS' }), 'dpl_2FL6affbJ4zGLKdnbYJBRaQpXekS');
+  assert.equal(deploymentRefFromEvent({ description: '', targetUrl: 'https://example.com/x' }), null);
+  assert.equal(deploymentRefFromEvent({}), null);
+});
+
+test('real event shape: reads the Vercel error (not "unreadable") and looks PRs up by commit', async () => {
+  const api = fakeApi([{ number: 172, state: 'OPEN', isCrossRepository: false }]);
+  const vercel = fakeVercel(SYNTAX_ERR);
+  const r = await run(api, vercel, cleanup(9), realEvent());
+  assert.deepEqual(vercel.calls.asked, ['dpl_2FL6affbJ4zGLKdnbYJBRaQpXekS']);
+  assert.match(api.issues[0].title, /syntax_error/);
+  assert.doesNotMatch(api.issues[0].title + api.issues[0].body, /unreadable/);
+  assert.match(api.issues[0].body, /Vercel API:/);
+  assert.deepEqual(api.prCalls, [REAL_SHA], 'PR lookup uses the commit sha');
+  assert.match((api.comments.get(172) ?? []).join(' '), /Deploy failed:[\s\S]*syntax_error/);
+  assert.equal(r.decision.autofix, false, 'a code error is not a known cause');
+});
+
+test('real event shape: with only the deployment host, the id Vercel returns is used for markers and the redeploy', async () => {
+  const api = fakeApi(), fixes = cleanup(5);
+  const vercel = fakeVercel(NEON_ERR, 'dpl_REALID123');
+  await run(api, vercel, fixes, realEvent({ description: 'Deployment has failed' }));
+  assert.deepEqual(vercel.calls.asked, ['wyr-27hb0cqmt-timfong888.vercel.app']);
+  assert.deepEqual(vercel.calls.redeployed, ['dpl_REALID123']);
+  assert.match((api.comments.get(100) ?? []).join(' '), /dpl=dpl_REALID123/);
+});
+
+test('real event shape: the same real error on two commits is one issue with the real error as its signature', async () => {
+  const api = fakeApi(), vercel = fakeVercel(SYNTAX_ERR), fixes = cleanup(0);
+  await run(api, vercel, fixes, realEvent());
+  await run(api, vercel, fixes, realEvent({ sha: 'b'.repeat(40), ref: 'b'.repeat(40), description: 'Deployment has failed — npx vercel inspect dpl_OTHER999 --logs', targetUrl: 'https://wyr-other-timfong888.vercel.app' }));
+  assert.equal(api.issues.length, 1);
+  assert.equal((api.comments.get(100) ?? []).filter((c: string) => c.includes('deploy-event')).length, 2);
 });

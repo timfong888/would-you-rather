@@ -100,9 +100,18 @@ export function neonWarnThreshold(limit, override) {
   return Math.ceil(limit * NEON_WARN_FRACTION);
 }
 
-export function deploymentIdFromTargetUrl(url) {
-  const last = String(url ?? '').split('?')[0].replace(/\/+$/, '').split('/').pop();
-  return last ? (last.startsWith('dpl_') ? last : `dpl_${last}`) : null;
+// What to ask Vercel about, from a real deployment_status event. Real shapes (seen in a run):
+//   description: "Deployment has failed — run this Vercel CLI command: npx vercel inspect dpl_<id> --logs"
+//   target_url:  "https://wyr-27hb0cqmt-timfong888.vercel.app"  (the deployment host, not the inspector URL)
+// Vercel's GET /v13/deployments/{idOrUrl} accepts either an id or the host. Prefer the id.
+export function deploymentRefFromEvent({ description, targetUrl }) {
+  const inDescription = String(description ?? '').match(/\bdpl_[A-Za-z0-9]+/);
+  if (inDescription) return inDescription[0];
+  let url;
+  try { url = new URL(String(targetUrl ?? '')); } catch { return null; }
+  const m = url.pathname.match(/^\/[^/]+\/[^/]+\/([A-Za-z0-9]+)\/?$/); // inspector URL: vercel.com/<team>/<project>/<id>
+  if (url.hostname === 'vercel.com' && m) return `dpl_${m[1]}`;
+  return url.hostname.endsWith('.vercel.app') ? url.hostname : null;
 }
 
 // Text from outside (Vercel errors, build logs, Neon errors) goes into issue bodies and comments.
