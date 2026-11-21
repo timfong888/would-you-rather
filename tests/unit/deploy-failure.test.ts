@@ -3,9 +3,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 // @ts-ignore plain JS
-import { handleDeploymentFailure, neonWarning, neonApi } from '../../.github/scripts/deploy-failure.mjs';
+import * as runnerModule from '../../.github/scripts/deploy-failure.mjs';
 // @ts-ignore plain JS
-import { normalizeError, decideAutofix, confirmNeonBranchLimit, failureIssueBody, fenced, inlineCode, neutralizeMentions, isPreview, recurrenceReached, neonWarnThreshold, deploymentRefFromEvent, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
+import * as coreModule from '../../.github/scripts/deploy-failure-core.mjs';
+
+// The scripts are plain JS, so tsc (allowJs) would infer every parameter as required; these tests pass partial inputs
+// on purpose. Treat the modules as loosely typed.
+const { handleDeploymentFailure, neonWarning, neonApi }: Record<string, any> = runnerModule;
+const { normalizeError, decideAutofix, confirmNeonBranchLimit, failureIssueBody, fenced, inlineCode, neutralizeMentions, isPreview, recurrenceReached, neonWarnThreshold, deploymentRefFromEvent, signatureId }: Record<string, any> = coreModule;
 
 const CAUSES = [{ id: 'neon-branch-limit', match: 'Resource provisioning failed', confirm: 'neon-branch-limit', preview_fix: 'neon-cleanup-then-redeploy' }];
 const NOW = new Date('2026-11-21T12:00:00Z');
