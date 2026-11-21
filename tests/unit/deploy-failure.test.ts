@@ -1,0 +1,188 @@
+// Deploy-failure backstop (#165), recurrence rule (#164), Neon warning (#166). Run: npm test
+// All GitHub, Vercel and Neon calls are faked; nothing here touches a network.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+// @ts-ignore plain JS
+import { handleDeploymentFailure, neonWarning } from '../../.github/scripts/deploy-failure.mjs';
+// @ts-ignore plain JS
+import { normalizeError, decideAutofix, isPreview, recurrenceReached, neonWarnThreshold, deploymentIdFromTargetUrl, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
+
+const CAUSES = [{ id: 'neon-branch-limit', match: 'Resource provisioning failed', preview_fix: 'neon-cleanup-then-redeploy' }];
+const NOW = new Date('2026-11-21T12:00:00Z');
+
+function fakeApi(prs: any[] = []) {
+  const issues: any[] = [];
+  const comments = new Map<number, string[]>();
+  return {
+    issues, comments, clock: NOW,
+    async ensureLabels() {},
+    async listIssues({ label, state }: any) { return issues.filter((i) => i.labels.includes(label) && i.state === state); },
+    async createIssue({ title, body, labels }: any) { const number = 100 + issues.length; issues.push({ number, title, body, labels, state: 'open', createdAt: this.clock.toISOString() }); comments.set(number, []); return number; },
+    async addLabels(n: number, labels: string[]) { issues.find((i) => i.number === n).labels.push(...labels); },
+    async comment(n: number, body: string) { (comments.get(n) ?? comments.set(n, []).get(n)!).push(body); },
+    async listComments(n: number) { return comments.get(n) ?? []; },
+    async listPrs() { return prs; },
+  };
+}
+
+function fakeVercel(error: any) {
+  const calls = { redeploy: 0 };
+  return { calls, getDeployment: async () => { if (error instanceof Error) throw error; return error; }, getEventsTail: async () => '', redeploy: async () => { calls.redeploy++; return 'dpl_new'; } };
+}
+
+const NEON_ERR = { errorCode: 'BUILD_FAILED', errorMessage: 'Resource provisioning failed' };
+const ev = (over: any = {}) => ({ state: 'failure', environment: 'Preview – wyr', targetUrl: 'https://vercel.com/team/wyr/AbC123', description: 'Deployment has failed', sha: 'a'.repeat(40), ref: 'feat/x', ...over });
+const run = (api: any, vercel: any, fixes: any, event: any, now = NOW) => { api.clock = now; return handleDeploymentFailure({ event, api, vercel, fixes, causes: CAUSES, now, log: () => {} }); };
+const cleanup = (deleted: number) => { const f = { calls: 0, neonCleanup: async () => { f.calls++; return { deleted }; } }; return f; };
+
+test('signature ignores ids, urls and shas', () => {
+  const a = normalizeError('BUILD_FAILED', 'Failed at dpl_abc123 https://x.vercel.app/1 sha deadbeefcafe');
+  const b = normalizeError('BUILD_FAILED', 'Failed at dpl_zzz999 https://y.vercel.app/2 sha 0123456789ab');
+  assert.equal(a, b);
+  assert.equal(signatureId(a), signatureId(b));
+  assert.equal(deploymentIdFromTargetUrl('https://vercel.com/t/wyr/AbC123'), 'dpl_AbC123');
+});
+
+test('decideAutofix: production never, unknown never, one retry per commit, paused by an open RCA', () => {
+  const cause = CAUSES[0];
+  assert.equal(decideAutofix({ cause, environment: 'Production – wyr', attempts: 0, rcaOpen: false }).autofix, false);
+  assert.equal(decideAutofix({ cause, environment: undefined, attempts: 0, rcaOpen: false }).autofix, false);
+  assert.equal(decideAutofix({ cause: null, environment: 'Preview – wyr', attempts: 0, rcaOpen: false }).autofix, false);
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: false }).autofix, true);
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 1, rcaOpen: false }).autofix, false);
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: true }).autofix, false);
+  assert.equal(isPreview('Preview'), true);
+  assert.equal(isPreview('Production'), false);
+});
+
+test('recurrence counts distinct deployments inside 7 days', () => {
+  const at = (d: string) => `2026-11-${d}T00:00:00Z`;
+  assert.equal(recurrenceReached([{ dpl: 'a', at: at('20') }, { dpl: 'b', at: at('19') }], NOW), false);
+  assert.equal(recurrenceReached([{ dpl: 'a', at: at('20') }, { dpl: 'b', at: at('19') }, { dpl: 'c', at: at('18') }], NOW), true);
+  assert.equal(recurrenceReached([{ dpl: 'a', at: at('20') }, { dpl: 'a', at: at('20') }, { dpl: 'b', at: at('19') }], NOW), false, 'same deployment twice is one failure');
+  assert.equal(recurrenceReached([{ dpl: 'a', at: at('20') }, { dpl: 'b', at: at('19') }, { dpl: 'c', at: '2026-11-01T00:00:00Z' }], NOW), false, 'older than 7 days');
+});
+
+test('preview + known cause: one issue, cleanup, one redeploy', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(9);
+  const r = await run(api, vercel, fixes, ev());
+  assert.equal(api.issues.length, 1);
+  assert.deepEqual(api.issues[0].labels, ['deploy-failure']);
+  assert.equal(fixes.calls, 1);
+  assert.equal(vercel.calls.redeploy, 1);
+  assert.equal(r.redeployed, true);
+});
+
+test('retry cap: the redeploy of the same commit failing again is not retried, and the issue is reused', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(9);
+  await run(api, vercel, fixes, ev({ targetUrl: 'https://vercel.com/t/wyr/First1' }));
+  await run(api, vercel, fixes, ev({ targetUrl: 'https://vercel.com/t/wyr/Second2' }));
+  assert.equal(vercel.calls.redeploy, 1, 'second failure on the same sha must not redeploy');
+  assert.equal(fixes.calls, 1);
+  assert.equal(api.issues.length, 1, 'dedupe: one issue per signature');
+});
+
+test('a new commit gets its own single retry', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(3);
+  await run(api, vercel, fixes, ev({ sha: 'a'.repeat(40), targetUrl: 'https://vercel.com/t/wyr/D1' }));
+  await run(api, vercel, fixes, ev({ sha: 'b'.repeat(40), targetUrl: 'https://vercel.com/t/wyr/D2' }));
+  assert.equal(vercel.calls.redeploy, 2);
+  assert.equal(api.issues.length, 1);
+});
+
+test('third failure in 7 days opens a needs-rca issue and pauses auto-fix; closing it resets the count', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(3);
+  const hr = (h: number) => new Date(NOW.getTime() + h * 3600000);
+  await run(api, vercel, fixes, ev({ sha: 'a'.repeat(40), targetUrl: 'https://vercel.com/t/wyr/D1' }), hr(0));
+  await run(api, vercel, fixes, ev({ sha: 'a'.repeat(40), targetUrl: 'https://vercel.com/t/wyr/D2' }), hr(1));
+  const r = await run(api, vercel, fixes, ev({ sha: 'c'.repeat(40), targetUrl: 'https://vercel.com/t/wyr/D3' }), hr(2));
+  const rca = api.issues.find((i: any) => i.labels.includes('needs-rca'));
+  assert.ok(rca, 'needs-rca issue opened');
+  assert.equal(r.decision.autofix, false);
+  assert.match(r.decision.reason, /needs-rca/);
+  assert.equal(vercel.calls.redeploy, 1, 'no redeploy after the RCA opened, even for a fresh commit');
+  // still paused on a 4th failure, and no duplicate RCA issue
+  await run(api, vercel, fixes, ev({ sha: 'd'.repeat(40), targetUrl: 'https://vercel.com/t/wyr/D4' }), hr(3));
+  assert.equal(api.issues.filter((i: any) => i.labels.includes('needs-rca')).length, 1);
+  assert.equal(vercel.calls.redeploy, 1);
+  // closing the RCA issue resumes auto-fix, and the earlier failures no longer count
+  rca.state = 'closed';
+  const later = await run(api, vercel, fixes, ev({ sha: 'e'.repeat(40), targetUrl: 'https://vercel.com/t/wyr/D5' }), hr(4));
+  assert.equal(later.decision.autofix, true);
+  assert.equal(vercel.calls.redeploy, 2);
+  assert.equal(api.issues.filter((i: any) => i.labels.includes('needs-rca')).length, 1, 'no instant second RCA');
+});
+
+test('production failure: issue with needs-human, never cleanup or redeploy', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(9);
+  await run(api, vercel, fixes, ev({ environment: 'Production – wyr' }));
+  assert.deepEqual(api.issues[0].labels, ['deploy-failure', 'needs-human']);
+  assert.equal(fixes.calls, 0);
+  assert.equal(vercel.calls.redeploy, 0);
+});
+
+test('unreadable Vercel error (no token): still opens an issue, never auto-fixes', async () => {
+  const api = fakeApi(), vercel = fakeVercel(new Error('no VERCEL_TOKEN')), fixes = cleanup(9);
+  const r = await run(api, vercel, fixes, ev());
+  assert.equal(api.issues.length, 1);
+  assert.match(api.issues[0].body, /could not be read/);
+  assert.equal(r.decision.autofix, false);
+  assert.equal(fixes.calls, 0);
+});
+
+test('cleanup that deletes nothing does not redeploy', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(0);
+  const r = await run(api, vercel, fixes, ev());
+  assert.equal(r.redeployed, false);
+  assert.equal(vercel.calls.redeploy, 0);
+});
+
+test('redelivery of the same deployment event is not double counted; PR gets one comment', async () => {
+  const api = fakeApi([{ number: 7, state: 'OPEN', isCrossRepository: false }, { number: 8, state: 'OPEN', isCrossRepository: true }]);
+  const vercel = fakeVercel(NEON_ERR), fixes = cleanup(2);
+  await run(api, vercel, fixes, ev());
+  await run(api, vercel, fixes, ev());
+  assert.equal(api.comments.get(7)?.length, 1);
+  assert.equal(api.comments.get(8), undefined, 'fork PRs are not commented on');
+  const events = (api.comments.get(100) ?? []).filter((c: string) => c.includes('deploy-event'));
+  assert.equal(events.length, 1);
+});
+
+test('non-failure deployment states are ignored', async () => {
+  const api = fakeApi();
+  const r = await run(api, fakeVercel(NEON_ERR), cleanup(1), ev({ state: 'success' }));
+  assert.equal(r.handled, false);
+  assert.equal(api.issues.length, 0);
+});
+
+test('neon warning: threshold is 80% of the limit, overridable for tests', () => {
+  assert.equal(neonWarnThreshold(10), 8);
+  assert.equal(neonWarnThreshold(10, '3'), 3);
+  assert.equal(neonWarnThreshold(10, 'junk'), 8);
+});
+
+test('neon warning opens at the threshold, updates once per day, stays quiet below', async () => {
+  const api = fakeApi();
+  const q = (count: number, now = NOW, extra: any = {}) => neonWarning({ api, count, limit: 10, threshold: undefined, now, log: () => {}, ...extra });
+  assert.equal((await q(7)).warned, false);
+  assert.equal(api.issues.length, 0);
+  assert.equal((await q(8)).warned, true);
+  assert.equal(api.issues.length, 1);
+  assert.deepEqual(api.issues[0].labels, ['deploy-failure']);
+  await q(9);
+  await q(9);
+  assert.equal(api.issues.length, 1, 'one issue');
+  assert.equal(api.comments.get(100)?.length, 1, 'one comment per day');
+  await q(9, new Date('2026-11-22T12:00:00Z'));
+  assert.equal(api.comments.get(100)?.length, 2);
+});
+
+test('neon warning with a lowered threshold, and dry-run creates nothing', async () => {
+  const api = fakeApi();
+  assert.equal((await neonWarning({ api, count: 2, limit: 10, threshold: '2', now: NOW, log: () => {} })).warned, true);
+  assert.equal(api.issues.length, 1);
+  const api2 = fakeApi();
+  const r = await neonWarning({ api: api2, count: 9, limit: 10, now: NOW, dryRun: true, log: () => {} });
+  assert.equal(r.warned, true);
+  assert.equal(api2.issues.length, 0);
+});

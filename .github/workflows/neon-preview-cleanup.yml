@@ -21,6 +21,7 @@ permissions:
 
 env:
   NEON_PROJECT_ID: morning-block-80560777
+  NEON_BRANCH_LIMIT: '10'   # the plan's branch limit; the sweep warns at 80% (set NEON_WARN_THRESHOLD to override)
 
 jobs:
   closed-pr:
@@ -64,6 +65,11 @@ jobs:
           fi
 
   sweep:
+    # issues: write only so the branch-count warning (#166) can open or update its issue
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
     concurrency:
       group: neon-preview-cleanup-sweep
       cancel-in-progress: false

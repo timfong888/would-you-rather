@@ -19,6 +19,7 @@ DRY_RUN="${DRY_RUN:-true}"
 API="${NEON_API_BASE:-https://console.neon.tech/api/v2}/projects/${NEON_PROJECT_ID}"
 PREFIX="preview/"
 failures=0
+removed=0   # branches deleted, or that would be deleted in a dry run (for the branch-count report)
 
 neon() { # neon METHOD PATH
   curl -fsS -X "$1" -H "Authorization: Bearer ${NEON_API_KEY}" -H "Accept: application/json" "${API}$2"
@@ -43,10 +44,10 @@ delete_branch() { # delete_branch <neon-branch-json> <reason>
     echo "SKIP   $name (default/primary/protected)"; return
   fi
   if [ "$DRY_RUN" = "true" ]; then
-    echo "DRY-RUN would delete $name ($id): $reason"; return
+    echo "DRY-RUN would delete $name ($id): $reason"; removed=$((removed + 1)); return
   fi
   if neon DELETE "/branches/${id}" >/dev/null; then
-    echo "DELETED $name ($id): $reason"
+    echo "DELETED $name ($id): $reason"; removed=$((removed + 1))
   else
     echo "ERROR  failed to delete $name ($id)"; failures=$((failures + 1))
   fi
@@ -99,6 +100,13 @@ case "${1:-}" in
         *)        echo "KEEP   $name (${verdict#keep:})" ;;
       esac
     done <<<"$all"
+    # Report the branch count after cleanup; warn (issue) at 80% of the limit. Never fails the sweep.
+    total=$(grep -c . <<<"$all" || true)
+    remaining=$((total - removed))
+    echo "Neon branches: $total before cleanup, $remaining after (limit ${NEON_BRANCH_LIMIT:-unset})"
+    if [ -n "${NEON_BRANCH_LIMIT:-}" ] && [ -n "${GH_TOKEN:-}" ]; then
+      node .github/scripts/deploy-failure.mjs neon-count "$remaining" "$NEON_BRANCH_LIMIT" || echo "WARN  branch-count warning step failed (ignored)"
+    fi
     ;;
   *) echo "usage: $0 branch <head-ref> | sweep" >&2; exit 2 ;;
 esac
