@@ -78,6 +78,9 @@ case "${1:-}" in
     echo "Neon cleanup for closed PR branch: $name (dry-run=$DRY_RUN)"
     json=$(list_branches | jq -c --arg n "$name" 'select(.name == $n)') || { echo "ERROR listing Neon branches"; exit 1; }
     if [ -z "$json" ]; then echo "KEEP   $name (no such Neon branch)"; exit 0; fi
+    open=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$ref" --state open --json number --jq 'length') \
+      || { echo "KEEP   $name (could not read open PRs)"; exit 0; }
+    if [ "$open" != "0" ]; then echo "KEEP   $name (another open PR on $ref)"; exit 0; fi
     delete_branch "$json" "PR closed"
     ;;
   sweep)
