@@ -55,6 +55,12 @@ async function getAll(path) {
     const link = r.json.links?.next;
     next = link ? link.replace('https://api.appstoreconnect.apple.com', '') : null;
   }
+  // Never return a truncated list as if it were complete: a partial group list would make the
+  // membership checks wrong (and could report a failure after a successful attach).
+  if (next) {
+    console.error(`GET ${path}: still more pages after 50; refusing to use a partial list.`);
+    process.exit(1);
+  }
   return out;
 }
 function fail(what, r) {
