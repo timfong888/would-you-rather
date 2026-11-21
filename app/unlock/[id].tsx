@@ -29,6 +29,8 @@ import {
   productForCategory,
 } from '@/lib/catalog';
 import { purchases } from '@/lib/purchases';
+import { purchaseErrorMessage, isPurchasePending } from '@/lib/purchaseErrors';
+import { reportError } from '@/lib/errorTracking';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -299,10 +301,15 @@ export default function UnlockScreen() {
       track('purchase_completed', { category_id: id, product: kind });
       setPaymentState('success');
     } catch (e) {
-      track('purchase_failed', { category_id: id, product: kind });
-      setPurchaseError(
-        e instanceof Error && e.message ? e.message : 'The purchase could not be completed. You were not charged.',
-      );
+      // Ask to Buy / deferred payment is not a failure: no failure event, no error report.
+      if (isPurchasePending(e)) {
+        track('purchase_pending', { category_id: id, product: kind });
+      } else {
+        track('purchase_failed', { category_id: id, product: kind });
+        // Raw SDK/store errors go to error tracking only, never on screen (#159).
+        reportError(e, 'manual');
+      }
+      setPurchaseError(purchaseErrorMessage(e));
       setPaymentState('idle');
     }
   };
@@ -332,7 +339,8 @@ export default function UnlockScreen() {
           );
           setPaymentState('idle');
         }
-      } catch {
+      } catch (e) {
+        reportError(e, 'manual');
         setRestoreMsg('Could not restore purchases right now. Check your connection and try again.');
         setPaymentState('idle');
       }
