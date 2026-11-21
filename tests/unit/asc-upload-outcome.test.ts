@@ -17,8 +17,11 @@ test('still PROCESSING when we stop waiting is green with a notice, not a failur
   assert.match(o.message, /not an error/i);
 });
 
-test('AWAITING_UPLOAD is treated like still processing', () => {
-  assert.equal(uploadOutcome('AWAITING_UPLOAD').exitCode, 0);
+test('AWAITING_UPLOAD after a committed upload is stuck, so it stays red', () => {
+  const o = uploadOutcome('AWAITING_UPLOAD');
+  assert.equal(o.exitCode, 1);
+  assert.equal(o.kind, 'stuck');
+  assert.match(o.message, /stuck or lost/i);
 });
 
 test('FAILED stays red', () => {
