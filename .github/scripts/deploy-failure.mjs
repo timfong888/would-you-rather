@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import {
   LABEL_FAILURE, LABEL_HUMAN, LABEL_RCA, marker, normalizeError, signatureId, matchKnownCause, isPreview,
   parseEvents, countAutofixAttempts, recurrenceReached, decideAutofix, failureIssueBody, rcaIssueBody,
-  neonWarnThreshold, deploymentIdFromTargetUrl, confirmNeonBranchLimit, neutralizeMentions, inlineCode,
+  neonWarnThreshold, deploymentRefFromEvent, confirmNeonBranchLimit, neutralizeMentions, inlineCode,
 } from './deploy-failure-core.mjs';
 
 const LABELS = [
@@ -28,9 +28,10 @@ async function issuesFor(api, sigKey) {
 export async function handleDeploymentFailure({ event, api, vercel, neon, fixes, causes, now, log = console.log, dryRun = false }) {
   if (!['failure', 'error'].includes(event.state)) { log(`ignore: state ${event.state}`); return { handled: false }; }
   const preview = isPreview(event.environment);
-  const dpl = deploymentIdFromTargetUrl(event.targetUrl) ?? `unknown-${event.sha.slice(0, 7)}`;
+  const ref = deploymentRefFromEvent(event) ?? `unknown-${event.sha.slice(0, 7)}`;
+  const err = await vercel.getDeployment(ref).catch(() => null);
+  const dpl = err?.id ?? ref; // the canonical dpl_ id when Vercel returned one (needed for the redeploy)
 
-  const err = await vercel.getDeployment(dpl).catch(() => null);
   const errorText = err && (err.errorCode || err.errorMessage) ? [err.errorCode, err.errorMessage].filter(Boolean).join(': ') : '';
   const sigText = normalizeError(err?.errorCode, err?.errorMessage || (errorText ? '' : `unreadable (${event.description ?? 'no description'})`));
   const sig = signatureId(sigText);
@@ -74,7 +75,8 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
   if (!events.some((e) => e.dpl === dpl)) {
     await api.comment(issue.number, `${marker.event({ sig, sha: event.sha, dpl, at })}\nFailed again: ${event.environment}, ${event.targetUrl}, commit ${event.sha}.`);
     events.push({ sha: event.sha, dpl, at });
-    const prs = await api.listPrs(event.ref).catch(() => []);
+    // deployment.ref is the commit SHA for Vercel deployments, not a branch: look PRs up by commit
+    const prs = await api.prsForCommit(event.sha).catch(() => []);
     const own = prs.filter((p) => p.state === 'OPEN' && !p.isCrossRepository);
     for (const p of own) await api.comment(p.number, `Deploy failed: ${inlineCode(sigText)}. Tracked in #${issue.number}.`);
   }
@@ -174,7 +176,10 @@ export function ghApi(repo) {
     async addLabels(n, labels) { gh(['issue', 'edit', String(n), '--repo', repo, ...labels.flatMap((l) => ['--add-label', l])]); },
     async comment(n, body) { gh(['issue', 'comment', String(n), '--repo', repo, '--body', body]); },
     async listComments(n) { return lines(gh(['api', `repos/${repo}/issues/${n}/comments`, '--paginate', '--jq', '.[] | {body}'])).map((c) => c.body); },
-    async listPrs(head) { return JSON.parse(gh(['pr', 'list', '--repo', repo, '--head', head, '--state', 'all', '--json', 'number,state,isCrossRepository'])); },
+    async prsForCommit(sha) {
+      const jq = `[.[] | {number: .number, state: (.state | ascii_upcase), isCrossRepository: ((.head.repo.full_name // "") != "${repo}")}]`;
+      return JSON.parse(gh(['api', `repos/${repo}/commits/${sha}/pulls`, '--jq', jq]));
+    },
   };
 }
 
