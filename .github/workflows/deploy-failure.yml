@@ -31,6 +31,7 @@ jobs:
       cancel-in-progress: false
     env:
       NEON_PROJECT_ID: morning-block-80560777
+      NEON_BRANCH_LIMIT: '10'   # not exposed by the Neon API; keep in step with the plan
       VERCEL_TEAM_ID: team_I7nQh8dtRiD6mIYqmrxysdQK
     steps:
       - uses: actions/checkout@v4

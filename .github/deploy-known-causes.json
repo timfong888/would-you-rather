@@ -2,7 +2,8 @@
   {
     "id": "neon-branch-limit",
     "match": "Resource provisioning failed",
-    "meaning": "Neon branch limit reached; the build never started (no logs).",
+    "confirm": "neon-branch-limit",
+    "meaning": "Candidate only: the error text nominates this cause, it does not prove it. Vercel has no events for a provisioning failure, so the Action confirms with the Neon API (branch count vs the configured limit, failed create_branch operations) before any fix. Not confirmed: needs-rca issue, no auto-fix.",
     "preview_fix": "neon-cleanup-then-redeploy"
   }
 ]

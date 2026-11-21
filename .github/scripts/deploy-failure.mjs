@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import {
   LABEL_FAILURE, LABEL_HUMAN, LABEL_RCA, marker, normalizeError, signatureId, matchKnownCause, isPreview,
   parseEvents, countAutofixAttempts, recurrenceReached, decideAutofix, failureIssueBody, rcaIssueBody,
-  neonWarnThreshold, deploymentIdFromTargetUrl,
+  neonWarnThreshold, deploymentIdFromTargetUrl, confirmNeonBranchLimit,
 } from './deploy-failure-core.mjs';
 
 const LABELS = [
@@ -25,7 +25,7 @@ async function issuesFor(api, sigKey) {
   return all.filter((i) => (i.body ?? '').includes(marker.signature(sigKey)));
 }
 
-export async function handleDeploymentFailure({ event, api, vercel, fixes, causes, now, log = console.log, dryRun = false }) {
+export async function handleDeploymentFailure({ event, api, vercel, neon, fixes, causes, now, log = console.log, dryRun = false }) {
   if (!['failure', 'error'].includes(event.state)) { log(`ignore: state ${event.state}`); return { handled: false }; }
   const preview = isPreview(event.environment);
   const dpl = deploymentIdFromTargetUrl(event.targetUrl) ?? `unknown-${event.sha.slice(0, 7)}`;
@@ -36,7 +36,7 @@ export async function handleDeploymentFailure({ event, api, vercel, fixes, cause
   const sig = signatureId(sigText);
   const cause = errorText ? matchKnownCause(sigText, causes) : null;
   log(`failure ${dpl} (${event.environment}) signature ${sig}: ${sigText}`);
-  if (dryRun) { log(`DRY-RUN: would upsert issue for ${sig}; autofix decision: ${JSON.stringify(decideAutofix({ cause, environment: event.environment, attempts: 0, rcaOpen: false }))}`); return { handled: true, sig, dryRun: true }; }
+  if (dryRun) { log(`DRY-RUN: would upsert issue for ${sig}; candidate cause: ${cause ? cause.id : 'none'} (not confirmed in dry-run)`); return { handled: true, sig, dryRun: true }; }
 
   await api.ensureLabels(LABELS);
   const at = now.toISOString();
@@ -84,9 +84,25 @@ export async function handleDeploymentFailure({ event, api, vercel, fixes, cause
     log(`opened needs-rca issue #${n}`);
   }
 
-  // auto-fix (previews only, known causes only, one retry per commit)
+  // a known cause is only a candidate until its check passes against the real system
+  let confirmation = null;
+  if (cause?.confirm === 'neon-branch-limit') {
+    confirmation = await neon.facts(at).then((f) => confirmNeonBranchLimit(f)).catch((e) => ({ confirmed: false, evidence: [], ruledOut: [`could not read the Neon API: ${e.message}`] }));
+    log(`confirm ${cause.id}: ${confirmation.confirmed ? 'confirmed' : 'NOT confirmed'} | ${[...confirmation.evidence, ...confirmation.ruledOut].join(' | ')}`);
+    if (!allBodies.some((b) => b.includes(marker.confirm({ sig, dpl })))) {
+      await api.comment(issue.number, `${marker.confirm({ sig, dpl })}\nCause check for ${cause.id}: ${confirmation.confirmed ? 'CONFIRMED' : 'NOT confirmed'}.\nEvidence: ${confirmation.evidence.join('; ') || 'none'}.\nRuled out: ${confirmation.ruledOut.join('; ') || 'nothing'}.`);
+    }
+    if (!confirmation.confirmed && !rcaOpen) {
+      const n = await api.createIssue({ title: `Root cause needed: ${sigText}`.slice(0, 120), body: rcaIssueBody({ sig, sigText, issueNumber: issue.number, evidence: confirmation.evidence, ruledOut: confirmation.ruledOut, reason: 'looked like a known cause but it was not confirmed' }), labels: [LABEL_FAILURE, LABEL_RCA] });
+      await api.comment(issue.number, `Known cause not confirmed. Root-cause issue: #${n}. No auto-fix.`);
+      rcaOpen = true;
+      log(`opened needs-rca issue #${n} (cause not confirmed)`);
+    }
+  }
+
+  // auto-fix (previews only, confirmed known causes only, one retry per commit)
   const attempts = countAutofixAttempts(allBodies, sig, event.sha);
-  const decision = decideAutofix({ cause, environment: event.environment, attempts, rcaOpen });
+  const decision = decideAutofix({ cause, environment: event.environment, attempts, rcaOpen, confirmation });
   log(`autofix: ${decision.autofix ? 'yes' : 'no'} (${decision.reason})`);
   if (!decision.autofix) return { handled: true, sig, issue: issue.number, decision };
 
@@ -144,6 +160,31 @@ export function ghApi(repo) {
   };
 }
 
+export function neonApi({ apiKey, projectId, limit, fetchImpl = fetch }) {
+  const call = async (path) => {
+    if (!apiKey) throw new Error('no NEON_API_KEY');
+    const res = await fetchImpl(`https://console.neon.tech/api/v2/projects/${projectId}${path}`, { headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`Neon ${res.status}`);
+    return res.json();
+  };
+  return {
+    // branch count now, and failed create_branch operations since the last 24 hours
+    async facts(atIso) {
+      const branches = [];
+      for (let cursor = '', i = 0; i < 10; i++) {
+        const page = await call(`/branches?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+        branches.push(...page.branches);
+        cursor = page.pagination?.next ?? '';
+        if (!cursor) break;
+      }
+      const ops = await call('/operations?limit=100');
+      const since = Date.parse(atIso) - 24 * 3600000;
+      const failedCreates = (ops.operations ?? []).filter((o) => o.action === 'create_branch' && o.status !== 'finished' && Date.parse(o.created_at) >= since).map((o) => ({ at: o.created_at, error: o.error ?? `status ${o.status}` }));
+      return { count: branches.length, limit, failedCreates };
+    },
+  };
+}
+
 export function vercelApi({ token, teamId, name = 'wyr', fetchImpl = fetch }) {
   const q = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
   const call = async (path, init) => {
@@ -187,7 +228,7 @@ async function main() {
         return { deleted: (out.match(/^DELETED /gm) ?? []).length };
       },
     };
-    await handleDeploymentFailure({ event, api: ghApi(repo), vercel: vercelApi({ token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID }), fixes, causes, now, dryRun });
+    await handleDeploymentFailure({ event, api: ghApi(repo), neon: neonApi({ apiKey: process.env.NEON_API_KEY, projectId: process.env.NEON_PROJECT_ID, limit: Number(process.env.NEON_BRANCH_LIMIT ?? 10) }), vercel: vercelApi({ token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID }), fixes, causes, now, dryRun });
     return;
   }
   console.error('usage: deploy-failure.mjs deployment | neon-count <count> <limit> | ensure-labels');

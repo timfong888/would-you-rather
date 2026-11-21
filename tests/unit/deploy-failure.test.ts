@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 // @ts-ignore plain JS
 import { handleDeploymentFailure, neonWarning } from '../../.github/scripts/deploy-failure.mjs';
 // @ts-ignore plain JS
-import { normalizeError, decideAutofix, isPreview, recurrenceReached, neonWarnThreshold, deploymentIdFromTargetUrl, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
+import { normalizeError, decideAutofix, confirmNeonBranchLimit, isPreview, recurrenceReached, neonWarnThreshold, deploymentIdFromTargetUrl, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
 
-const CAUSES = [{ id: 'neon-branch-limit', match: 'Resource provisioning failed', preview_fix: 'neon-cleanup-then-redeploy' }];
+const CAUSES = [{ id: 'neon-branch-limit', match: 'Resource provisioning failed', confirm: 'neon-branch-limit', preview_fix: 'neon-cleanup-then-redeploy' }];
 const NOW = new Date('2026-11-21T12:00:00Z');
 
 function fakeApi(prs: any[] = []) {
@@ -30,9 +30,12 @@ function fakeVercel(error: any) {
   return { calls, getDeployment: async () => { if (error instanceof Error) throw error; return error; }, getEventsTail: async () => '', redeploy: async () => { calls.redeploy++; return 'dpl_new'; } };
 }
 
+function fakeNeon(facts: any) { return { facts: async () => { if (facts instanceof Error) throw facts; return { limit: 10, failedCreates: [], ...facts }; } }; }
+const AT_LIMIT = fakeNeon({ count: 10 });
+
 const NEON_ERR = { errorCode: 'BUILD_FAILED', errorMessage: 'Resource provisioning failed' };
 const ev = (over: any = {}) => ({ state: 'failure', environment: 'Preview – wyr', targetUrl: 'https://vercel.com/team/wyr/AbC123', description: 'Deployment has failed', sha: 'a'.repeat(40), ref: 'feat/x', ...over });
-const run = (api: any, vercel: any, fixes: any, event: any, now = NOW) => { api.clock = now; return handleDeploymentFailure({ event, api, vercel, fixes, causes: CAUSES, now, log: () => {} }); };
+const run = (api: any, vercel: any, fixes: any, event: any, now = NOW, neon: any = AT_LIMIT) => { api.clock = now; return handleDeploymentFailure({ event, api, vercel, neon, fixes, causes: CAUSES, now, log: () => {} }); };
 const cleanup = (deleted: number) => { const f = { calls: 0, neonCleanup: async () => { f.calls++; return { deleted }; } }; return f; };
 
 test('signature ignores ids, urls and shas', () => {
@@ -45,12 +48,15 @@ test('signature ignores ids, urls and shas', () => {
 
 test('decideAutofix: production never, unknown never, one retry per commit, paused by an open RCA', () => {
   const cause = CAUSES[0];
-  assert.equal(decideAutofix({ cause, environment: 'Production – wyr', attempts: 0, rcaOpen: false }).autofix, false);
-  assert.equal(decideAutofix({ cause, environment: undefined, attempts: 0, rcaOpen: false }).autofix, false);
+  const confirmation = { confirmed: true, evidence: [], ruledOut: [] };
+  assert.equal(decideAutofix({ cause, environment: 'Production – wyr', attempts: 0, rcaOpen: false, confirmation }).autofix, false);
+  assert.equal(decideAutofix({ cause, environment: undefined, attempts: 0, rcaOpen: false, confirmation }).autofix, false);
   assert.equal(decideAutofix({ cause: null, environment: 'Preview – wyr', attempts: 0, rcaOpen: false }).autofix, false);
-  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: false }).autofix, true);
-  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 1, rcaOpen: false }).autofix, false);
-  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: true }).autofix, false);
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: false, confirmation }).autofix, true);
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 1, rcaOpen: false, confirmation }).autofix, false);
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: true, confirmation }).autofix, false);
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: false }).autofix, false, 'a string match alone never fixes anything');
+  assert.equal(decideAutofix({ cause, environment: 'Preview – wyr', attempts: 0, rcaOpen: false, confirmation: { confirmed: false, evidence: [], ruledOut: ['x'] } }).autofix, false);
   assert.equal(isPreview('Preview'), true);
   assert.equal(isPreview('Production'), false);
 });
@@ -185,4 +191,54 @@ test('neon warning with a lowered threshold, and dry-run creates nothing', async
   const r = await neonWarning({ api: api2, count: 9, limit: 10, now: NOW, dryRun: true, log: () => {} });
   assert.equal(r.warned, true);
   assert.equal(api2.issues.length, 0);
+});
+
+test('confirmNeonBranchLimit: at the limit with no failed create is confirmed; below it is ruled out', () => {
+  const at = confirmNeonBranchLimit({ count: 10, limit: 10 });
+  assert.equal(at.confirmed, true);
+  assert.match(at.evidence.join(' '), /10 of 10/);
+  const below = confirmNeonBranchLimit({ count: 4, limit: 10 });
+  assert.equal(below.confirmed, false);
+  assert.match(below.ruledOut.join(' '), /4 of 10/);
+});
+
+test('confirmNeonBranchLimit: a failed create_branch with a different error vetoes; a limit error confirms', () => {
+  const other = confirmNeonBranchLimit({ count: 10, limit: 10, failedCreates: [{ at: 't', error: 'compute provisioning timed out' }] });
+  assert.equal(other.confirmed, false);
+  assert.match(other.ruledOut.join(' '), /different error/);
+  const lim = confirmNeonBranchLimit({ count: 10, limit: 10, failedCreates: [{ at: 't', error: 'branches limit exceeded' }] });
+  assert.equal(lim.confirmed, true);
+});
+
+test('known cause NOT confirmed: needs-rca issue listing what was ruled out, no cleanup, no redeploy', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(9);
+  const r = await run(api, vercel, fixes, ev(), NOW, fakeNeon({ count: 4 }));
+  assert.equal(r.decision.autofix, false);
+  assert.equal(fixes.calls, 0);
+  assert.equal(vercel.calls.redeploy, 0);
+  const rca = api.issues.find((i: any) => i.labels.includes('needs-rca'));
+  assert.ok(rca, 'needs-rca issue opened');
+  assert.match(rca.body, /Ruled out[\s\S]*4 of 10/);
+  assert.equal(api.issues.filter((i: any) => i.labels.includes('needs-rca')).length, 1);
+  // a second failure does not open a second RCA issue
+  await run(api, vercel, fixes, ev({ targetUrl: 'https://vercel.com/t/wyr/Again9' }), new Date(NOW.getTime() + 3600000), fakeNeon({ count: 4 }));
+  assert.equal(api.issues.filter((i: any) => i.labels.includes('needs-rca')).length, 1);
+  assert.equal(vercel.calls.redeploy, 0);
+});
+
+test('Neon API unreadable: cause stays unconfirmed, no auto-fix, RCA issue says why', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(9);
+  const r = await run(api, vercel, fixes, ev(), NOW, fakeNeon(new Error('Neon 401')));
+  assert.equal(r.decision.autofix, false);
+  assert.equal(fixes.calls, 0);
+  assert.match(api.issues.find((i: any) => i.labels.includes('needs-rca')).body, /could not read the Neon API: Neon 401/);
+});
+
+test('confirmed cause records its evidence on the issue once per deployment', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR), fixes = cleanup(9);
+  await run(api, vercel, fixes, ev());
+  await run(api, vercel, fixes, ev());
+  const checks = (api.comments.get(100) ?? []).filter((c: string) => c.includes('Cause check'));
+  assert.equal(checks.length, 1);
+  assert.match(checks[0], /CONFIRMED[\s\S]*10 of 10/);
 });

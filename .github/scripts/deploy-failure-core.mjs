@@ -24,6 +24,7 @@ export function signatureId(signature) {
   return createHash('sha1').update(signature).digest('hex').slice(0, 10);
 }
 
+// The error text only NOMINATES a known cause. A cause with a `confirm` check must pass it before any fix runs.
 export function matchKnownCause(signature, causes) {
   const s = signature.toLowerCase();
   return causes.find((c) => s.includes(String(c.match).toLowerCase())) ?? null;
@@ -39,6 +40,7 @@ export const marker = {
   signature: (id) => `<!-- deploy-signature: ${id} -->`,
   event: ({ sig, sha, dpl, at }) => `<!-- deploy-event sig=${sig} sha=${sha} dpl=${dpl} at=${at} -->`,
   autofix: ({ sig, sha }) => `<!-- deploy-autofix sig=${sig} sha=${sha} -->`,
+  confirm: ({ sig, dpl }) => `<!-- deploy-confirm sig=${sig} dpl=${dpl} -->`,
   warnDay: (day) => `<!-- neon-warning day=${day} -->`,
 };
 
@@ -63,14 +65,33 @@ export function recurrenceReached(events, now) {
   return dpls.size >= RECURRENCE_COUNT;
 }
 
-// The only place that decides whether we may redeploy. Production never; one retry per commit; paused while an RCA is open.
-export function decideAutofix({ cause, environment, attempts, rcaOpen }) {
+// Neon branch limit, from facts read from the Neon API (Vercel logs have nothing for a provisioning failure).
+// The plan's limit is not exposed by the Neon project API (quota is null), so it is configured (NEON_BRANCH_LIMIT).
+// facts: { count, limit, failedCreates: [{ at, error }] }
+export function confirmNeonBranchLimit({ count, limit, failedCreates = [] }) {
+  const evidence = [];
+  const ruledOut = [];
+  const looksLikeLimit = (e) => /limit|exceed|quota|too many/i.test(String(e ?? ''));
+  const otherFailure = failedCreates.find((f) => !looksLikeLimit(f.error));
+  const limitFailure = failedCreates.find((f) => looksLikeLimit(f.error));
+  if (count >= limit) evidence.push(`Neon branch count ${count} of ${limit}`);
+  else ruledOut.push(`Neon branch count is ${count} of ${limit}, below the limit now (it may have been cleaned up since the failure)`);
+  if (limitFailure) evidence.push(`failed create_branch operation at ${limitFailure.at}: ${limitFailure.error}`);
+  if (otherFailure) ruledOut.push(`a failed create_branch operation at ${otherFailure.at} has a different error: ${otherFailure.error}`);
+  if (!failedCreates.length) evidence.push('no failed create_branch operation (a limit rejection is returned by the API before an operation exists)');
+  return { confirmed: count >= limit && !otherFailure, evidence, ruledOut };
+}
+
+// The only place that decides whether we may redeploy.
+// Production never; known cause only if confirmed; one retry per commit; paused while an RCA is open.
+export function decideAutofix({ cause, environment, attempts, rcaOpen, confirmation }) {
   if (!isPreview(environment)) return { autofix: false, reason: 'production or unknown environment: never automatic' };
   if (!cause) return { autofix: false, reason: 'no known cause for this error' };
   if (!cause.preview_fix) return { autofix: false, reason: 'known cause has no automatic fix' };
+  if (cause.confirm && !confirmation?.confirmed) return { autofix: false, reason: `cause ${cause.id} not confirmed: ${(confirmation?.ruledOut ?? ['not checked']).join('; ')}` };
   if (rcaOpen) return { autofix: false, reason: 'auto-fix paused: open needs-rca issue for this signature' };
   if (attempts >= RETRY_CAP_PER_COMMIT) return { autofix: false, reason: `retry cap reached for this commit (${attempts}/${RETRY_CAP_PER_COMMIT})` };
-  return { autofix: true, reason: `known cause ${cause.id}` };
+  return { autofix: true, reason: `known cause ${cause.id} confirmed` };
 }
 
 export function neonWarnThreshold(limit, override) {
@@ -115,15 +136,20 @@ ${errorText ? `Vercel API: \`${errorText}\`` : 'Vercel error could not be read (
 ${logTail ? `\n\`\`\`\n${logTail}\n\`\`\`\n` : '\nNo build log lines were returned (a build that never started has none).\n'}${TEMPLATE_TAIL}`;
 }
 
-export function rcaIssueBody({ sig, sigText, issueNumber }) {
+export function rcaIssueBody({ sig, sigText, issueNumber, ruledOut = [], evidence = [], reason }) {
   return `${marker.signature(`rca-${sig}`)}
-\`${sigText}\` failed ${RECURRENCE_COUNT} times in ${RECURRENCE_DAYS} days (see #${issueNumber}). Auto-fix is paused for this signature until this issue is closed.
+\`${sigText}\` ${reason ?? `failed ${RECURRENCE_COUNT} times in ${RECURRENCE_DAYS} days`} (see #${issueNumber}). Auto-fix is paused for this signature until this issue is closed.
 
-Do the root cause, not another retry (docs/deploy-failures.md):
+Do the root cause, not another retry (docs/deploy-failures.md).
 
 ## Symptom
+\`${sigText}\`
 
 ## Evidence
+${evidence.length ? evidence.map((e) => `- ${e}`).join('\n') : '-'}
+
+## Ruled out
+${ruledOut.length ? ruledOut.map((e) => `- ${e}`).join('\n') : '-'}
 
 ## Why chain
 1.
