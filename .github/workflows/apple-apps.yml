@@ -1,0 +1,31 @@
+name: Apple apps lookup (read-only)
+
+# Manual only. READ-ONLY: lists App Store Connect apps (and portal bundle IDs) whose name or bundle ID
+# contains a string, with store state and latest build. Issues GET requests only.
+on:
+  workflow_dispatch:
+    inputs:
+      match:
+        description: Case-insensitive text to find in app name or bundle ID
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  apps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: List matching apps
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          MATCH: ${{ inputs.match }}
+        run: node scripts/asc-apps.mjs --match "$MATCH"
