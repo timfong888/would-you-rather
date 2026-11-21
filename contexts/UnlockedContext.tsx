@@ -8,18 +8,56 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
-import { FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, isCategoryEntitled, productForCategory } from '@/lib/catalog';
+import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
+import { canPlayCategory } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
+import { testUnlockAllowed, webFreeUnlockAllowed } from '@/lib/testUnlockPolicy';
+
+/**
+ * Free test unlock (no payment). Web only: off unless EXPO_PUBLIC_TEST_UNLOCK is
+ * "1" on a preview or development web build; never on production and never on
+ * iOS/Android (lib/testUnlockPolicy.ts). The inline env and Platform.OS checks
+ * let Metro inline both so the minifier drops the test-only paths elsewhere.
+ */
+export const TEST_UNLOCK =
+  Platform.OS === 'web' &&
+  process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' &&
+  testUnlockAllowed(process.env.EXPO_PUBLIC_DEPLOY_ENV, process.env.EXPO_PUBLIC_TEST_UNLOCK, Platform.OS);
+
+/**
+ * Temporary production web free unlock (Tim, 2026-11-21, "128 b"), until web
+ * payments exist. Web only, on when EXPO_PUBLIC_WEB_FREE_UNLOCK is "1" on the
+ * Vercel deploy (production included). Off: delete the Vercel variable and
+ * redeploy. The test unlock wins on preview/dev builds that set both.
+ */
+export const WEB_FREE_UNLOCK =
+  Platform.OS === 'web' &&
+  process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' &&
+  !TEST_UNLOCK &&
+  webFreeUnlockAllowed(process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK, Platform.OS);
+
+/** Any free (no payment) unlock is compiled into this build: test or temporary web. */
+export const FREE_UNLOCK = TEST_UNLOCK || WEB_FREE_UNLOCK;
 
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */
   isUnlocked: (id: CategoryId) => boolean;
-  /** Record a (purchased) unlock for a single category. */
+  /** Free unlock for a single category. A no-op unless FREE_UNLOCK (test or temporary web). */
   unlock: (id: CategoryId) => void;
-  /** Clear purchased unlocks. Owner access is left in place. */
+  /** Free "unlock every category" (mirrors the $4.99 pack). A no-op unless FREE_UNLOCK. */
+  unlockAll: () => void;
+  /** Clear free unlocks. Owner access and purchases are left in place. */
   reset: () => void;
-  /** True when real store purchases are wired up in this build (native + RevenueCat key). */
+  /** True when the free test unlock is compiled into this build (never on production). */
+  testUnlockEnabled: boolean;
+  /** True when real purchases are wired up: iOS (App Store key) or web (Web Billing key). */
   purchasesAvailable: boolean;
+  /**
+   * True once the first entitlement fetch has settled (or purchases are off).
+   * Until then isUnlocked() can say false for a buyer, so screens must not
+   * redirect to the paywall or count a paywall view before this is true.
+   */
+  entitlementsLoaded: boolean;
   /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
   applyEntitlements: (active: string[]) => void;
   /** Price label for a category unlock: the store price when loaded, else the approved $1.99. */
@@ -37,8 +75,11 @@ interface UnlockedContextValue {
 const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
   unlock: () => {},
+  unlockAll: () => {},
   reset: () => {},
+  testUnlockEnabled: false,
   purchasesAvailable: false,
+  entitlementsLoaded: true,
   applyEntitlements: () => {},
   priceForCategory: () => FALLBACK_PRICE_CATEGORY,
   priceForAll: () => FALLBACK_PRICE_ALL,
@@ -49,8 +90,13 @@ const UnlockedContext = createContext<UnlockedContextValue>({
 });
 
 const STORAGE_KEY = 'wyr_unlocked_categories';
+const ENTITLEMENTS_LOAD_TIMEOUT_MS = 8000;
 
 function loadFromStorage(): Set<string> {
+  // Unlocks stored by the old simulated checkout (#53), the test unlock or the
+  // temporary web free unlock only count while a free unlock exists. Without
+  // one, access comes from RevenueCat entitlements (or owner access) only.
+  if (!FREE_UNLOCK) return new Set();
   if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -69,22 +115,33 @@ function saveToStorage(set: Set<string>) {
 }
 
 export function UnlockedProvider({ children }: { children: React.ReactNode }) {
+  // Free unlocks (empty, and never written, unless FREE_UNLOCK).
   const [unlocked, setUnlocked] = useState<Set<string>>(() => loadFromStorage());
   const [ownerAccess, setOwnerAccess] = useState<boolean>(() => loadOwnerAccess());
-  // Active RevenueCat entitlement ids. Empty on web, where purchases are unavailable.
+  // Active RevenueCat entitlement ids (App Store on iOS, Web Billing on web).
   const [entitlements, setEntitlements] = useState<Set<string>>(() => new Set());
+  const [entitlementsLoaded, setEntitlementsLoaded] = useState<boolean>(() => !purchases.isAvailable());
 
   // Bootstrap from RevenueCat on launch and stay in sync: the listener fires on
   // purchase, restore, refund and expiry, so access is revoked without a restart.
   useEffect(() => {
     if (!purchases.isAvailable()) return;
     let cancelled = false;
+    const markLoaded = () => {
+      if (!cancelled) setEntitlementsLoaded(true);
+    };
+    // A hung network must not hold screens on "checking" forever.
+    const loadTimeout = setTimeout(markLoaded, ENTITLEMENTS_LOAD_TIMEOUT_MS);
     purchases
       .getEntitlements()
       .then((active) => {
         if (!cancelled) setEntitlements(new Set(active));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(loadTimeout);
+        markLoaded();
+      });
     const unsubscribe = purchases.onEntitlementsChange((active) => setEntitlements(new Set(active)));
     // RevenueCat does not push backend changes (refund, promo expiry) to the
     // listener; they appear on the next SDK fetch. Refresh whenever the app
@@ -104,6 +161,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     const timer = setInterval(refresh, 5 * 60 * 1000);
     return () => {
       cancelled = true;
+      clearTimeout(loadTimeout);
       unsubscribe();
       sub.remove();
       clearInterval(timer);
@@ -140,11 +198,13 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
   }, [ownerAccess]);
 
   const isUnlocked = useCallback(
-    (id: CategoryId) => ownerAccess || unlocked.has(id) || isCategoryEntitled(entitlements, id),
+    (id: CategoryId) =>
+      canPlayCategory({ ownerAccess, entitlements, testUnlocks: unlocked, testUnlockEnabled: FREE_UNLOCK }, id),
     [ownerAccess, unlocked, entitlements],
   );
 
   const unlock = useCallback((id: CategoryId) => {
+    if (!FREE_UNLOCK) return;
     setUnlocked((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -152,6 +212,8 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
+
+  const unlockAll = useCallback(() => unlock(ENTITLEMENT_ALL as CategoryId), [unlock]);
 
   const reset = useCallback(() => {
     setUnlocked(() => {
@@ -185,8 +247,11 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
       value={{
         isUnlocked,
         unlock,
+        unlockAll,
         reset,
+        testUnlockEnabled: TEST_UNLOCK,
         purchasesAvailable: purchases.isAvailable(),
+        entitlementsLoaded,
         applyEntitlements,
         priceForCategory,
         priceForAll,

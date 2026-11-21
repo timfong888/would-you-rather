@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Read-only App Store Connect API helper. Used by .github/workflows/apple-ops.yml.
 // Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (.p8 contents). Never printed.
-// Usage: node scripts/asc-api.mjs <app|builds|prerelease|bundle-ids> --app <ascAppId>
+// Usage: node scripts/asc-api.mjs <app|builds|prerelease|bundle-ids|iap> --app <ascAppId>
 import { createPrivateKey, sign } from 'node:crypto';
 
 const { ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY } = process.env;
@@ -33,7 +33,7 @@ async function get(path) {
 const [cmd, ...rest] = process.argv.slice(2);
 const appId = rest[rest.indexOf('--app') + 1];
 if (!cmd || (cmd !== 'bundle-ids' && !appId)) {
-  console.error('Usage: asc-api.mjs <app|builds|prerelease|bundle-ids> --app <ascAppId>');
+  console.error('Usage: asc-api.mjs <app|builds|prerelease|bundle-ids|iap> --app <ascAppId>');
   process.exit(2);
 }
 
@@ -51,6 +51,9 @@ const paths = {
   prerelease: `/v1/preReleaseVersions?filter[app]=${appId}&limit=10&include=builds` +
     '&fields[preReleaseVersions]=version,platform',
   'bundle-ids': '/v1/bundleIds?filter[identifier]=com.timfong888.wouldyourather',
+  // In-app purchases (read only): product id, type and review state.
+  iap: `/v1/apps/${appId}/inAppPurchasesV2?limit=50` +
+    '&fields[inAppPurchases]=name,productId,inAppPurchaseType,state,familySharable',
 };
 paths.uploads = paths.prerelease; // 'uploads' kept as the workflow's option name (buildUploads has no list endpoint)
 if (!paths[cmd]) { console.error(`Unknown command ${cmd}`); process.exit(2); }
