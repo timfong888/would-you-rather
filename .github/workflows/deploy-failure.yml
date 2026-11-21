@@ -1,0 +1,63 @@
+name: Deploy failure backstop
+
+# Catches failed Vercel deployments that no session is watching (#165, plan #162).
+# Opens or updates ONE issue per error signature, comments on the PR, and for known preview-only causes
+# runs the fix once per commit. Production: issue + needs-human, never an automatic redeploy.
+# Security: the script and everything it runs come from the default branch (see the checkout step); the deployment
+# payload is only data. A collaborator who can push workflow files can still change this file on their own branch,
+# as with any push-triggered workflow; fork PRs get no secrets.
+# Needs the VERCEL_TOKEN Actions secret to read the error (without it the issue is still opened, with no auto-fix)
+# and NEON_API_KEY for the Neon cleanup fix. Rules: docs/deploy-failures.md.
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: One-off setup
+        type: choice
+        default: ensure-labels
+        options:
+          - ensure-labels
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read   # gh pr list: the cleanup checks for open PRs, and the PR lookup for comments
+
+jobs:
+  failure:
+    if: github.event_name == 'deployment_status' && (github.event.deployment_status.state == 'failure' || github.event.deployment_status.state == 'error')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Serialise per commit so the one-retry cap cannot be raced.
+    concurrency:
+      group: deploy-failure-${{ github.event.deployment.sha }}
+      cancel-in-progress: false
+    env:
+      NEON_PROJECT_ID: morning-block-80560777
+      NEON_BRANCH_LIMIT: '10'   # not exposed by the Neon API; keep in step with the plan
+      VERCEL_TEAM_ID: team_I7nQh8dtRiD6mIYqmrxysdQK
+    steps:
+      # Run the handler from the default branch, never from the deployed revision. The deployment's ref/SHA is
+      # untrusted input (a PR author can fail their own preview), and this job holds VERCEL_TOKEN and NEON_API_KEY.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Handle the failed deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: node .github/scripts/deploy-failure.mjs deployment
+
+  labels:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the deploy-failure, needs-rca and needs-human labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/scripts/deploy-failure.mjs ensure-labels

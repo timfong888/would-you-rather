@@ -1,0 +1,87 @@
+name: Neon preview cleanup
+
+# Deletes Neon preview branches ("preview/<git head ref>") so the Neon project
+# stays under its 10-branch limit and Vercel previews keep provisioning.
+# Needs the NEON_API_KEY Actions secret. Deletes nothing without DRY_RUN=false.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only log what would be deleted
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  NEON_PROJECT_ID: morning-block-80560777
+  NEON_BRANCH_LIMIT: '10'   # the plan's branch limit; the sweep warns at 80% (set NEON_WARN_THRESHOLD to override)
+
+jobs:
+  closed-pr:
+    # One lock per PR so a later run for another PR can never cancel this one.
+    concurrency:
+      group: neon-preview-cleanup-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete this PR's Neon preview branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: 'false'
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: .github/scripts/neon-preview-cleanup.sh branch "$HEAD_REF"
+
+  # Dry-run proof, only for PRs that touch this workflow or its script. Never deletes.
+  pr-dry-run:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Dry-run sweep (logs only)
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: 'true'
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git diff --name-only "$BASE_SHA" HEAD | grep -qE '^\.github/(workflows/neon-preview-cleanup\.yml|scripts/neon-preview-cleanup\.sh)$'; then
+            .github/scripts/neon-preview-cleanup.sh sweep
+          else
+            echo "PR does not touch the Neon cleanup files; skipping dry-run."
+          fi
+
+  sweep:
+    # issues: write only so the branch-count warning (#166) can open or update its issue
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    concurrency:
+      group: neon-preview-cleanup-sweep
+      cancel-in-progress: false
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sweep stale Neon preview branches
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          # schedule: real run. workflow_dispatch: dry-run unless unticked.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: .github/scripts/neon-preview-cleanup.sh sweep

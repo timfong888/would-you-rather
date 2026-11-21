@@ -19,6 +19,8 @@ import { questionPageJsonLd } from '@/lib/seo';
 import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
+import { questionGate } from '@/lib/access';
+import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl, trackVoteForActivation } from '@/lib/analytics';
@@ -53,7 +55,7 @@ function legacyCopy(value: string): boolean {
 export default function GameScreen() {
   const { id, cat, idx, link_id, f } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string; f: string }>();
   const router = useRouter();
-  const { isUnlocked } = useUnlocked();
+  const { isUnlocked, entitlementsLoaded } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -79,8 +81,9 @@ export default function GameScreen() {
   const currentIdx = realIdx >= 0 ? realIdx : (idx !== undefined ? parseInt(idx, 10) || 0 : 0);
   const totalInCategory = categoryQuestions.length;
 
-  // Self-guard: a locked question reached by typing a URL is bounced to the
-  // category page (which shows it locked with an Unlock affordance).
+  // Self-guard: a locked question reached by typing a URL is sent to the
+  // category's paywall. Until the redirect lands (or if it cannot run), the
+  // screen shows a locked card with an Unlock button instead of a blank page.
   // Exception: arriving via a share link (link_id) — the shared question is
   // intentionally playable as the hook of the share loop; the gate still
   // applies the moment they try to continue.
@@ -99,12 +102,18 @@ export default function GameScreen() {
   const friendPick = friend === 'A' || friend === 'B' ? friend : null;
   const arrivedViaShare = (typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id)) || friend !== null;
   const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
-  const mustRedirect = currentLocked && !arrivedViaShare;
+  const gate = questionGate({ locked: currentLocked, arrivedViaShare, entitlementsLoaded });
+  // A buyer's entitlements arrive asynchronously (RevenueCat). Until the first
+  // fetch settles, a locked-looking question may belong to a paid category, so
+  // show "checking" rather than bouncing the buyer to the paywall.
+  const checkingAccess = gate === 'checking';
+  const mustRedirect = gate === 'paywall';
   // On a cold deep link the root navigator may not be mounted on first render;
   // navigating before it is ready throws, so wait for the root state key.
   const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
-    if (mustRedirect && category && navReady) router.replace(`/categories/${category.id}`);
+    if (!(mustRedirect && category && navReady)) return;
+    return replaceWhenReady(router, `/unlock/${category.id}`);
   }, [mustRedirect, category, navReady, router]);
 
   // Revisiting a question whose vote the server already holds (reload, back button,
@@ -217,7 +226,31 @@ export default function GameScreen() {
     );
   }
 
-  if (mustRedirect) return null;
+  if (checkingAccess) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Checking your unlocks…</Text>
+      </View>
+    );
+  }
+
+  if (mustRedirect && category) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>🔒 This question is part of {category.label}.</Text>
+        <Pressable
+          onPress={() => router.replace(`/unlock/${category.id}`)}
+          style={[styles.backButton, { backgroundColor: category.color }]}
+          accessibilityRole="button"
+        >
+          <Text style={styles.backButtonText}>Unlock {category.label}</Text>
+        </Pressable>
+        <Pressable onPress={() => router.replace(`/categories/${category.id}`)} accessibilityRole="button">
+          <Text style={styles.errorText}>Back to the category</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   const catColor = category?.color ?? colors.magenta;
   const isLastInCategory = catId ? currentIdx >= totalInCategory - 1 : false;

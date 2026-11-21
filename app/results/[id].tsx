@@ -20,6 +20,7 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
+import { SITE_URL } from '@/constants/config';
 
 export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
@@ -385,7 +386,7 @@ export default function ResultsScreen() {
         <Text style={styles.shareLink} numberOfLines={1}>
           {Platform.OS === 'web' && typeof window !== 'undefined'
             ? `${window.location.origin}/p/${id}`
-            : `https://wouldyourather.vercel.app/p/${id}`}
+            : `${SITE_URL}/p/${id}`}
         </Text>
       </View>
 

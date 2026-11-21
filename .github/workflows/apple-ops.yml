@@ -1,7 +1,7 @@
 name: Apple ops (read-only)
 
 # Manual only. Calls the App Store Connect API with the ASC_* Actions secrets.
-# Read-only: builds, processing state/errors, app and bundle ID lookup.
+# Read-only: builds, processing state/errors, app and bundle ID lookup, in-app purchases.
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +15,7 @@ on:
           - uploads
           - app
           - bundle-ids
+          - iap
       app_id:
         description: ASC app id (Apple ID of the app)
         type: string

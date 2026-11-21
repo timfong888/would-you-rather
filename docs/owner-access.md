@@ -2,8 +2,8 @@
 
 Owner access unlocks every paid pack on a device without paying. It exists so
 the owner can QA premium content and expansion packs, and so tester activity
-does not pollute paywall metrics. It is redeemed from the payment sheet
-itself ("Have a code?"), so there is no hidden gesture to remember.
+does not pollute paywall metrics. It is redeemed on the paywall itself
+("Have a code?", under Restore Purchases), so there is no hidden gesture to remember.
 
 ## One-time setup
 
@@ -25,9 +25,9 @@ can work. There is no default code.
 
 ## Using it
 
-1. Open any locked pack and tap the unlock button to open the payment sheet.
-2. Tap **Have a code?** (shown under the legal text; it only appears when a
-   digest is configured for the build).
+1. Open any locked pack to reach the paywall.
+2. Tap **Have a code?** (under Restore Purchases; it only appears when a
+   digest is configured for the build, and never in native release builds).
 3. Enter the code and tap **Apply code**.
 
 The pack unlocks immediately and, because the code grants owner access,
