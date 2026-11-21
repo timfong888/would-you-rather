@@ -52,8 +52,10 @@ delete_branch() { # delete_branch <neon-branch-json> <reason>
   fi
 }
 
-# prs <head-ref> <open|all> -> JSON array of this repo's own PRs (not fork PRs) with that head branch.
+# prs <head-ref> <state> -> JSON array of this repo's own PRs (not fork PRs) with that head branch.
 # `gh pr list --head` matches the branch name only, so drop cross-repository (fork) PRs.
+# Used only to decide a branch is stale. The open-PR guards deliberately count fork PRs too:
+# for "keep" the conservative answer is to count any open PR with that head name.
 prs() {
   gh pr list --repo "$GITHUB_REPOSITORY" --head "$1" --state "$2" --json number,state,isCrossRepository \
     --jq '[.[] | select(.isCrossRepository | not)]'
@@ -62,7 +64,7 @@ prs() {
 # Prints "delete:<reason>" or "keep:<reason>" for a git head ref.
 decide() {
   local ref="$1" open all status
-  open=$(prs "$ref" open | jq 'length') \
+  open=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$ref" --state open --json number --jq 'length') \
     || { echo "keep:could not read open PRs"; return; }
   if [ "$open" != "0" ]; then echo "keep:open PR on $ref"; return; fi
 
@@ -85,7 +87,7 @@ case "${1:-}" in
     echo "Neon cleanup for closed PR branch: $name (dry-run=$DRY_RUN)"
     json=$(list_branches | jq -c --arg n "$name" 'select(.name == $n)') || { echo "ERROR listing Neon branches"; exit 1; }
     if [ -z "$json" ]; then echo "KEEP   $name (no such Neon branch)"; exit 0; fi
-    open=$(prs "$ref" open | jq 'length') \
+    open=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$ref" --state open --json number --jq 'length') \
       || { echo "KEEP   $name (could not read open PRs)"; exit 0; }
     if [ "$open" != "0" ]; then echo "KEEP   $name (another open PR on $ref)"; exit 0; fi
     delete_branch "$json" "PR closed"
