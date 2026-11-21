@@ -4,9 +4,10 @@
  * lib/purchases.ts binds the real SDK.
  *
  * Keys (public, safe in the client):
- *   rcb_sb_...  Web Billing sandbox: Stripe test mode, card 4242 4242 4242 4242
+ *   test_...    RevenueCat Test Store: simulated purchases, never charges; preview/local only
+ *   rcb_sb_...  Web Billing sandbox: Stripe test mode, card 4242 4242 4242 4242; preview/local only
  *   rcb_...     Web Billing live: real charges, production only
- * A key on the wrong deploy (sandbox on production, live on preview/local) is
+ * A key on the wrong deploy (test/sandbox on production, live on preview/local) is
  * refused here and fails the build (scripts/check-web-build.mjs).
  *
  * Identity: Web Billing needs an app user id. No id is created until the

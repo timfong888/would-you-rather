@@ -73,6 +73,8 @@ flow against **RevenueCat's Test Store**, which never charges. The old free "tes
 | Local `npm run build:web`, `npm start`, `npm run web` | `development` (the scripts default it) | same as Preview |
 | Any EAS build (iOS/Android) | per profile | n/a; `check-rc-keys` fails any EAS build with `EXPO_PUBLIC_TEST_UNLOCK` or `EXPO_PUBLIC_WEB_FREE_UNLOCK` |
 
+A preview that also sets `EXPO_PUBLIC_WEB_FREE_UNLOCK=1` takes the free path and never reaches the Test Store: keep that flag on Production only if previews should test purchases.
+
 The Test Store app is `app4a3e1a9c34` in RevenueCat. All 8 products are attached to their entitlement and to their package in offering `default` (same ids as the App Store), so the preview paywall sells exactly what the app sells. Its public key is under https://app.revenuecat.com/projects/proj686a561d/apps/app4a3e1a9c34 (API keys). It is a public SDK key, but it lives in Vercel, not in the repo.
 
 TestFlight builds 14 and 15 (version 99.1.0) and build 11 (1.0.0) predate decision A and carry

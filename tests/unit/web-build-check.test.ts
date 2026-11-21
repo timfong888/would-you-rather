@@ -12,6 +12,9 @@ test('deploy env follows the build:web derivation', () => {
   assert.equal(deployEnvFrom({ EXPO_PUBLIC_DEPLOY_ENV: 'preview' }), 'preview');
   // Vercel's own value wins: an explicit value cannot downgrade production.
   assert.equal(deployEnvFrom({ EXPO_PUBLIC_DEPLOY_ENV: 'preview', VERCEL_ENV: 'production' }), 'production');
+  // Custom Vercel environments count as production, like the app's parseDeployEnv.
+  assert.equal(deployEnvFrom({ VERCEL_ENV: 'staging' }), 'production');
+  assert.equal(envProblems({ VERCEL_ENV: 'staging', EXPO_PUBLIC_RC_WEB_KEY: 'test_abc' }).problems.length, 1);
 });
 
 test('a production Vercel build cannot be downgraded by EXPO_PUBLIC_DEPLOY_ENV', () => {

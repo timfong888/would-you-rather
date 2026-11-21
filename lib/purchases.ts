@@ -8,7 +8,8 @@
  * browser storage.
  *
  * Key per Vercel environment (EXPO_PUBLIC_RC_WEB_KEY, public):
- *   Preview / local   rcb_sb_...  sandbox, Stripe test mode
+ *   Preview / local   test_...    RevenueCat Test Store, never charges (default)
+ *                     rcb_sb_...  or Web Billing sandbox, Stripe test mode
  *   Production        rcb_...     live
  * Without a key, purchases are unavailable and the paywall says so.
  */

@@ -33,10 +33,14 @@ export const WEB_FREE_UNLOCK_MARKER = 'FREE FOR NOW';
 /**
  * Same derivation as the build:web script: Vercel's VERCEL_ENV wins (a
  * misconfigured EXPO_PUBLIC_DEPLOY_ENV must not downgrade a production deploy),
- * else the explicit value, else development.
+ * else the explicit value, else development. Then normalized like the app's
+ * parseDeployEnv (lib/testUnlockPolicy.ts): anything but preview/development,
+ * e.g. a custom Vercel environment, is production, so the build guard and the
+ * runtime agree.
  */
 export function deployEnvFrom(env) {
-  return env.VERCEL_ENV || env.EXPO_PUBLIC_DEPLOY_ENV || 'development';
+  const raw = env.VERCEL_ENV || env.EXPO_PUBLIC_DEPLOY_ENV || 'development';
+  return raw === 'preview' || raw === 'development' ? raw : 'production';
 }
 
 export function envProblems(env) {
