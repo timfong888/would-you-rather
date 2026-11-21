@@ -11,10 +11,16 @@ const NETWORK = new Set(['10', '35']); // NETWORK_ERROR, OFFLINE_CONNECTION_ERRO
 const PAYMENT_PENDING = '20';
 const NOT_ALLOWED = '3'; // PURCHASE_NOT_ALLOWED_ERROR (Screen Time, parental settings)
 const ALREADY_PURCHASED = '6';
+// Codes that fail before the store takes payment, so "not charged" is true:
+// PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR, CONFIGURATION_ERROR (build 21).
+// Anything else (network, backend, receipt errors) can happen after the store
+// already charged; the copy then points at Restore Purchases instead.
+const BEFORE_CHARGE = new Set(['5', '23']);
 
 export const PURCHASE_MESSAGES = {
   unavailable: "Purchases aren't available yet. Please try again later. You were not charged.",
-  network: "Couldn't reach the store. Check your connection and try again. You were not charged.",
+  network: "Couldn't reach the store. Check your connection and try again. If you were charged, tap Restore Purchases.",
+  failed: 'Something went wrong with the purchase. Please try again. If you were charged, tap Restore Purchases.',
   pending: 'Your purchase is waiting for approval. It will unlock as soon as it is approved.',
   notAllowed: 'Purchases are turned off on this device (for example by Screen Time). You were not charged.',
   alreadyPurchased: 'You already own this. Tap Restore Purchases to unlock it on this device.',
@@ -33,5 +39,11 @@ export function purchaseErrorMessage(e: unknown): string {
   if (c === PAYMENT_PENDING) return PURCHASE_MESSAGES.pending;
   if (c === NOT_ALLOWED) return PURCHASE_MESSAGES.notAllowed;
   if (c === ALREADY_PURCHASED) return PURCHASE_MESSAGES.alreadyPurchased;
-  return PURCHASE_MESSAGES.unavailable;
+  if (c !== null && BEFORE_CHARGE.has(c)) return PURCHASE_MESSAGES.unavailable;
+  return PURCHASE_MESSAGES.failed;
+}
+
+/** Ask to Buy / deferred payment: not a failure, the purchase completes after approval. */
+export function isPurchasePending(e: unknown): boolean {
+  return code(e) === PAYMENT_PENDING;
 }
