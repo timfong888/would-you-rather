@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import {
   LABEL_FAILURE, LABEL_HUMAN, LABEL_RCA, marker, normalizeError, signatureId, matchKnownCause, isPreview,
   parseEvents, countAutofixAttempts, recurrenceReached, decideAutofix, failureIssueBody, rcaIssueBody,
-  neonWarnThreshold, deploymentIdFromTargetUrl, confirmNeonBranchLimit,
+  neonWarnThreshold, deploymentIdFromTargetUrl, confirmNeonBranchLimit, neutralizeMentions, inlineCode,
 } from './deploy-failure-core.mjs';
 
 const LABELS = [
@@ -76,7 +76,7 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
     events.push({ sha: event.sha, dpl, at });
     const prs = await api.listPrs(event.ref).catch(() => []);
     const own = prs.filter((p) => p.state === 'OPEN' && !p.isCrossRepository);
-    for (const p of own) await api.comment(p.number, `Deploy failed: \`${sigText}\`. Tracked in #${issue.number}.`);
+    for (const p of own) await api.comment(p.number, `Deploy failed: ${inlineCode(sigText)}. Tracked in #${issue.number}.`);
   }
 
   // recurrence: 3 failures of one signature in 7 days => root-cause issue, auto-fix paused
@@ -97,7 +97,7 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
     confirmation = await neon.facts(at).then((f) => confirmNeonBranchLimit(f)).catch((e) => ({ confirmed: false, evidence: [], ruledOut: [`could not read the Neon API: ${e.message}`] }));
     log(`confirm ${cause.id}: ${confirmation.confirmed ? 'confirmed' : 'NOT confirmed'} | ${[...confirmation.evidence, ...confirmation.ruledOut].join(' | ')}`);
     if (!allBodies.some((b) => b.includes(marker.confirm({ sig, dpl })))) {
-      await api.comment(issue.number, `${marker.confirm({ sig, dpl })}\nCause check for ${cause.id}: ${confirmation.confirmed ? 'CONFIRMED' : 'NOT confirmed'}.\nEvidence: ${confirmation.evidence.join('; ') || 'none'}.\nRuled out: ${confirmation.ruledOut.join('; ') || 'nothing'}.`);
+      await api.comment(issue.number, `${marker.confirm({ sig, dpl })}\n${neutralizeMentions(`Cause check for ${cause.id}: ${confirmation.confirmed ? 'CONFIRMED' : 'NOT confirmed'}.\nEvidence: ${confirmation.evidence.join('; ') || 'none'}.\nRuled out: ${confirmation.ruledOut.join('; ') || 'nothing'}.`)}`);
     }
     if (!confirmation.confirmed && !rcaOpen) {
       const n = await api.createIssue({ title: `Root cause needed: ${sigText}`.slice(0, 120), body: rcaIssueBody({ sig, sigText, issueNumber: issue.number, evidence: confirmation.evidence, ruledOut: confirmation.ruledOut, reason: 'looked like a known cause but it was not confirmed' }), labels: [LABEL_FAILURE, LABEL_RCA] });
@@ -122,7 +122,15 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
       : `Cleanup freed 0 branches, so a redeploy would fail the same way. Not redeploying. Every remaining preview branch has an open PR or is protected: needs a decision.`);
     return { handled: true, sig, issue: issue.number, decision, redeployed: false };
   }
-  const next = await vercel.redeploy(dpl);
+  let next;
+  try {
+    next = await vercel.redeploy(dpl);
+  } catch (e) {
+    // the retry is already spent, so say what happened where people look
+    await api.comment(issue.number, `Cleanup freed ${cleanup.deleted} Neon branch(es), but the redeploy FAILED: ${neutralizeMentions(e.message)}. The one automatic retry for commit ${event.sha} is used. Needs a human.`);
+    await api.addLabels(issue.number, [LABEL_HUMAN]);
+    return { handled: true, sig, issue: issue.number, decision, redeployed: false, redeployError: e.message };
+  }
   await api.comment(issue.number, `Cleanup deleted ${cleanup.deleted} Neon branch(es); redeployed as ${next}. No further automatic retry for commit ${event.sha}.`);
   return { handled: true, sig, issue: issue.number, decision, redeployed: true };
 }

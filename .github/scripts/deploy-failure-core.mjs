@@ -105,6 +105,26 @@ export function deploymentIdFromTargetUrl(url) {
   return last ? (last.startsWith('dpl_') ? last : `dpl_${last}`) : null;
 }
 
+// Text from outside (Vercel errors, build logs, Neon errors) goes into issue bodies and comments.
+// Stop it closing a code block or @mentioning people from a bot-authored issue.
+export function neutralizeMentions(text) {
+  return String(text ?? '').replace(/@/g, '@\u200b');
+}
+function delimiter(t, min) {
+  const longest = Math.max(0, ...(t.match(/`+/g) ?? []).map((r) => r.length));
+  return '`'.repeat(Math.max(min, longest + 1));
+}
+export function fenced(text) {
+  const t = neutralizeMentions(text);
+  const f = delimiter(t, 3);
+  return `${f}\n${t}\n${f}`;
+}
+export function inlineCode(text) {
+  const t = neutralizeMentions(text).replace(/\s+/g, ' ');
+  const d = delimiter(t, 1);
+  return `${d} ${t} ${d}`;
+}
+
 const TEMPLATE_TAIL = `
 ## Why chain
 1.
@@ -125,31 +145,31 @@ export function failureIssueBody({ sig, sigText, event, errorText, logTail, prev
 Opened by the deploy-failure Action. Close only with a confirmed root cause (docs/deploy-failures.md).
 
 ## Symptom
-- Error: \`${sigText}\`
+- Error: ${inlineCode(sigText)}
 - Environment: ${event.environment}${preview ? '' : ' (production: needs Tim; never auto-redeployed)'}
 - Deployment: ${event.targetUrl}
 - Commit: ${event.sha}
 - First seen: ${event.at}
 
 ## Evidence
-${errorText ? `Vercel API: \`${errorText}\`` : 'Vercel error could not be read (no VERCEL_TOKEN or the API call failed), so this is only the status text above.'}
-${logTail ? `\n\`\`\`\n${logTail}\n\`\`\`\n` : '\nNo build log lines were returned (a build that never started has none).\n'}${TEMPLATE_TAIL}`;
+${errorText ? `Vercel API: ${inlineCode(errorText)}` : 'Vercel error could not be read (no VERCEL_TOKEN or the API call failed), so this is only the status text above.'}
+${logTail ? `\n${fenced(logTail)}\n` : '\nNo build log lines were returned (a build that never started has none).\n'}${TEMPLATE_TAIL}`;
 }
 
 export function rcaIssueBody({ sig, sigText, issueNumber, ruledOut = [], evidence = [], reason }) {
   return `${marker.signature(`rca-${sig}`)}
-\`${sigText}\` ${reason ?? `failed ${RECURRENCE_COUNT} times in ${RECURRENCE_DAYS} days`} (see #${issueNumber}). Auto-fix is paused for this signature until this issue is closed.
+${inlineCode(sigText)} ${reason ?? `failed ${RECURRENCE_COUNT} times in ${RECURRENCE_DAYS} days`} (see #${issueNumber}). Auto-fix is paused for this signature until this issue is closed.
 
 Do the root cause, not another retry (docs/deploy-failures.md).
 
 ## Symptom
-\`${sigText}\`
+${inlineCode(sigText)}
 
 ## Evidence
-${evidence.length ? evidence.map((e) => `- ${e}`).join('\n') : '-'}
+${evidence.length ? evidence.map((e) => `- ${neutralizeMentions(e)}`).join('\n') : '-'}
 
 ## Ruled out
-${ruledOut.length ? ruledOut.map((e) => `- ${e}`).join('\n') : '-'}
+${ruledOut.length ? ruledOut.map((e) => `- ${neutralizeMentions(e)}`).join('\n') : '-'}
 
 ## Why chain
 1.

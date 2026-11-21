@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 // @ts-ignore plain JS
 import { handleDeploymentFailure, neonWarning, neonApi } from '../../.github/scripts/deploy-failure.mjs';
 // @ts-ignore plain JS
-import { normalizeError, decideAutofix, confirmNeonBranchLimit, isPreview, recurrenceReached, neonWarnThreshold, deploymentIdFromTargetUrl, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
+import { normalizeError, decideAutofix, confirmNeonBranchLimit, failureIssueBody, fenced, inlineCode, neutralizeMentions, isPreview, recurrenceReached, neonWarnThreshold, deploymentIdFromTargetUrl, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
 
 const CAUSES = [{ id: 'neon-branch-limit', match: 'Resource provisioning failed', confirm: 'neon-branch-limit', preview_fix: 'neon-cleanup-then-redeploy' }];
 const NOW = new Date('2026-11-21T12:00:00Z');
@@ -283,4 +283,31 @@ test('Neon facts: only FAILED create_branch operations in the last 15 minutes co
   assert.equal(facts.count, 10);
   assert.deepEqual(facts.failedCreates, [{ at: minsAgo(5), error: 'branches limit exceeded' }]);
   assert.equal(confirmNeonBranchLimit(facts).confirmed, true, 'in-flight/other operations must not veto a real limit hit');
+});
+
+test('a failing redeploy is reported on the issue with needs-human, and does not throw', async () => {
+  const api = fakeApi(), fixes = cleanup(4);
+  const vercel: any = fakeVercel(NEON_ERR);
+  vercel.redeploy = async () => { throw new Error('Vercel 403 @someone'); };
+  const r = await run(api, vercel, fixes, ev());
+  assert.equal(r.redeployed, false);
+  const text = (api.comments.get(100) ?? []).join('\n');
+  assert.match(text, /redeploy FAILED: Vercel 403 @\u200bsomeone/);
+  assert.match(text, /freed 4 Neon branch/);
+  assert.ok(api.issues[0].labels.includes('needs-human'));
+});
+
+test('build output cannot close the code block or mention people', () => {
+  const log = 'line one\n```\n## injected heading @octocat and @org/team\n```` more';
+  const f = fenced(log);
+  const open = f.split('\n')[0];
+  assert.ok(open.length >= 5, 'fence is longer than the longest backtick run in the log');
+  assert.ok(/^`+$/.test(open) && f.endsWith(open));
+  assert.ok(!f.includes('@octocat') && f.includes('@\u200boctocat'));
+  assert.equal(neutralizeMentions('ping @user'), 'ping @\u200buser');
+  const inline = inlineCode('bad ` tick @user');
+  assert.ok(inline.startsWith('`` ') && inline.endsWith(' ``'));
+  assert.ok(!inline.includes('@user'));
+  const body = failureIssueBody({ sig: 'x', sigText: 'err @user `x`', event: { environment: 'Preview', targetUrl: 'u', sha: 's', at: 't' }, errorText: 'e @team', logTail: log, preview: true });
+  assert.ok(!/@(octocat|org|user|team)/.test(body), 'no live mention anywhere in the body');
 });
