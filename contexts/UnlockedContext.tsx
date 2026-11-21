@@ -11,33 +11,21 @@ import { setOwnerAccessFlag } from '@/lib/analytics';
 import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
 import { canPlayCategory } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
-import { testUnlockAllowed, webFreeUnlockAllowed } from '@/lib/testUnlockPolicy';
-
-/**
- * Free test unlock (no payment). Web only: off unless EXPO_PUBLIC_TEST_UNLOCK is
- * "1" on a preview or development web build; never on production and never on
- * iOS/Android (lib/testUnlockPolicy.ts). The inline env and Platform.OS checks
- * let Metro inline both so the minifier drops the test-only paths elsewhere.
- */
-export const TEST_UNLOCK =
-  Platform.OS === 'web' &&
-  process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' &&
-  testUnlockAllowed(process.env.EXPO_PUBLIC_DEPLOY_ENV, process.env.EXPO_PUBLIC_TEST_UNLOCK, Platform.OS);
+import { webFreeUnlockAllowed } from '@/lib/testUnlockPolicy';
 
 /**
  * Temporary production web free unlock (Tim, 2026-11-21, "128 b"), until web
  * payments exist. Web only, on when EXPO_PUBLIC_WEB_FREE_UNLOCK is "1" on the
  * Vercel deploy (production included). Off: delete the Vercel variable and
- * redeploy. The test unlock wins on preview/dev builds that set both.
+ * redeploy. Previews test real purchases against RevenueCat's Test Store instead.
  */
 export const WEB_FREE_UNLOCK =
   Platform.OS === 'web' &&
   process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' &&
-  !TEST_UNLOCK &&
   webFreeUnlockAllowed(process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK, Platform.OS);
 
-/** Any free (no payment) unlock is compiled into this build: test or temporary web. */
-export const FREE_UNLOCK = TEST_UNLOCK || WEB_FREE_UNLOCK;
+/** A free (no payment) unlock is compiled into this build: only the temporary web one. */
+export const FREE_UNLOCK = WEB_FREE_UNLOCK;
 
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */
@@ -48,8 +36,6 @@ interface UnlockedContextValue {
   unlockAll: () => void;
   /** Clear free unlocks. Owner access and purchases are left in place. */
   reset: () => void;
-  /** True when the free test unlock is compiled into this build (never on production). */
-  testUnlockEnabled: boolean;
   /** True when real purchases are wired up: iOS (App Store key) or web (Web Billing key). */
   purchasesAvailable: boolean;
   /**
@@ -77,7 +63,6 @@ const UnlockedContext = createContext<UnlockedContextValue>({
   unlock: () => {},
   unlockAll: () => {},
   reset: () => {},
-  testUnlockEnabled: false,
   purchasesAvailable: false,
   entitlementsLoaded: true,
   applyEntitlements: () => {},
@@ -249,7 +234,6 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
         unlock,
         unlockAll,
         reset,
-        testUnlockEnabled: TEST_UNLOCK,
         purchasesAvailable: purchases.isAvailable(),
         entitlementsLoaded,
         applyEntitlements,

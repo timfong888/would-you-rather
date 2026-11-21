@@ -51,7 +51,11 @@ test('key rules: sandbox only off production, live only on production, other key
   // A preview or local build with the live key could take real charges: refused.
   assert.equal(webKeyUsable(LIVE, 'preview'), false);
   assert.equal(webKeyUsable(LIVE, 'development'), false);
-  assert.equal(webKeyUsable('test_abc', 'preview'), false);
+  // RevenueCat Test Store key (never charges): previews and local builds only (Tim, 2026-11-21).
+  assert.equal(webKeyUsable('test_abc', 'preview'), true);
+  assert.equal(webKeyUsable('test_abc', 'development'), true);
+  assert.equal(webKeyUsable('test_abc', 'production'), false);
+  assert.equal(webKeyUsable('test_abc', undefined), false);
   assert.equal(webKeyUsable('appl_abc', 'preview'), false);
   assert.equal(webKeyUsable(undefined, 'preview'), false);
 });

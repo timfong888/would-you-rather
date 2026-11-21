@@ -31,8 +31,22 @@ test('previews and local builds fail with a live key', () => {
   assert.equal(envProblems({ EXPO_PUBLIC_RC_WEB_KEY: 'rcb_live' }).problems.length, 1);
 });
 
-test('previews may carry the flag and a sandbox key', () => {
-  assert.deepEqual(envProblems({ VERCEL_ENV: 'preview', EXPO_PUBLIC_TEST_UNLOCK: '1', EXPO_PUBLIC_RC_WEB_KEY: 'rcb_sb_x' }).problems, []);
+test('previews and local builds may carry the Test Store key or a sandbox key; production may not', () => {
+  for (const env of [{ VERCEL_ENV: 'preview' }, {}]) {
+    const t = envProblems({ ...env, EXPO_PUBLIC_RC_WEB_KEY: 'test_abc' });
+    assert.deepEqual(t.problems, []);
+    assert.ok(t.warnings.some((w: string) => /Test Store key/.test(w)));
+    assert.deepEqual(envProblems({ ...env, EXPO_PUBLIC_RC_WEB_KEY: 'rcb_sb_x' }).problems, []);
+  }
+  assert.equal(envProblems({ VERCEL_ENV: 'production', EXPO_PUBLIC_RC_WEB_KEY: 'test_abc' }).problems.length, 1);
+});
+
+test('the removed test-unlock flag fails every build (Test Store replaces it)', () => {
+  for (const env of [{ VERCEL_ENV: 'preview' }, { VERCEL_ENV: 'production' }, {}]) {
+    const r = envProblems({ ...env, EXPO_PUBLIC_TEST_UNLOCK: '1' });
+    assert.equal(r.problems.length, 1);
+    assert.match(r.problems[0], /Test Store key/);
+  }
 });
 
 test('the bundle scan finds the marker', () => {
@@ -41,18 +55,6 @@ test('the bundle scan finds the marker', () => {
     { path: 'b.js', text: 'nothing here' },
   ]);
   assert.deepEqual(hits, ['a.js']);
-});
-
-test('the paywall source carries the marker only in TEST_UNLOCK_UI-guarded UI', () => {
-  const src = readFileSync('app/unlock/[id].tsx', 'utf8');
-  const lines = src.split('\n');
-  const uiLines = lines.filter((l) => l.includes(TEST_UNLOCK_MARKER) && !l.trim().startsWith('//'));
-  assert.ok(uiLines.length >= 1, 'marker must label the test-unlock UI so the production scan can see it');
-  // The test-only UI and the simulated sheet are rendered behind the inline-folded constant.
-  assert.match(src, /const TEST_UNLOCK_UI = Platform\.OS === 'web' && process\.env\.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;/);
-  assert.match(src, /\{TEST_UNLOCK_UI && paymentState === 'sheet' && \(/);
-  assert.match(src, /\{TEST_UNLOCK_UI && purchasesAvailable && \(/);
-  assert.match(src, /if \(!TEST_UNLOCK_UI \|\| paymentState !== 'sheet'\) return;/);
 });
 
 test('no EAS build carries the free test unlock (web-only, decision A 2026-11-20)', () => {
@@ -71,18 +73,11 @@ test('no EAS build carries the free test unlock (web-only, decision A 2026-11-20
   }
 });
 
-test('TEST_UNLOCK is gated on Platform.OS === web inline (native bundles drop it)', () => {
-  const src = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
-  assert.match(src, /export const TEST_UNLOCK =\s*Platform\.OS === 'web' &&\s*process\.env\.EXPO_PUBLIC_TEST_UNLOCK === '1' &&/);
-});
-
-test('test mode offers the pack: "unlock every category" renders and unlocks all', () => {
+test('the simulated checkout is gone; the pack button needs real purchases or the web free unlock', () => {
   const src = readFileSync('app/unlock/[id].tsx', 'utf8');
-  // The pack button renders with real purchases OR the test unlock.
-  assert.match(src, /\{\(purchasesAvailable \|\| TEST_UNLOCK_UI \|\| WEB_FREE_UI\) && \(/);
-  // In test mode it opens the sheet as the pack, and paying calls unlockAll().
-  assert.match(src, /setSheetKind\('all'\);\s*setPaymentState\('sheet'\);/);
-  assert.match(src, /if \(sheetKind === 'all'\) unlockAll\(\);\s*else unlock\(id as CategoryId\);/);
+  assert.doesNotMatch(src, /TEST_UNLOCK|EXPO_PUBLIC_TEST_UNLOCK|TEST MODE|'sheet'/);
+  assert.match(src, /\{\(purchasesAvailable \|\| WEB_FREE_UI\) && \(/);
+  assert.match(src, /if \(kind === 'all'\) unlockAll\(\);\s*else unlock\(id as CategoryId\);/);
   // unlockAll is a no-op without a free unlock (it goes through unlock()).
   const ctx = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
   assert.match(ctx, /const unlockAll = useCallback\(\(\) => unlock\(ENTITLEMENT_ALL as CategoryId\), \[unlock\]\);/);
@@ -132,8 +127,9 @@ test('the web free-unlock copy carries its marker only behind WEB_FREE_UI, and n
 
 test('WEB_FREE_UNLOCK is web-only inline and yields to the test unlock', () => {
   const ctx = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
-  assert.match(ctx, /export const WEB_FREE_UNLOCK =\s*Platform\.OS === 'web' &&\s*process\.env\.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' &&\s*!TEST_UNLOCK &&/);
-  assert.match(ctx, /export const FREE_UNLOCK = TEST_UNLOCK \|\| WEB_FREE_UNLOCK;/);
+  assert.match(ctx, /export const WEB_FREE_UNLOCK =\s*Platform\.OS === 'web' &&\s*process\.env\.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' &&/);
+  assert.match(ctx, /export const FREE_UNLOCK = WEB_FREE_UNLOCK;/);
+  assert.doesNotMatch(ctx, /TEST_UNLOCK/);
   assert.match(ctx, /if \(!FREE_UNLOCK\) return new Set\(\);/);
 });
 

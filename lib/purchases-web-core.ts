@@ -58,15 +58,19 @@ function cancelled(e: unknown): boolean {
 }
 
 /**
- * True when this key may be used on this deploy. Sandbox keys (rcb_sb_) only
+ * True when this key may be used on this deploy. Test Store keys (test_,
+ * Tim 2026-11-21 "Test Store yes") and Web Billing sandbox keys (rcb_sb_) only
  * on preview/development; live keys (rcb_) only on production, so a preview
  * or local build can never take a real charge. Anything else is refused.
  */
 export function webKeyUsable(apiKey: string | undefined, deployEnvRaw: string | undefined): boolean {
-  if (!apiKey || !apiKey.startsWith('rcb_')) return false;
-  const sandbox = apiKey.startsWith('rcb_sb_');
+  if (!apiKey) return false;
   const production = parseDeployEnv(deployEnvRaw) === 'production';
-  return sandbox ? !production : production;
+  // RevenueCat Test Store (never charges) and Web Billing sandbox: previews and local builds only.
+  if (apiKey.startsWith('test_') || apiKey.startsWith('rcb_sb_')) return !production;
+  // Live Web Billing: production only.
+  if (apiKey.startsWith('rcb_')) return production;
+  return false;
 }
 
 export interface WebPurchasesDeps {

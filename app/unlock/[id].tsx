@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
-import { useUnlocked, TEST_UNLOCK, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
+import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
 import { paywallEntry, paywallLateUnlock } from '@/lib/access';
 import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -37,15 +37,7 @@ type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 // @expo/vector-icons 15 ships an Ionicons font with taller line metrics: a 20px icon lays out 23px
 // high on web instead of 22px (14.x), which shifts the paywall by a few pixels. Pin the old height.
 const ICON_20_WEB = Platform.OS === 'web' ? { lineHeight: 22 } : null;
-type PaymentState = 'idle' | 'sheet' | 'processing' | 'success';
-
-// The free test unlock (simulated checkout) exists only on preview/dev builds
-// with EXPO_PUBLIC_TEST_UNLOCK=1 (lib/testUnlockPolicy.ts). The inline env
-// comparison is folded to `false` at build time when the flag is unset, so the
-// minifier drops every `TEST_UNLOCK_UI && ...` branch from production. The
-// production web export is scanned for the marker text "TEST MODE: NO CHARGE"
-// (scripts/check-web-build.mjs), so that text must only appear behind it.
-const TEST_UNLOCK_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_TEST_UNLOCK === '1' && TEST_UNLOCK;
+type PaymentState = 'idle' | 'processing' | 'success';
 
 // Temporary production web free unlock (Tim, 2026-11-21, "128 b"), until web
 // payments exist: EXPO_PUBLIC_WEB_FREE_UNLOCK=1 on Vercel. No fake checkout:
@@ -54,8 +46,6 @@ const TEST_UNLOCK_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_TEST_UNL
 // scripts/check-web-build.mjs). Its copy carries the marker "FREE FOR NOW",
 // which the production bundle scan rejects when the flag is off.
 const WEB_FREE_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' && WEB_FREE_UNLOCK;
-
-const PAYMENT_MS = 1800;
 
 function benefitsFor(lockedCount: number): { icon: IoniconsName; text: string }[] {
   return [
@@ -92,12 +82,8 @@ export default function UnlockScreen() {
   } = useUnlocked();
 
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
-  // What the test-only sheet is "selling": this category, or every category (the pack).
-  const [sheetKind, setSheetKind] = useState<'category' | 'all'>('category');
-  const [useApplePay, setUseApplePay] = useState(true);
   const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
   // Real purchases: RevenueCat on iOS (App Store) and web (Web Billing / Stripe).
-  // The simulated sheet is the test-only free unlock (TEST_UNLOCK_UI).
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   // "Have a code?" on the payment sheet. Redeeming the owner code grants
@@ -129,7 +115,6 @@ export default function UnlockScreen() {
 
   const spinAnim = useRef(new Animated.Value(0)).current;
   const checkAnim = useRef(new Animated.Value(0)).current;
-  const sheetAnim = useRef(new Animated.Value(400)).current;
   const spinLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const category = getCategoryById(id as CategoryId);
@@ -172,18 +157,6 @@ export default function UnlockScreen() {
       }).start();
     }
   }, [paymentState, checkAnim]);
-
-  useEffect(() => {
-    if (paymentState === 'sheet') {
-      sheetAnim.setValue(400);
-      Animated.spring(sheetAnim, {
-        toValue: 0,
-        tension: 70,
-        friction: 11,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [paymentState, sheetAnim]);
 
   // Once, after the first entitlement fetch settles: someone who already has
   // this category (purchased or owner access) landing here by URL or reload is
@@ -244,26 +217,10 @@ export default function UnlockScreen() {
   const teaserQuestions = questions.slice(freeCount, freeCount + 3);
   const remainingCount = Math.max(questions.length - (freeCount + teaserQuestions.length), 0);
 
-  const handlePay = async () => {
-    // The simulated checkout is the test-only free unlock; real purchases go through handleBuy.
-    if (!TEST_UNLOCK_UI || paymentState !== 'sheet') return;
-    track('paywall_cta_clicked', {
-      category_id: id,
-      pack_type: sheetKind === 'all' ? 'all' : isExpansion ? 'expansion' : 'premium',
-      payment_method: 'test_unlock',
-    });
-    setPaymentState('processing');
-    await new Promise<void>((r) => setTimeout(r, PAYMENT_MS));
-    if (sheetKind === 'all') unlockAll();
-    else unlock(id as CategoryId);
-    setPaymentState('success');
-  };
-
   const productId = productForCategory(id as string);
   // Store price when loaded, else the approved price ($1.99 category, $4.99 pack).
   const shownPrice = priceForCategory(id as string);
   const allPrice = priceForAll();
-  const sheetPrice = sheetKind === 'all' ? allPrice : shownPrice;
 
   // Temporary web free unlock: no checkout, no charge.
   const handleFreeUnlock = (kind: 'category' | 'all') => {
@@ -449,11 +406,6 @@ export default function UnlockScreen() {
               handleFreeUnlock('category');
             } else if (purchasesAvailable) {
               handleBuy('category');
-            } else if (TEST_UNLOCK_UI) {
-              // Test build without a RevenueCat key: the free test unlock.
-              setRestoreMsg(null);
-              setSheetKind('category');
-              setPaymentState('sheet');
             } else {
               // No RevenueCat key: never fall back to a free unlock.
               setPurchaseError('Purchases are not available right now. Please try again later.');
@@ -470,18 +422,13 @@ export default function UnlockScreen() {
           <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
         </Pressable>
 
-        {(purchasesAvailable || TEST_UNLOCK_UI || WEB_FREE_UI) && (
+        {(purchasesAvailable || WEB_FREE_UI) && (
           <Pressable
             onPress={() => {
               if (WEB_FREE_UI) {
                 handleFreeUnlock('all');
               } else if (purchasesAvailable) {
                 handleBuy('all');
-              } else if (TEST_UNLOCK_UI) {
-                // Test build without a RevenueCat key: free test unlock of every category.
-                setRestoreMsg(null);
-                setSheetKind('all');
-                setPaymentState('sheet');
               }
             }}
             style={({ pressed }) => [styles.restoreBtn, pressed && { opacity: 0.6 }]}
@@ -491,22 +438,6 @@ export default function UnlockScreen() {
             <Text style={[styles.restoreBtnText, { color: category.color }]}>
               Or unlock every category · {WEB_FREE_UI ? 'free' : allPrice}
             </Text>
-          </Pressable>
-        )}
-
-        {TEST_UNLOCK_UI && purchasesAvailable && (
-          <Pressable
-            onPress={() => {
-              setRestoreMsg(null);
-              setPurchaseError(null);
-              setSheetKind('category');
-              setPaymentState('sheet');
-            }}
-            style={({ pressed }) => [styles.restoreBtn, pressed && { opacity: 0.6 }]}
-            accessibilityRole="button"
-            accessibilityLabel="Test unlock without paying"
-          >
-            <Text style={styles.restoreBtnText}>TEST MODE: NO CHARGE · unlock without paying</Text>
           </Pressable>
         )}
 
@@ -657,140 +588,6 @@ export default function UnlockScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {/* ── Payment Sheet ── */}
-      {/* ── Test-only simulated checkout (free unlock, never in production) ── */}
-      {TEST_UNLOCK_UI && paymentState === 'sheet' && (
-        <View style={styles.overlayWrap} accessibilityViewIsModal>
-          {/* Backdrop — tapping closes the sheet */}
-          <Pressable
-            style={styles.backdrop}
-            onPress={() => setPaymentState('idle')}
-            accessibilityRole="button"
-            accessibilityLabel="Close payment sheet"
-          />
-
-          {/* Sheet slides up from bottom */}
-          <Animated.View
-            style={[
-              styles.paymentSheet,
-              { paddingBottom: Math.max(insets.bottom, SPACING.md) + SPACING.lg },
-              { transform: [{ translateY: sheetAnim }] },
-            ]}
-          >
-            <View style={styles.sheetHandle} />
-
-            <Text style={styles.sheetTitle}>Complete Your Purchase</Text>
-            <Text style={[styles.restoreMsg, { color: colors.secondary }]}>TEST MODE: NO CHARGE. Nothing is billed; this unlock only exists on test builds.</Text>
-
-            {/* Product summary row */}
-            <View style={[styles.productCard, { borderColor: `${category.color}30` }]}>
-              <View style={[styles.productIconBg, { backgroundColor: `${category.color}18` }]}>
-                <Text style={styles.productIcon}>{category.emoji}</Text>
-              </View>
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{sheetKind === 'all' ? 'All Categories' : category.label}</Text>
-                <Text style={styles.productDesc}>
-                  {sheetKind === 'all'
-                    ? 'Every premium category, plus future questions'
-                    : isExpansion
-                      ? `Expansion Pack · ${lockedCount} more dilemmas`
-                      : `Premium Pack · ${questions.length} dilemmas`}
-                </Text>
-              </View>
-              <Text style={[styles.productPrice, { color: category.color }]}>{sheetPrice}</Text>
-            </View>
-
-            {/* Payment method selector */}
-            <View style={styles.methodRow}>
-              <Pressable
-                onPress={() => setUseApplePay(true)}
-                style={[
-                  styles.methodBtn,
-                  useApplePay && {
-                    borderColor: category.color,
-                    backgroundColor: `${category.color}0D`,
-                  },
-                ]}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: useApplePay }}
-                accessibilityLabel="Pay with Apple Pay"
-              >
-                <Ionicons name="logo-apple" size={17} color={colors.text} />
-                <Text style={[styles.methodLabel, { color: colors.text }]}>Apple Pay</Text>
-                {useApplePay && (
-                  <Ionicons name="checkmark-circle" size={16} color={category.color} />
-                )}
-              </Pressable>
-
-              <Pressable
-                onPress={() => setUseApplePay(false)}
-                style={[
-                  styles.methodBtn,
-                  !useApplePay && {
-                    borderColor: category.color,
-                    backgroundColor: `${category.color}0D`,
-                  },
-                ]}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: !useApplePay }}
-                accessibilityLabel="Pay with card"
-              >
-                <Ionicons name="card-outline" size={17} color={colors.text} />
-                <Text style={[styles.methodLabel, { color: colors.text }]}>Card</Text>
-                {!useApplePay && (
-                  <Ionicons name="checkmark-circle" size={16} color={category.color} />
-                )}
-              </Pressable>
-            </View>
-
-            {/* Pay CTA */}
-            {useApplePay ? (
-              <Pressable
-                onPress={handlePay}
-                style={({ pressed }) => [
-                  styles.applePayBtn,
-                  pressed && styles.btnPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Pay ${sheetPrice} with Apple Pay`}
-              >
-                <Ionicons name="logo-apple" size={20} color="#FFFFFF" style={ICON_20_WEB} />
-                <Text style={styles.applePayBtnText}>Pay  {sheetPrice}</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={handlePay}
-                style={({ pressed }) => [
-                  styles.payBtn,
-                  { backgroundColor: category.color },
-                  pressed && styles.btnPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Pay ${sheetPrice} with card`}
-              >
-                <Text style={styles.payBtnText}>PAY {sheetPrice}</Text>
-              </Pressable>
-            )}
-
-            <Text style={styles.legalText}>
-              By completing this purchase you agree to our Terms of Service.
-              {'\n'}Payments are processed securely. Non-refundable.
-            </Text>
-
-            <Pressable
-              onPress={() => setPaymentState('idle')}
-              style={({ pressed }) => [
-                styles.cancelBtn,
-                pressed && { opacity: 0.6 },
-              ]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </Pressable>
-          </Animated.View>
-        </View>
-      )}
 
       {/* ── Processing Overlay ── */}
       {paymentState === 'processing' && (
@@ -1176,142 +973,6 @@ function makeStyles(colors: ThemeColors) {
       marginTop: SPACING.xs,
     },
 
-    // ── Payment sheet overlay ──────────────────────────────────────
-    overlayWrap: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: 'flex-end',
-    },
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-    },
-    paymentSheet: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: RADIUS.xl,
-      borderTopRightRadius: RADIUS.xl,
-      paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.md,
-      gap: SPACING.md,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 16,
-      elevation: 12,
-    },
-    sheetHandle: {
-      width: 40,
-      height: 4,
-      borderRadius: RADIUS.full,
-      backgroundColor: colors.border,
-      alignSelf: 'center',
-      marginBottom: SPACING.xs,
-    },
-    sheetTitle: {
-      color: colors.text,
-      fontSize: FONTS.sizes.lg,
-      fontWeight: FONTS.weights.extrabold,
-      textAlign: 'center',
-      letterSpacing: 0.5,
-    },
-    productCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: SPACING.md,
-      backgroundColor: colors.background,
-      borderRadius: RADIUS.md,
-      padding: SPACING.md,
-      borderWidth: 1,
-    },
-    productIconBg: {
-      width: 48,
-      height: 48,
-      borderRadius: RADIUS.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    productIcon: {
-      fontSize: 26,
-    },
-    productInfo: {
-      flex: 1,
-      gap: 2,
-    },
-    productName: {
-      color: colors.text,
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.bold,
-    },
-    productDesc: {
-      color: colors.textMuted,
-      fontSize: FONTS.sizes.xs,
-      letterSpacing: 0.3,
-    },
-    productPrice: {
-      fontSize: FONTS.sizes.lg,
-      fontWeight: FONTS.weights.extrabold,
-      flexShrink: 0,
-    },
-    methodRow: {
-      flexDirection: 'row',
-      gap: SPACING.sm,
-    },
-    methodBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: SPACING.sm,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: RADIUS.md,
-      paddingVertical: SPACING.sm + 2,
-      paddingHorizontal: SPACING.sm,
-      ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    methodLabel: {
-      fontSize: FONTS.sizes.sm,
-      fontWeight: FONTS.weights.semibold,
-      flex: 1,
-    },
-    applePayBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: SPACING.xs,
-      backgroundColor: '#000000',
-      borderRadius: RADIUS.full,
-      paddingVertical: SPACING.md,
-      ...Platform.select({
-        web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
-      }),
-    },
-    applePayBtnText: {
-      color: '#FFFFFF',
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.bold,
-      letterSpacing: 0.5,
-    },
-    payBtn: {
-      borderRadius: RADIUS.full,
-      paddingVertical: SPACING.md,
-      alignItems: 'center',
-      ...Platform.select({
-        web: { cursor: 'pointer', transition: 'opacity 0.15s ease' },
-      }),
-    },
-    payBtnText: {
-      color: '#FFFFFF',
-      fontSize: FONTS.sizes.md,
-      fontWeight: FONTS.weights.extrabold,
-      letterSpacing: 2,
-    },
-    legalText: {
-      color: colors.textMuted,
-      fontSize: FONTS.sizes.xs,
-      textAlign: 'center',
-      lineHeight: 18,
-    },
     codeLink: {
       alignSelf: 'center',
       paddingVertical: SPACING.xs,
@@ -1365,16 +1026,6 @@ function makeStyles(colors: ThemeColors) {
       fontSize: FONTS.sizes.sm,
       fontWeight: FONTS.weights.extrabold,
       letterSpacing: 1,
-    },
-    cancelBtn: {
-      alignSelf: 'center',
-      paddingVertical: SPACING.sm,
-      ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    cancelBtnText: {
-      color: colors.textSecondary,
-      fontSize: FONTS.sizes.sm,
-      fontWeight: FONTS.weights.medium,
     },
 
     // ── Processing overlay ────────────────────────────────────────
