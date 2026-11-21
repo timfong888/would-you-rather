@@ -1,6 +1,6 @@
 # In-app products (draft for Tim's review)
 
-Created by hand in App Store Connect (step 2 of the checklist in `docs/payments.md`; this is also the approval step for prices). As of 2026-11-20 none exist (Apple ops `iap`). Prices are the ones Tim approved on 2026-11-18. Product ids match `lib/catalog.ts` and the RevenueCat Test Store catalog exactly.
+Created in App Store Connect by hand, or by the **Apple IAP create** workflow (`.github/workflows/apple-iap-create.yml`, input `store/ios/iap-products.json`): dry run by default, writes only with `apply=true` and `confirm=CREATE-8-IAPS`, run only with Tim's go. Either way this is the approval step for prices. As of 2026-11-20 none exist (Apple ops `iap`). Prices are the ones Tim approved on 2026-11-18. Product ids match `lib/catalog.ts` and the RevenueCat Test Store catalog exactly.
 
 All 8 are **Non-Consumable** (the pack plus 7 categories). Price tier: USD $4.99 for the pack, USD $1.99 for each category. Localization: English (US). Family Sharing: off (decide).
 
