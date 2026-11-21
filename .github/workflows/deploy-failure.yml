@@ -22,6 +22,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: read   # gh pr list: the cleanup checks for open PRs, and the PR lookup for comments
 
 jobs:
   failure:

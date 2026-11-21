@@ -5,7 +5,7 @@
 //   deploy-failure.mjs ensure-labels   create the labels this uses
 // Env: GH_TOKEN, GITHUB_REPOSITORY. Deployment mode also: VERCEL_TOKEN (optional), VERCEL_TEAM_ID, NEON_API_KEY.
 // Set DRY_RUN=true to log what would be done without creating or changing anything.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import {
   LABEL_FAILURE, LABEL_HUMAN, LABEL_RCA, marker, normalizeError, signatureId, matchKnownCause, isPreview,
@@ -53,8 +53,15 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
       labels,
     });
     issue = { number, state: 'open', body: marker.signature(sig) };
-    existing.push(issue);
     log(`opened issue #${number}`);
+    // runs for different commits can race and both open one: the lowest-numbered open issue wins, the other closes itself
+    const open = (await issuesFor(api, sig)).filter((i) => i.state === 'open').map((i) => i.number).sort((a, b) => a - b);
+    if (open.length > 1 && open[0] !== number) {
+      await api.closeIssue(number, `Duplicate of #${open[0]} (same error signature, opened by a concurrent run).`);
+      issue = { number: open[0], state: 'open', body: marker.signature(sig) };
+      log(`closed #${number} as a duplicate of #${open[0]}`);
+    }
+    existing.splice(0, existing.length, ...(await issuesFor(api, sig)));
   } else if (!preview && !(issue.labels ?? []).includes(LABEL_HUMAN)) {
     await api.addLabels(issue.number, [LABEL_HUMAN]);
   }
@@ -110,7 +117,9 @@ export async function handleDeploymentFailure({ event, api, vercel, neon, fixes,
   await api.comment(issue.number, `${marker.autofix({ sig, sha: event.sha })}\nAuto-fix attempt for commit ${event.sha} (${cause.id}), preview only.`);
   const cleanup = await fixes.neonCleanup();
   if (cleanup.deleted === 0) {
-    await api.comment(issue.number, `Cleanup deleted 0 branches, so a redeploy would fail the same way. Not redeploying. Every remaining preview branch has an open PR or is protected: needs a decision.`);
+    await api.comment(issue.number, cleanup.failed
+      ? `The cleanup run failed and freed 0 branches (see the workflow log), so a redeploy would fail the same way. Not redeploying. Needs a human.`
+      : `Cleanup freed 0 branches, so a redeploy would fail the same way. Not redeploying. Every remaining preview branch has an open PR or is protected: needs a decision.`);
     return { handled: true, sig, issue: issue.number, decision, redeployed: false };
   }
   const next = await vercel.redeploy(dpl);
@@ -153,6 +162,7 @@ export function ghApi(repo) {
       const url = gh(['issue', 'create', '--repo', repo, '--title', title, '--body', body, ...labels.flatMap((l) => ['--label', l])]).trim();
       return Number(url.split('/').pop());
     },
+    async closeIssue(n, comment) { gh(['issue', 'close', String(n), '--repo', repo, '--reason', 'not planned', '--comment', comment]); },
     async addLabels(n, labels) { gh(['issue', 'edit', String(n), '--repo', repo, ...labels.flatMap((l) => ['--add-label', l])]); },
     async comment(n, body) { gh(['issue', 'comment', String(n), '--repo', repo, '--body', body]); },
     async listComments(n) { return lines(gh(['api', `repos/${repo}/issues/${n}/comments`, '--paginate', '--jq', '.[] | {body}'])).map((c) => c.body); },
@@ -168,7 +178,7 @@ export function neonApi({ apiKey, projectId, limit, fetchImpl = fetch }) {
     return res.json();
   };
   return {
-    // branch count now, and failed create_branch operations since the last 24 hours
+    // branch count now, and create_branch operations that FAILED in the last 15 minutes
     async facts(atIso) {
       const branches = [];
       for (let cursor = '', i = 0; i < 10; i++) {
@@ -178,8 +188,8 @@ export function neonApi({ apiKey, projectId, limit, fetchImpl = fetch }) {
         if (!cursor) break;
       }
       const ops = await call('/operations?limit=100');
-      const since = Date.parse(atIso) - 24 * 3600000;
-      const failedCreates = (ops.operations ?? []).filter((o) => o.action === 'create_branch' && o.status !== 'finished' && Date.parse(o.created_at) >= since).map((o) => ({ at: o.created_at, error: o.error ?? `status ${o.status}` }));
+      const since = Date.parse(atIso) - 15 * 60000; // this runs seconds after the failure; ignore older and in-flight operations
+      const failedCreates = (ops.operations ?? []).filter((o) => o.action === 'create_branch' && o.status === 'failed' && Date.parse(o.created_at) >= since).map((o) => ({ at: o.created_at, error: o.error ?? 'failed (no error text)' }));
       return { count: branches.length, limit, failedCreates };
     },
   };
@@ -222,10 +232,12 @@ async function main() {
     };
     const causes = JSON.parse(readFileSync(new URL('../deploy-known-causes.json', import.meta.url), 'utf8'));
     const fixes = {
+      // never throws: a partly failed sweep still reports what it freed (branches another run deleted count as freed)
       neonCleanup: async () => {
-        const out = execFileSync('bash', ['.github/scripts/neon-preview-cleanup.sh', 'sweep'], { encoding: 'utf8', env: { ...process.env, DRY_RUN: 'false' } });
+        const r = spawnSync('bash', ['.github/scripts/neon-preview-cleanup.sh', 'sweep'], { encoding: 'utf8', env: { ...process.env, DRY_RUN: 'false' } });
+        const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
         console.log(out);
-        return { deleted: (out.match(/^DELETED /gm) ?? []).length };
+        return { deleted: (out.match(/^(DELETED|GONE) /gm) ?? []).length, failed: r.status !== 0 };
       },
     };
     await handleDeploymentFailure({ event, api: ghApi(repo), neon: neonApi({ apiKey: process.env.NEON_API_KEY, projectId: process.env.NEON_PROJECT_ID, limit: Number(process.env.NEON_BRANCH_LIMIT ?? 10) }), vercel: vercelApi({ token: process.env.VERCEL_TOKEN, teamId: process.env.VERCEL_TEAM_ID }), fixes, causes, now, dryRun });

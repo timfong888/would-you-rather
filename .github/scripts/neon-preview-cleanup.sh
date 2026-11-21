@@ -46,11 +46,13 @@ delete_branch() { # delete_branch <neon-branch-json> <reason>
   if [ "$DRY_RUN" = "true" ]; then
     echo "DRY-RUN would delete $name ($id): $reason"; removed=$((removed + 1)); return
   fi
-  if neon DELETE "/branches/${id}" >/dev/null; then
-    echo "DELETED $name ($id): $reason"; removed=$((removed + 1))
-  else
-    echo "ERROR  failed to delete $name ($id)"; failures=$((failures + 1))
-  fi
+  # 404 means a concurrent run already deleted it: that is the outcome we wanted, not a failure
+  code=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H "Authorization: Bearer ${NEON_API_KEY}" "${API}/branches/${id}") || code=000
+  case "$code" in
+    2??) echo "DELETED $name ($id): $reason"; removed=$((removed + 1)) ;;
+    404) echo "GONE   $name ($id): already deleted"; removed=$((removed + 1)) ;;
+    *)   echo "ERROR  failed to delete $name ($id): HTTP $code"; failures=$((failures + 1)) ;;
+  esac
 }
 
 # Prints "delete:<reason>" or "keep:<reason>" for a git head ref.

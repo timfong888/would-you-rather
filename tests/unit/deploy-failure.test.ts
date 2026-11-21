@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 // @ts-ignore plain JS
-import { handleDeploymentFailure, neonWarning } from '../../.github/scripts/deploy-failure.mjs';
+import { handleDeploymentFailure, neonWarning, neonApi } from '../../.github/scripts/deploy-failure.mjs';
 // @ts-ignore plain JS
 import { normalizeError, decideAutofix, confirmNeonBranchLimit, isPreview, recurrenceReached, neonWarnThreshold, deploymentIdFromTargetUrl, signatureId } from '../../.github/scripts/deploy-failure-core.mjs';
 
@@ -18,6 +18,7 @@ function fakeApi(prs: any[] = []) {
     async ensureLabels() {},
     async listIssues({ label, state }: any) { return issues.filter((i) => i.labels.includes(label) && i.state === state); },
     async createIssue({ title, body, labels }: any) { const number = 100 + issues.length; issues.push({ number, title, body, labels, state: 'open', createdAt: this.clock.toISOString() }); comments.set(number, []); return number; },
+    async closeIssue(n: number, comment: string) { const i = issues.find((x) => x.number === n); i.state = 'closed'; (comments.get(n) ?? comments.set(n, []).get(n)!).push(comment); },
     async addLabels(n: number, labels: string[]) { issues.find((i) => i.number === n).labels.push(...labels); },
     async comment(n: number, body: string) { (comments.get(n) ?? comments.set(n, []).get(n)!).push(body); },
     async listComments(n: number) { return comments.get(n) ?? []; },
@@ -241,4 +242,45 @@ test('confirmed cause records its evidence on the issue once per deployment', as
   const checks = (api.comments.get(100) ?? []).filter((c: string) => c.includes('Cause check'));
   assert.equal(checks.length, 1);
   assert.match(checks[0], /CONFIRMED[\s\S]*10 of 10/);
+});
+
+test('concurrent runs that both open an issue: the lowest number wins, the other closes itself as a duplicate', async () => {
+  const api: any = fakeApi();
+  const create = api.createIssue.bind(api);
+  // a competing run opens its issue (lower number) just before ours is created
+  api.createIssue = async (args: any) => { api.issues.push({ number: 50, title: args.title, body: args.body, labels: args.labels, state: 'open', createdAt: NOW.toISOString() }); api.comments.set(50, []); return create(args); };
+  const vercel = fakeVercel(NEON_ERR), fixes = cleanup(3);
+  await run(api, vercel, fixes, ev());
+  const mine = api.issues.find((i: any) => i.number !== 50);
+  assert.equal(mine.state, 'closed');
+  assert.match((api.comments.get(mine.number) ?? []).join(' '), /Duplicate of #50/);
+  assert.equal(api.issues.find((i: any) => i.number === 50).state, 'open');
+  assert.ok((api.comments.get(50) ?? []).some((c: string) => c.includes('deploy-event')), 'the failure is recorded on the surviving issue');
+});
+
+test('cleanup that fails and frees nothing: says so, does not redeploy', async () => {
+  const api = fakeApi(), vercel = fakeVercel(NEON_ERR);
+  const fixes = { neonCleanup: async () => ({ deleted: 0, failed: true }) };
+  const r = await run(api, vercel, fixes, ev());
+  assert.equal(r.redeployed, false);
+  assert.equal(vercel.calls.redeploy, 0);
+  assert.match((api.comments.get(100) ?? []).join(' '), /cleanup run failed/);
+});
+
+test('Neon facts: only FAILED create_branch operations in the last 15 minutes count', async () => {
+  const at = '2026-11-21T12:00:00Z';
+  const minsAgo = (m: number) => new Date(Date.parse(at) - m * 60000).toISOString();
+  const ops = [
+    { action: 'create_branch', status: 'running', created_at: minsAgo(1) },
+    { action: 'create_branch', status: 'scheduling', created_at: minsAgo(2) },
+    { action: 'create_branch', status: 'skipped', created_at: minsAgo(3) },
+    { action: 'create_branch', status: 'failed', created_at: minsAgo(5), error: 'branches limit exceeded' },
+    { action: 'create_branch', status: 'failed', created_at: minsAgo(120), error: 'old unrelated failure' },
+    { action: 'start_compute', status: 'failed', created_at: minsAgo(4), error: 'not a branch create' },
+  ];
+  const fetchImpl = async (url: string) => ({ ok: true, json: async () => (url.includes('/operations') ? { operations: ops } : { branches: new Array(10).fill({}), pagination: {} }) });
+  const facts = await neonApi({ apiKey: 'k', projectId: 'p', limit: 10, fetchImpl }).facts(at);
+  assert.equal(facts.count, 10);
+  assert.deepEqual(facts.failedCreates, [{ at: minsAgo(5), error: 'branches limit exceeded' }]);
+  assert.equal(confirmNeonBranchLimit(facts).confirmed, true, 'in-flight/other operations must not veto a real limit hit');
 });
