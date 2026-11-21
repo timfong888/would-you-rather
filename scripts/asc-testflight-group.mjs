@@ -44,6 +44,19 @@ async function api(method, path, body) {
   let json; try { json = text ? JSON.parse(text) : {}; } catch { json = { nonJson: true }; }
   return { status: res.status, json };
 }
+// Follow links.next so a long list (a group that has all builds) is never cut at one page.
+async function getAll(path) {
+  const out = [];
+  let next = path;
+  for (let page = 0; next && page < 50; page++) {
+    const r = await api('GET', next);
+    if (r.status !== 200) fail(`GET ${path}`, r);
+    out.push(...(r.json.data ?? []));
+    const link = r.json.links?.next;
+    next = link ? link.replace('https://api.appstoreconnect.apple.com', '') : null;
+  }
+  return out;
+}
 function fail(what, r) {
   console.error(`${what}: HTTP ${r.status}`);
   for (const e of r.json.errors ?? []) console.error(`  ${e.code}: ${e.title} - ${e.detail}`);
@@ -51,9 +64,7 @@ function fail(what, r) {
 }
 
 // 1. beta groups
-const groupsRes = await api('GET', `/v1/apps/${appId}/betaGroups?limit=50&fields[betaGroups]=name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled`);
-if (groupsRes.status !== 200) fail('List beta groups', groupsRes);
-const groups = groupsRes.json.data ?? [];
+const groups = await getAll(`/v1/apps/${appId}/betaGroups?limit=200&fields[betaGroups]=name,isInternalGroup,hasAccessToAllBuilds,publicLinkEnabled`);
 console.log('Beta groups:');
 for (const g of groups) {
   const a = g.attributes;
@@ -82,17 +93,17 @@ if (groupName) {
 const ta = target.attributes;
 console.log(`Target group: "${ta.name}" (${target.id}) hasAccessToAllBuilds=${ta.hasAccessToAllBuilds}`);
 
-const listAttached = async () => {
-  const r = await api('GET', `/v1/betaGroups/${target.id}/builds?limit=50&fields[builds]=version,processingState`);
-  if (r.status !== 200) fail('List group builds', r);
-  return (r.json.data ?? []).map((x) => x.attributes.version);
-};
+// Membership is by build id: build numbers repeat across marketing versions.
+const listAttached = async () =>
+  (await getAll(`/v1/betaGroups/${target.id}/builds?limit=200&fields[builds]=version,processingState`))
+    .map((x) => ({ id: x.id, version: x.attributes.version }));
+const show = (list) => list.map((x) => x.version).join(', ') || '(none)';
 const before = await listAttached();
-console.log(`Builds in group before: ${before.join(', ') || '(none)'}`);
+console.log(`Builds in group before (${before.length}): ${show(before)}`);
 
 if (!apply) { console.log('Dry run: nothing changed. Re-run with --apply to attach.'); process.exit(0); }
 
-if (before.includes(String(build))) {
+if (before.some((x) => x.id === b.id)) {
   console.log(`Build ${build} is already in "${ta.name}". Nothing to do.`);
 } else {
   const r = await api('POST', `/v1/betaGroups/${target.id}/relationships/builds`, { data: [{ type: 'builds', id: b.id }] });
@@ -100,6 +111,6 @@ if (before.includes(String(build))) {
   console.log('Attach request accepted.');
 }
 const after = await listAttached();
-console.log(`Builds in group after: ${after.join(', ') || '(none)'}`);
-if (!after.includes(String(build))) { console.error(`Build ${build} is NOT in the group after the request.`); process.exit(1); }
+console.log(`Builds in group after (${after.length}): ${show(after)}`);
+if (!after.some((x) => x.id === b.id)) { console.error(`Build ${build} is NOT in the group after the request.`); process.exit(1); }
 console.log(`OK: build ${build} is attached to "${ta.name}".`);
