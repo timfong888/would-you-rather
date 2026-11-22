@@ -31,8 +31,6 @@
       "Split decision. Appeal denied."
     ],
     "share": {
-      "first_after": "I picked one. Pick yours and let's see if we match.",
-      "first_before": "Would you rather…? I want to know what you'd pick.",
       "tell_matched": "Plot twist: we matched. {line}",
       "tell_different": "We picked differently. {line}",
       "tell_asked": "I answered. Open this to see if we match.",
@@ -78,8 +76,6 @@
       "Different picks. What would make you switch?"
     ],
     "share": {
-      "first_after": "I picked an answer. Which would you pick?",
-      "first_before": "Which would you pick? Tell me after you answer!",
       "tell_matched": "I picked an answer. Which would you pick?",
       "tell_different": "I picked an answer. Which would you pick?",
       "tell_asked": "I picked an answer. Which would you pick?",
