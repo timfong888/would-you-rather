@@ -24,6 +24,7 @@ import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
+import { shareInvite } from '@/lib/shareInvite';
 import { useTally } from '@/lib/useTally';
 import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
 import { pickNextCategory } from '@/lib/nextCategory';
@@ -59,7 +60,7 @@ export default function CompleteScreen() {
   const handleShareChallenge = useCallback(async () => {
     if (!lastQuestion) return;
     const title = 'Would You Rather?';
-    const text = `${lastQuestion.optionA} — OR — ${lastQuestion.optionB}`;
+    const text = shareInvite(lastQuestion.category);
     const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
 
     track('share_clicked', {
@@ -93,9 +94,8 @@ export default function CompleteScreen() {
 
   const handleShareMyTake = useCallback(async () => {
     if (!lastQuestion || !voted) return;
-    const myOption = voted === 'A' ? lastQuestion.optionA : lastQuestion.optionB;
     const title = 'My Would You Rather Take';
-    const text = `I chose: "${myOption}" — do you agree?`;
+    const text = shareInvite(lastQuestion.category);
     const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
 
     track('share_clicked', {

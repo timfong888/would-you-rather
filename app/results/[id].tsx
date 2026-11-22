@@ -20,6 +20,7 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
+import { shareInvite } from '@/lib/shareInvite';
 import { SITE_URL } from '@/constants/config';
 
 export default function ResultsScreen() {
@@ -64,7 +65,7 @@ export default function ResultsScreen() {
 
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
-    const text = `${question?.optionA} — OR — ${question?.optionB}`;
+    const text = shareInvite(question?.category);
     const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
 
     track('share_clicked', {
@@ -106,9 +107,8 @@ export default function ResultsScreen() {
     if (!voted) return;
     const { url: baseUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
     const myTakeUrl = `${baseUrl}&voted=${voted}`;
-    const myOption = voted === 'A' ? question?.optionA : question?.optionB;
     const title = 'My Would You Rather Take';
-    const text = `I chose: "${myOption}" — do you agree?`;
+    const text = shareInvite(question?.category);
 
     track('share_clicked', {
       question_id: id,
@@ -179,6 +179,7 @@ export default function ResultsScreen() {
 
   const handleTikTokShare = useCallback(async () => {
     const title = 'Would You Rather?';
+    // TikTok captions don't unfurl a link card, so this one keeps the question (#186).
     const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
     const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
 
