@@ -32,3 +32,13 @@ test('GET /api/card for an unknown question is a 404', async () => {
   const res = await card(new Request('https://x.test/api/card?id=nope'));
   assert.equal(res.status, 404);
 });
+
+// #188: the card never shows anyone's pick, so a `voted` parameter must not change the image.
+for (const ratio of ['1.91x1', '9x16']) {
+  test(`GET /api/card ignores voted (${ratio}): same image as without it`, async () => {
+    const render = async (q: string) => Buffer.from(await (await card(new Request(`https://x.test/api/card?id=hl-1&ratio=${ratio}${q}`))).arrayBuffer());
+    const plain = await render('');
+    assert.ok(plain.equals(await render('&voted=A')), 'voted=A changed the card');
+    assert.ok(plain.equals(await render('&voted=B')), 'voted=B changed the card');
+  });
+}
