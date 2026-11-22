@@ -53,7 +53,7 @@ function jwt() {
   return `${input}.${b64u(sig)}`;
 }
 
-async function api(method, path, body) {
+export async function api(method, path, body) {
   const res = await fetch(`https://api.appstoreconnect.apple.com${path}`, {
     method,
     headers: { Authorization: `Bearer ${jwt()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
@@ -68,7 +68,7 @@ async function api(method, path, body) {
   return json;
 }
 
-async function getAll(path) {
+export async function getAll(path) {
   const out = [];
   let next = path;
   while (next) {
