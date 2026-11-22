@@ -103,11 +103,12 @@ export default function ResultsScreen() {
     }
   }, [question, id, incomingGeneration, incomingLinkId, visitorId]);
 
-  // "Share my take" — shares /p/:id?voted=A/B so iMessage shows the rich card preview
+  // "Share my take": the same link as a challenge, plus the pick as the `f` code so the
+  // recipient sees it only inside the app, after they answer (#188). The preview card
+  // and the share text never show the pick.
   const handleShareMyTake = useCallback(async () => {
-    if (!voted) return;
-    const { url: baseUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
-    const myTakeUrl = `${baseUrl}&voted=${voted}`;
+    if (!safeVoted) return;
+    const { url: myTakeUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, cat === 'kids-family', safeVoted);
     const title = 'My Would You Rather Take';
     const text = shareInvite(question?.category);
 
@@ -143,7 +144,7 @@ export default function ResultsScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: myTakeUrl, os: Platform.OS }));
     }
-  }, [voted, question, id, incomingGeneration, incomingLinkId, visitorId]);
+  }, [safeVoted, cat, question, id, incomingGeneration, incomingLinkId, visitorId]);
 
   const cardUrl9x16 = Platform.select({
     web: typeof window !== 'undefined'

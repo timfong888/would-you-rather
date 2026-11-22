@@ -1,5 +1,6 @@
 // Edge function: branded PNG share card for a question.
-// GET /api/card?id=<question-id>&ratio=<9x16|1.91x1>[&voted=<A|B>]
+// GET /api/card?id=<question-id>&ratio=<9x16|1.91x1>
+// The card never shows anyone's pick (#188): it ignores any `voted` parameter.
 // Must stay a plain `.js` file: Vercel does not build `.jsx` entries in api/ (#73),
 // so the markup is written with createElement (`h`) instead of JSX.
 import { createElement as h } from "react";
@@ -41,7 +42,6 @@ export default async function handler(req) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const ratio = url.searchParams.get("ratio") || "9x16";
-  const voted = url.searchParams.get("voted");
   const question = QUESTIONS.find((q) => q.id === id);
   if (!question) {
     return new Response("Question not found", { status: 404 });
@@ -67,12 +67,6 @@ export default async function handler(req) {
   const majorityPct = Math.max(pctA, pctB);
   const majorityOption = pctA >= pctB ? "A" : "B";
   const consensusText = `${majorityPct}% chose Option ${majorityOption}`;
-  const isMyTakeMode = voted === "A" || voted === "B";
-  const myPct = isMyTakeMode ? voted === "A" ? pctA : pctB : 0;
-  const myText = isMyTakeMode ? voted === "A" ? question.optionA : question.optionB : "";
-  const isMajority = isMyTakeMode && voted === majorityOption;
-  const positionLabel = hasData ? isMajority ? `I'm with the ${myPct}% majority` : `I'm in the ${myPct}% minority` : "I made my choice — where do you stand?";
-  const myTakeCta = "Do you agree? →";
   const baseUrl = new URL(req.url).origin;
   const shareUrl = `${baseUrl}/p/${id}`;
   const voteCountLabel = totalVotes >= 1e3 ? `${(totalVotes / 1e3).toFixed(1)}k` : totalVotes.toLocaleString();
@@ -118,42 +112,6 @@ export default async function handler(req) {
     fontWeight: 600,
     display: "flex"
   } }, hasData ? "Unlock the full breakdown" : "Be first to weigh in")));
-  const MyTakeStrip = /* @__PURE__ */ h("div", { style: {
-    width: "100%",
-    display: "flex",
-    flexDirection: "column",
-    gap: 8
-  } }, /* @__PURE__ */ h("div", { style: {
-    width: "100%",
-    borderRadius: 14,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    padding: isLandscape ? "12px 18px" : "14px 18px",
-    background: isMajority ? "rgba(45,158,107,0.20)" : "rgba(214,51,132,0.18)",
-    border: `1.5px solid ${isMajority ? "rgba(45,158,107,0.55)" : "rgba(214,51,132,0.55)"}`
-  } }, /* @__PURE__ */ h("div", { style: { fontSize: isLandscape ? 18 : 16, display: "flex" } }, isMajority ? "🎯" : "🔥"), /* @__PURE__ */ h("div", { style: {
-    color: t.textPrimary,
-    fontSize: isLandscape ? 14 : 13,
-    fontWeight: 700,
-    display: "flex",
-    textAlign: "center"
-  } }, positionLabel)), /* @__PURE__ */ h("div", { style: {
-    width: "100%",
-    borderRadius: 14,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: isLandscape ? "10px 18px" : "12px 18px",
-    background: t.blurOverlay
-  } }, /* @__PURE__ */ h("div", { style: {
-    color: t.textSecondary,
-    fontSize: isLandscape ? 14 : 13,
-    fontWeight: 600,
-    display: "flex"
-  } }, myTakeCta)));
-  const ResultStrip = isMyTakeMode ? MyTakeStrip : VoteCta;
   if (isLandscape) {
     return new ImageResponse(
       /* @__PURE__ */ h("div", { style: {
@@ -187,9 +145,9 @@ export default async function handler(req) {
         alignItems: "center",
         gap: 6
       } }, /* @__PURE__ */ h("span", { style: { fontSize: 14, display: "flex" } }, category.emoji), /* @__PURE__ */ h("span", { style: { color: t.textSecondary, fontSize: 12, display: "flex" } }, category.label))), /* @__PURE__ */ h("div", { style: { display: "flex", flex: 1, gap: 44, alignItems: "center" } }, /* @__PURE__ */ h("div", { style: { flex: 1, display: "flex", flexDirection: "column", gap: 14 } }, /* @__PURE__ */ h("div", { style: {
-        background: isMyTakeMode && voted === "A" ? `${t.labelA}22` : t.optionBg,
+        background: t.optionBg,
         borderRadius: 14,
-        border: isMyTakeMode && voted === "A" ? `2px solid ${t.labelA}` : `1.5px solid ${t.optionBorder}`,
+        border: `1.5px solid ${t.optionBorder}`,
         padding: "18px 22px",
         display: "flex",
         alignItems: "flex-start",
@@ -200,10 +158,10 @@ export default async function handler(req) {
         padding: "2px 10px",
         display: "flex",
         flexShrink: 0
-      } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 12, fontWeight: 800 } }, isMyTakeMode && voted === "A" ? "✓" : "A")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 18, lineHeight: 1.45, display: "flex" } }, optA)), /* @__PURE__ */ h("div", { style: { display: "flex", alignItems: "center", gap: 14 } }, /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } }), /* @__PURE__ */ h("span", { style: { color: t.textMuted, fontSize: 13, fontWeight: 800, display: "flex" } }, "OR"), /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } })), /* @__PURE__ */ h("div", { style: {
-        background: isMyTakeMode && voted === "B" ? `${t.labelB}22` : t.optionBg,
+      } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 12, fontWeight: 800 } }, "A")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 18, lineHeight: 1.45, display: "flex" } }, optA)), /* @__PURE__ */ h("div", { style: { display: "flex", alignItems: "center", gap: 14 } }, /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } }), /* @__PURE__ */ h("span", { style: { color: t.textMuted, fontSize: 13, fontWeight: 800, display: "flex" } }, "OR"), /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } })), /* @__PURE__ */ h("div", { style: {
+        background: t.optionBg,
         borderRadius: 14,
-        border: isMyTakeMode && voted === "B" ? `2px solid ${t.labelB}` : `1.5px solid ${t.optionBorder}`,
+        border: `1.5px solid ${t.optionBorder}`,
         padding: "18px 22px",
         display: "flex",
         alignItems: "flex-start",
@@ -214,7 +172,7 @@ export default async function handler(req) {
         padding: "2px 10px",
         display: "flex",
         flexShrink: 0
-      } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 12, fontWeight: 800 } }, isMyTakeMode && voted === "B" ? "✓" : "B")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 18, lineHeight: 1.45, display: "flex" } }, optB))), /* @__PURE__ */ h("div", { style: { width: 280, display: "flex", flexDirection: "column", gap: 16, alignItems: "center" } }, ResultStrip, /* @__PURE__ */ h("div", { style: {
+      } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 12, fontWeight: 800 } }, "B")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 18, lineHeight: 1.45, display: "flex" } }, optB))), /* @__PURE__ */ h("div", { style: { width: 280, display: "flex", flexDirection: "column", gap: 16, alignItems: "center" } }, VoteCta, /* @__PURE__ */ h("div", { style: {
         background: t.badgeBg,
         borderRadius: 9999,
         padding: "8px 18px",
@@ -259,9 +217,9 @@ export default async function handler(req) {
       justifyContent: "center",
       gap: 18
     } }, /* @__PURE__ */ h("div", { style: {
-      background: isMyTakeMode && voted === "A" ? `${t.labelA}22` : t.optionBg,
+      background: t.optionBg,
       borderRadius: 18,
-      border: isMyTakeMode && voted === "A" ? `2px solid ${t.labelA}` : `1.5px solid ${t.optionBorder}`,
+      border: `1.5px solid ${t.optionBorder}`,
       padding: "22px 26px",
       display: "flex",
       flexDirection: "column",
@@ -272,10 +230,10 @@ export default async function handler(req) {
       padding: "3px 12px",
       alignSelf: "flex-start",
       display: "flex"
-    } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: 1 } }, isMyTakeMode && voted === "A" ? "MY CHOICE" : "OPTION A")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: "flex" } }, optA)), /* @__PURE__ */ h("div", { style: { display: "flex", alignItems: "center", gap: 14 } }, /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } }), /* @__PURE__ */ h("span", { style: { color: t.textMuted, fontSize: 16, fontWeight: 800, letterSpacing: 2, display: "flex" } }, "OR"), /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } })), /* @__PURE__ */ h("div", { style: {
-      background: isMyTakeMode && voted === "B" ? `${t.labelB}22` : t.optionBg,
+    } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: 1 } }, "OPTION A")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: "flex" } }, optA)), /* @__PURE__ */ h("div", { style: { display: "flex", alignItems: "center", gap: 14 } }, /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } }), /* @__PURE__ */ h("span", { style: { color: t.textMuted, fontSize: 16, fontWeight: 800, letterSpacing: 2, display: "flex" } }, "OR"), /* @__PURE__ */ h("div", { style: { flex: 1, height: 1, background: t.optionBorder } })), /* @__PURE__ */ h("div", { style: {
+      background: t.optionBg,
       borderRadius: 18,
-      border: isMyTakeMode && voted === "B" ? `2px solid ${t.labelB}` : `1.5px solid ${t.optionBorder}`,
+      border: `1.5px solid ${t.optionBorder}`,
       padding: "22px 26px",
       display: "flex",
       flexDirection: "column",
@@ -286,7 +244,7 @@ export default async function handler(req) {
       padding: "3px 12px",
       alignSelf: "flex-start",
       display: "flex"
-    } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: 1 } }, isMyTakeMode && voted === "B" ? "MY CHOICE" : "OPTION B")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: "flex" } }, optB))), /* @__PURE__ */ h("div", { style: { width: "100%", marginTop: 28, display: "flex" } }, ResultStrip), /* @__PURE__ */ h("div", { style: {
+    } }, /* @__PURE__ */ h("span", { style: { color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: 1 } }, "OPTION B")), /* @__PURE__ */ h("span", { style: { color: t.textPrimary, fontSize: 20, fontWeight: 700, lineHeight: 1.38, display: "flex" } }, optB))), /* @__PURE__ */ h("div", { style: { width: "100%", marginTop: 28, display: "flex" } }, VoteCta), /* @__PURE__ */ h("div", { style: {
       marginTop: 22,
       background: t.badgeBg,
       borderRadius: 9999,
