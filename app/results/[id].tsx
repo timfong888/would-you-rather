@@ -179,7 +179,8 @@ export default function ResultsScreen() {
 
   const handleTikTokShare = useCallback(async () => {
     const title = 'Would You Rather?';
-    const text = `${shareInvite(question?.category)}\n\n${hashtags.join(' ')}`;
+    // TikTok captions don't unfurl a link card, so this one keeps the question (#186).
+    const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
     const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
 
     track('share_clicked', {

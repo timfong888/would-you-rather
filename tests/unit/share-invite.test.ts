@@ -75,6 +75,7 @@ test('every question share surface sends only the invitation as text', () => {
     assert.ok(textLines.length > 0, f);
     for (const l of textLines) {
       if (/shareText\(/.test(l)) continue; // match-reply lines are a separate, existing copy set
+      if (/hashtags/.test(l)) continue; // TikTok caption: no link card there, so it keeps the question
       assert.ok(!/option[AB]/.test(l), `${f}: share text built from the question: ${l.trim()}`);
       assert.ok(!SAYS_MY_PICK.test(l), `${f}: ${l.trim()}`);
     }
