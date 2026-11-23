@@ -44,6 +44,11 @@ export function summarizeErrors(body) {
   return errs.map((e) => `${e.code ?? ''} ${e.title ?? ''}`.trim()).join('; ');
 }
 
+// Public repo: only apps that have been live on the App Store may appear in any output.
+// READY_FOR_SALE is live now; REPLACED_WITH_NEW_VERSION means an older version was live.
+const RELEASED_STATES = new Set(['READY_FOR_SALE', 'REPLACED_WITH_NEW_VERSION']);
+const ts = (d) => { const t = Date.parse(d ?? ''); return Number.isNaN(t) ? -Infinity : t; };
+
 export async function listApps(get) {
   const { data, included } = await getAll(
     get,
@@ -53,19 +58,26 @@ export async function listApps(get) {
   );
   const versions = new Map(included.filter((i) => i.type === 'appStoreVersions').map((v) => [v.id, v.attributes ?? {}]));
   return data.map((a) => {
-    const vs = (a.relationships?.appStoreVersions?.data ?? []).map((ref) => versions.get(ref.id)).filter(Boolean);
+    const refs = a.relationships?.appStoreVersions?.data ?? [];
+    const total = a.relationships?.appStoreVersions?.meta?.paging?.total;
+    // Never silently cap: a truncated version list could hide the live version. No app name or id in the message.
+    if (typeof total === 'number' && total > refs.length) {
+      throw new Error(`an app has ${total} App Store versions but only ${refs.length} were returned; refusing to guess its state`);
+    }
+    const vs = refs.map((ref) => versions.get(ref.id)).filter(Boolean);
     // Keep only the newest version per platform so older releases do not read as the live state.
     const newest = new Map();
     for (const v of vs) {
       const key = v.platform ?? '?';
       const cur = newest.get(key);
-      if (!cur || String(v.createdDate ?? '') > String(cur.createdDate ?? '')) newest.set(key, v);
+      if (!cur || ts(v.createdDate) > ts(cur.createdDate)) newest.set(key, v);
     }
     const latest = [...newest.values()];
     return {
       id: a.id,
       name: a.attributes?.name ?? '',
       bundleId: a.attributes?.bundleId ?? '',
+      released: vs.some((v) => RELEASED_STATES.has(v.appStoreState)),
       platforms: latest.map((v) => v.platform).filter(Boolean),
       states: latest.map((v) => `${v.platform ?? '?'} ${v.versionString ?? ''}: ${v.appStoreState ?? '?'}`.replace('  ', ' ')),
     };
@@ -78,7 +90,7 @@ export async function latestBuild(get, appId) {
       `/v1/builds?filter[app]=${encodeURIComponent(appId)}&sort=-uploadedDate&limit=1` +
         '&fields[builds]=version,uploadedDate,processingState,expired',
     );
-    if (r.status !== 200) throw new Error(`GET /v1/builds failed for app ${appId}: HTTP ${r.status} ${summarizeErrors(r.body)}`);
+    if (r.status !== 200) throw new Error(`GET /v1/builds failed: HTTP ${r.status} ${summarizeErrors(r.body)}`);
     return { data: r.body.data ?? [] };
   })();
   const b = data[0]?.attributes;
@@ -96,9 +108,12 @@ export function compileMatch(input) {
 export async function buildRows(get, { match = '.' } = {}) {
   const re = compileMatch(match);
   const all = await listApps(get);
-  const apps = all.filter((a) => re.test(a.name) || re.test(a.bundleId));
+  const matched = all.filter((a) => re.test(a.name) || re.test(a.bundleId));
+  const released = matched.filter((a) => a.released);
+  const hiddenApps = matched.filter((a) => !a.released);
   const rows = [];
-  for (const a of apps) {
+  // Builds are only looked up for released apps, so nothing about an unreleased app is fetched into the output path.
+  for (const a of released) {
     const b = await latestBuild(get, a.id);
     rows.push({
       name: a.name,
@@ -112,24 +127,32 @@ export async function buildRows(get, { match = '.' } = {}) {
       neville: isNeville(a),
     });
   }
-  return { rows, total: all.length };
+  return {
+    rows,
+    total: all.length,
+    hidden: { count: hiddenApps.length, neville: hiddenApps.some(isNeville) },
+  };
 }
 
 const cell = (v) => String(v).replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
 
-export function toMarkdown(rows, { match = '.', total } = {}) {
+export function toMarkdown(rows, { match = '.', total, hidden } = {}) {
   const lines = [
-    '## App Store Connect apps (read only)',
+    '## App Store Connect apps (read only, released apps only)',
     '',
-    `Apps shown: ${rows.length}${total !== undefined && total !== rows.length ? ` of ${total}` : ''}. Filter: \`${cell(match)}\`.`,
+    `Released apps shown: ${rows.length}${total !== undefined ? ` (of ${total} in the account)` : ''}. Filter: \`${cell(match)}\`.`,
     `Apple team: not exposed by the App Store Connect API for a team key, so check the account in App Store Connect.`,
+  ];
+  if (hidden?.count) lines.push(`${hidden.count} more app${hidden.count === 1 ? '' : 's'} not shown (not released).`);
+  if (hidden?.neville) lines.push('A Neville app exists (not released).');
+  lines.push(
     '',
     '| Flag | Name | Bundle ID | Apple app ID | Platform | App Store state | Latest build | Build state |',
     '| --- | --- | --- | --- | --- | --- | --- | --- |',
-  ];
+  );
   for (const r of rows) {
     lines.push(`| ${r.neville ? 'NEVILLE' : ''} | ${cell(r.name)} | ${cell(r.bundleId)} | ${cell(r.appleAppId)} | ${cell(r.platform)} | ${cell(r.appStoreState)} | ${cell(r.buildNumber)} | ${cell(r.buildState)} |`);
   }
-  if (!rows.length) lines.push('| | (no apps matched) | | | | | | |');
+  if (!rows.length) lines.push('| | (no released apps matched) | | | | | | |');
   return lines.join('\n') + '\n';
 }

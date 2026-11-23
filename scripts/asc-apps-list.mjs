@@ -3,9 +3,11 @@
 // Used by .github/workflows/apple-apps-list.yml. GET requests to api.appstoreconnect.apple.com only.
 // Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (.p8 contents), optional MATCH (regexp, default ".").
 // Never prints the key, the JWT or the ids: all output goes through a redactor.
-// Usage: node scripts/asc-apps-list.mjs [--out <dir>]
+// This repo is public, so output (stdout and job summary) lists only apps already released on the App Store;
+// everything else is reduced to a count. No file artifact is written.
+// Usage: node scripts/asc-apps-list.mjs
 import { createPrivateKey, sign } from 'node:crypto';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { buildRows, makeRedactor, toMarkdown } from './lib/ascAppsList.mjs';
 
 const { ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, MATCH, GITHUB_STEP_SUMMARY } = process.env;
@@ -16,8 +18,6 @@ const die = (m, code = 1) => { console.error(redact(m)); process.exit(code); };
 for (const [k, v] of Object.entries({ ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY })) {
   if (!v) die(`Missing ${k} (set it as a GitHub Actions secret).`, 2);
 }
-const args = process.argv.slice(2);
-const outDir = args.includes('--out') ? args[args.indexOf('--out') + 1] : 'asc-apps-list';
 
 const b64u = (b) => Buffer.from(b).toString('base64url');
 function jwt() {
@@ -39,15 +39,10 @@ async function get(path) {
 }
 
 try {
-  const { rows, total } = await buildRows(get, { match: MATCH });
-  const md = toMarkdown(rows, { match: MATCH || '.', total });
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(`${outDir}/apps.md`, redact(md));
-  writeFileSync(`${outDir}/apps.json`, redact(JSON.stringify(rows, null, 2)));
+  const { rows, total, hidden } = await buildRows(get, { match: MATCH });
+  const md = toMarkdown(rows, { match: MATCH || '.', total, hidden });
   if (GITHUB_STEP_SUMMARY) appendFileSync(GITHUB_STEP_SUMMARY, redact(md));
   say(md);
-  const nev = rows.filter((r) => r.neville);
-  say(nev.length ? `Neville matches: ${nev.map((r) => `${r.name} (${r.appleAppId})`).join(', ')}` : 'No app name or bundle ID contains "neville".');
 } catch (e) {
   die(`apps list failed: ${e.message}`);
 }

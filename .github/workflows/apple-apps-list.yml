@@ -1,7 +1,8 @@
 name: Apple apps list (read only)
 
 # Manual only. Lists every app in the App Store Connect account with its latest TestFlight build.
-# GET requests only: no builds, uploads or writes. Output: job summary + downloadable artifact.
+# GET requests only: no builds, uploads or writes. Public repo: the log and job summary list only apps
+# already released on the App Store; unreleased apps are reduced to a count. No artifact is uploaded.
 on:
   workflow_dispatch:
     inputs:
@@ -33,10 +34,4 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           MATCH: ${{ inputs.match }}
-        run: node scripts/asc-apps-list.mjs --out asc-apps-list
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: asc-apps-list
-          path: asc-apps-list/
-          retention-days: 7
+        run: node scripts/asc-apps-list.mjs
