@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 // @ts-ignore plain .mjs module
-import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors } from '../../scripts/lib/nevilleRelease.mjs';
+import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, finalOutcome } from '../../scripts/lib/nevilleRelease.mjs';
 // @ts-ignore plain .mjs module
 import { makeRedactor } from '../../scripts/lib/ascAppsList.mjs';
 
@@ -81,6 +81,14 @@ test('tailErrors redacts secrets and truncates', () => {
   assert.ok(!out.includes('ok line'));
 });
 
+test('finalOutcome: only VALID and PROCESSING are green', () => {
+  assert.equal(finalOutcome('VALID').exitCode, 0);
+  assert.equal(finalOutcome('PROCESSING').exitCode, 0);
+  for (const s of ['FAILED', 'INVALID', 'NOT_FOUND', 'HTTP_401', 'HTTP_500', '', undefined]) {
+    assert.equal(finalOutcome(s as string).exitCode, 1, String(s));
+  }
+});
+
 // Static guard on the workflow file: the security rules cannot silently regress.
 const wfRaw = readFileSync(new URL('../../.github/workflows/neville-ios-testflight.yml', import.meta.url), 'utf8');
 const wf = wfRaw.split('\n').filter((l: string) => !l.trimStart().startsWith('#')).join('\n');
@@ -90,6 +98,7 @@ test('workflow: dispatch only, read-only token, guarded job', () => {
   assert.doesNotMatch(wf, /pull_request|push:|schedule:|workflow_run/);
   assert.match(wf, /permissions:\n  contents: read/);
   assert.match(wf, /github\.actor == 'timfong888'/);
+  assert.match(wf, /github\.triggering_actor == 'timfong888'/);
   assert.match(wf, /github\.ref == 'refs\/heads\/main'/);
   assert.doesNotMatch(wf, /upload-artifact|GITHUB_ENV|GITHUB_OUTPUT/);
 });

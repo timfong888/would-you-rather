@@ -11,7 +11,7 @@ import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
-import { NEVILLE_APP_ID, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors } from './lib/nevilleRelease.mjs';
+import { NEVILLE_APP_ID, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors } from './lib/nevilleRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -90,8 +90,9 @@ try {
   const { state } = await pollBuild(get, { build, version, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) });
   say(`build ${build}: ${state}`);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summaryMarkdown(build, state));
-  if (['FAILED', 'INVALID'].includes(state)) die(`Build ${build} processing ended as ${state}.`);
-  if (state !== 'VALID') say(`::notice title=Still processing::Build ${build} is ${state} on Apple's side; this is not an error. Re-check with Apple ops "builds".`);
+  const outcome = finalOutcome(state);
+  if (outcome.kind === 'still-processing') say(`::notice title=Still processing::Build ${build} is ${state} on Apple's side; this is not an error. Re-check with Apple ops "builds".`);
+  else if (outcome.exitCode !== 0) die(`Build ${build} did not reach a usable state (${state}). Check TestFlight / run Apple ops "builds".`);
 } catch (e) {
   die(`neville release failed: ${e.message}`);
 } finally {

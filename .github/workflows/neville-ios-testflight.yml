@@ -32,7 +32,7 @@ env:
 
 jobs:
   neville-ios:
-    if: github.event_name == 'workflow_dispatch' && github.actor == 'timfong888' && github.repository == 'timfong888/would-you-rather' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.actor == 'timfong888' && github.triggering_actor == 'timfong888' && github.repository == 'timfong888/would-you-rather' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

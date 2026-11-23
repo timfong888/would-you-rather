@@ -89,3 +89,13 @@ export function tailErrors(text, redact, max = 15) {
   return String(text).split(/\r?\n/).filter((l) => /error|fail|denied|not found|invalid/i.test(l))
     .slice(-max).map((l) => redact(l).slice(0, 300)).join('\n');
 }
+
+// How the run ends once polling stops. Only a build Apple is still working on is a green notice;
+// a build that never appeared or a failing GET (revoked or under-scoped key) must not end green.
+export function finalOutcome(state) {
+  if (state === 'VALID') return { exitCode: 0, kind: 'valid' };
+  if (state === 'PROCESSING') return { exitCode: 0, kind: 'still-processing' };
+  if (state === 'FAILED' || state === 'INVALID') return { exitCode: 1, kind: 'rejected' };
+  if (state === 'NOT_FOUND') return { exitCode: 1, kind: 'not-found' };
+  return { exitCode: 1, kind: 'unknown' };
+}
