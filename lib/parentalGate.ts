@@ -29,8 +29,11 @@ export function checkAnswer(challenge: GateChallenge, input: string): boolean {
 
 /**
  * True when a purchase screen opened for this category must show the gate first: every kids and teen
- * category (`audience` is not `adult`; spec §2.3). The gate is a purchase rule; whether analytics is off is
- * a separate one (`isKidsPath`), so the teen paywall keeps the gate and keeps analytics.
+ * category (`audience` is not `adult`; spec §2.3).
+ *
+ * Today `app/unlock/[id].tsx` also uses this predicate to switch `track()` off, so a teen paywall would lose its
+ * analytics. The spec splits that in Unit 4 (payments, reviewed by Tim): the gate follows this predicate, while
+ * analytics follows `isKidsPath` (kids only). No teen category exists before Unit 1, so nothing is affected yet.
  */
 export function requiresParentalGate(categoryId: string): boolean {
   return PARENTAL_GATE_CATEGORIES.includes(categoryId as (typeof PARENTAL_GATE_CATEGORIES)[number]);
