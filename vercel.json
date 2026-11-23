@@ -9,7 +9,9 @@
     }
   ],
   "redirects": [
-    { "source": "/categories/kids-family", "destination": "/categories", "permanent": true }
+    { "source": "/categories/kids-family", "destination": "/categories", "permanent": true },
+    { "source": "/complete/kids-family", "destination": "/categories", "permanent": true },
+    { "source": "/unlock/kids-family", "destination": "/unlock/tiny-choices", "permanent": true }
   ],
   "rewrites": [
     { "source": "/p/:id",                                               "destination": "/p/:id.html" },

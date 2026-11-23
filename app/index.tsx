@@ -16,6 +16,7 @@ import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { SEO_PAGES } from '@/constants/seoPages';
 import { homeJsonLd } from '@/lib/seo';
+import { randomPlayCategories } from '@/lib/nextCategory';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -45,7 +46,7 @@ export default function HomeScreen() {
   };
 
   const handleRandomQuestion = () => {
-    const freeCats = CATEGORIES.filter((c) => c.tier === 'free');
+    const freeCats = randomPlayCategories(CATEGORIES);
     const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
     navigateToQuestion(cat);
   };

@@ -37,7 +37,9 @@ for (const tab of ['FOR YOU', 'TRENDING', 'NEW']) {
 }
 const chips = await page.evaluate(() => document.body.innerText);
 const youngLabels = CATEGORIES.filter((c) => c.audience !== 'adult').map((c) => c.label);
-const chipHits = youngLabels.filter((l) => new RegExp(`(^|\\n)\\s*[^\\n]*${l.replace(/[-]/g, '\\-')}`).test(chips));
+// A chip is a whole line (optionally led by its emoji); a label inside a question or other copy is not a chip.
+const chipLines = chips.split('\n').map((l) => l.replace(/^[\p{Extended_Pictographic}\uFE0F\s]+/u, '').trim());
+const chipHits = youngLabels.filter((l) => chipLines.includes(l));
 check(chipHits.length === 0, 'category chips: no kids or teen category', chipHits.join(', '));
 const keys = await page.evaluate(() => Object.keys(localStorage));
 check(keys.includes('wyr_visitor_id'), 'adult /feed still persists wyr_visitor_id (analytics unchanged)');

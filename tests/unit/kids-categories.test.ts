@@ -15,6 +15,7 @@ import {
 } from '../../constants/questions';
 import { SEO_PAGES, getSeoPageQuestions } from '../../constants/seoPages';
 import { isKidsPath } from '../../lib/kidsPaths';
+import { randomPlayCategories } from '../../lib/nextCategory';
 
 const EXPECTED: Record<string, { ages: [number, number]; audience: string; written: number; emoji: string }> = {
   'tiny-choices': { ages: [3, 5], audience: 'kids', written: 30, emoji: '🐣' },
@@ -108,6 +109,26 @@ test('/categories/kids-family redirects, on the web (vercel.json) and in the app
   const screen = readFileSync('app/categories/[id].tsx', 'utf8');
   assert.match(screen, /RETIRED_KIDS_CATEGORY_IDS\.includes\(id\)/);
   assert.match(screen, /<Redirect href="\/categories" \/>/);
+});
+
+test('the other retired routes redirect too: /unlock/kids-family reaches a live kids unlock (the gate), /complete/kids-family the list', () => {
+  const vercel = JSON.parse(readFileSync('vercel.json', 'utf8'));
+  const to = (src: string) => vercel.redirects.find((r: any) => r.source === src)?.destination;
+  assert.equal(to('/complete/kids-family'), '/categories');
+  const unlockTarget = to('/unlock/kids-family');
+  assert.equal(unlockTarget, '/unlock/tiny-choices');
+  const id = unlockTarget.split('/').pop() as string;
+  assert.equal(getCategoryAudience(id), 'kids'); // a live kids category, so App Review still sees the gate
+  assert.match(readFileSync('app/unlock/kids-family.tsx', 'utf8'), /<Redirect href="\/unlock\/tiny-choices" \/>/);
+  assert.match(readFileSync('app/complete/kids-family.tsx', 'utf8'), /<Redirect href="\/categories" \/>/);
+});
+
+test('the home random button draws from adult categories only', () => {
+  const pool = randomPlayCategories(CATEGORIES);
+  assert.ok(pool.length >= 3);
+  for (const c of pool) assert.equal(c.audience, 'adult', c.id);
+  assert.equal(pool.some((c) => c.tier !== 'free'), false);
+  assert.match(readFileSync('app/index.tsx', 'utf8'), /randomPlayCategories\(CATEGORIES\)/);
 });
 
 test('D4: every kids landing page lists its full set (free or not) from kids categories only', () => {
