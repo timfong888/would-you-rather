@@ -6,7 +6,7 @@
  * cannot pass by tapping: here, a three-number sum that is not a times-table
  * fact. A wrong answer issues a fresh challenge.
  */
-import { FAMILY_FRIENDLY } from '@/constants/questions';
+import { PARENTAL_GATE_CATEGORIES } from '@/constants/questions';
 
 export interface GateChallenge {
   prompt: string;
@@ -27,7 +27,14 @@ export function checkAnswer(challenge: GateChallenge, input: string): boolean {
   return /^\d{1,3}$/.test(trimmed) && Number(trimmed) === challenge.answer;
 }
 
-/** True when a purchase screen opened for this category must show the gate first. */
+/**
+ * True when a purchase screen opened for this category must show the gate first: every kids and teen
+ * category (`audience` is not `adult`; spec §2.3).
+ *
+ * Today `app/unlock/[id].tsx` also uses this predicate to switch `track()` off, so a teen paywall would lose its
+ * analytics. The spec splits that in Unit 4 (payments, reviewed by Tim): the gate follows this predicate, while
+ * analytics follows `isKidsPath` (kids only). No teen category exists before Unit 1, so nothing is affected yet.
+ */
 export function requiresParentalGate(categoryId: string): boolean {
-  return FAMILY_FRIENDLY.includes(categoryId as (typeof FAMILY_FRIENDLY)[number]);
+  return PARENTAL_GATE_CATEGORIES.includes(categoryId as (typeof PARENTAL_GATE_CATEGORIES)[number]);
 }

@@ -10,9 +10,12 @@
  * Where the pages come from: docs/seo/keyword-research-2026-11.md (one page per
  * search-intent cluster) and the process in docs/seo-content-skill.md.
  *
- * Only questions a first-time visitor can play for free are ever listed
- * (getAccessibleQuestions with categoryUnlocked = false), so the pages never
- * publish locked expansion or premium text.
+ * Adult pages list only questions a first-time visitor can play for free
+ * (getAccessibleQuestions with categoryUnlocked = false), so they never publish
+ * locked expansion or premium text. Kids pages are the one exception (decision D4,
+ * docs/specs/kids-family-categories.md §7): they list their full written set, which
+ * is already public and indexed. The paywall gates the in-app category run, new
+ * writing and AI, not these pages.
  */
 import {
   CATEGORIES,
@@ -552,10 +555,12 @@ export function getSeoPage(slug: string): SeoPageDef | undefined {
 /** Other pages for the same persona, then the rest: the page's internal links. */
 /**
  * Kids pages: written for parents and played by children (ages 4–11). They list and link
- * only to the Kids & Family bank and to other kids pages. `verify-seo` enforces this.
+ * only to kids-audience categories (`isKidsCategoryId`) and to other kids pages. `verify-seo` enforces this.
  */
-export const KIDS_CATEGORY: CategoryId = 'kids-family';
 export const isKidsPage = (page: SeoPageDef): boolean => page.persona === 'parents';
+
+/** Kids pages are tagged to the kids bank and (D4) list that bank's full written set. */
+export const listsFullWrittenSet = (page: SeoPageDef): boolean => isKidsPage(page) && !!page.questionTag;
 
 export function getRelatedSeoPages(page: SeoPageDef): { samePersona: SeoPageDef[]; other: SeoPageDef[] } {
   const others = SEO_PAGES.filter((p) => p.slug !== page.slug);
@@ -567,14 +572,17 @@ export function getRelatedSeoPages(page: SeoPageDef): { samePersona: SeoPageDef[
 }
 
 /**
- * The free, playable questions for a page.
+ * The questions a page lists.
  *
- * Tagged pages take the questions written for them (in bank order). Otherwise
- * questions are drawn round-robin across the page's categories, so a
+ * Tagged kids pages take the questions written for them, free or not (D4), in bank order. Otherwise
+ * only free, playable questions are listed, drawn round-robin across the page's categories, so a
  * three-category page is not twenty questions from the first.
  */
 export function getSeoPageQuestions(page: SeoPageDef): Question[] {
   if (page.questionTag) {
+    const categories = new Set(page.categoryIds as string[]);
+    const written = (q: Question) => categories.has(q.category) && q.tags?.includes(page.questionTag!);
+    if (listsFullWrittenSet(page)) return QUESTIONS.filter(written).slice(0, page.limit);
     const free = new Set(
       page.categoryIds
         .map((id) => CATEGORIES.find((c): c is CategoryDef => c.id === id))
@@ -582,7 +590,7 @@ export function getSeoPageQuestions(page: SeoPageDef): Question[] {
         .flatMap((c) => getAccessibleQuestions(c, false))
         .map((q) => q.id),
     );
-    return QUESTIONS.filter((q) => free.has(q.id) && q.tags?.includes(page.questionTag!)).slice(0, page.limit);
+    return QUESTIONS.filter((q) => free.has(q.id) && written(q)).slice(0, page.limit);
   }
 
   const pools = page.categoryIds

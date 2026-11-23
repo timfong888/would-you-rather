@@ -6,8 +6,11 @@
 // arguments, so tests run against a real Postgres (pglite) with no network.
 
 import { MIGRATION_STATEMENTS } from './schema.js';
+import { CATEGORIES } from './data.js';
 
-export const KIDS_CATEGORY = 'kids-family';
+// Categories written for under-13s (audience 'kids'). Read from the data, never a literal id, so a new kids
+// category is covered the moment it is defined (docs/specs/kids-family-categories.md §2.3).
+export const KIDS_CATEGORIES = new Set(CATEGORIES.filter((c) => c.audience === 'kids').map((c) => c.id));
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const QUESTION_ID = /^[a-z]{2,4}-\d{1,5}$/;
@@ -33,7 +36,7 @@ export function validateVoteBody(body, questionsById) {
     return { ok: false, field: 'questionId' };
   }
   if (choice !== 'A' && choice !== 'B') return { ok: false, field: 'choice' };
-  if (questionsById.get(questionId).category === KIDS_CATEGORY) return { ok: true, value: { questionId, choice, visitorId: null } };
+  if (KIDS_CATEGORIES.has(questionsById.get(questionId).category)) return { ok: true, value: { questionId, choice, visitorId: null } };
   if (typeof visitorId !== 'string' || !UUID_V4.test(visitorId)) return { ok: false, field: 'visitorId' };
   return { ok: true, value: { questionId, choice, visitorId: visitorId.toLowerCase() } };
 }
@@ -96,7 +99,7 @@ export async function recordVote({ store, questionsById, body, geo }) {
   const parsed = validateVoteBody(body, questionsById);
   if (!parsed.ok) return { status: 400, body: { error: 'invalid', field: parsed.field } };
   const { questionId, choice, visitorId } = parsed.value;
-  const kids = questionsById.get(questionId).category === KIDS_CATEGORY;
+  const kids = KIDS_CATEGORIES.has(questionsById.get(questionId).category);
   try {
     const { voterKey, playerId } = await buildVoterKey({ kids, visitorId });
     const result = await withTimeout(

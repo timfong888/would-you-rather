@@ -1,29 +1,29 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FEED_QUESTIONS, FEED_CATEGORIES, isFeedQuestion } from '../../lib/feedQuestions';
-import { QUESTIONS } from '../../constants/questions';
+import { CATEGORIES, QUESTIONS, getCategoryAudience } from '../../constants/questions';
 
-test('the mixed feed lists no Kids & Family question', () => {
+const adult = (category: string) => getCategoryAudience(category) === 'adult';
+
+test('the mixed feed lists no kids or teen question', () => {
   assert.ok(FEED_QUESTIONS.length > 0);
-  assert.equal(FEED_QUESTIONS.filter((q) => q.category === 'kids-family' || q.id.startsWith('kf-')).length, 0);
+  assert.equal(FEED_QUESTIONS.filter((q) => !adult(q.category) || q.id.startsWith('kf-') || q.id.startsWith('tn-')).length, 0);
 });
 
 test('the feed keeps every adult question', () => {
-  const adult = QUESTIONS.filter((q) => q.category !== 'kids-family');
-  assert.equal(FEED_QUESTIONS.length, adult.length);
+  const adults = QUESTIONS.filter((q) => adult(q.category));
+  assert.equal(FEED_QUESTIONS.length, adults.length);
   assert.ok(QUESTIONS.length > FEED_QUESTIONS.length, 'kids questions exist and are excluded');
 });
 
-test('the category filter row has no Kids & Family chip', () => {
-  assert.equal(FEED_CATEGORIES.some((c) => c.id === 'kids-family'), false);
+test('the category filter row has only adult categories', () => {
+  assert.deepEqual(FEED_CATEGORIES.map((c) => c.id), CATEGORIES.filter((c) => c.audience === 'adult').map((c) => c.id));
   assert.ok(FEED_CATEGORIES.length > 0);
 });
 
-test('isFeedQuestion', () => {
-  assert.equal(isFeedQuestion({ category: 'kids-family' }), false);
-  assert.equal(isFeedQuestion({ category: 'silly-bad' } as any), true);
-});
-
-test('every kf- id is in the kids-family category (so the filter covers them)', () => {
-  assert.equal(QUESTIONS.filter((q) => q.id.startsWith('kf-') && q.category !== 'kids-family').length, 0);
+test('isFeedQuestion reads the category audience', () => {
+  const kids = CATEGORIES.find((c) => c.audience === 'kids')!;
+  assert.equal(isFeedQuestion({ category: kids.id }), false);
+  assert.equal(isFeedQuestion({ category: 'silly-bad' } as any), false); // not a category: not shown
+  assert.equal(isFeedQuestion({ category: CATEGORIES.find((c) => c.audience === 'adult')!.id }), true);
 });

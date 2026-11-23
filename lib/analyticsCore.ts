@@ -3,6 +3,7 @@
  * Rule (COPPA): kids content never sends analytics, on web or native.
  */
 import { analyticsAllowed } from '@/lib/visitorId';
+import { isKidsCategoryId } from '@/constants/questions';
 
 export type Props = Record<string, string | number | boolean | null | undefined>;
 
@@ -31,7 +32,7 @@ export function propsAreKids(props?: Props): boolean {
   if (!props) return false;
   const q = props.question_id;
   if (typeof q === 'string' && q.startsWith('kf-')) return true;
-  return props.category_id === 'kids-family';
+  return typeof props.category_id === 'string' && isKidsCategoryId(props.category_id);
 }
 
 export function createTracker(deps: {

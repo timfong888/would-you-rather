@@ -13,9 +13,9 @@
 import { existsSync, readFileSync } from 'fs';
 import { isDeepStrictEqual } from 'util';
 import { resolve } from 'path';
-import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
+import { CATEGORIES, QUESTIONS, getCategoryQuestions, isKidsCategoryId, isQuestionLocked } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
-import { KIDS_CATEGORY, SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage } from '../constants/seoPages';
+import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
@@ -76,17 +76,18 @@ for (const page of SEO_PAGES) {
   for (const q of questions) {
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
-    if (isQuestionLocked(cat, idx, false)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
+    // D4: kids pages list their full written set, locked or not (constants/seoPages.ts).
+    if (!listsFullWrittenSet(page) && isQuestionLocked(cat, idx, false)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
   }
 
   // Child safety: a kids page lists only Kids & Family questions, its play flow stays in that
   // bank (the game's "next" walks the question's own category), and it links only to kids pages.
   if (isKidsPage(page)) {
-    if (page.categoryIds.length !== 1 || page.categoryIds[0] !== KIDS_CATEGORY) {
-      fail(`kids: "${page.slug}" must draw only from ${KIDS_CATEGORY} (has ${page.categoryIds.join(', ')})`);
+    for (const id of page.categoryIds) {
+      if (!isKidsCategoryId(id)) fail(`kids: "${page.slug}" must draw only from kids-audience categories (has ${id})`);
     }
     for (const q of questions) {
-      if (q.category !== KIDS_CATEGORY) fail(`kids: "${page.slug}" lists ${q.id} from ${q.category}, outside the kids bank`);
+      if (!isKidsCategoryId(q.category)) fail(`kids: "${page.slug}" lists ${q.id} from ${q.category}, outside the kids bank`);
     }
     const { samePersona, other } = getRelatedSeoPages(page);
     for (const p of [...samePersona, ...other]) {
@@ -185,7 +186,10 @@ const unescape = (s: string | undefined) =>
   s?.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
 if (withDist) {
+  // Kids pages publish their full written set on purpose (D4), so those texts are not "locked leaks".
+  const publicByDesign = new Set(SEO_PAGES.filter(listsFullWrittenSet).flatMap((p) => getSeoPageQuestions(p).map((q) => q.id)));
   const lockedTexts = QUESTIONS.flatMap((q) => {
+    if (publicByDesign.has(q.id)) return [];
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
     return isQuestionLocked(cat, idx, false) ? [q.optionA, q.optionB] : [];
@@ -241,14 +245,14 @@ if (withDist) {
     if (page && isKidsPage(page)) {
       // Allowlist, not a denylist: every same-site link on a kids page must be the home page,
       // the kids category, a kids game question, another kids page, or a static asset.
-      const kidsIds = new Set(QUESTIONS.filter((q) => q.category === KIDS_CATEGORY).map((q) => q.id));
+      const kidsIds = new Set(QUESTIONS.filter((q) => isKidsCategoryId(q.category)).map((q) => q.id));
       const kidsSlugs = new Set(SEO_PAGES.filter(isKidsPage).map((sp) => sp.slug));
       for (const path of linkedPaths(html)) {
         const bare = path.replace(/\/+$/, '').replace(/\.html$/, '') || '/';
         const game = bare.match(/^\/game\/([^/]+)$/);
         const ok =
           bare === '/' ||
-          bare === `/categories/${KIDS_CATEGORY}` ||
+          (bare.startsWith('/categories/') && isKidsCategoryId(bare.slice('/categories/'.length))) ||
           (game !== null && kidsIds.has(game[1])) ||
           kidsSlugs.has(bare.slice(1)) ||
           /^\/(_expo|assets)\//.test(bare) ||
