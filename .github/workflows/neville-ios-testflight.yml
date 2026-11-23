@@ -1,0 +1,83 @@
+name: Neville iOS (build and TestFlight)
+
+# Manual only. Builds the Neville iOS app (timfong888/neville, bundle pckg.neville) on EAS and uploads it to
+# TestFlight against ASC app 6740147041. WRITES to App Store Connect; never submits for App Review, never
+# touches the live version (the build must be >= 1.1.0, build > 157).
+#
+# Security (public repo, public logs, holds the ASC key and an Expo token):
+# - dispatch only, only by timfong888, only from main (so only merged workflow code ever sees the secrets);
+# - neville_sha must be a full sha that is an ancestor of neville's main, checked BEFORE any secret is used;
+# - the repo/ref are hardcoded, never an input; contents: read; no artifacts; no pull_request_target;
+# - secrets reach exactly one step; the .p8 goes to a 0600 temp file outside the checkout and is deleted;
+# - third-party actions are pinned to commit SHAs; the only Apple data printed is build number and state.
+on:
+  workflow_dispatch:
+    inputs:
+      neville_sha:
+        description: Full 40-char commit sha on neville main (merged code only)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neville-ios-testflight
+  cancel-in-progress: false
+
+env:
+  NEVILLE_REPO: timfong888/neville
+  EAS_PROFILE: production
+  APPLE_TEAM_ID: VJKU43W3C2
+
+jobs:
+  neville-ios:
+    if: github.event_name == 'workflow_dispatch' && github.actor == 'timfong888' && github.repository == 'timfong888/would-you-rather' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Validate neville_sha format
+        env:
+          NEVILLE_SHA: ${{ inputs.neville_sha }}
+        run: |
+          [[ "$NEVILLE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "neville_sha must be a full 40-char lowercase hex sha"; exit 1; }
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: timfong888/neville
+          ref: main
+          fetch-depth: 0
+          path: neville
+          persist-credentials: false
+
+      - name: Pin neville to the requested sha (must be merged on main)
+        working-directory: neville
+        env:
+          NEVILLE_SHA: ${{ inputs.neville_sha }}
+        run: |
+          git cat-file -e "${NEVILLE_SHA}^{commit}" || { echo "sha not found in neville"; exit 1; }
+          git merge-base --is-ancestor "$NEVILLE_SHA" origin/main || { echo "sha is not an ancestor of neville main; refusing"; exit 1; }
+          git checkout --detach "$NEVILLE_SHA"
+          echo "building neville at ${NEVILLE_SHA:0:12}"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - name: Install neville dependencies (no scripts, no secrets)
+        working-directory: neville
+        run: |
+          if [ -f package-lock.json ]; then npm ci --ignore-scripts; else echo "no package-lock.json; skipping install"; fi
+
+      - name: Build on EAS and upload to TestFlight
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          NEVILLE_DIR: neville
+        run: node scripts/neville-testflight.mjs
