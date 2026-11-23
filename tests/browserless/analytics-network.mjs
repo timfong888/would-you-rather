@@ -75,7 +75,8 @@ const b = await chromium.launch();
 }
 
 // 2. kids hard loads
-for (const path of ['/game/kf-2', '/categories/kids-family', '/results/kf-2', '/complete/kids-family', '/unlock/kids-family', '/would-you-rather-questions-for-kids']) {
+// One category of each route type here (tests/browserless/kids-no-tracking.mjs walks every kids category).
+for (const path of ['/game/kf-2', '/categories/tiny-choices', '/results/kf-2', '/complete/tiny-choices', '/unlock/tiny-choices', '/would-you-rather-questions-for-kids']) {
   const { ctx, page, ph } = await newPage(b);
   await ctx.addInitScript(() => { try { localStorage.setItem('wyr_visitor_id', 'seed'); localStorage.setItem('wyr_first_touch', '{}'); localStorage.setItem('wyr_activation', '{}'); localStorage.setItem('ph_phc_seed_posthog', '{}'); } catch {} });
   await page.goto(`${HOST}${path}`, { waitUntil: 'networkidle' });
@@ -94,14 +95,14 @@ for (const path of ['/game/kf-2', '/categories/kids-family', '/results/kf-2', '/
   const idBefore = await page.evaluate(() => localStorage.getItem('wyr_visitor_id'));
   const beforeCount = ph.length;
   const evBefore = events(ph).length;
-  await page.getByText(/Kids\s*&\s*Family/i).first().click();
-  await page.waitForURL(/kids-family/);
+  await page.getByText(/Tiny Choices/i).first().click();
+  await page.waitForURL(/tiny-choices/);
   await page.waitForTimeout(12500); // longer than a flush interval: anything queued would have been sent
   const sentAfter = ph.slice(beforeCount);
   const idAfter = await page.evaluate(() => localStorage.getItem('wyr_visitor_id'));
   check(!!idBefore, 'adult -> kids: an adult id existed before the click');
   check(sentAfter.length === 0, 'adult -> kids: zero PostHog requests after the click', sentAfter.map((r) => r.url + ' ' + r.body.slice(0, 80)).join(' | '));
-  check(!JSON.stringify(ph.map((r) => r.body)).match(/kids-family|kf-/), 'adult -> kids: no kids path in anything sent');
+  check(!JSON.stringify(ph.map((r) => r.body)).match(/tiny-choices|kf-/), 'adult -> kids: no kids path in anything sent');
   check(idAfter === null, 'adult -> kids: the stored visitor id is gone and no new one was created');
   check(events(ph).length === evBefore, 'adult -> kids: no new events');
   await ctx.close();

@@ -51,8 +51,8 @@ test('every line, against every question, never contains either option', () => {
 
 test('picks from the category pool, falls back to default, never repeats back to back', () => {
   __resetInviteMemory();
-  const pool = SHARE_INVITES['kids-family'];
-  for (let i = 0; i < 100; i++) assert.ok(pool.includes(shareInvite('kids-family')));
+  const pool = SHARE_INVITES['tiny-choices'];
+  for (let i = 0; i < 100; i++) assert.ok(pool.includes(shareInvite('tiny-choices')));
   assert.ok(SHARE_INVITES.default.includes(shareInvite('not-a-category')));
   assert.ok(SHARE_INVITES.default.includes(shareInvite(undefined)));
   __resetInviteMemory();

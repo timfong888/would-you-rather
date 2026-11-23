@@ -1,5 +1,5 @@
 /**
- * End-of-category screen (#81) vs the kids gate (#85): /complete/kids-family sends nothing.
+ * End-of-category screen (#81) vs the kids gate (#85): /complete/<kids category> sends nothing.
  * No event reaches track() (category_completed included), no PostHog request, no wyr_ or ph_ keys,
  * and kids players get no "NEXT" button into an adult pack. The adult screen still fires category_completed.
  * Build as in kids-no-tracking.mjs (debug build, fake key, EXPO_PUBLIC_SITE_URL=http://localhost:4175), serve, then:
@@ -29,7 +29,7 @@ async function screen(path) {
   return { ph, events, next, keys, rendered };
 }
 
-const kids = await screen('/complete/kids-family');
+const kids = await screen('/complete/tiny-choices');
 check(kids.rendered > 0, 'kids end screen: the screen rendered ("You\'ve finished …")');
 check(kids.ph.length === 0, 'kids end screen: no PostHog request', kids.ph.join(','));
 check(kids.events.length === 0, 'kids end screen: no event reaches track() (category_completed included)', kids.events.join(','));

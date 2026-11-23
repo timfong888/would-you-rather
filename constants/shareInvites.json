@@ -100,7 +100,7 @@
     "One impossible choice. What would you do?",
     "Fantasy question. Don't hold back."
   ],
-  "kids-family": [
+  "tiny-choices": [
     "Which would you pick? Tell me after you answer!",
     "Here's a fun one. What would you choose?",
     "Can you guess what I'd say? Answer and see!",
@@ -109,5 +109,85 @@
     "Let's see if we think the same. Your turn!",
     "I wonder what you'll say. Tap to find out!",
     "A tricky one! Can you decide?"
+  ],
+  "make-believe": [
+    "Which would you pick? Tell me after you answer!",
+    "Here's a fun one. What would you choose?",
+    "Can you guess what I'd say? Answer and see!",
+    "Your turn! Which one is it?",
+    "Silly question time. What's your answer?",
+    "Let's see if we think the same. Your turn!",
+    "I wonder what you'll say. Tap to find out!",
+    "A tricky one! Can you decide?"
+  ],
+  "giggle-factory": [
+    "Which would you pick? Tell me after you answer!",
+    "Here's a fun one. What would you choose?",
+    "Can you guess what I'd say? Answer and see!",
+    "Your turn! Which one is it?",
+    "Silly question time. What's your answer?",
+    "Let's see if we think the same. Your turn!",
+    "I wonder what you'll say. Tap to find out!",
+    "A tricky one! Can you decide?"
+  ],
+  "road-trip-rally": [
+    "Which would you pick? Tell me after you answer!",
+    "Here's a fun one. What would you choose?",
+    "Can you guess what I'd say? Answer and see!",
+    "Your turn! Which one is it?",
+    "Silly question time. What's your answer?",
+    "Let's see if we think the same. Your turn!",
+    "I wonder what you'll say. Tap to find out!",
+    "A tricky one! Can you decide?"
+  ],
+  "dinner-table": [
+    "Which would you pick? Tell me after you answer!",
+    "Here's a fun one. What would you choose?",
+    "Can you guess what I'd say? Answer and see!",
+    "Your turn! Which one is it?",
+    "Silly question time. What's your answer?",
+    "Let's see if we think the same. Your turn!",
+    "I wonder what you'll say. Tap to find out!",
+    "A tricky one! Can you decide?"
+  ],
+  "heart-to-heart": [
+    "Which would you pick? Tell me after you answer!",
+    "Here's a fun one. What would you choose?",
+    "Can you guess what I'd say? Answer and see!",
+    "Your turn! Which one is it?",
+    "Silly question time. What's your answer?",
+    "Let's see if we think the same. Your turn!",
+    "I wonder what you'll say. Tap to find out!",
+    "A tricky one! Can you decide?"
+  ],
+  "future-me": [
+    "Which would you pick? Tell me after you answer!",
+    "Here's a fun one. What would you choose?",
+    "Can you guess what I'd say? Answer and see!",
+    "Your turn! Which one is it?",
+    "Silly question time. What's your answer?",
+    "Let's see if we think the same. Your turn!",
+    "I wonder what you'll say. Tap to find out!",
+    "A tricky one! Can you decide?"
+  ],
+  "holiday-table": [
+    "Which would you pick? Tell me after you answer!",
+    "Here's a fun one. What would you choose?",
+    "Can you guess what I'd say? Answer and see!",
+    "Your turn! Which one is it?",
+    "Silly question time. What's your answer?",
+    "Let's see if we think the same. Your turn!",
+    "I wonder what you'll say. Tap to find out!",
+    "A tricky one! Can you decide?"
+  ],
+  "real-talk": [
+    "Which one would you pick? Tell me after you answer!",
+    "Here's one I can't decide on. What would you choose?",
+    "Can you guess what I'd say? Answer and see.",
+    "Your turn. Which one is it?",
+    "I want to know what you'd really say.",
+    "Let's see if we think the same. Answer first.",
+    "No wrong answers. What's yours?",
+    "A tricky one. Can you decide?"
   ]
 }

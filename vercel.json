@@ -8,6 +8,9 @@
       "headers": [{ "key": "Content-Type", "value": "application/json" }]
     }
   ],
+  "redirects": [
+    { "source": "/categories/kids-family", "destination": "/categories", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/p/:id",                                               "destination": "/p/:id.html" },
     { "source": "/game/:id",                                            "destination": "/game/[id].html" },

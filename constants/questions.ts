@@ -1,4 +1,5 @@
 import { KIDS_QUESTIONS } from './kidsQuestions';
+import { TEEN_QUESTIONS } from './teenQuestions';
 import { isCategoryAvailable } from './platformFilter';
 
 export type CategoryId =
@@ -11,7 +12,15 @@ export type CategoryId =
   | 'career-climber'
   | 'tech-dystopia'
   | 'wildest-dreams'
-  | 'kids-family';
+  | 'tiny-choices'
+  | 'make-believe'
+  | 'giggle-factory'
+  | 'road-trip-rally'
+  | 'dinner-table'
+  | 'heart-to-heart'
+  | 'future-me'
+  | 'real-talk'
+  | 'holiday-table';
 
 export type CategoryTier = 'free' | 'premium';
 
@@ -160,15 +169,87 @@ const ALL_CATEGORIES: CategoryDef[] = [
     audience: 'adult',
     ages: ADULT_AGES,
   },
+  // Kids and teen topic categories (spec §2.2). Each has 8 free questions; the rest are volume 2.
   {
-    // Written for kids ~4–11 and the grown-ups playing with them. Replaced by the topic categories in Unit 1.
-    id: 'kids-family',
-    label: 'Kids & Family',
-    emoji: '🧸',
-    color: '#D9622B',
+    id: 'tiny-choices',
+    label: 'Tiny Choices',
+    emoji: '🐣',
+    color: '#D9822B',
     tier: 'free',
     audience: 'kids',
-    ages: [4, 11],
+    ages: [3, 5],
+  },
+  {
+    id: 'make-believe',
+    label: 'Make-Believe',
+    emoji: '🏰',
+    color: '#7A5BD6',
+    tier: 'free',
+    audience: 'kids',
+    ages: [4, 8],
+  },
+  {
+    id: 'giggle-factory',
+    label: 'Giggle Factory',
+    emoji: '😂',
+    color: '#E0559B',
+    tier: 'free',
+    audience: 'kids',
+    ages: [5, 10],
+  },
+  {
+    id: 'road-trip-rally',
+    label: 'Road Trip Rally',
+    emoji: '🚗',
+    color: '#2E86C1',
+    tier: 'free',
+    audience: 'kids',
+    ages: [4, 12],
+  },
+  {
+    id: 'dinner-table',
+    label: 'Dinner Table',
+    emoji: '🍽️',
+    color: '#3F9B6B',
+    tier: 'free',
+    audience: 'kids',
+    ages: [6, 12],
+  },
+  {
+    id: 'heart-to-heart',
+    label: 'Heart to Heart',
+    emoji: '💛',
+    color: '#D9486C',
+    tier: 'free',
+    audience: 'kids',
+    ages: [7, 12],
+  },
+  {
+    id: 'future-me',
+    label: 'Future Me',
+    emoji: '🚀',
+    color: '#14908F',
+    tier: 'free',
+    audience: 'kids',
+    ages: [11, 17],
+  },
+  {
+    id: 'real-talk',
+    label: 'Real Talk',
+    emoji: '💬',
+    color: '#34495E',
+    tier: 'free',
+    audience: 'teen',
+    ages: [13, 17],
+  },
+  {
+    id: 'holiday-table',
+    label: 'Holiday Table',
+    emoji: '🎄',
+    color: '#B5333E',
+    tier: 'free',
+    audience: 'kids',
+    ages: [4, 12],
   },
 ];
 
@@ -186,6 +267,12 @@ export const CATEGORIES: CategoryDef[] = ALL_CATEGORIES.filter((c) => isCategory
 export const FAMILY_FRIENDLY: CategoryId[] = ALL_CATEGORIES.filter((c) => c.audience === 'kids').map((c) => c.id);
 /** Categories whose purchase screens sit behind the parental gate: kids and teen. */
 export const PARENTAL_GATE_CATEGORIES: CategoryId[] = ALL_CATEGORIES.filter((c) => c.audience !== 'adult').map((c) => c.id);
+
+/**
+ * Category ids that no longer exist but may still be linked (old shares, bookmarks, search results). They stay
+ * kids routes so a stale link never fires analytics before it redirects (docs/specs/kids-family-categories.md §2.3).
+ */
+export const RETIRED_KIDS_CATEGORY_IDS: readonly string[] = ['kids-family'];
 
 /** The audience of a category id, or undefined for an id that is not a category. */
 export function getCategoryAudience(id: string): Audience | undefined {
@@ -1420,8 +1507,9 @@ const ALL_QUESTIONS: Question[] = [
   { id: 'td-39', category: 'tech-dystopia', volume: 2, optionA: 'Have a hologram of your favorite musician perform in your living room', optionB: 'Have a robot that can play any instrument teach you to play' },
   { id: 'td-40', category: 'tech-dystopia', volume: 2, optionA: 'Have a screen-free day every single week', optionB: 'Have unlimited screen time but only on Sundays' },
 
-  // Kids & Family (kf-1 through kf-223): see constants/kidsQuestions.ts
+  // Kids categories (kf-*, under 13) and the teen category (tn-*): see constants/kidsQuestions.ts and teenQuestions.ts
   ...KIDS_QUESTIONS,
+  ...TEEN_QUESTIONS,
 ];
 
 export const QUESTIONS: Question[] = ALL_QUESTIONS.filter((q) => isCategoryAvailable(q.category));

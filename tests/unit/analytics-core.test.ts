@@ -72,7 +72,7 @@ test('ios: moving from an adult to a kids screen stops events, and back resumes'
 test('kids content in event props is dropped even on an adult route', () => {
   const t = setup('ios', { current: '/results/hl-1' });
   t.track('share_clicked', { question_id: 'kf-4' });
-  t.track('paywall_viewed', { category_id: 'kids-family' });
+  t.track('paywall_viewed', { category_id: 'tiny-choices' });
   assert.deepEqual(t.sent, []);
   assert.equal(propsAreKids({ question_id: 'hl-1' }), false);
 });
