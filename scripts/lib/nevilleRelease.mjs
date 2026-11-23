@@ -63,21 +63,27 @@ export async function preflightApp(get, { appId = NEVILLE_APP_ID, bundleId = NEV
 
 // Poll GET /v1/builds for this one build. Returns { state, polls }. Only build number and state leave this function.
 export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, sleep, maxPolls = 60, intervalMs = 30000 }) {
-  let state = 'NOT_FOUND';
+  let state = 'NOT_FOUND'; // last real answer from Apple
+  let sawOk = false;
+  let httpState = '';
   for (let i = 1; i <= maxPolls; i++) {
     const q = `/v1/builds?filter[app]=${appId}&filter[version]=${encodeURIComponent(build)}` +
       `&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&limit=1&fields[builds]=version,processingState`;
     const r = await get(q);
     if (r.status === 200) {
+      sawOk = true;
       const row = (r.body?.data || [])[0];
       state = row?.attributes?.processingState || 'NOT_FOUND';
       if (['VALID', 'FAILED', 'INVALID'].includes(state)) return { state, polls: i };
     } else {
-      state = `HTTP_${r.status}`;
+      httpState = `HTTP_${r.status}`;
+      // A revoked or under-scoped key will not recover: stop now instead of retrying for 30 minutes.
+      if (r.status === 401 || r.status === 403) return { state: httpState, polls: i };
     }
     if (i < maxPolls) await sleep(intervalMs);
   }
-  return { state, polls: maxPolls };
+  // A transient 5xx or 429 on the last poll must not hide a real processing state seen earlier.
+  return { state: sawOk ? state : (httpState || state), polls: maxPolls };
 }
 
 export function summaryMarkdown(build, state) {

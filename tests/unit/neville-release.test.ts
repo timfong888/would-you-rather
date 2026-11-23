@@ -67,6 +67,17 @@ test('pollBuild gives up as still-processing or not-found without throwing', asy
   assert.equal(bad.state, 'HTTP_500');
 });
 
+test('pollBuild keeps the last real state across a transient HTTP error and stops at once on 401/403', async () => {
+  const seq = [{ status: 200, body: { data: [{ attributes: { processingState: 'PROCESSING' } }] } }, { status: 500, body: {} }];
+  let n = 0;
+  const kept = await pollBuild(async () => seq[n++], { build: '159', version: '1.1.0', sleep: async () => {}, maxPolls: 2 });
+  assert.equal(kept.state, 'PROCESSING');
+  let calls = 0;
+  const auth = await pollBuild(async () => { calls++; return { status: 403, body: {} }; }, { build: '159', version: '1.1.0', sleep: async () => {}, maxPolls: 60 });
+  assert.deepEqual(auth, { state: 'HTTP_403', polls: 1 });
+  assert.equal(calls, 1);
+});
+
 test('summary holds only build number and state', () => {
   const md = summaryMarkdown('159', 'VALID');
   assert.match(md, /\| 159 \| VALID \|/);
