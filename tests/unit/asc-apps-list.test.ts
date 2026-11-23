@@ -40,7 +40,7 @@ function mockGet(calls: string[] = []) {
 
 test('paginates apps across pages and fetches the latest build per app', async () => {
   const calls: string[] = [];
-  const rows = await buildRows(mockGet(calls));
+  const { rows } = await buildRows(mockGet(calls));
   assert.equal(rows.length, 3);
   assert.deepEqual(rows.map((r: any) => r.appleAppId), ['1', '2', '3']);
   assert.equal(rows[0].buildNumber, '42');
@@ -53,13 +53,15 @@ test('paginates apps across pages and fetches the latest build per app', async (
 });
 
 test('flags neville in the name or bundle ID, case-insensitively', async () => {
-  const rows = await buildRows(mockGet());
+  const { rows } = await buildRows(mockGet());
   assert.deepEqual(rows.map((r: any) => r.neville), [false, true, true]);
   assert.match(toMarkdown(rows), /NEVILLE \| Neville Notes/);
 });
 
 test('match regexp filters by name or bundle ID; invalid regexp is a clear error', async () => {
-  const rows = await buildRows(mockGet(), { match: '^timer$|wyr' });
+  const { rows, total } = await buildRows(mockGet(), { match: '^timer$|wyr' });
+  assert.equal(total, 3);
+  assert.match(toMarkdown(rows, { total }), /Apps shown: 2 of 3/);
   assert.deepEqual(rows.map((r: any) => r.appleAppId), ['1', '3']);
   assert.throws(() => compileMatch('('), /Invalid match regexp/);
 });
@@ -72,10 +74,25 @@ test('a failed page throws instead of returning a partial list', async () => {
 test('only GET paths are used and no secret reaches the output', async () => {
   const jwt = 'eyJhbGciOiJFUzI1NiJ9.eyJpc3MiOiJ4In0.c2ln';
   const redact = makeRedactor(['KEYID12345', 'issuer-uuid-1234', SECRET_KEY]);
-  const rows = await buildRows(mockGet());
+  const { rows } = await buildRows(mockGet());
   const md = toMarkdown(rows);
   const noisy = `${md}\nkey=KEYID12345 iss=issuer-uuid-1234 ${SECRET_KEY} ${SECRET_KEY.replace(/\n/g, '\\n')} Bearer ${jwt}`;
   const out = redact(noisy);
   for (const s of ['KEYID12345', 'issuer-uuid-1234', 'MIGTAgEAMBMGByqGSM49', jwt]) assert.ok(!out.includes(s), `leaked ${s}`);
   assert.ok(out.includes('Would You Rather'));
+});
+
+test('keeps only the newest app store version per platform', async () => {
+  const get = async (p: string) => p.startsWith('/v1/apps')
+    ? { status: 200, body: {
+        data: [{ id: '9', type: 'apps', attributes: { name: 'Old', bundleId: 'com.example.old' },
+          relationships: { appStoreVersions: { data: [{ id: 'a' }, { id: 'b' }] } } }],
+        included: [
+          { id: 'a', type: 'appStoreVersions', attributes: { platform: 'IOS', appStoreState: 'REPLACED_WITH_NEW_VERSION', versionString: '1.0', createdDate: '2025-01-01T00:00:00Z' } },
+          { id: 'b', type: 'appStoreVersions', attributes: { platform: 'IOS', appStoreState: 'READY_FOR_SALE', versionString: '2.0', createdDate: '2026-01-01T00:00:00Z' } },
+        ],
+      } }
+    : { status: 200, body: { data: [] } };
+  const { rows } = await buildRows(get);
+  assert.equal(rows[0].appStoreState, 'IOS 2.0: READY_FOR_SALE');
 });

@@ -49,17 +49,25 @@ export async function listApps(get) {
     get,
     '/v1/apps?limit=200&include=appStoreVersions' +
       '&fields[apps]=name,bundleId,sku,appStoreVersions' +
-      '&fields[appStoreVersions]=platform,appStoreState,versionString&limit[appStoreVersions]=50',
+      '&fields[appStoreVersions]=platform,appStoreState,versionString,createdDate&limit[appStoreVersions]=50',
   );
   const versions = new Map(included.filter((i) => i.type === 'appStoreVersions').map((v) => [v.id, v.attributes ?? {}]));
   return data.map((a) => {
     const vs = (a.relationships?.appStoreVersions?.data ?? []).map((ref) => versions.get(ref.id)).filter(Boolean);
+    // Keep only the newest version per platform so older releases do not read as the live state.
+    const newest = new Map();
+    for (const v of vs) {
+      const key = v.platform ?? '?';
+      const cur = newest.get(key);
+      if (!cur || String(v.createdDate ?? '') > String(cur.createdDate ?? '')) newest.set(key, v);
+    }
+    const latest = [...newest.values()];
     return {
       id: a.id,
       name: a.attributes?.name ?? '',
       bundleId: a.attributes?.bundleId ?? '',
-      platforms: [...new Set(vs.map((v) => v.platform).filter(Boolean))],
-      states: [...new Set(vs.map((v) => `${v.platform ?? '?'} ${v.versionString ?? ''}: ${v.appStoreState ?? '?'}`.replace('  ', ' ')))],
+      platforms: latest.map((v) => v.platform).filter(Boolean),
+      states: latest.map((v) => `${v.platform ?? '?'} ${v.versionString ?? ''}: ${v.appStoreState ?? '?'}`.replace('  ', ' ')),
     };
   });
 }
@@ -87,7 +95,8 @@ export function compileMatch(input) {
 
 export async function buildRows(get, { match = '.' } = {}) {
   const re = compileMatch(match);
-  const apps = (await listApps(get)).filter((a) => re.test(a.name) || re.test(a.bundleId));
+  const all = await listApps(get);
+  const apps = all.filter((a) => re.test(a.name) || re.test(a.bundleId));
   const rows = [];
   for (const a of apps) {
     const b = await latestBuild(get, a.id);
@@ -103,7 +112,7 @@ export async function buildRows(get, { match = '.' } = {}) {
       neville: isNeville(a),
     });
   }
-  return rows;
+  return { rows, total: all.length };
 }
 
 const cell = (v) => String(v).replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');

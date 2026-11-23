@@ -39,8 +39,8 @@ async function get(path) {
 }
 
 try {
-  const rows = await buildRows(get, { match: MATCH });
-  const md = toMarkdown(rows, { match: MATCH || '.' });
+  const { rows, total } = await buildRows(get, { match: MATCH });
+  const md = toMarkdown(rows, { match: MATCH || '.', total });
   mkdirSync(outDir, { recursive: true });
   writeFileSync(`${outDir}/apps.md`, redact(md));
   writeFileSync(`${outDir}/apps.json`, redact(JSON.stringify(rows, null, 2)));
