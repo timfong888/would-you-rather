@@ -6,7 +6,7 @@
  * cannot pass by tapping: here, a three-number sum that is not a times-table
  * fact. A wrong answer issues a fresh challenge.
  */
-import { FAMILY_FRIENDLY } from '@/constants/questions';
+import { PARENTAL_GATE_CATEGORIES } from '@/constants/questions';
 
 export interface GateChallenge {
   prompt: string;
@@ -27,7 +27,11 @@ export function checkAnswer(challenge: GateChallenge, input: string): boolean {
   return /^\d{1,3}$/.test(trimmed) && Number(trimmed) === challenge.answer;
 }
 
-/** True when a purchase screen opened for this category must show the gate first. */
+/**
+ * True when a purchase screen opened for this category must show the gate first: every kids and teen
+ * category (`audience` is not `adult`; spec §2.3). The gate is a purchase rule; whether analytics is off is
+ * a separate one (`isKidsPath`), so the teen paywall keeps the gate and keeps analytics.
+ */
 export function requiresParentalGate(categoryId: string): boolean {
-  return FAMILY_FRIENDLY.includes(categoryId as (typeof FAMILY_FRIENDLY)[number]);
+  return PARENTAL_GATE_CATEGORIES.includes(categoryId as (typeof PARENTAL_GATE_CATEGORIES)[number]);
 }

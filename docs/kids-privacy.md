@@ -1,8 +1,12 @@
 # Kids routes: no tracking, no persisted IDs
 
-Standing rule (Tim): **no tracking or persisted IDs on kids routes** (COPPA). Kids routes are the Kids & Family
-category (`/game|p|results/kf-*`, `/categories|complete|unlock/kids-family`) and the kids-bank SEO landing pages;
-`isKidsPath()` in `lib/kidsPaths.ts` is the single definition.
+Standing rule (Tim): **no tracking or persisted IDs on kids routes** (COPPA). Kids routes are every category whose
+`audience` is `kids` (youngest age under 13; `constants/questions.ts`) with its routes
+(`/categories|complete|unlock/<category id>`), the under-13 questions (`/game|p|results/kf-*`) and the kids-bank SEO
+landing pages; `isKidsPath()` in `lib/kidsPaths.ts` is the single definition. It reads `audience`, never a list of
+ids, so a new kids category is covered the moment it is defined; `tests/unit/audience.test.ts` fails if one is not.
+`teen` categories (13 to 17) follow the adult analytics rules but keep the parental gate on purchases. Under-13
+question ids use `kf-`, teen ids use `tn-`.
 
 What the code does on those routes:
 - `track()` and `identify()` return immediately (`lib/analytics.ts`), so no event, session or identify goes out.

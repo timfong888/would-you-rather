@@ -2,17 +2,18 @@
 // Mirrors constants/questions.ts — kept as plain JS so it bundles cleanly
 // into the Edge runtime without TypeScript or path-alias resolution.
 
+// `audience` and `ages` mirror constants/questions.ts (npm run verify:data checks them): 'kids' = youngest age under 13.
 export const CATEGORIES = [
-  { id: 'high-life',        label: 'The High Life',    emoji: '👑' },
-  { id: 'moral-compass',    label: 'Moral Compass',    emoji: '🧭' },
-  { id: 'midnight-secrets', label: 'Midnight Secrets', emoji: '🌙' },
-  { id: 'social-blunders',  label: 'Social Blunders',  emoji: '😳' },
-  { id: 'time-traveler',    label: 'Time Traveler',    emoji: '⏳' },
-  { id: 'deep-desires',     label: 'Deep Desires',     emoji: '💜' },
-  { id: 'career-climber',   label: 'Career Climber',   emoji: '🪜' },
-  { id: 'tech-dystopia',    label: 'Tech Dystopia',    emoji: '🤖' },
-  { id: 'wildest-dreams',   label: 'Wildest Dreams',   emoji: '🌟' },
-  { id: 'kids-family',      label: 'Kids & Family',    emoji: '🧸' },
+  { id: 'high-life',        label: 'The High Life',    emoji: '👑', audience: 'adult', ages: [18, 99] },
+  { id: 'moral-compass',    label: 'Moral Compass',    emoji: '🧭', audience: 'adult', ages: [18, 99] },
+  { id: 'midnight-secrets', label: 'Midnight Secrets', emoji: '🌙', audience: 'adult', ages: [18, 99] },
+  { id: 'social-blunders',  label: 'Social Blunders',  emoji: '😳', audience: 'adult', ages: [18, 99] },
+  { id: 'time-traveler',    label: 'Time Traveler',    emoji: '⏳', audience: 'adult', ages: [18, 99] },
+  { id: 'deep-desires',     label: 'Deep Desires',     emoji: '💜', audience: 'adult', ages: [18, 99] },
+  { id: 'career-climber',   label: 'Career Climber',   emoji: '🪜', audience: 'adult', ages: [18, 99] },
+  { id: 'tech-dystopia',    label: 'Tech Dystopia',    emoji: '🤖', audience: 'adult', ages: [18, 99] },
+  { id: 'wildest-dreams',   label: 'Wildest Dreams',   emoji: '🌟', audience: 'adult', ages: [18, 99] },
+  { id: 'kids-family',      label: 'Kids & Family',    emoji: '🧸', audience: 'kids',  ages: [4, 11] },
 ];
 
 // Bright = pink/lavender gradient  |  Moody = near-black / gold

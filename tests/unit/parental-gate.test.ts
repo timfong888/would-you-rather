@@ -1,11 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkAnswer, makeChallenge, requiresParentalGate } from '../../lib/parentalGate';
+import { CATEGORIES } from '../../constants/questions';
 
-test('the gate applies to kids/family content only', () => {
+test('the gate applies to every kids and teen category, and to no adult category', () => {
+  for (const c of CATEGORIES) {
+    assert.equal(requiresParentalGate(c.id), c.audience !== 'adult', `${c.id} (${c.audience})`);
+  }
   assert.equal(requiresParentalGate('kids-family'), true);
   assert.equal(requiresParentalGate('high-life'), false);
   assert.equal(requiresParentalGate('moral-compass'), false);
+  assert.equal(requiresParentalGate('not-a-category'), false);
 });
 
 test('challenge is a three-number sum, not a times-table fact, with a matching answer', () => {

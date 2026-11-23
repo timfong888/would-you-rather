@@ -4,10 +4,11 @@
  *
  * - every question id is unique and uses its category's prefix
  * - every category has free content (volume 1)
+ * - every category has an `audience` and `ages`, and they agree: audience is kids iff the youngest age is under 13
  * - api/_lib/data.js (edge-function mirror) matches constants/questions.ts
  *   exactly: same ids, same order, same text, same volume
  */
-import { CATEGORIES, QUESTIONS, getFreeQuestionCount } from '../constants/questions';
+import { CATEGORIES, QUESTIONS, audienceForAges, getFreeQuestionCount } from '../constants/questions';
 // The edge mirror is intentionally plain, untyped JS (it must bundle into the
 // Vercel Edge runtime without TS or path aliases), so import it as-is.
 // @ts-ignore
@@ -40,6 +41,11 @@ for (const q of QUESTIONS) {
 
 // --- categories --------------------------------------------------------------
 for (const cat of CATEGORIES) {
+  const [min, max] = cat.ages ?? [NaN, NaN];
+  if (!Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max < min) fail(`category ${cat.id} has no valid ages range`);
+  else if (cat.audience !== audienceForAges(cat.ages)) {
+    fail(`category ${cat.id}: audience "${cat.audience}" does not match ages ${min}–${max} (expected "${audienceForAges(cat.ages)}")`);
+  }
   const qs = QUESTIONS.filter((q) => q.category === cat.id);
   if (qs.length === 0) fail(`category ${cat.id} has no questions`);
   if (getFreeQuestionCount(cat) === 0) fail(`category ${cat.id} has no free questions`);
@@ -51,7 +57,10 @@ for (const cat of CATEGORIES) {
 }
 
 // --- edge mirror -------------------------------------------------------------
-const mirror = mirrorModule as unknown as { QUESTIONS: PlainQuestion[]; CATEGORIES: { id: string }[] };
+const mirror = mirrorModule as unknown as {
+  QUESTIONS: PlainQuestion[];
+  CATEGORIES: { id: string; audience?: string; ages?: number[] }[];
+};
 if (mirror.QUESTIONS.length !== QUESTIONS.length) {
   fail(`api/_lib/data.js has ${mirror.QUESTIONS.length} questions, constants/questions.ts has ${QUESTIONS.length}`);
 }
@@ -66,8 +75,14 @@ for (let i = 0; i < n; i++) {
   }
   if ((a.volume ?? 1) !== (b.volume ?? 1)) fail(`mirror mismatch at #${i} (${a.id}) field volume`);
 }
-const mirrorCats = new Set(mirror.CATEGORIES.map((c) => c.id));
-for (const cat of CATEGORIES) if (!mirrorCats.has(cat.id)) fail(`category ${cat.id} missing from api/_lib/data.js`);
+const mirrorCats = new Map(mirror.CATEGORIES.map((c) => [c.id, c]));
+for (const cat of CATEGORIES) {
+  const m = mirrorCats.get(cat.id);
+  if (!m) { fail(`category ${cat.id} missing from api/_lib/data.js`); continue; }
+  // The server decides "kids vote" from the mirror's audience, so it must match exactly.
+  if (m.audience !== cat.audience) fail(`mirror mismatch for category ${cat.id}: audience ts=${cat.audience} js=${m.audience}`);
+  if (m.ages?.[0] !== cat.ages[0] || m.ages?.[1] !== cat.ages[1]) fail(`mirror mismatch for category ${cat.id}: ages ts=${cat.ages} js=${m.ages}`);
+}
 
 if (errors.length) {
   console.error(`verify-questions: ${errors.length} problem(s)`);

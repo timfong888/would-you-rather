@@ -15,6 +15,31 @@ export type CategoryId =
 
 export type CategoryTier = 'free' | 'premium';
 
+/**
+ * Who a category is written for (docs/specs/kids-family-categories.md §2.3).
+ * - `kids`: youngest age under 13. COPPA applies: no tracking, no persisted IDs (isKidsPath).
+ * - `teen`: 13 to 17. Follows the adult analytics rules, but its purchases keep the parental gate.
+ * - `adult`: everything else.
+ * Every kids rule in the app derives from this, so a new category cannot silently miss the rule.
+ */
+export type Audience = 'adult' | 'kids' | 'teen';
+
+/** [youngest, oldest] age the questions are written for. */
+export type AgeRange = readonly [number, number];
+
+/** First age that is not a "kid" for COPPA purposes. */
+export const KIDS_UNDER_AGE = 13;
+/** First age treated as an adult. */
+export const ADULT_FROM_AGE = 18;
+const ADULT_AGES: AgeRange = [ADULT_FROM_AGE, 99];
+
+/** The audience a youngest age implies. Tests check every category's `audience` against this. */
+export function audienceForAges(ages: AgeRange): Audience {
+  if (ages[0] < KIDS_UNDER_AGE) return 'kids';
+  if (ages[0] < ADULT_FROM_AGE) return 'teen';
+  return 'adult';
+}
+
 export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
 
 export interface CategoryDef {
@@ -24,6 +49,8 @@ export interface CategoryDef {
   color: string;
   tier: CategoryTier;
   featured?: boolean;
+  audience: Audience;
+  ages: AgeRange;
 }
 
 export interface Question {
@@ -56,6 +83,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     color: '#C9A84C',
     tier: 'premium',
     featured: true,
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'moral-compass',
@@ -64,6 +93,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     color: '#2D6A4F',
     tier: 'free',
     featured: true,
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'midnight-secrets',
@@ -72,6 +103,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     color: '#7B2FBE',
     tier: 'premium',
     featured: true,
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'social-blunders',
@@ -79,6 +112,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '😳',
     color: '#1B4FA8',
     tier: 'free',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'time-traveler',
@@ -86,6 +121,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '⏳',
     color: '#C0392B',
     tier: 'premium',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'deep-desires',
@@ -93,6 +130,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '💜',
     color: '#8B2252',
     tier: 'premium',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'career-climber',
@@ -100,6 +139,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '🪜',
     color: '#1A7F64',
     tier: 'free',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'tech-dystopia',
@@ -107,6 +148,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '🤖',
     color: '#2C4A6E',
     tier: 'free',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'wildest-dreams',
@@ -114,14 +157,18 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '🌟',
     color: '#4B1C8C',
     tier: 'premium',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
-    // Written for kids ~4–11 and the grown-ups playing with them.
+    // Written for kids ~4–11 and the grown-ups playing with them. Replaced by the topic categories in Unit 1.
     id: 'kids-family',
     label: 'Kids & Family',
     emoji: '🧸',
     color: '#D9622B',
     tier: 'free',
+    audience: 'kids',
+    ages: [4, 11],
   },
 ];
 
@@ -132,9 +179,23 @@ export const CATEGORIES: CategoryDef[] = ALL_CATEGORIES.filter((c) => isCategory
 // Quick-play category groups
 // ---------------------------------------------------------------------------
 
-// Only the Kids & Family bank is safe for children. moral-compass and the other adult banks
+// Only the kids-audience categories are safe for children. moral-compass and the other adult banks
 // include crime, infidelity and workplace themes, so they are not "family friendly".
-export const FAMILY_FRIENDLY: CategoryId[] = ['kids-family'];
+// Derived from `audience`, never a list of ids (spec §2.3). Uses the full list, not the platform-filtered
+// CATEGORIES: the kids rule must not depend on which categories a platform ships.
+export const FAMILY_FRIENDLY: CategoryId[] = ALL_CATEGORIES.filter((c) => c.audience === 'kids').map((c) => c.id);
+/** Categories whose purchase screens sit behind the parental gate: kids and teen. */
+export const PARENTAL_GATE_CATEGORIES: CategoryId[] = ALL_CATEGORIES.filter((c) => c.audience !== 'adult').map((c) => c.id);
+
+/** The audience of a category id, or undefined for an id that is not a category. */
+export function getCategoryAudience(id: string): Audience | undefined {
+  return ALL_CATEGORIES.find((c) => c.id === id)?.audience;
+}
+
+/** True for a category written for under-13s: the no-tracking rule applies to its routes. */
+export function isKidsCategoryId(id: string): boolean {
+  return getCategoryAudience(id) === 'kids';
+}
 export const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-traveler', 'wildest-dreams', 'high-life'];
 
 // Questions

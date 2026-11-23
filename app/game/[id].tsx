@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isKidsCategoryId, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -142,7 +142,7 @@ export default function GameScreen() {
   // Share the question: before confirming ("challenge a friend first") and after
   // (the "send it to someone" prompt). Works in every category. The Kids & Family
   // category sends no analytics at all (the shared link is the bare question URL: no link_id or generation).
-  const isKidsCategory = catId === 'kids-family';
+  const isKidsCategory = !!catId && isKidsCategoryId(catId);
   const runShare = useCallback(async (shareUrl: string, text: string, copyMessage = false) => {
     const web = Platform.OS === 'web' && typeof navigator !== 'undefined';
     const result = await shareLink({
