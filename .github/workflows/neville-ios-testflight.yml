@@ -69,7 +69,7 @@ jobs:
           node-version: 20
 
       - name: Install neville dependencies (no scripts, no secrets)
-        working-directory: neville
+        working-directory: neville/ios-shell
         run: |
           if [ -f package-lock.json ]; then npm ci --ignore-scripts; else echo "no package-lock.json; skipping install"; fi
 
@@ -79,5 +79,5 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
-          NEVILLE_DIR: neville
+          NEVILLE_DIR: neville/ios-shell
         run: node scripts/neville-testflight.mjs
