@@ -12,6 +12,18 @@ Third message (corrections, 2026-11-24): "1. When I mean reuse the share pages, 
 
 Reading: a search visitor lands on an indexed question page that has no vote or answer control of its own, only a clear link into the playable web app (the hub). A shared link goes straight to the playable web app. All of it drives toward the paywall. Search and sharing are different jobs and get different URLs.
 
+## 0.1 Tim's answers to the six questions (2026-11-24)
+
+Tim's exact words: "1. Yes 2. Accept 3. first batch 4. Percentages is fine, make sure it's just aggreagte and no identifying information 5. approve 2000 credits 6. Persona 1 is parents searching on games, entertatining kids, brain develop, conversation skills, importance of building habit of talking early, dads who want to connect with kids"
+
+Decisions:
+1. The design below is approved: `/q/<id>` indexed read-only pages, Share action to `/game/<id>`, spike first for per-question OG shells.
+2. Seed numbers: accepted that seeds stay OFF for now. Percentages appear only after 20 real votes (today's rule); revisit when real votes exist. The labelled blend in section 4 stays documented, not shipped.
+3. Launch with a first batch of about 100 question pages, then expand with the research (section 1a).
+4. Percentages are approved as **aggregate counts only, with no identifying information anywhere** (no voter ids, no per-user rows exposed by any endpoint or page). Kids pages show none until legal #114 unless Tim says otherwise (asked).
+5. Research budget: up to 2,000 credits across OpenSEO and Semrush; stop and ask before going over.
+6. Persona 1 is parents searching for games, entertaining kids, brain development, conversation skills, the importance of building the habit of talking early, and dads who want to connect with their kids. This replaces the earlier persona definition.
+
 ## 1. Funnel and URLs (revised 2026-11-24 after Tim's correction)
 
 Tim's correction: "When I mean reuse the share pages, I mean that sends them to the web app. When someone like an adult shares a specific question from the app into an iMessage or Facebook Group, it is shared to the web app version. The reason: we don't need search traffic to get to the playable one, someone is already doing so."
@@ -34,6 +46,15 @@ Rules:
 7. **Kids pages follow the kids rule**: no analytics, no storage writes, no third-party requests, no ads, links only to kids destinations, nothing identifying a visitor. Kids share links are the same `/game/<id>` with the kids campaign name (`shareCampaign`).
 
 Paid and withheld questions are public (Tim: "all withheld paid questions are public"), kids included.
+
+### 1a. First batch (about 100 pages)
+
+Only the questions in the first batch get a `/q/<id>` page, a sitemap entry and a canonical from `/game/<id>` and `/p/<id>`; the rest keep today's behavior until the research expands the list. The list is a frozen file, `constants/seoFirstBatch.ts` (explicit ids, never recomputed), and a test fails if an id is not a real question. Criteria, in order:
+1. Kids and family first (persona 1 is parents), then adult.
+2. Questions already published on the 14 SEO landing pages (they were chosen and tagged by hand).
+3. Page priority by the keyword research, then list order within a page; at most 12 per category so every kids category is represented; deduplicated across pages.
+4. Free-tier questions only for the first batch, so nothing in it depends on the free-count flip or on a paid question being public.
+5. After the research (section 6) the list can be re-ranked and extended by editing the file in a PR.
 
 ## 2. Every question page (point (c))
 
