@@ -48,7 +48,7 @@ function jwt() {
 }
 // GET only. There is deliberately no method parameter.
 async function get(path) {
-  const res = await fetch(`https://api.appstoreconnect.apple.com${path}`, { headers: { Authorization: `Bearer ${jwt()}` } });
+  const res = await fetch(`https://api.appstoreconnect.apple.com${path}`, { headers: { Authorization: `Bearer ${jwt()}` }, signal: AbortSignal.timeout(30000) });
   const text = await res.text();
   let body; try { body = JSON.parse(text); } catch { body = {}; }
   return { status: res.status, body };
@@ -98,7 +98,7 @@ try {
   const shown = outcome.kind === 'unverified' ? 'UPLOADED (Apple reported the upload COMPLETE; status check unreachable)' : state;
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summaryMarkdown(build, shown, version));
   if (outcome.kind === 'valid') say(`Neville ${version} build ${build}: processed by Apple (VALID), ready in TestFlight.`);
-  else if (outcome.kind === 'unverified') say(`::warning title=Apple status check failed::Neville ${version} build ${build} was uploaded and Apple reported the upload COMPLETE, but the processing-state check hit a network error after 3 retries per poll. The build was delivered; check TestFlight.`);
+  else if (outcome.kind === 'unverified') say(`::warning title=Apple status check failed::Neville ${version} build ${build} was uploaded and Apple reported the upload COMPLETE, but the processing-state check hit a network error after 3 attempts per poll. The build was delivered; check TestFlight.`);
   else if (outcome.kind === 'still-processing') say(`::notice title=Still processing::Build ${build} is ${state} on Apple's side; this is not an error. Re-check with Apple ops "builds".`);
   else if (outcome.exitCode !== 0) die(`Build ${build} did not reach a usable state (${state}). Check TestFlight / run Apple ops "builds".`);
 } catch (e) {

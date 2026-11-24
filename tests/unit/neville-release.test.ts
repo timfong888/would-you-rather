@@ -214,3 +214,16 @@ test('summaryMarkdown names version, build and that Apple processed it', () => {
   assert.match(md, /Version 1\.1\.0, build 164: processed by Apple/);
   assert.match(summaryMarkdown('164', 'PROCESSING'), /Build 164: PROCESSING/);
 });
+
+test('pollBuild: a network error never hides an earlier HTTP error answer', async () => {
+  let n = 0;
+  const r = await pollBuild(async () => { if (++n === 1) return { status: 503, body: {} }; throw new Error('fetch failed'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 2, retryBaseMs: 0 });
+  assert.equal(r.state, 'HTTP_503');
+  assert.equal(finalOutcome(r.state, { uploadComplete: true }).exitCode, 1);
+  // network error first, then HTTP error: HTTP wins as well
+  let m = 0;
+  const r2 = await pollBuild(async () => { if (++m <= 3) throw new Error('fetch failed'); return { status: 500, body: {} }; },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 2, retryBaseMs: 0 });
+  assert.equal(r2.state, 'HTTP_500');
+});

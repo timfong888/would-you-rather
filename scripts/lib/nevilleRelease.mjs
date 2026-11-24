@@ -74,7 +74,7 @@ export async function withRetry(fn, { attempts = 3, baseMs = 2000, sleep }) {
 }
 
 // Poll GET /v1/builds for this one build. Returns { state, polls }. Only build number and state leave this function.
-// A GET that throws (network error) is retried 3 times with backoff; if it still fails that poll counts as FETCH_ERROR and polling goes on.
+// A GET that throws (network error) is tried up to 3 times with backoff; if it still fails that poll counts as FETCH_ERROR and polling goes on.
 export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, sleep, maxPolls = 60, intervalMs = 30000, retryBaseMs = 2000 }) {
   let state = 'NOT_FOUND'; // last real answer from Apple
   let sawOk = false;
@@ -85,7 +85,8 @@ export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, s
     let r;
     try { r = await withRetry(() => get(q), { sleep, baseMs: retryBaseMs }); } catch { r = { status: 'FETCH_ERROR', body: {} }; }
     if (r.status === 'FETCH_ERROR') {
-      httpState = 'FETCH_ERROR';
+      // Only when Apple never answered with an HTTP status: a network error must not hide an earlier 5xx/429 (which stays red).
+      if (!httpState) httpState = 'FETCH_ERROR';
     } else if (r.status === 200) {
       sawOk = true;
       const row = (r.body?.data || [])[0];
