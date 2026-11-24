@@ -106,8 +106,10 @@ export function accessFor(active: ReadonlySet<string> | readonly string[], categ
 }
 
 /**
- * Whether a category is entirely open: nothing left to buy. Decided by the access model (lib/tranches.ts), so it follows
- * the pack limit. An id that is not a category is treated as adult: the pack or its own entitlement opens it.
+ * Whether EVERY written question of a category is open (strict: withheld kids and teen questions never count as open, so a
+ * kids or teen category is never "entitled" while any are withheld). This is NOT "nothing left to buy": for the paywall use
+ * `nextTrancheToSell(...) === null` (lib/tranches.ts). An id that is not a category is treated as adult: the pack or its
+ * own entitlement opens it.
  */
 export function isCategoryEntitled(active: ReadonlySet<string> | readonly string[], id: CategoryId | string): boolean {
   const set = active instanceof Set ? active : new Set(active as readonly string[]);
