@@ -1,0 +1,39 @@
+# Smoke flow v1 (adult): home -> category -> tap a locked question -> paywall UI. Never taps the buy button.
+appId: com.timfong888.wouldyourather
+name: Adult paywall smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+# Grown-ups is the home screen; With kids and back
+- tapOn: "With kids"
+- extendedWaitUntil:
+    visible: "Pick a topic for the age you are playing with."
+    timeout: 20000
+- tapOn: "Grown-ups"
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "MORAL COMPASS.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "MORAL COMPASS.*"
+- extendedWaitUntil:
+    visible: "PLAY ALL.*"
+    timeout: 20000
+- takeScreenshot: 10-adult-category
+- scrollUntilVisible:
+    element: "Unlock"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Unlock"
+# Paywall: price block and CTA are on screen (fallback price; no store is configured in CI). Not tapped.
+- extendedWaitUntil:
+    visible: "ONE-TIME CATEGORY UNLOCK.*"
+    timeout: 20000
+- assertVisible: "START.*MORE CONVERSATIONS.*"
+- assertVisible: "Restore Purchases"
+- takeScreenshot: 11-adult-paywall

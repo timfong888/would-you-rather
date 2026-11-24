@@ -1,0 +1,48 @@
+# Smoke flow v1: home -> With kids -> age chip -> category -> tap a locked question -> parental gate.
+# Never completes a purchase. Run: maestro test .maestro/kids-smoke.yaml (see docs/ios-simulator-smoke.md).
+appId: com.timfong888.wouldyourather
+name: Kids route smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- takeScreenshot: 01-home
+# Grown-ups | With kids
+- tapOn: "With kids"
+- extendedWaitUntil:
+    visible: "Pick a topic for the age you are playing with."
+    timeout: 20000
+- assertVisible: "Pick one for me"
+- takeScreenshot: 02-kids-index
+# Age chips
+- tapOn: "Ages 3.5"
+- assertVisible: "Tiny Choices.*"
+- takeScreenshot: 03-kids-age-3-5
+# Open a category (Tiny Choices is for ages 3 to 5)
+- tapOn: "Tiny Choices.*"
+- extendedWaitUntil:
+    visible: "PLAY ALL.*"
+    timeout: 20000
+- takeScreenshot: 04-kids-category
+# Tap a locked question: kids/teen paywalls sit behind the parental gate
+- scrollUntilVisible:
+    element: "Unlock"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Unlock"
+- extendedWaitUntil:
+    visible: "Grown-ups only"
+    timeout: 20000
+- assertVisible: "Purchases are for parents.*"
+- takeScreenshot: 05-parental-gate
+# Wrong answer must not pass the gate: nothing to buy is shown
+- tapOn: "Answer"
+- inputText: "1"
+- tapOn: "CONTINUE"
+- assertVisible: "That was not right.*"
+- assertNotVisible: "START.*MORE CONVERSATIONS.*"
+# Leave without buying
+- tapOn: "Go back"
+- assertVisible: "PLAY ALL.*"
