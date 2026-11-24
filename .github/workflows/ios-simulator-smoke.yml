@@ -1,0 +1,175 @@
+name: iOS simulator smoke (Maestro)
+
+# Builds the app for the iOS SIMULATOR (no signing) on a GitHub macOS runner and runs the Maestro flows in
+# .maestro/. No secrets, no EAS, no TestFlight, no analytics key: the build cannot reach App Store Connect,
+# Expo, RevenueCat or PostHog with credentials, so nothing is tracked on the kids routes either.
+# See docs/ios-simulator-smoke.md for what this covers and what stays manual.
+#
+# Security (public repo, public logs):
+# - `pull_request` only, never `pull_request_target`; fork PRs get a read-only token and no secrets (there are none);
+# - permissions: contents: read; checkout does not persist the token;
+# - third-party actions pinned to commit SHAs; the Maestro CLI is pinned by version and sha256;
+# - every value used inside `run:` comes from this file, not from event data.
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'constants/**'
+      - 'contexts/**'
+      - 'hooks/**'
+      - 'lib/**'
+      - 'store/**'
+      - 'assets/**'
+      - 'app.json'
+      - 'babel.config.js'
+      - 'metro.config.js'
+      - 'tsconfig.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.maestro/**'
+      - '.github/workflows/ios-simulator-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ID: com.timfong888.wouldyourather
+  MAESTRO_VERSION: 2.12.1
+  MAESTRO_SHA256: 54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7
+  # Not a production build; no store or analytics keys are set anywhere in this workflow.
+  EXPO_PUBLIC_DEPLOY_ENV: development
+
+jobs:
+  smoke:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Versions
+        run: |
+          xcodebuild -version
+          java -version
+          node --version
+          xcrun simctl list runtimes | grep -i ios || true
+
+      - name: Install JS dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate the native iOS project (expo prebuild)
+        run: npx expo prebuild --platform ios --no-install --clean
+
+      - name: Install pods
+        working-directory: ios
+        run: pod install
+
+      - name: Build for the simulator (Release, no signing)
+        run: |
+          set -o pipefail
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE scheme=$SCHEME"
+          xcodebuild \
+            -workspace "$WORKSPACE" -scheme "$SCHEME" \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tail -n 400 > xcodebuild-tail.log || { tail -n 120 xcodebuild-tail.log; exit 1; }
+          APP=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          test -d "$APP" || { echo "no .app produced"; exit 1; }
+          echo "APP_PATH=$PWD/$APP" >> "$GITHUB_ENV"
+
+      - name: Install Maestro (pinned, checksum verified)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" \
+            "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Boot an iPhone simulator and install the app
+        run: |
+          # Use the simulator runtime that matches the Xcode SDK (an iOS 26 runtime under Xcode 16 silently drops taps).
+          export SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          echo "SDK=$SDK"
+          xcrun simctl list runtimes
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json,os,sys
+          want="iOS-"+os.environ["SDK"].replace(".","-")
+          d=json.load(sys.stdin)["devices"]
+          ios=[(k,v) for k,v in d.items() if "iOS" in k]
+          ios.sort(key=lambda kv:[int(x) for x in kv[0].split("iOS-")[-1].split("-")])
+          match=[kv for kv in ios if kv[0].endswith(want)] or ios[-1:]
+          for k,v in reversed(match):
+              for dev in v:
+                  if dev["name"].startswith("iPhone") and "Pro" not in dev["name"] and "Plus" not in dev["name"] and "Max" not in dev["name"] and "Air" not in dev["name"]:
+                      print(dev["udid"]); sys.exit(0)
+          sys.exit(1)')
+          echo "UDID=$UDID"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP_PATH"
+          xcrun simctl listapps "$UDID" | grep -c "$APP_ID"
+
+      - name: Run Maestro flows
+        run: |
+          mkdir -p maestro-out
+          maestro --device "$UDID" test .maestro/ \
+            --format junit --output maestro-out/report.xml \
+            --test-output-dir maestro-out/artifacts
+
+      - name: Screenshot and UI hierarchy of the simulator at the end
+        if: always()
+        run: |
+          mkdir -p maestro-out
+          xcrun simctl io "$UDID" screenshot maestro-out/final-state.png || true
+          # App-side errors from the simulator system log (JS errors in a Release build land here, if anywhere).
+          xcrun simctl spawn "$UDID" log show --last 15m --style compact \
+            --predicate 'process == "WouldYouRather" AND (messageType == error OR messageType == fault OR eventMessage CONTAINS[c] "exception" OR eventMessage CONTAINS[c] "RCTFatal" OR eventMessage CONTAINS[c] "javascript")' \
+            2>&1 | tail -n 60 || true
+          # Text dump of what is on screen, so a failed run can be read from the log alone.
+          maestro --device "$UDID" hierarchy > maestro-out/final-hierarchy.json 2>&1 || true
+          python3 - <<'PY' || true
+          import json,re
+          raw=open('maestro-out/final-hierarchy.json').read()
+          i=raw.find('{')
+          try:
+              d=json.loads(raw[i:])
+          except Exception:
+              print(raw[:3000]); raise SystemExit
+          def walk(n):
+              a=n.get('attributes',{})
+              if a.get('accessibilityText') in ('With kids','Grown-ups','Open settings'):
+                  print('ATTRS', json.dumps(a))
+              for k in ('text','accessibilityText','hintText'):
+                  v=a.get(k)
+                  if v: print(k+':',v)
+              for c in n.get('children',[]): walk(c)
+          walk(d)
+          PY
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: maestro-screenshots-and-report
+          path: |
+            maestro-out/
+            xcodebuild-tail.log
+          if-no-files-found: warn
+          retention-days: 14
