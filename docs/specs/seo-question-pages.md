@@ -54,9 +54,9 @@ Only the questions in the first batch get a `/q/<id>` page, a sitemap entry and 
 2. Questions already published on the 14 SEO landing pages (they were chosen and tagged by hand).
 3. Page priority by the keyword research, then list order within a page; at most 12 per category so every kids category is represented; deduplicated across pages.
 4. Free-tier questions only for the first batch, so nothing in it depends on the free-count flip or on a paid question being public.
+5. After the research (section 6) the list can be re-ranked and extended by editing the file in a PR.
 
 **Batch two (2026-11-24, PR #219).** 60 more kids-bank questions (silly, gross, food and dinner table, holiday table, car and road trip), in `SEO_BATCH_2` in `lib/seoBatch.js`; `SEO_QUESTION_PAGES` is the combined list that the generators, sitemap, canonical headers and `verify-seo` use, and `isSeoBatchId` covers both. They are paid-tier questions, made public by Tim's decision ("all withheld paid questions are public"). Their pages differ from batch one in one way: the call to action is "Play the free <category> questions", linking to the category page, because the playable screen for a paid question goes to the paywall for a visitor who has not unlocked it. Batch one's pages still link to the question itself.
-5. After the research (section 6) the list can be re-ranked and extended by editing the file in a PR.
 
 ### 1b. S4 spike result (2026-11-24): keep `/p/<id>` as the share URL
 

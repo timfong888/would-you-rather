@@ -359,7 +359,8 @@ if (withDist) {
     if (SEO_BATCH_2.includes(id)) {
       // Paid-tier question: the page leads to the category's free questions, never straight to a paywall.
       const catId = QUESTIONS.find((x) => x.id === id)?.category;
-      if (!html.includes(`href="${SITE_URL}/categories/${catId}"`)) fail(`${file}: has no link to the category's free questions`);
+      // The breadcrumb also links the category, so match the call-to-action element itself.
+      if (!html.includes(`<a class="cta" href="${SITE_URL}/categories/${catId}"`)) fail(`${file}: call to action does not link to the category's free questions`);
       if (html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: paid question links straight to its playable screen (the paywall)`);
     } else if (!html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: has no link into the playable web app`);
     const q = QUESTIONS.find((x) => x.id === id);
