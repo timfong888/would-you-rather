@@ -104,10 +104,10 @@ jobs:
       - name: Boot an iPhone simulator and install the app
         run: |
           # Use the simulator runtime that matches the Xcode SDK (an iOS 26 runtime under Xcode 16 silently drops taps).
-          SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          export SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
           echo "SDK=$SDK"
           xcrun simctl list runtimes
-          UDID=$(SDK="$SDK" xcrun simctl list devices available -j | python3 -c '
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
           import json,os,sys
           want="iOS-"+os.environ["SDK"].replace(".","-")
           d=json.load(sys.stdin)["devices"]
@@ -136,6 +136,7 @@ jobs:
       - name: Screenshot and UI hierarchy of the simulator at the end
         if: always()
         run: |
+          mkdir -p maestro-out
           xcrun simctl io "$UDID" screenshot maestro-out/final-state.png || true
           # App-side errors from the simulator system log (JS errors in a Release build land here, if anywhere).
           xcrun simctl spawn "$UDID" log show --last 15m --style compact \
