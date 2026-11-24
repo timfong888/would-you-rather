@@ -56,6 +56,13 @@ Only the questions in the first batch get a `/q/<id>` page, a sitemap entry and 
 4. Free-tier questions only for the first batch, so nothing in it depends on the free-count flip or on a paid question being public.
 5. After the research (section 6) the list can be re-ranked and extended by editing the file in a PR.
 
+### 1b. S4 spike result (2026-11-24): keep `/p/<id>` as the share URL
+
+Tried: per-question copies of the app shell at `/game/<id>.html` with that question's OG tags. **Technically feasible**: the exported shell (`dist/game/[id].html`, 28 KB) is client-rendered and its head already uses react-helmet markers (`data-rh`), so a per-id copy with `data-rh` tags works and the app boots unchanged; 586 copies add about 16 MB to the deploy. **But it is not worth it**, because the share URL is also the iOS Universal Link:
+- `public/.well-known/apple-app-site-association` claims only `/p/*`, and `lib/universalLink.ts` and `app/+native-intent.tsx` map `/p/<id>` to the game screen. A shared `/game/<id>` link would open in Safari even for a friend who has the app installed. Fixing that means adding `/game/*` to the association file and the native mapping, a change to how links open on iPhones.
+- Today's `/p/<id>` already does everything Tim asked for: it unfurls in iMessage and Facebook (OG tags), it sends a web visitor straight into the playable web app, and it opens the installed iOS app.
+Recommendation: **keep the Share action on `/p/<id>`; drop S4.** The only SEO work needed is what S2 already does: `/p/<id>` and `/game/<id>` declare `/q/<id>` as canonical, and neither is in the sitemap. If Tim still wants the share URL to be `/game/<id>`, the cost is the per-id shells plus the association-file and native-mapping changes above.
+
 ## 2. Every question page (point (c))
 
 Static HTML, built at deploy time, one `<h1>` and one JSON-LD block:
@@ -116,7 +123,7 @@ Tools in this account: Semrush MCP, OpenSEO MCP (asks for confirmation above 2,0
 | S1 | This design (docs, #207) | Docs only |
 | S2 | `/q/<id>`: read-only indexed page for all 586 questions; `/game/<id>` and `/p/<id>` canonical to it; sitemap lists `/q/<id>`; JSON-LD moves; tests: counts floor, no vote control, canonical rules | Unblocks decoupling SEO from the free count |
 | S3 | Category pages and SEO list pages list every question and link to `/q/<id>`; list-page "Play this one" removed; `verify-seo` updated | Required (with S2) before 4c flips the free count |
-| S4 | Share action produces `/game/<id>` with per-question OG tags (spike first; fallback: keep `/p/<id>`); existing `/p/<id>` links untouched | Replaces the old `?s=1` idea |
+| S4 | **Dropped (spike, section 1b)**: the Share action stays on `/p/<id>`, which already unfurls, enters the web app and opens the iOS app. Revived only if Tim wants `/game/<id>` as the share URL | |
 | S5 | Web-only iOS badge, behind `APP_STORE_LIVE` | Flag stays off until the app is public |
 | S6 | Related questions, persona copy, cross-links; link-check test (no orphan pages) | |
 | S7 | Adult question pages show aggregate results, labelled; seeds off by default and only with Tim's answer | After research and Tim's answer on the flag |
