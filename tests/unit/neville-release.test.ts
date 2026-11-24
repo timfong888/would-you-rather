@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 // @ts-ignore plain .mjs module
-import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines, finalOutcome, withRetry, validateNevilleDir, resolveNevilleDir, checkSelfContained, NEVILLE_DIRS } from '../../scripts/lib/nevilleRelease.mjs';
+import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines, finalOutcome, withRetry, validateNevilleDir, resolveNevilleDir, checkSelfContained, NEVILLE_DIRS, isParentDep } from '../../scripts/lib/nevilleRelease.mjs';
 // @ts-ignore plain .mjs module
 import { makeRedactor } from '../../scripts/lib/ascAppsList.mjs';
 
@@ -359,7 +359,7 @@ test('check: metro.config.js parent or workspaces references are warned with lin
   const metro = "const a = 1;\nconst root = path.resolve(__dirname, '../..');\nconst workspaceRoot = x; // ::stop-commands::SECRETISH\n";
   const { dir } = fixture({ ...goodNative, 'metro.config.js': metro });
   const r = checkSelfContained(dir, 'native', { fs: nodeFs });
-  assert.ok(r.lines.some((l: string) => /^info: native\/metro\.config\.js references the parent directory \(line 2\)/.test(l)));
+  assert.ok(r.warnings.some((w: string) => /^native\/metro\.config\.js references a parent directory \(line 2\)/.test(w))); // '../..' is not the one expected reference
   assert.ok(r.warnings.some((w: string) => /workspaces \(line 3\)/.test(w)));
   const all = [...r.lines, ...r.warnings, ...r.errors].join('\n');
   assert.ok(!all.includes('SECRETISH') && !all.includes('stop-commands'));
@@ -515,4 +515,43 @@ test('check: the expected parent reference in native/metro.config.js is an info 
   assert.ok(n.lines.some((l: string) => /^info: native\/metro\.config\.js references the parent directory \(line 1\); expected/.test(l)));
   const sh = checkSelfContained(fixture({ 'package.json': '{}', 'eas.json': JSON.stringify({ build: { production: {} } }), 'metro.config.js': metro }, 'ios-shell').dir, 'ios-shell', { fs: nodeFs });
   assert.ok(sh.warnings.some((w: string) => /ios-shell\/metro\.config\.js references a parent directory/.test(w)));
+});
+
+test('check: a flat app.json (no expo wrapper) is checked for plugins and bundle id too', () => {
+  const flat = (o: object) => JSON.stringify(o);
+  for (const sub of ['native', 'ios-shell'] as const) {
+    const { dir } = fixture({ ...goodNative, 'app.json': flat({ ios: { bundleIdentifier: 'pckg.neville' }, plugins: ['./evil.js'] }) }, sub);
+    const r = checkSelfContained(dir, sub, { fs: nodeFs, nodeVersion: '22.14.0' });
+    assert.ok(r.errors.includes(`${sub}/app.json lists 1 plugin(s) that are local files or paths; only package-name plugins are allowed`), sub);
+  }
+  const ok = checkSelfContained(fixture({ ...goodNative, 'app.json': flat({ ios: { bundleIdentifier: 'pckg.neville' }, plugins: ['expo-router'] }) }).dir, 'native', { fs: nodeFs, nodeVersion: '22.14.0' });
+  assert.deepEqual(ok.errors, []);
+  const wrong = checkSelfContained(fixture({ ...goodNative, 'app.json': flat({ ios: { bundleIdentifier: 'com.other' } }) }).dir, 'native', { fs: nodeFs, nodeVersion: '22.14.0' });
+  assert.ok(wrong.errors.some((e: string) => /bundleIdentifier/.test(e)));
+});
+
+test('check: the "expected parent" info line prints only for exactly path.resolve(__dirname, "..")', () => {
+  const run = (metro: string) => checkSelfContained(fixture({ ...goodNative, 'metro.config.js': metro }).dir, 'native', { fs: nodeFs, nodeVersion: '22.14.0' });
+  for (const good of ["const r = path.resolve(__dirname, '..');", 'const r = path.resolve( __dirname , ".." );', "a(path.resolve(__dirname, '..'), path.resolve(__dirname,'..'));"]) {
+    const r = run(good + '\n');
+    assert.deepEqual(r.warnings, [], good);
+    assert.ok(r.lines.some((l: string) => l.startsWith('info: native/metro.config.js references the parent directory')), good);
+  }
+  for (const bad of ["path.resolve(__dirname, '../..')", "path.resolve(__dirname, '../../x')", "require('../../x')", 'path.dirname(__dirname)', "path.join(__dirname, '..')", "path.resolve(__dirname, '..') + require('../x')", "path.resolve(__dirname, '..', 'x')"]) {
+    const r = run(bad + '\n');
+    assert.ok(r.warnings.some((w: string) => /native\/metro\.config\.js references a parent directory \(line 1\)/.test(w)), bad);
+    assert.ok(!r.lines.some((l: string) => l.startsWith('info: native/metro.config.js references the parent')), bad);
+  }
+  // one unexpected line among expected ones also warns
+  const mixed = run("path.resolve(__dirname, '..');\nrequire('../../x');\n");
+  assert.ok(mixed.warnings.some((w: string) => /parent directory \(line 1, 2\)/.test(w)));
+});
+
+test('check: local dependency specs that leave the package dir are rejected, ones inside it are fine', () => {
+  for (const bad of ['../x', 'file:../x', 'file:./../x', 'file:/abs/x', 'link:../x', 'portal:../../x', '/abs/x', '~/x', './a/../../x', 'file:..\\x', 'workspace:*', 'file:~/x']) assert.ok(isParentDep(bad), bad);
+  for (const ok of ['^1.2.3', '~58.0.0', 'latest', 'file:./vendor/x', './vendor/x', 'npm:left-pad@1', 'github:user/repo', 'git+https://github.com/u/r.git', '>=1.0.0 <2']) assert.ok(!isParentDep(ok), ok);
+  for (const v of ['../x', 'file:./../x', 'file:/abs']) {
+    const { dir } = fixture({ ...goodNative, 'package.json': JSON.stringify({ dependencies: { shared: v } }) });
+    assert.ok(checkSelfContained(dir, 'native', { fs: nodeFs, nodeVersion: '22.14.0' }).errors.some((e: string) => /parent path or workspace/.test(e)), v);
+  }
 });

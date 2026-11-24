@@ -153,6 +153,22 @@ export const MAX_CHECK_FILE_BYTES = 256 * 1024;
 export const MAX_CHECK_LINE = 2000;
 // Files that change what `npm ci`/EAS resolve or run at config time. Not allowed in either dir; an explicit decision would be needed.
 export const FORBIDDEN_FILES = ['.npmrc', '.yarnrc', '.yarnrc.yml', 'app.config.js', 'app.config.ts'];
+// A dependency spec that points outside the package dir: workspace:, or any local path (file:/link:/portal: prefix or bare
+// ./ ../ / ~/ path) that is absolute, home-relative, or contains a `..` segment. Paths inside the dir (file:./vendor/x) are fine.
+export function isParentDep(spec) {
+  const v = String(spec).trim();
+  if (/^workspace:/i.test(v)) return true;
+  const m = v.match(/^(?:(?:file|link|portal):)?(.*)$/i);
+  const prefixed = /^(file|link|portal):/i.test(v);
+  const path = m[1].replace(/^\/\//, '');
+  const looksLocal = prefixed || /^(\.|\/|~\/)/.test(path);
+  return looksLocal && (/^(\/|~\/|[A-Za-z]:)/.test(path) || path.split(/[\\/]/).includes('..'));
+}
+
+// metro.config.js: the one parent reference native/ is expected to have, and the broader pattern for any parent reference.
+const METRO_EXPECTED_RE = /path\.resolve\(\s*__dirname\s*,\s*(['"])\.\.\1\s*\)/g;
+const METRO_PARENT_RE = /(\.\.\/|__dirname *\+ *['"]\/\.\.|path\.(resolve|join)\([^)]*['"]\.\.['"]|path\.dirname\(\s*__dirname)/;
+
 // Expo SDK 58 (eas-cli and Metro) needs Node >= 22.13; native/ is built on Node 22.
 export const NATIVE_MIN_NODE = [22, 13, 0];
 export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.versions.node, profile = 'production', gitRoot = '' }) {
@@ -189,7 +205,7 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
   if (pkg?.workspaces) warnings.push(`${name}/package.json declares workspaces`); else if (pkg) lines.push(`no workspaces in ${name}/package.json`);
   if (name === 'native' && pkg) {
     const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
-    const up = Object.entries(deps).filter(([, v]) => /^(file|link|portal):\.\.|^workspace:/.test(String(v))).map(([k]) => k);
+    const up = Object.entries(deps).filter(([, v]) => isParentDep(v)).map(([k]) => k);
     if (up.length) errors.push(`native/package.json depends on a parent path or workspace (${up.length} package(s)); native must not depend on parent files`);
     else lines.push('no parent or workspace dependencies in native/package.json');
   }
@@ -199,13 +215,16 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
     const src = raw === undefined ? [] : raw.split(/\r\n|\r|\n/);
     if (raw === undefined) errors.push(`${name}/metro.config.js is larger than ${MAX_CHECK_FILE_BYTES} bytes; not scanned`);
     else if (src.some((l) => l.length > MAX_CHECK_LINE)) { errors.push(`${name}/metro.config.js has a line longer than ${MAX_CHECK_LINE} characters; not scanned`); src.length = 0; }
-    const parent = []; const ws = [];
+    const parent = []; const ws = []; let unexpected = false;
     src.forEach((l, i) => {
-      if (/(\.\.\/|__dirname *\+ *['"]\/\.\.|path\.(resolve|join)\([^)]*['"]\.\.['"])/.test(l)) parent.push(i + 1);
+      if (METRO_PARENT_RE.test(l)) {
+        parent.push(i + 1);
+        if (METRO_PARENT_RE.test(l.replace(METRO_EXPECTED_RE, ''))) unexpected = true; // anything beyond exactly path.resolve(__dirname, '..')
+      }
       if (/workspaces?|workspaceRoot|monorepo/i.test(l)) ws.push(i + 1);
     });
     lines.push(`${name}/metro.config.js: present`);
-    if (parent.length && name === 'native') lines.push(`info: native/metro.config.js references the parent directory (line ${parent.slice(0, 5).join(', ')}); expected, native imports the repo's shared lib/ by design`);
+    if (parent.length && name === 'native' && !unexpected) lines.push(`info: native/metro.config.js references the parent directory (line ${parent.slice(0, 5).join(', ')}); expected, native imports the repo's shared lib/ by design`);
     else if (parent.length) warnings.push(`${name}/metro.config.js references a parent directory (line ${parent.slice(0, 5).join(', ')})`);
     else lines.push('metro.config.js: no parent-directory references');
     if (ws.length) warnings.push(`${name}/metro.config.js mentions workspaces (line ${ws.slice(0, 5).join(', ')})`); else lines.push('metro.config.js: no workspaces references');
@@ -226,11 +245,12 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
   if (has('app.json') && !app) errors.push(`${name}/app.json is not valid JSON`);
   if (app) {
     // A plugin that is a local file runs inside eas-cli, which holds EXPO_TOKEN in the secret step. Package-name plugins are fine.
-    const plugins = Array.isArray(app.expo?.plugins) ? app.expo.plugins : [];
+    const exp = app.expo ?? app; // Expo also accepts a flat app.json with no expo wrapper
+    const plugins = Array.isArray(exp.plugins) ? exp.plugins : [];
     const local = plugins.filter((p) => { const n = Array.isArray(p) ? p[0] : p; return typeof n !== 'string' || /^(\.|\/|\\|~|[A-Za-z]:|(file|link|portal):)/i.test(n.trim()) || n.includes('..'); });
     if (local.length) errors.push(`${name}/app.json lists ${local.length} plugin(s) that are local files or paths; only package-name plugins are allowed`);
     else lines.push(`${name}/app.json plugins: package names only`);
-    const bid = app.expo?.ios?.bundleIdentifier;
+    const bid = exp.ios?.bundleIdentifier;
     if (bid === NEVILLE_BUNDLE_ID) lines.push(`app.json ios bundle id: ${NEVILLE_BUNDLE_ID}`);
     else if (name === 'native') errors.push(`native/app.json ios.bundleIdentifier is not ${NEVILLE_BUNDLE_ID}`);
     else warnings.push(`${name}/app.json ios.bundleIdentifier is not ${NEVILLE_BUNDLE_ID}`);
