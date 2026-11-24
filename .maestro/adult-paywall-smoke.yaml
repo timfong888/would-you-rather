@@ -44,8 +44,8 @@ name: Adult paywall smoke
     timeout: 20000
 - takeScreenshot: 11-adult-paywall-top
 - scrollUntilVisible:
-    element: "START.*MORE CONVERSATIONS.*"
+    element: "Unlock [0-9]+ more dilemmas for.*"
     direction: DOWN
     timeout: 30000
-- assertVisible: "Restore.*urchases.*"
+- assertVisible: "Restore previous purchases"
 - takeScreenshot: 11-adult-paywall
