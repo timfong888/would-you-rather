@@ -13,8 +13,8 @@ a topic.
 
 **What.** Replace it with eight topic categories (Tiny Choices, Make-Believe, Giggle Factory, Road Trip Rally,
 Dinner Table, Heart to Heart, Future Me, Real Talk) and one seasonal one (Holiday Table). Each shows an age range.
-Each has 8 free questions; after that each $1.99 purchase opens the next 20 (spec §3.4, a proposal until Tim answers
-its open questions). After unlocking, "More like this" serves new AI-written questions that a person has reviewed.
+Each has 8 free questions; after that each $1.99 purchase opens the next 20 (spec §3.4, decided: Tim accepted its
+five defaults on 2026-11-24). After unlocking, "More like this" serves new AI-written questions that a person has reviewed.
 
 **Rules that do not change.** Nothing under 13 is tracked and no ID is stored on a kids route. Every purchase from
 the kids side sits behind the parental gate. Question ids never change.
@@ -25,16 +25,56 @@ the kids side sits behind the parental gate. Question ids never change.
 |---|---|---|
 | 1 | Content: the 9 categories, retag the 223 existing questions, hand-pick the free 8, write 103 new ones. **Merged 2026-11-24** after Tim read all 103 | Done |
 | 2 | Data model: `audience` and `ages` on every category; the kids rules derive from `audience`. **Merged 2026-11-23** | Done |
-| 3 | Browse UI: Grown-ups / With kids switch, age chips, age label on each card (in progress; works with tranches, it shows no price) | |
-| 4 | Payments. **On hold:** Tim changed pricing on 2026-11-24 to tranches (8 free, then each $1.99 opens the next 20); design proposal in spec §3.4, waiting for his answers | Tim reviews |
+| 3 | Browse UI: Grown-ups / With kids switch, age chips, age label on each card. **Merged 2026-11-24** (PR #198; works with tranches, it shows no price) | Done |
+| 4 | Payments: tranche products, With kids pack, paywall, parental gate on every purchase. Tim accepted all five tranche defaults on 2026-11-24. **Plan below; in progress as separate PRs** | Tim reviews every PR, none auto-merged |
 | 5 | AI pool (server): safety filter, generator, review queue, cached endpoint | Tim reviews, approves the first batch |
 | 6 | More like this in the app, reports | Tim reviews |
 | 7 | Privacy policy, kids counters, listing and review notes, Smart App Banner | Tim reviews the policy text |
 
-Units 1 and 2 are on `main`. Questions 9 onward in each kids and teen category are locked, but no product exists to
+Units 1 to 3 are on `main`. Questions 9 onward in each kids and teen category are locked, but no product exists to
 unlock them yet (the catalog derives 9 category products that were never created; the two tests that pin the old 8
 products fail on purpose, see the PRD on #124). Unit 4 must land before kids unlocks can be sold. Units 5 and 6 wait
 until Unit 4 shows parents buy the written unlock.
+
+### Unit 4 build plan
+
+**Decided (Tim, 2026-11-24, "accept all five tranche defaults"; spec §3.4):**
+1. The $4.99 all-categories pack stays for adult categories only. A separate With kids pack is added; kids and teen tranches are not covered by the $4.99 pack.
+2. Adult categories stay as they are (their 17 to 20 paid questions are already one tranche).
+3. A remainder under 10 questions merges into the previous tranche. No new questions are written now.
+4. One non-consumable product per tranche (12 products, restorable).
+5. The 20 questions in each tranche come in current id order. Tim may curate later.
+
+**Flagged assumptions (not Tim's words, confirm before the store has them):**
+- The With kids pack price is **$9.99** (the orchestrator's default).
+- Names: product `wyr_premium_kids`, entitlement `premium_kids`.
+- Tranche ids: product `wyr_unlock_<category>_<k>`, entitlement `cat_<category>_<k>`, `k` from 1. Same shape as today.
+- Teen (Real Talk) is sold like the kids categories (tranches plus the With kids pack, behind the gate).
+
+**The 12 tranches** (paid questions per category; free 8 first): Tiny Choices 22 (1); Make-Believe 33 (20, 13); Giggle Factory 47
+(20, 27); Road Trip Rally 22 (1); Dinner Table 39 (20, 19); Heart to Heart 22 (1); Future Me 22 (1); Real Talk 22 (1); Holiday Table
+25 (1). Product count after Unit 4: 8 today, plus 12 tranches, plus the With kids pack = **21**.
+
+**Rule.** Every payments change is its own PR. They are never batched, none is auto-merged, and each goes to Tim's queue with a link and
+one line on what a user would notice. No App Store Connect product, and no RevenueCat product, is created without asking the orchestrator
+first. The CI that creates products (`apple-iap-create`, `apple-iap-review-screenshot`) is never run by the build.
+
+| PR | One change | What a user would notice | Tests |
+|---|---|---|---|
+| 4a | Pure model. `lib/tranches.ts` (sizes, remainder rule, `trancheOf`, `openPaidCount`), tranche and kids-pack ids in `lib/catalog.ts`, `premium_all` stops opening kids and teen categories, `isQuestionLocked` and `getAccessibleQuestions` take a count of open paid questions instead of a boolean. No screen changes behavior for adults. | Nothing. | New `tranches.test.ts`; `catalog.test.ts` moves to 21 products; an adult-regression test pins that every adult category still unlocks exactly as before. |
+| 4b | Context and screens read the count. `UnlockedContext` exposes `openPaid(id)` from entitlements (owner access and the web free unlock still open everything); the 25 call sites (game, results, complete, feed, kids, random, next-category, settings) use it. | Nothing for adults. A kids tranche that is owned opens its 20 questions. | Updated call-site tests; kids no-tracking browser test unchanged. |
+| 4c | Paywall. `app/unlock/[id].tsx` offers only the **next** tranche ("Open the next 20 questions · $1.99", how many remain), the With kids pack on kids and teen paywalls, the parental gate on every kids or teen purchase, "Unlock in the iPhone app" on web. | A kids paywall that sells 20 more questions at a time. | Paywall copy and gate tests; browser run of the kids paywall with no tracking. |
+| 4d | Store files. `store/ios/iap-products.json` and `store/ios/iap.md` gain the 13 products; `scripts/revenuecat/sync-catalog.ts` and `scripts/render-iap-review-screenshots.mjs` handle tranche ids; the `CREATE-8-IAPS` confirmation becomes `CREATE-21-IAPS`. Review screenshots are rendered from 4c's paywall and committed. **Nothing is run against App Store Connect or RevenueCat.** | Nothing. | `asc-iap-create.test.ts` parity and `asc-iap-review-screenshot.test.ts` go green. |
+| 4e | Create the products. Only after the orchestrator says go and Tim has confirmed the With kids price: dry run of the create workflow, then the apply. | Kids tranches become buyable on iOS. | Dry-run output attached. |
+
+The two tests that fail on purpose today (`catalog.test.ts` product count, `asc-iap-create.test.ts` parity) are fixed by 4a and 4d. The
+review-screenshot test is expected red between 4a and 4d for the new products only, because the screenshots need 4c's paywall.
+
+**Open risks.**
+- 4b touches the access rule everywhere. Adult behavior must not change; 4a's regression test and a full `npm test` guard that.
+- A tranche bought out of order (restore, refund, a promo) must not hide a question the player owns: access uses the set of owned tranches, not "the next one".
+- Refund of a tranche closes only that tranche. The listener already revokes on the next fetch.
+- Family Sharing is off for all products today (`familySharable: false`); that stays unless Tim asks.
 
 ## Later
 
