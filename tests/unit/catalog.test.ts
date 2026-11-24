@@ -87,10 +87,10 @@ test('App Store Connect field limits hold for the tranche and pack names (title 
   }
 });
 
-test('the adult pack is named for adult categories', () => {
+test('4a keeps the all-categories pack name; the adult-only rename ships in 4c with the narrowing and the paywall', () => {
   const pack = buildCatalog().find((p) => p.productId === PRODUCT_ALL)!;
-  assert.match(pack.title, /grown-up/i);
-  assert.match(pack.description, /adult/i);
+  assert.equal(pack.title, 'All Categories');
+  assert.equal(pack.description, 'Every category, including questions added later.');
 });
 
 test('access: pack opens every adult category, category unlock opens only itself', () => {
@@ -101,9 +101,9 @@ test('access: pack opens every adult category, category unlock opens only itself
   assert.equal(isCategoryEntitled(new Set<string>(), 'high-life'), false);
 });
 
-test('access: the adult pack does not open a kids or teen category; the With kids pack does', () => {
+test('access: in 4a the all-categories pack still opens kids and teen categories (today\'s behavior, narrowed in 4c); the With kids pack opens them too', () => {
   for (const c of young) {
-    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), false, c.id);
+    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
     assert.equal(isCategoryEntitled([ENTITLEMENT_KIDS], c.id), true, c.id);
   }
 });

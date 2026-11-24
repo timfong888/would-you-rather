@@ -3,11 +3,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CATEGORIES,
+  QUESTIONS,
   getCategoryById,
   getCategoryQuestions,
   getFreeQuestionCount,
   isQuestionLocked,
 } from '../../constants/questions';
+import { TRANCHE_ASSIGNMENTS } from '../../constants/trancheAssignments';
 import {
   isCategoryFullyOpen,
   isQuestionOpen,
@@ -17,15 +19,24 @@ import {
   trancheOf,
   trancheRanges,
   trancheSizes,
+  unassignedPaidQuestions,
 } from '../../lib/tranches';
 import type { Access } from '../../lib/tranches';
-import { ENTITLEMENT_ALL, ENTITLEMENT_KIDS, accessFor, entitlementForCategory, entitlementForTranche, isCategoryEntitled } from '../../lib/catalog';
+import {
+  ALL_PACK_OPENS_YOUNG_CATEGORIES,
+  ENTITLEMENT_ALL,
+  ENTITLEMENT_KIDS,
+  accessFor,
+  entitlementForCategory,
+  entitlementForTranche,
+  isCategoryEntitled,
+} from '../../lib/catalog';
 
 const young = CATEGORIES.filter((c) => c.audience !== 'adult');
 const adult = CATEGORIES.filter((c) => c.audience === 'adult');
 const cat = (id: string) => getCategoryById(id as any)!;
 
-test('remainder rule: a remainder under 10 joins the previous tranche, otherwise it is its own', () => {
+test('remainder rule (used to define NEW tranches): under 10 joins the previous tranche, otherwise its own', () => {
   assert.deepEqual(trancheSizes(22), [22]);
   assert.deepEqual(trancheSizes(33), [20, 13]);
   assert.deepEqual(trancheSizes(47), [20, 27]);
@@ -54,25 +65,65 @@ test('the 12 kids and teen tranches match the spec table (Tim, 2026-11-24)', () 
   assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 12);
 });
 
-test('tranches start at getFreeQuestionCount, are contiguous, and cover every paid question exactly once', () => {
-  for (const c of CATEGORIES) {
-    const total = getCategoryQuestions(c.id).length;
-    const free = getFreeQuestionCount(c);
-    const ranges = trancheRanges(c);
-    if (total === free) { assert.deepEqual(ranges, [], c.id); continue; }
-    assert.equal(ranges[0].start, free, `${c.id} starts after its own free count`);
-    ranges.forEach((r, i) => {
-      assert.equal(r.size, r.end - r.start);
-      if (i > 0) assert.equal(r.start, ranges[i - 1].end, `${c.id} contiguous`);
-    });
-    assert.equal(ranges[ranges.length - 1].end, total, `${c.id} ends at the last question`);
+test('frozen membership: every paid kids and teen question is in exactly one tranche, nothing free or unknown is, and no id is duplicated', () => {
+  for (const c of young) {
+    const qs = getCategoryQuestions(c.id);
+    const free = new Set(qs.slice(0, getFreeQuestionCount(c)).map((q) => q.id));
+    const paid = qs.slice(getFreeQuestionCount(c)).map((q) => q.id);
+    const seen = new Set<string>();
+    for (const r of trancheRanges(c)) {
+      for (const id of r.ids) {
+        assert.ok(paid.includes(id), `${c.id}: ${id} is not a paid question of the category`);
+        assert.ok(!free.has(id), `${c.id}: free question ${id} is in a tranche`);
+        assert.ok(!seen.has(id), `${c.id}: ${id} is in two tranches`);
+        seen.add(id);
+      }
+    }
+    assert.deepEqual(unassignedPaidQuestions(c), [], `${c.id}: paid questions in no tranche (assign them in constants/trancheAssignments.ts)`);
+    assert.equal(seen.size, paid.length, c.id);
   }
+  assert.deepEqual(Object.keys(TRANCHE_ASSIGNMENTS).sort(), young.map((c) => c.id).sort());
 });
 
-test('the free count is never a hardcoded 8: adult categories use 3 or 20', () => {
+test('frozen boundaries are pinned by id: an owned tranche cannot silently change what it opens', () => {
+  const ends = (id: string) => trancheRanges(cat(id)).map((r) => [r.ids[0], r.ids[r.ids.length - 1]]);
+  assert.deepEqual(ends('giggle-factory'), [['kf-29', 'kf-89'], ['kf-90', 'kf-120']]);
+  assert.deepEqual(ends('make-believe'), [['kf-4', 'kf-72'], ['kf-75', 'kf-223']]);
+  assert.deepEqual(ends('dinner-table'), [['kf-69', 'kf-167'], ['kf-168', 'kf-193']]);
+  assert.deepEqual(ends('holiday-table'), [['kf-121', 'kf-153']]);
+  assert.deepEqual(ends('real-talk'), [['tn-5', 'tn-30']]);
+});
+
+test('growth: a new paid question is closed (not free, not in an owned tranche) until it is assigned; owned tranches do not shrink', () => {
+  const holiday = cat('holiday-table');
+  const before = trancheRanges(holiday).map((r) => r.size);
+  const extra = { id: 'kf-9999', category: 'holiday-table', volume: 2, optionA: 'a', optionB: 'b' } as any;
+  QUESTIONS.push(extra);
+  try {
+    assert.deepEqual(trancheRanges(holiday).map((r) => r.size), before, 'adding a question must not re-cut an owned tranche');
+    assert.deepEqual(unassignedPaidQuestions(holiday), ['kf-9999']);
+    const idx = getCategoryQuestions(holiday.id).length - 1;
+    assert.equal(trancheOf(holiday, idx), -1);
+    const owns1: Access = { all: false, ownedTranches: new Set([1]) };
+    assert.equal(isQuestionOpen(holiday, idx, owns1), false);
+    assert.equal(isQuestionOpen(holiday, idx - 1, owns1), true); // the originally owned tranche still opens
+    assert.equal(isQuestionOpen(holiday, idx, { all: true, ownedTranches: new Set() }), true); // a pack opens it
+    assert.equal(isCategoryFullyOpen(holiday, owns1), false);
+  } finally {
+    QUESTIONS.pop();
+  }
+  assert.deepEqual(unassignedPaidQuestions(holiday), []);
+});
+
+test('the free count is never a hardcoded 8: adult categories use 3 or 20, kids and teen 8', () => {
   const frees = new Set(adult.map((c) => getFreeQuestionCount(c)));
   assert.ok([...frees].every((n) => n === 3 || n === 20), [...frees].join());
-  for (const c of adult) assert.equal(trancheRanges(c)[0]?.start ?? getFreeQuestionCount(c), getFreeQuestionCount(c), c.id);
+  for (const c of young) assert.equal(getFreeQuestionCount(c), 8, c.id);
+  for (const c of adult) {
+    const qs = getCategoryQuestions(c.id);
+    const free = getFreeQuestionCount(c);
+    for (let i = 0; i < qs.length; i++) assert.equal(trancheOf(c, i) === 0, i < free, `${c.id} ${i}`);
+  }
 });
 
 test('an adult category is exactly one tranche, granted by the existing cat_<id> entitlement (never cat_<id>_1)', () => {
@@ -92,7 +143,6 @@ test('adult regression: every adult question is open or locked exactly as the ol
   for (const c of adult) {
     const n = getCategoryQuestions(c.id).length;
     for (let i = 0; i < n; i++) {
-      // locked (nothing bought) and unlocked (cat entitlement or pack)
       assert.equal(isQuestionOpen(c, i, accessFor([], c)), !isQuestionLocked(c, i, false), `${c.id} ${i} locked`);
       assert.equal(isQuestionOpen(c, i, accessFor([entitlementForCategory(c.id)], c)), !isQuestionLocked(c, i, true), `${c.id} ${i} cat`);
       assert.equal(isQuestionOpen(c, i, accessFor([ENTITLEMENT_ALL], c)), !isQuestionLocked(c, i, true), `${c.id} ${i} pack`);
@@ -100,18 +150,21 @@ test('adult regression: every adult question is open or locked exactly as the ol
   }
 });
 
-test('premium_all never opens a kids or teen category beyond its free questions; premium_kids does', () => {
+test('4a keeps today\'s behavior for the all-categories pack: it still opens kids and teen categories until 4c narrows it with the paywall', () => {
+  assert.equal(ALL_PACK_OPENS_YOUNG_CATEGORIES, true); // 4c flips this and the assertions below
+  for (const c of young) {
+    assert.equal(accessFor([ENTITLEMENT_ALL], c).all, true, c.id);
+    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
+  }
+});
+
+test('the With kids pack opens every kids and teen category fully; an adult cat_<id> never opens one', () => {
   for (const c of young) {
     const n = getCategoryQuestions(c.id).length;
-    const free = getFreeQuestionCount(c);
-    const withAll = accessFor([ENTITLEMENT_ALL], c);
-    assert.equal(withAll.all, false, c.id);
-    for (let i = 0; i < n; i++) assert.equal(isQuestionOpen(c, i, withAll), i < free, `${c.id} ${i}`);
-    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), false, c.id);
     assert.equal(isCategoryEntitled([ENTITLEMENT_KIDS], c.id), true, c.id);
     assert.equal(openQuestionCount(c, accessFor([ENTITLEMENT_KIDS], c)), n, c.id);
-    // an adult-style cat_<id> never opens a kids category either
     assert.equal(accessFor([entitlementForCategory(c.id)], c).all, false, c.id);
+    assert.equal(isCategoryEntitled([entitlementForCategory(c.id)], c.id), false, c.id);
   }
 });
 

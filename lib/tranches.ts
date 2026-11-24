@@ -6,17 +6,23 @@
  * the Access comes from (store entitlements) is lib/catalog.ts.
  *
  * - The free count F is always `getFreeQuestionCount(category)` (8 for kids and teen, 3 or 20 for adult). Never hardcode 8.
- * - Kids and teen categories: the paid questions after F are cut into tranches of 20, in the order the data lists them
- *   (id order). A remainder under 10 joins the previous tranche, otherwise it is its own tranche.
- * - Adult categories are not split: all their paid questions are one tranche (tranche 1).
+ * - Kids and teen categories: tranche membership is FROZEN as explicit question ids in
+ *   constants/trancheAssignments.ts, so a purchased `cat_<category>_<k>` opens the same questions forever. The sizes
+ *   rule (`trancheSizes`: 20 per tranche, a remainder under 10 joins the previous one) is only the tool that
+ *   generated that table and sizes a NEW tranche; it is never re-applied to the live question count, which would
+ *   shrink a tranche someone already owns when the bank grows.
+ * - A paid kids or teen question that is in no tranche is CLOSED (only a pack or owner access opens it) until it is assigned.
+ * - Adult categories are not split: all their paid questions are one tranche (tranche 1), granted by `cat_<id>`.
+ *   An adult category's pack promise already includes "questions added later".
  * - Access is the SET of owned tranche numbers, never a count or a prefix: a refund of tranche 1 while tranche 2 is
  *   still owned closes exactly tranche 1.
  */
 import { getCategoryQuestions, getFreeQuestionCount } from '../constants/questions';
 import type { CategoryDef } from '../constants/questions';
+import { TRANCHE_ASSIGNMENTS } from '../constants/trancheAssignments';
 
 export const TRANCHE_SIZE = 20;
-/** A trailing remainder shorter than this joins the tranche before it. */
+/** A trailing remainder shorter than this joins the tranche before it (when sizing a NEW set of tranches). */
 export const MIN_LAST_TRANCHE = 10;
 
 /** What a player has bought, for one category. `all` opens every question (a pack, or owner access). */
@@ -33,14 +39,12 @@ export function noAccess(): Access {
 export interface TrancheRange {
   /** 1-based tranche number. */
   k: number;
-  /** First question index in the category list (inclusive). */
-  start: number;
-  /** One past the last question index. */
-  end: number;
+  /** The question ids this tranche opens (frozen for kids and teen). */
+  ids: readonly string[];
   size: number;
 }
 
-/** Sizes of the tranches for a paid count, by the remainder rule. An empty list when nothing is paid. */
+/** Sizes for a paid count by the remainder rule. Used to define new tranches, never to re-cut owned ones. */
 export function trancheSizes(paidCount: number): number[] {
   if (paidCount <= 0) return [];
   const full = Math.floor(paidCount / TRANCHE_SIZE);
@@ -55,27 +59,48 @@ export function trancheSizes(paidCount: number): number[] {
   return sizes;
 }
 
-/** The tranches of a category, in order. Adult categories have exactly one (or none when nothing is paid). */
-export function trancheRanges(category: CategoryDef): TrancheRange[] {
-  const total = getCategoryQuestions(category.id).length;
-  const free = getFreeQuestionCount(category);
-  const paid = total - free;
-  if (paid <= 0) return [];
-  const sizes = category.audience === 'adult' ? [paid] : trancheSizes(paid);
-  const ranges: TrancheRange[] = [];
-  let start = free;
-  sizes.forEach((size, i) => {
-    ranges.push({ k: i + 1, start, end: start + size, size });
-    start += size;
-  });
-  return ranges;
+function paidIds(category: CategoryDef): string[] {
+  return getCategoryQuestions(category.id).slice(getFreeQuestionCount(category)).map((q) => q.id);
 }
 
-/** 0 for a free question, else the tranche number the question belongs to. */
+/** The tranches of a category, in order. Adult: one tranche of every paid question (none when nothing is paid). */
+export function trancheRanges(category: CategoryDef): TrancheRange[] {
+  if (category.audience === 'adult') {
+    const ids = paidIds(category);
+    return ids.length ? [{ k: 1, ids, size: ids.length }] : [];
+  }
+  const assigned = TRANCHE_ASSIGNMENTS[category.id] ?? [];
+  return assigned.map((ids, i) => ({ k: i + 1, ids, size: ids.length }));
+}
+
+const membership = new Map<string, Map<string, number>>();
+function idToTranche(category: CategoryDef): Map<string, number> {
+  let m = membership.get(category.id);
+  if (!m) {
+    m = new Map();
+    for (const r of trancheRanges(category)) for (const id of r.ids) m.set(id, r.k);
+    membership.set(category.id, m);
+  }
+  return m;
+}
+
+/** Paid questions of a kids or teen category that no tranche contains yet (closed until assigned). Always [] for adult. */
+export function unassignedPaidQuestions(category: CategoryDef): string[] {
+  if (category.audience === 'adult') return [];
+  const m = idToTranche(category);
+  return paidIds(category).filter((id) => !m.has(id));
+}
+
+/**
+ * 0 for a free question, the tranche number for a paid one, -1 for a paid kids or teen question that is in no
+ * tranche yet (closed).
+ */
 export function trancheOf(category: CategoryDef, questionIndex: number): number {
   if (questionIndex < getFreeQuestionCount(category)) return 0;
-  const hit = trancheRanges(category).find((r) => questionIndex >= r.start && questionIndex < r.end);
-  return hit ? hit.k : 0;
+  const q = getCategoryQuestions(category.id)[questionIndex];
+  if (!q) return -1;
+  if (category.audience === 'adult') return 1;
+  return idToTranche(category).get(q.id) ?? -1;
 }
 
 /** Whether the question at `questionIndex` can be played with this access. */
@@ -83,12 +108,14 @@ export function isQuestionOpen(category: CategoryDef, questionIndex: number, acc
   if (access.all) return true;
   const k = trancheOf(category, questionIndex);
   if (k === 0) return true;
+  if (k === -1) return false;
   return access.ownedTranches.has(k);
 }
 
-/** True when every paid tranche is open (nothing left to sell in this category). */
+/** True when every paid question is open: all tranches owned and none left unassigned. */
 export function isCategoryFullyOpen(category: CategoryDef, access: Access): boolean {
   if (access.all) return true;
+  if (unassignedPaidQuestions(category).length > 0) return false;
   return trancheRanges(category).every((r) => access.ownedTranches.has(r.k));
 }
 

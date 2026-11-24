@@ -186,6 +186,12 @@ category, then each $1.99 purchase opens the **next 20** questions of that categ
 exhausted. This supersedes §3.3's "$1.99 unlocks the whole category" and D2's 9 per-category products for kids and teen
 categories. **Status: decided (Tim accepted all five defaults on 2026-11-24, see Decisions below). Nothing here is built yet; it is Unit 4.**
 
+**Tranche membership is frozen (`constants/trancheAssignments.ts`).** A purchased tranche is a non-consumable and must open the same questions forever,
+so its members are written down as explicit question ids, generated once from today's data with the rule below. The rule is never re-applied to the
+live question count (adding 5 questions to Holiday Table must not turn its 25-question tranche into 20 and charge again for the other 5). New paid
+questions are closed until assigned: add them to a new tranche at the end, or append them to the last one (owners only gain). A test fails when a
+paid kids or teen question is unassigned.
+
 **What a tranche is.** Let *F* be the category's free count, **always read from `getFreeQuestionCount(category)`, never hardcoded**. It is 8 for
 every kids and teen category, but 3 for premium-tier adult categories and 20 for free-tier adult ones. Tranche *k* of a kids or teen category is the
 paid questions at positions `F + 20(k-1)` to `F + 20k - 1` in its list (free *F* first, then paid, in the order the data lists them).
@@ -238,8 +244,9 @@ grants anything (§3.1, unchanged). That includes the temporary production web f
 stored free unlock or `premium_all` on web never opens a kids or teen tranche (pinned by a 4c test, in the same PR that removes the free button from the kids paywall, so the button is never left doing nothing). Owner access, for the owner and testers, still opens everything.
 
 **The existing 8 products** (`wyr_premium_all` and 7 adult `wyr_unlock_*`): the 7 adult ones are untouched. `wyr_premium_all` keeps its id,
-entitlement and $4.99 price but is **narrowed to adult categories**, so its name and description change in the same Unit 4 change
-(catalog, `store/ios/iap-products.json`, App Store Connect): "All Grown-up Categories" and "Every adult category, plus future questions"
+entitlement and $4.99 price but is **narrowed to adult categories in 4c**, in the same PR as the paywall change (not in 4a: the live paywall still sells
+the pack on kids screens, so narrowing earlier would break a paid path), and its name and description change then
+(catalog in 4c, `store/ios/iap-products.json` and App Store Connect in 4d): "All Grown-up Categories" and "Every adult category, plus future questions"
 (working wording, within the 30 and 45 character limits). Today `premium_all` also opens questions 9+ of the kids and teen categories in the
 app's access rule, but no product exists in App Store Connect yet (`store/ios/iap.md`: none created as of 2026-11-20), the web build grants
 access free, and RevenueCat holders are Test Store testers. **Checked read-only in RevenueCat on 2026-11-24 (project wyr, counts only):

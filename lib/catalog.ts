@@ -6,9 +6,13 @@
  * unlock per category. Prices: pack $4.99, single category $1.99.
  *
  * Tim, 2026-11-24 (#124, docs/specs/kids-family-categories.md §3.4): kids and teen categories sell their paid
- * questions in tranches of about 20 at $1.99 each (one non-consumable per tranche), the $4.99 pack covers ADULT
+ * questions in tranches of about 20 at $1.99 each (one non-consumable per tranche), the $4.99 pack will cover ADULT
  * categories only, and a separate With kids pack covers every kids and teen tranche. Adult categories are unchanged:
  * their paid set is one tranche, granted by the existing `cat_<id>` entitlement.
+ * STAGING (docs/specs/plan.md, Unit 4): in 4a `premium_all` STILL opens kids and teen categories, exactly as today,
+ * because the live paywall still sells that pack on kids screens. The narrowing (ALL_PACK_OPENS_YOUNG_CATEGORIES
+ * false) ships in 4c, in the same PR as the paywall change and the pack rename, so a purchase never stops opening
+ * the category it was bought from.
  * The With kids pack price is $4.99: Tim wrote "Kids just came 4.99" (2026-11-24), read by the orchestrator as the pack price; pending his confirmation. Same price as the adult pack. FLAGGED ASSUMPTION: the pack names are the orchestrator's defaults.
  *
  * Identifiers are identical in RevenueCat (Test Store), App Store Connect and
@@ -20,8 +24,15 @@ import type { CategoryDef, CategoryId } from '@/constants/questions';
 import { isCategoryFullyOpen, trancheRanges } from './tranches';
 import type { Access } from './tranches';
 
-/** Entitlement that opens every ADULT paid category, including ones added later. Never kids or teen categories. */
+/** Entitlement of the all-categories pack. In 4c it becomes adult-only (see ALL_PACK_OPENS_YOUNG_CATEGORIES). */
 export const ENTITLEMENT_ALL = 'premium_all';
+
+/**
+ * Whether the all-categories pack also opens kids and teen categories. TRUE in 4a: that is today's behavior and the
+ * live paywall still sells the pack on kids screens. Flipped to false in 4c with the paywall change (spec §3.4,
+ * Decisions: "the $4.99 pack stays for adult categories only"); the tests that pin today's behavior flip with it.
+ */
+export const ALL_PACK_OPENS_YOUNG_CATEGORIES = true;
 
 /** Store product identifier for the adult all-categories pack. */
 export const PRODUCT_ALL = 'wyr_premium_all';
@@ -91,7 +102,7 @@ export function trancheCategories(categories: CategoryDef[] = CATEGORIES): Categ
 /**
  * What the active entitlements open in one category. Adult: the all-categories pack or the category's own
  * `cat_<id>` opens its single tranche. Kids and teen: the With kids pack opens everything, otherwise each owned
- * `cat_<id>_<k>` opens tranche k. `premium_all` never opens a kids or teen category.
+ * `cat_<id>_<k>` opens tranche k. While ALL_PACK_OPENS_YOUNG_CATEGORIES is true (4a), `premium_all` also opens them; 4c turns that off.
  */
 export function accessFor(active: ReadonlySet<string> | readonly string[], category: CategoryDef): Access {
   const set = active instanceof Set ? active : new Set(active as readonly string[]);
@@ -102,7 +113,8 @@ export function accessFor(active: ReadonlySet<string> | readonly string[], categ
   for (const r of trancheRanges(category)) {
     if (set.has(entitlementForTranche(category.id, r.k))) owned.add(r.k);
   }
-  return { all: set.has(ENTITLEMENT_KIDS), ownedTranches: owned };
+  const all = set.has(ENTITLEMENT_KIDS) || (ALL_PACK_OPENS_YOUNG_CATEGORIES && set.has(ENTITLEMENT_ALL));
+  return { all, ownedTranches: owned };
 }
 
 /**
@@ -139,8 +151,8 @@ export function buildCatalog(categories: CategoryDef[] = CATEGORIES): CatalogPro
     {
       productId: PRODUCT_ALL,
       entitlementId: ENTITLEMENT_ALL,
-      title: 'All Grown-up Categories',
-      description: 'Every adult category, including questions added later.',
+      title: 'All Categories',
+      description: 'Every category, including questions added later.',
       priceMicros: PRICE_ALL_MICROS,
       categoryId: null,
       trancheIndex: null,
