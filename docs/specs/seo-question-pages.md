@@ -32,7 +32,7 @@ Two jobs, two URLs, no redirect trick:
 
 | Funnel stage | Who arrives | URL | What it is |
 |---|---|---|---|
-| Top | Search, AI answers, pillar articles | `/q/<id>` (new) | Indexed, read-only question page: question and options, category, intro, related questions, persona copy, links to the hub and situation pages, one button "Play this question" to `/game/<id>`. No vote control. Canonical to itself. Sits in the sitemap, all 586 questions. |
+| Top | Search, AI answers, pillar articles | `/q/<id>` (new) | Indexed, read-only question page: question and options, category, intro, related questions, persona copy, links to the hub and situation pages, one button "Play this question" to `/game/<id>`. No vote control. Canonical to itself. Sits in the sitemap for the first batch of about 100 questions (section 1a); the rest follow after Tim has seen the batch. |
 | Middle | Someone who got a shared link | `/p/<id>` (the existing share page) | The in-app Share action keeps producing this URL (section 1b). It unfurls in iMessage and Facebook, sends a web visitor straight into the playable web app (`/game/<id>`), and opens the installed iOS app. |
 | Bottom | Anyone in the web app | `/game/<id>` and the rest of the app | Plays, then meets the paywall. |
 
