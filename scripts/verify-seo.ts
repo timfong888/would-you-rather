@@ -161,6 +161,9 @@ for (const loc of freeGameUrls) {
 for (const g of GUIDES) {
   if (!locSet.has(url(`/guides/${g.slug}`))) fail(`sitemap: missing guide /guides/${g.slug}`);
   for (const id of guideQuestionIds(g)) if (!isSeoBatchId(id)) fail(`guide ${g.slug}: ${id} has no read-only question page (not in the first SEO batch)`);
+  if (g.kids) for (const id of guideQuestionIds(g)) {
+    if (!isKidsCategoryId(QUESTIONS.find((q) => q.id === id)?.category ?? '')) fail(`kids: guide "${g.slug}" lists ${id}, outside the kids bank`);
+  }
 }
 for (const id of SEO_FIRST_BATCH) {
   if (!QUESTIONS.some((q) => q.id === id)) fail(`seo batch: ${id} is not a question`);

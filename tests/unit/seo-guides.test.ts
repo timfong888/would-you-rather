@@ -1,7 +1,7 @@
 // Pillar guides (issue #211, docs/specs/seo-question-pages.md): acceptance tests A1 to A3 and A6.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORIES, QUESTIONS } from '../../constants/questions';
+import { CATEGORIES, QUESTIONS, isKidsCategoryId } from '../../constants/questions';
 import { SEO_PAGES, isKidsPage } from '../../constants/seoPages';
 import { SEO_FIRST_BATCH, isSeoBatchId } from '../../lib/seoBatch';
 import { GUIDES, guideQuestionIds } from '../../lib/guides';
@@ -67,6 +67,7 @@ test('A3: a kids guide links only to kids destinations and carries no analytics'
       assert.ok(ok, `${g.slug} links to ${path}`);
     }
     for (const id of guideQuestionIds(g)) assert.notEqual(categoriesById.get(questionsById.get(id)!.category)?.audience, 'adult', `${g.slug}: ${id} is an adult question`);
+    if (g.kids) for (const id of guideQuestionIds(g)) assert.ok(isKidsCategoryId(questionsById.get(id)!.category), `${g.slug}: ${id} is outside the kids bank (teen or adult)`);
     assert.ok(!html.includes('analytics') && !html.includes('gtag'), g.slug);
   }
 });
