@@ -103,14 +103,20 @@ jobs:
 
       - name: Boot an iPhone simulator and install the app
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json,sys
+          # Use the simulator runtime that matches the Xcode SDK (an iOS 26 runtime under Xcode 16 silently drops taps).
+          SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          echo "SDK=$SDK"
+          xcrun simctl list runtimes
+          UDID=$(SDK="$SDK" xcrun simctl list devices available -j | python3 -c '
+          import json,os,sys
+          want="iOS-"+os.environ["SDK"].replace(".","-")
           d=json.load(sys.stdin)["devices"]
           ios=[(k,v) for k,v in d.items() if "iOS" in k]
           ios.sort(key=lambda kv:[int(x) for x in kv[0].split("iOS-")[-1].split("-")])
-          for k,v in reversed(ios):
+          match=[kv for kv in ios if kv[0].endswith(want)] or ios[-1:]
+          for k,v in reversed(match):
               for dev in v:
-                  if dev["name"].startswith("iPhone") and "Pro" not in dev["name"] and "Plus" not in dev["name"] and "Max" not in dev["name"]:
+                  if dev["name"].startswith("iPhone") and "Pro" not in dev["name"] and "Plus" not in dev["name"] and "Max" not in dev["name"] and "Air" not in dev["name"]:
                       print(dev["udid"]); sys.exit(0)
           sys.exit(1)')
           echo "UDID=$UDID"
