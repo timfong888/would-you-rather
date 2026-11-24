@@ -234,7 +234,8 @@ changes from "Unlock N more" to "Open the next {n} questions · $1.99", where `{
 9 of the 12 are not 20), and shows how many remain. Copy must never promise a number the purchase does not deliver.
 
 **Web.** Until #53 decides web payments, a kids or teen paywall on web shows "Unlock in the iPhone app" behind the gate and never
-grants anything (D7, unchanged).
+grants anything (D7, unchanged). That includes the temporary production web free unlock (`WEB_FREE_UNLOCK`): it opens adult categories only, and a
+stored free unlock or `premium_all` on web never opens a kids or teen tranche (pinned by a 4b test). Owner access, for the owner and testers, still opens everything.
 
 **The existing 8 products** (`wyr_premium_all` and 7 adult `wyr_unlock_*`): the 7 adult ones are untouched. `wyr_premium_all` keeps its id,
 entitlement and $4.99 price but is **narrowed to adult categories**, so its name and description change in the same Unit 4 change
