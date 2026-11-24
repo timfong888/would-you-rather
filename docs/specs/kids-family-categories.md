@@ -181,7 +181,54 @@ Restore: the existing Restore Purchases button on the paywall, unchanged. Entitl
 
 ### 3.4 Tranche pricing (decided, revised 2026-11-24; replaces the per-category unlock for kids and teen categories)
 
-#### 3.4.1 Revised model (Tim's answers, 2026-11-24; supersedes the 12-tranche version below where they differ)
+#### 3.4.0 Current model: one free count, $1.99 per 20, $4.99 across all categories (Tim, 2026-11-24; supersedes 3.4.1 and the 12-tranche text below where they differ)
+
+Tim's exact words: "Just keep it simple, each category has N number of free questions, call it 5. Then the next is to open 20 more for $1.99
+(pretty generous). $4.99 opens across all categories. This seems simpler. Across the 8 or so categories, that's 40 free questions, maybe more. We need
+to think about how to scale this later." The orchestrator's reading (Tim has not confirmed the open point in **bold** below):
+
+- **One rule for every category** (adult, kids, teen). The first N = **5** questions are free. N is the single constant `FREE_QUESTIONS_PER_CATEGORY` in
+  `constants/questions.ts`; `getFreeQuestionCount` returns it; nothing else hardcodes it.
+- Each $1.99 **step** opens the next 20 in ONE category (a remainder under 10 joins the previous step), repeatable. After the written questions, generated ones (#203, not built).
+- The $4.99 pack opens **step 1 of every category**. **Open point: step 1 only, or everything written?** Recommended: step 1 only (see "The one deciding question" below). The code does step 1 only, behind `PACK_LIMITED_TO_FIRST_STEP` (false in 4a, flipped in 4c).
+- Kids and teen: one non-consumable per step, membership frozen as explicit ids (`constants/trancheAssignments.ts`). Adult: one step on the existing `cat_<id>` that opens everything paid (at most 35), as that product sells today, so no new adult products and no existing buyer loses anything.
+
+**Catalog: 21 products** = the pack + 7 adult categories (Midnight Secrets and Deep Desires stay out of iOS v1) + **13 kids and teen steps**:
+
+| Category | Written | Free | Paid | Steps ($1.99 each) |
+|---|---|---|---|---|
+| Tiny Choices | 30 | 5 | 25 | 1 (25) |
+| Make-Believe | 41 | 5 | 36 | 2 (20, 16) |
+| Giggle Factory | 55 | 5 | 50 | 3 (20, 20, 10) |
+| Road Trip Rally | 30 | 5 | 25 | 1 (25) |
+| Dinner Table | 47 | 5 | 42 | 2 (20, 22) |
+| Heart to Heart | 30 | 5 | 25 | 1 (25) |
+| Future Me | 30 | 5 | 25 | 1 (25) |
+| Real Talk (teen) | 30 | 5 | 25 | 1 (25) |
+| Holiday Table | 33 | 5 | 28 | 1 (28) |
+| **Kids and teen total** | **326** | **45** | **281** | **13** |
+
+Adult: 5 premium-tier categories (20 written: 5 free + 15 paid, one `cat_<id>`; 3 are on iOS v1) and 4 free-tier categories (40 written: 5 free + 35 paid, one `cat_<id>`).
+
+**What changes versus today for adult (the user-visible part):**
+
+| Adult group | Today | New rule |
+|---|---|---|
+| Premium-tier: High Life, Midnight Secrets, Time Traveler, Deep Desires, Wildest Dreams | 3 free, 17 behind `cat_<id>` | **5 free** (+2), 15 behind `cat_<id>`; the pack covers all 15 once limited. Nothing lost. |
+| Free-tier: Moral Compass, Social Blunders, Career Climber, Tech Dystopia | **20 free** + 20 expansion for $1.99 | **5 free** (**-15**), 35 behind `cat_<id>` $1.99 (the same product). Users lose 15 free questions per category, 60 in all. With the pack limited, the pack opens 20 of the 35 and `cat_<id>` opens the last 15. |
+| Existing `cat_<id>` and pack buyers | everything | everything (unchanged while the pack is staged; after 4c the pack opens step 1 only, **a change for existing pack holders**, RevenueCat read-only showed 0 production holders on 2026-11-24). |
+
+SEO: the adult category pages list only free questions in JSON-LD, so each free-tier adult page goes from 20 to 5 listed questions. Flagged for Tim.
+
+**Restore, non-consumable vs consumable.** A non-consumable is restorable by Apple on any device with no account of ours, which is why the kids routes can sell it with no persisted ID. A consumable ("next 20") is simpler to catalogue (one product for all categories) but Apple does not restore it, so we would need our own ledger tied to a user, which the kids no-tracking rule forbids, and App Review can reject a consumable that unlocks permanent content. Keep non-consumables. **Cheaper to maintain alternative:** one non-consumable per kids or teen *category* that opens everything written (9 products, 17 in all), at the cost of no "next 20" pricing for 4 categories with more than one step and no room to price generated questions per step; generated questions (#203) could then be a separate consumable. Not recommended: it breaks Tim's "next 20 for $1.99".
+
+**The one deciding question: does the $4.99 pack open only step 1 of every category, or everything written?** Prices: $1.99 per step, $4.99 pack. The break-even is 3 categories (3 × $1.99 = $5.97 > $4.99).
+- 16 categories are sellable on iOS v1 (7 adult + 9 kids and teen). Step 1 of all of them at $1.99 is **$31.84**; the pack is $4.99, so the pack is a 84% discount for the first step.
+- **A, pack = step 1 only (recommended):** a player who wants everything written pays $4.99 + the later steps: 4 adult free-tier `cat_<id>` for the last 15 ($7.96) + 4 kids steps beyond step 1 (Make-Believe 1, Giggle Factory 2, Dinner Table 1 = $7.96) = **$20.91 at most**, and every new step (written or generated) is a new sale.
+- **B, pack = everything written:** the same player pays **$4.99**, once. Every later step and every generated question (#203) is free for pack holders, so #203 would have to be funded by the $4.99 or sold separately again. Revenue at the margin is $15.92 lower per completist and the pack becomes an unbounded promise.
+Recommendation: A. It matches Tim's earlier "only the first 20 per category come with the pack", keeps #203 sellable, and still gives a 3-category buyer a reason to take the pack.
+
+#### 3.4.1 Earlier model (superseded by 3.4.0 where it differs; was: supersedes the 12-tranche version below where they differ)
 
 Tim's exact words (answering the questions on #203): "1. Only the first 20 per category come with the pack unlock 2. 1.99 buys the next 20 in a
 category 3. 1.99 buys 20 more in one category, repeatable 4. ACcept this". Earlier the same day: "We should just have one pack for everything",
@@ -220,7 +267,7 @@ the pack opens in 4 adult categories; **flagged for Tim to confirm** (there are 
 the partial tranches are topped up with generated questions (#203) or more are written: **an open question for Tim.**
 
 **Product shape, consumable or not, stated plainly.**
-- *One non-consumable per tranche* (recommended for the written questions): 10 kids and teen products (`wyr_unlock_<category>_<k>`), plus the 7 adult category products and the pack = **18 products**.
+- (Superseded by §3.4.0: 13 steps, 21 products.) *One non-consumable per tranche* (recommended for the written questions): 10 kids and teen products (`wyr_unlock_<category>_<k>`), plus the 7 adult category products and the pack = **18 products**.
   Apple **restores** non-consumables, so a reinstall or a new phone gets them back. The cost: it is a fixed list, so every new batch (including generated ones) would need a new product,
   which cannot be unbounded.
 - *One repeatable consumable per category* ("20 more", $1.99): one product per category, repeatable without new products. Apple **does not restore consumables**, so a reinstall or new device
@@ -228,7 +275,7 @@ the partial tranches are topped up with generated questions (#203) or more are w
   across devices, but that is a reason to use it only where there is no fixed set.
 - Recommendation: non-consumable tranches for the **written** questions (permanent content, restorable), and a repeatable consumable per category for the **generated** "keep going" only (#203, not built, not in this catalog).
 
-**Staging.** The live paywall still sells "Or unlock every category" as everything, so in 4a the pack is **not** limited yet (`PACK_LIMITED_TO_FIRST_20 = false` in `lib/tranches.ts`) and keeps opening
+**Staging.** The live paywall still sells "Or unlock every category" as everything, so in 4a the pack is **not** limited yet (`PACK_LIMITED_TO_FIRST_STEP = false` in `lib/tranches.ts`) and keeps opening
 what it opens today; the tests pin both that and the target. 4c changes the paywall and flips the flag (and updates the pack's name and description to "first 20 questions of every category").
 
 ---
@@ -552,7 +599,7 @@ add coloured text or comments without rewriting the document, which would break 
 | 1 | Content: categories, retag, hand-pick free 8, write 103 new questions | `constants/kidsQuestions.ts` (split per category file if large), `api/_lib/data.js`, `scripts/verify-questions.ts` (new checks: every kids question in exactly one category, free count 8, ages set, blocklist clean) | **Yes**: read every new question (103) | `npm run verify:data`, `npm test` |
 | 2 | Model + kids-rule plumbing: `audience`, `ages`, remove `kids-family`, redirect, derive `isKidsPath`/`requiresParentalGate`/`FAMILY_FRIENDLY` from `audience` | `constants/questions.ts`, `lib/kidsPaths.ts`, `lib/parentalGate.ts`, `constants/seoPages.ts` (D4), `tests/unit/*` | No (privacy rule, but no payments) | unit tests incl. "every kids category is a kids route"; `tests/browserless/kids-no-tracking.mjs` on every new route |
 | 3 | Browse UI: Grown-ups / With kids switch, age chips, age label on cards, mode-scoped random | `app/index.tsx`, `app/categories/index.tsx`, `components/CategoryCard.tsx` | No | screenshots at phone width; navigation test |
-| 4 | Payments (replanned 2026-11-24, see §3.4 and `docs/specs/plan.md`: five PRs 4a to 4e): 10 tranche products, catalog sync, paywall copy, gate on every kids and teen purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `lib/tranches.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 18 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
+| 4 | Payments (replanned 2026-11-24, see §3.4 and `docs/specs/plan.md`: five PRs 4a to 4e): 13 step products (§3.4.0), catalog sync, paywall copy, gate on every kids and teen purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `lib/tranches.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 18 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
 | 5 | AI pipeline (server): blocklist, generator, classifier, `kids_pool` table, cron, `GET /api/pool/<category>` endpoint, owner review page | `lib/kidsBlocklist.ts`, `api/cron/kids-pool.js`, `api/pool/[category].js`, `api/_lib/pool.js`, `db/migrations/*`, `app/owner/kids-pool.tsx`, `vercel.json` | **Yes** (key, spend cap, first batch review) | unit tests with a fake model client; dry run on one category; Tim approves the first 50 |
 | 6 | More like this (client) + votes accept pool ids + report link | `app/complete/[id].tsx`, `app/categories/[id].tsx`, `lib/pool.ts`, `api/_lib/votes.js`, `api/report.js`, `tests/browserless/kids-no-tracking.mjs` | **Yes** (touches the paid surface) | kids-no-tracking test passes with only the pool and report URLs added (Unit 7 adds the counter URL); offline check, including an HTML reply treated as offline |
 | 7 | Privacy policy (incl. the COPPA internal-operations notice, §5.4), listing kit, review notes, PRD, kids counters `api/count.js`, Smart App Banner + campaign links on landing pages | `app/privacy.tsx`, `api/count.js`, `tests/browserless/kids-no-tracking.mjs` (counter URL), `components/PageHead.tsx`, `docs/specs/app-store-listing.md`, `docs/kids-privacy.md` | **Yes** (policy text) | `tests/unit/legal-pages.test.ts` |
