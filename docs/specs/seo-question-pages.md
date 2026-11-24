@@ -17,7 +17,7 @@ Reading: a search visitor lands on an indexed question page that has no vote or 
 Tim's exact words: "1. Yes 2. Accept 3. first batch 4. Percentages is fine, make sure it's just aggreagte and no identifying information 5. approve 2000 credits 6. Persona 1 is parents searching on games, entertatining kids, brain develop, conversation skills, importance of building habit of talking early, dads who want to connect with kids"
 
 Decisions:
-1. The design below is approved: `/q/<id>` indexed read-only pages, Share action to `/game/<id>`, spike first for per-question OG shells.
+1. The design below is approved: `/q/<id>` indexed read-only pages, shared links go into the playable web app. The spike (section 1b) found the Share action should stay on `/p/<id>`, which already does that; Tim's answer on 1b is pending.
 2. Seed numbers: accepted that seeds stay OFF for now. Percentages appear only after 20 real votes (today's rule); revisit when real votes exist. The labelled blend in section 4 stays documented, not shipped.
 3. Launch with a first batch of about 100 question pages, then expand with the research (section 1a).
 4. Percentages are approved as **aggregate counts only, with no identifying information anywhere** (no voter ids, no per-user rows exposed by any endpoint or page). Kids pages show none until legal #114 unless Tim says otherwise (asked).
@@ -33,17 +33,17 @@ Two jobs, two URLs, no redirect trick:
 | Funnel stage | Who arrives | URL | What it is |
 |---|---|---|---|
 | Top | Search, AI answers, pillar articles | `/q/<id>` (new) | Indexed, read-only question page: question and options, category, intro, related questions, persona copy, links to the hub and situation pages, one button "Play this question" to `/game/<id>`. No vote control. Canonical to itself. Sits in the sitemap, all 586 questions. |
-| Middle | Someone who got a shared link | `/game/<id>` (the playable web app) | The in-app Share action produces this URL. The recipient lands in the playable web app at once. |
+| Middle | Someone who got a shared link | `/p/<id>` (the existing share page) | The in-app Share action keeps producing this URL (section 1b). It unfurls in iMessage and Facebook, sends a web visitor straight into the playable web app (`/game/<id>`), and opens the installed iOS app. |
 | Bottom | Anyone in the web app | `/game/<id>` and the rest of the app | Plays, then meets the paywall. |
 
 Rules:
-1. **The Share action produces `/game/<id>`.** No `?s=1`, no redirect.
-2. **It must still unfurl in iMessage and Facebook.** Link-preview crawlers read the HTML they are served and do not run scripts. Today the app shell at `/game/<id>` has no per-question Open Graph tags (that is why `/p/<id>` exists). So the build generates one HTML file per question at `/game/<id>.html`: the same app shell, plus that question's OG title, description and image (`lib/sharePage.js` already builds these). `vercel.json` rewrites `/game/:id` to it instead of `/game/[id].html`. The app boots normally for a person. **Feasibility spike first** (S4): the Expo web export serves one shell for `[id]`; if per-id copies of it do not boot correctly, the fallback is to keep `/p/<id>` as the share URL (OG tags plus an instant redirect to `/game/<id>`, exactly what it does today).
-3. **The playable page must not compete in the index.** `/game/<id>` carries `<link rel=canonical href="/q/<id>">`, is not in the sitemap, and its question JSON-LD moves to `/q/<id>`. (Canonical only, not `noindex`: the two together send search engines conflicting signals.)
-4. **`/p/<id>`**: the legacy share URL. It keeps working exactly as it does today (OG tags, then a redirect to `/game/<id>`), so **links already shared keep working**. It gets `<link rel=canonical href="/q/<id>">`, leaves the sitemap, and the app stops generating new `/p/<id>` links. It can be deleted later when nobody needs the old links; we do not count visits per link (no tracking), so that is Tim's call.
-5. **Sitemap**: `/q/<id>` for every question (free, paid and kids-withheld: 586), the 18 category pages, the 14 landing pages, `/`, `/categories`, `/kids`: about 621 URLs, up from 202. `/game/<id>` and `/p/<id>` leave it. The floor test `tests/unit/seo-counts.test.ts` still holds.
-6. **Category pages and SEO list pages list every question**, free and paid, each linking to its `/q/<id>`; the per-question "Play this one" buttons become those links plus one hub button. The free count only governs in-app access.
-7. **Kids pages follow the kids rule**: no analytics, no storage writes, no third-party requests, no ads, links only to kids destinations, nothing identifying a visitor. Kids share links are the same `/game/<id>` with the kids campaign name (`shareCampaign`).
+1. **The Share action stays on `/p/<id>`** (spike result, section 1b). No `?s=1`, no new redirect, no per-question app shells. If Tim wants `/game/<id>` as the share URL instead, section 1b lists the cost.
+2. **Unfurling is unchanged**: `/p/<id>` already carries the per-question Open Graph tags (`lib/sharePage.js`).
+3. **The playable page and the share page must not compete in the index.** For a question that has a `/q/<id>` page, `/game/<id>` and `/p/<id>` carry `<link rel=canonical href="/q/<id>">`, are not in the sitemap, and the question JSON-LD moves from `/game/<id>` to `/q/<id>`. (Canonical only, not `noindex`: the two together send search engines conflicting signals.)
+4. **Links already shared keep working**: `/p/<id>` behaves exactly as today.
+5. **Sitemap**: the first batch (section 1a, about 100 questions) is listed at `/q/<id>` instead of `/game/<id>` one for one, so the sitemap stays at 202 URLs plus the guides (`/guides/<slug>`). When the batch is extended, or all 586 questions get a page after Tim has reviewed the first batch, `/q/<id>` (about 621 URLs in all) replaces more `/game/<id>` entries. The floor test `tests/unit/seo-counts.test.ts` (added by the payments PR #202) must keep passing.
+6. **Category pages and SEO list pages list every question**, free and paid, each linking to its `/q/<id>` (S3); the per-question "Play this one" buttons become those links plus one hub button. The free count only governs in-app access.
+7. **Kids pages follow the kids rule**: no analytics, no storage writes, no third-party requests, no ads, links only to kids destinations, nothing identifying a visitor. Kids share links keep their bare form (`lib/shareQuestion.ts`: no `link_id` or generation).
 
 Paid and withheld questions are public (Tim: "all withheld paid questions are public"), kids included.
 
@@ -87,7 +87,7 @@ Tim: "this is just an aggregate count that we are keeping in Neon as we get real
 
 Already built: `POST /api/votes` and `GET /api/tallies` keep real aggregate counts per question in Neon (kids votes carry no visitor id). The display rule today (`lib/results.js`, issue #65, spec BR-2): below `VOTE_THRESHOLD` = 20 real votes the app never shows a percentage and never "a made-up split".
 
-**Flag for Tim: showing seeded numbers as "N% chose A" is fabricated social proof.** It contradicts BR-2, and it is a trust risk, an App Review risk (guideline 5.6 on misleading content) and a consumer-protection risk (deceptive claims). Tim has not answered this. Until he does, nothing seeded is shown without a label, and by default nothing seeded is shown at all.
+**Flag for Tim: showing seeded numbers as "N% chose A" is fabricated social proof.** It contradicts BR-2, and it is a trust risk, an App Review risk (guideline 5.6 on misleading content) and a consumer-protection risk (deceptive claims). Tim accepted keeping seeds OFF for now (decision 2). If seeds are revisited, nothing seeded is shown without a label.
 
 Design if Tim approves seeds:
 - **Stored separately.** Real counts stay in the existing tally table and are never written by the seeding. A new table `vote_seeds(question_id, a, b)` holds the prior. Real data cannot be overwritten and is auditable (a query over the real table is always the truth).
@@ -110,18 +110,18 @@ Kids guides follow the kids rule.
 ## 6. Research step (point (f))
 
 Existing: `docs/seo/keyword-research-2026-11.md` (2026-11-17, OpenSEO, about 320 credits): batch 1 for parents of young kids is done; personas 2 and 3 are not. Kids queries return no volume in the data providers, so demand for kids pages is inferred from who ranks.
-Plan, no credits spent until the orchestrator says go:
+Plan (budget approved: up to 2,000 credits; persona 1 research done, about 366 credits spent, see `docs/seo/keyword-research-persona1-2026-11-24.md`):
 1. Extend the keyword work to the situations above (couples, road trips, icebreakers, family dinner, classrooms) for volume, difficulty and intent: OpenSEO or Semrush keyword research, one call per situation.
 2. Competitor question pages: who ranks for "would you rather" plus a topic, whether they have one URL per question, what a page of theirs contains (Semrush organic research and competitor reports; Exa or TinyFish to read two or three pages).
 3. Rank personas and situations by demand versus difficulty; that order sets the pillar sequence.
-Tools in this account: Semrush MCP, OpenSEO MCP (asks for confirmation above 2,000 credits per batch), Exa and TinyFish for reading pages. Needed from the orchestrator: a go and a credit budget, and which personas to research first.
+Tools in this account: Semrush MCP, OpenSEO MCP (asks for confirmation above 2,000 credits per batch), Exa and TinyFish for reading pages. Next: research the remaining situations (couples, icebreakers, classrooms) when Tim asks.
 
 ## 7. PR plan (separate PRs, none touch payments)
 
 | PR | Change | Notes |
 |---|---|---|
 | S1 | This design (docs, #207) | Docs only |
-| S2 | `/q/<id>`: read-only indexed page for all 586 questions; `/game/<id>` and `/p/<id>` canonical to it; sitemap lists `/q/<id>`; JSON-LD moves; tests: counts floor, no vote control, canonical rules | Unblocks decoupling SEO from the free count |
+| S2 | `/q/<id>`: read-only indexed page for the first batch of about 100 questions (all 586 after Tim has seen it); `/game/<id>` and `/p/<id>` canonical to it; sitemap lists `/q/<id>`; JSON-LD moves; tests: counts floor, no vote control, canonical rules | Unblocks decoupling SEO from the free count |
 | S3 | Category pages and SEO list pages list every question and link to `/q/<id>`; list-page "Play this one" removed; `verify-seo` updated | Required (with S2) before 4c flips the free count |
 | S4 | **Dropped (spike, section 1b)**: the Share action stays on `/p/<id>`, which already unfurls, enters the web app and opens the iOS app. Revived only if Tim wants `/game/<id>` as the share URL | |
 | S5 | Web-only iOS badge, behind `APP_STORE_LIVE` | Flag stays off until the app is public |
