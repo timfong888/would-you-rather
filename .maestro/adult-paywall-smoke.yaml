@@ -38,10 +38,14 @@ name: Adult paywall smoke
     direction: DOWN
     timeout: 30000
 - tapOn: "🔒.*"
-# Paywall: price block and CTA are on screen (fallback price; no store is configured in CI). Not tapped.
+# Paywall: premium categories show PREMIUM ACCESS; the price block and CTA sit below the fold. Never tapped.
 - extendedWaitUntil:
-    visible: "ONE-TIME CATEGORY UNLOCK.*"
+    visible: "PREMIUM ACCESS|EXPANSION PACK"
     timeout: 20000
-- assertVisible: "START.*MORE CONVERSATIONS.*"
-- assertVisible: "Restore Purchases"
+- takeScreenshot: 11-adult-paywall-top
+- scrollUntilVisible:
+    element: "START.*MORE CONVERSATIONS.*"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "Restore.*urchases.*"
 - takeScreenshot: 11-adult-paywall

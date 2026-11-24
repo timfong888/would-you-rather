@@ -53,4 +53,7 @@ name: Kids route smoke
 - assertNotVisible: "START.*MORE CONVERSATIONS.*"
 # Leave without buying
 - tapOn: "Go back"
-- assertVisible: "PLAY ALL.*"
+# Back on the category list, still scrolled to the locked rows (PLAY ALL is above the fold).
+- extendedWaitUntil:
+    visible: "🔒.*"
+    timeout: 15000
