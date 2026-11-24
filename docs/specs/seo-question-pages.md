@@ -17,7 +17,7 @@ Reading: a search visitor lands on an indexed question page that has no vote or 
 Tim's exact words: "1. Yes 2. Accept 3. first batch 4. Percentages is fine, make sure it's just aggreagte and no identifying information 5. approve 2000 credits 6. Persona 1 is parents searching on games, entertatining kids, brain develop, conversation skills, importance of building habit of talking early, dads who want to connect with kids"
 
 Decisions:
-1. The design below is approved: `/q/<id>` indexed read-only pages, shared links go into the playable web app. The spike (section 1b) found the Share action should stay on `/p/<id>`, which already does that; Tim's answer on 1b is pending.
+1. The design below is approved: `/q/<id>` indexed read-only pages, shared links go into the playable web app. The spike (section 1b) found the Share action should stay on `/p/<id>`, which already does that; Tim's answer on 1b (2026-11-24): "Keep the format as the share link", so `/p/<id>` stays.
 2. Seed numbers: accepted that seeds stay OFF for now. Percentages appear only after 20 real votes (today's rule); revisit when real votes exist. The labelled blend in section 4 stays documented, not shipped.
 3. Launch with a first batch of about 100 question pages, then expand with the research (section 1a).
 4. Percentages are approved as **aggregate counts only, with no identifying information anywhere** (no voter ids, no per-user rows exposed by any endpoint or page). Kids pages show none until legal #114 unless Tim says otherwise (asked).
@@ -57,6 +57,8 @@ Only the questions in the first batch get a `/q/<id>` page, a sitemap entry and 
 5. After the research (section 6) the list can be re-ranked and extended by editing the file in a PR.
 
 ### 1b. S4 spike result (2026-11-24): keep `/p/<id>` as the share URL
+
+**Decided by Tim (2026-11-24): "Keep the format as the share link".** `/p/<id>` stays the share URL; S4 stays dropped.
 
 Tried: per-question copies of the app shell at `/game/<id>.html` with that question's OG tags. **Technically feasible**: the exported shell (`dist/game/[id].html`, 28 KB) is client-rendered and its head already uses react-helmet markers (`data-rh`), so a per-id copy with `data-rh` tags works and the app boots unchanged; 586 copies add about 16 MB to the deploy. **But it is not worth it**, because the share URL is also the iOS Universal Link:
 - `public/.well-known/apple-app-site-association` claims only `/p/*`, and `lib/universalLink.ts` and `app/+native-intent.tsx` map `/p/<id>` to the game screen. A shared `/game/<id>` link would open in Safari even for a friend who has the app installed. Fixing that means adding `/game/*` to the association file and the native mapping, a change to how links open on iPhones.
