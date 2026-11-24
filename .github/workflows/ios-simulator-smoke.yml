@@ -147,6 +147,8 @@ jobs:
               print(raw[:3000]); raise SystemExit
           def walk(n):
               a=n.get('attributes',{})
+              if a.get('accessibilityText') in ('With kids','Grown-ups','Open settings'):
+                  print('ATTRS', json.dumps(a))
               for k in ('text','accessibilityText','hintText'):
                   v=a.get(k)
                   if v: print(k+':',v)

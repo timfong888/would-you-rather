@@ -1,0 +1,22 @@
+# TEMPORARY diagnostic: the With kids tab by coordinates relative to the element, then by longPress
+appId: com.timfong888.wouldyourather
+name: Diag kids tab variants
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- waitForAnimationToEnd
+- longPressOn: "With kids"
+- runFlow:
+    when:
+      notVisible: "Pick a topic for the age you are playing with."
+    commands:
+      - tapOn:
+          text: "With kids"
+          repeat: 2
+          delay: 400
+- extendedWaitUntil:
+    visible: "Pick a topic for the age you are playing with."
+    timeout: 15000
