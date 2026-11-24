@@ -17,6 +17,7 @@ import { CATEGORIES, QUESTIONS, getCategoryQuestions, isKidsCategoryId, isQuesti
 import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
+import { SEO_FIRST_BATCH, isSeoBatchId } from '../lib/seoBatch';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
 const ROOT = resolve(__dirname, '..');
@@ -150,7 +151,16 @@ for (const cat of CATEGORIES) {
   );
 }
 for (const loc of locs) if (lockedGameUrls.has(loc)) fail(`sitemap: lists locked question URL ${loc}`);
-for (const loc of freeGameUrls) if (!locSet.has(loc)) fail(`sitemap: missing playable question URL ${loc}`);
+// A question in the first SEO batch is indexed at /q/<id>; its playable /game/<id> is out of the sitemap (it canonicalises to /q/<id>).
+for (const loc of freeGameUrls) {
+  const id = loc.slice(loc.lastIndexOf('/') + 1);
+  if (isSeoBatchId(id)) { if (locSet.has(loc)) fail(`sitemap: lists ${loc}, which canonicalises to /q/${id}`); }
+  else if (!locSet.has(loc)) fail(`sitemap: missing playable question URL ${loc}`);
+}
+for (const id of SEO_FIRST_BATCH) {
+  if (!QUESTIONS.some((q) => q.id === id)) fail(`seo batch: ${id} is not a question`);
+  if (!locSet.has(url(`/q/${id}`))) fail(`sitemap: missing read-only question page /q/${id}`);
+}
 
 const robots = read('public/robots.txt');
 if (!robots.split('\n').some((l) => l.trim() === `Sitemap: ${SITE_URL}/sitemap.xml`)) {
@@ -317,6 +327,34 @@ if (withDist) {
     if (!meta(html, 'name', 'twitter:image')) fail(`${c.file}: twitter:image is missing`);
     if (!/<link[^>]*rel="apple-touch-icon"/.test(html)) fail(`${c.file}: apple-touch-icon link is missing`);
     if (!/<link[^>]*rel="(shortcut )?icon"/.test(html)) fail(`${c.file}: favicon link is missing`);
+  }
+}
+
+if (withDist) {
+  // Read-only question pages (docs/specs/seo-question-pages.md): exported, canonical to themselves, no script but JSON-LD, no form or vote control.
+  for (const id of SEO_FIRST_BATCH) {
+    const file = `dist/q/${id}.html`;
+    if (!existsSync(resolve(ROOT, file))) { fail(`dist: ${file} was not exported`); continue; }
+    const html = read(file);
+    if (tag(html, /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${file}: canonical is not ${url(`/q/${id}`)}`);
+    if (/<script(?![^>]*application\/ld\+json)/i.test(html)) fail(`${file}: has a script other than JSON-LD (the page is read-only)`);
+    if (/<(button|form|input|select|textarea)\b/i.test(html)) fail(`${file}: has a form or vote control (the page is read-only)`);
+    if (!html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: has no link into the playable web app`);
+    const q = QUESTIONS.find((x) => x.id === id);
+    if (q && isKidsCategoryId(q.category)) {
+      for (const m of html.matchAll(/<a [^>]*href="([^"]+)"/g)) {
+        const href = m[1];
+        if (!href.startsWith(SITE_URL)) continue;
+        const path = href.slice(SITE_URL.length) || '/';
+        const ok = path === '/kids' || path.startsWith('/game/') || path.startsWith('/q/') || path.startsWith('/categories/') || SEO_PAGES.some((p) => `/${p.slug}` === path && isKidsPage(p));
+        if (!ok) fail(`${file}: kids question page links to ${path}, which is not a kids destination`);
+      }
+    }
+  }
+  // The playable page and the legacy share page point their canonical at the read-only page.
+  for (const id of SEO_FIRST_BATCH) {
+    const share = `dist/p/${id}.html`;
+    if (existsSync(resolve(ROOT, share)) && tag(read(share), /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${share}: canonical is not ${url(`/q/${id}`)}`);
   }
 }
 

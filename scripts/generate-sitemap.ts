@@ -6,7 +6,8 @@
  *
  * What goes in (and nothing else):
  *   /, /categories, every category, every SEO landing page (constants/seoPages.ts),
- *   and every question a first-time visitor can play for free.
+ *   every question a first-time visitor can play for free (/game/<id>), and the read-only question pages of the first SEO batch
+ *   (/q/<id>, lib/seoBatch.js), which replace those questions' /game/<id> entries.
  * Locked expansion/premium questions are left out: their URLs redirect to the
  * category page, and a sitemap should only list URLs that resolve to themselves.
  *
@@ -20,6 +21,7 @@ import { resolve } from 'path';
 import { CATEGORIES, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
 import { SEO_PAGES, getSeoPageQuestions, getSeoPageUpdated, type Persona } from '../constants/seoPages';
 import { ORGANIZATION_DESCRIPTION } from '../lib/seo';
+import { SEO_FIRST_BATCH, isSeoBatchId } from '../lib/seoBatch';
 import { SITE_URL } from '../constants/config';
 
 function lastModified(paths: string[]): string | undefined {
@@ -48,9 +50,11 @@ const entries: Entry[] = [
 
 for (const cat of CATEGORIES) {
   getCategoryQuestions(cat.id).forEach((q, i) => {
-    if (!isQuestionLocked(cat, i, false)) entries.push({ path: `/game/${q.id}`, lastmod: CONTENT });
+    // A question in the first SEO batch is indexed at its read-only page /q/<id>; its playable /game/<id> canonicalises to it.
+    if (!isQuestionLocked(cat, i, false) && !isSeoBatchId(q.id)) entries.push({ path: `/game/${q.id}`, lastmod: CONTENT });
   });
 }
+for (const id of SEO_FIRST_BATCH) entries.push({ path: `/q/${id}`, lastmod: CONTENT });
 
 const loc = (path: string) => `${SITE_URL}${path === '/' ? '' : path}`;
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
