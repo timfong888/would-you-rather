@@ -9,7 +9,9 @@ name: Neville iOS (build and TestFlight)
 # - neville_sha must be a full sha that is an ancestor of neville's main, checked BEFORE any secret is used;
 # - the repo/ref are hardcoded, never an input; contents: read; no artifacts; no pull_request_target;
 # - secrets reach exactly one step; the .p8 goes to a 0600 temp file outside the checkout and is deleted;
-# - third-party actions are pinned to commit SHAs; the only Apple data printed is build number and state.
+# - third-party actions are pinned to commit SHAs; on success the only Apple data printed is build number and state.
+#   On an `eas build` FAILURE the last 60 lines of EAS output are printed with secrets redacted; they can include
+#   non-secret Apple-side names (team, certificate or profile labels). Accepted so a failed run can be debugged.
 on:
   workflow_dispatch:
     inputs:

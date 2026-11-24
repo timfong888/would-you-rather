@@ -4,7 +4,10 @@
 //   plus NEVILLE_DIR (checkout of timfong888/neville at a merged sha), EAS_PROFILE, APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
 // Flow: preflight app (GET) -> eas build (EAS creates the missing provisioning profile via the ASC key)
 //   -> existing scripts/asc-upload.mjs -> poll builds (GET) -> job summary with build number and state only.
-// Never prints: the key, key id, issuer id, JWT, team id, or any Apple data other than build number and state.
+// Never prints: the key, key id, issuer id, JWT, team id or Expo token (all masked and redacted). On the success path the only
+// Apple data printed is build number and processing state. If `eas build` FAILS, the last 60 lines of its output are printed
+// (secrets redacted); EAS can include non-secret Apple-side names there (team, certificate or profile labels). Accepted on purpose,
+// so a failed run is debuggable from the public log.
 import { createPrivateKey, sign } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
