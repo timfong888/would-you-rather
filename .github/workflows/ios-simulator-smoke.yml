@@ -127,9 +127,28 @@ jobs:
             --format junit --output maestro-out/report.xml \
             --test-output-dir maestro-out/artifacts
 
-      - name: Screenshot of the simulator at the end
+      - name: Screenshot and UI hierarchy of the simulator at the end
         if: always()
-        run: xcrun simctl io "$UDID" screenshot maestro-out/final-state.png || true
+        run: |
+          xcrun simctl io "$UDID" screenshot maestro-out/final-state.png || true
+          # Text dump of what is on screen, so a failed run can be read from the log alone.
+          maestro --device "$UDID" hierarchy > maestro-out/final-hierarchy.json 2>&1 || true
+          python3 - <<'PY' || true
+          import json,re
+          raw=open('maestro-out/final-hierarchy.json').read()
+          i=raw.find('{')
+          try:
+              d=json.loads(raw[i:])
+          except Exception:
+              print(raw[:3000]); raise SystemExit
+          def walk(n):
+              a=n.get('attributes',{})
+              for k in ('text','accessibilityText','hintText'):
+                  v=a.get(k)
+                  if v: print(k+':',v)
+              for c in n.get('children',[]): walk(c)
+          walk(d)
+          PY
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
