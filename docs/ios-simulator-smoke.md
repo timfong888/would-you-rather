@@ -20,7 +20,7 @@ Runs on pull requests that touch app code (`app/`, `components/`, `constants/`, 
 - `/kids` renders; an age chip filters the list.
 - Open a kids category, tap a locked question, and the parental gate ("Grown-ups only") appears.
   A wrong answer does not pass the gate and shows no buy button.
-- Adult category (Moral Compass): tap a locked question and the paywall UI appears (fallback price, CTA, Restore).
+- Adult category (Time Traveler, premium): tap a locked question and the paywall UI appears (PREMIUM ACCESS, buy button, Restore). The buy button is never tapped.
 
 ## What it cannot cover (stays manual on a real device)
 - Real purchases, sandbox purchases, Restore with an Apple ID, Ask to Buy. The CI build has **no RevenueCat key**, so
@@ -29,7 +29,7 @@ Runs on pull requests that touch app code (`app/`, `components/`, `constants/`, 
 - Background and lock-screen audio, haptics, share sheets, universal links, push.
 - Anything that needs the network backend (votes, results): the build points at no deployment keys.
 - Real-device performance, the App Store build's signing and entitlements (this is a simulator, unsigned build).
-- Whether the app is correct on the iOS version users run (the runner's default simulator only).
+- Whether the app is correct on the iOS version users run: the job boots the simulator runtime that matches the runner's Xcode SDK (iOS 18.5 on Xcode 16.4). An iOS 26 runtime under Xcode 16 drops taps, so do not pick the newest runtime.
 
 ## Kids-route rule
 No tracking and no persisted IDs on kids routes still holds: the CI build sets no analytics key (`EXPO_PUBLIC_POSTHOG_KEY`
@@ -44,7 +44,10 @@ Public repo: standard GitHub-hosted runners, macOS included, are free. If the re
 runner per minute. The figure used here is **$0.062 per minute** for the standard 3/4-core macOS runner, from the search
 excerpt of GitHub's [runner pricing page](https://docs.github.com/en/billing/reference/actions-runner-pricing); the
 page itself could not be opened from the build environment, and the included-minutes allowance per plan was not confirmed.
-Billable minutes are rounded up per job. See the PR for the estimate per run.
+Billable minutes are rounded up per job.
+
+Measured on `macos-15`: a green run takes about **23 to 25 minutes** wall clock (prebuild and pods about 3, xcodebuild Release about 9,
+simulator first boot about 1, two flows about 4). At $0.062 per minute that is roughly **$1.45 to $1.55 per run** if the repo were private.
 
 ## Editing a flow
 Maestro matches visible text or the accessibility label, case-insensitively, as a regex. Run locally with
