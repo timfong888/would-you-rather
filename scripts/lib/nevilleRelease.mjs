@@ -160,7 +160,7 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
   const lines = [], warnings = [], errors = [];
   if (root) errors.push(...checkDirSafety(root, name, fs));
   // Any symlink among the files we read (or a forbidden config file of any kind) fails closed.
-  for (const f of ['package.json', 'eas.json', 'app.json', 'metro.config.js', ...FORBIDDEN_FILES]) {
+  for (const f of ['package.json', 'package-lock.json', 'eas.json', 'app.json', 'metro.config.js', ...FORBIDDEN_FILES]) {
     let st; try { st = fs.lstatSync(join(dir, f)); } catch { continue; }
     if (st.isSymbolicLink()) errors.push(`${name}/${f} is a symlink`);
   }
@@ -205,7 +205,9 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
       if (/workspaces?|workspaceRoot|monorepo/i.test(l)) ws.push(i + 1);
     });
     lines.push(`${name}/metro.config.js: present`);
-    if (parent.length) warnings.push(`${name}/metro.config.js references a parent directory (line ${parent.slice(0, 5).join(', ')})`); else lines.push('metro.config.js: no parent-directory references');
+    if (parent.length && name === 'native') lines.push(`info: native/metro.config.js references the parent directory (line ${parent.slice(0, 5).join(', ')}); expected, native imports the repo's shared lib/ by design`);
+    else if (parent.length) warnings.push(`${name}/metro.config.js references a parent directory (line ${parent.slice(0, 5).join(', ')})`);
+    else lines.push('metro.config.js: no parent-directory references');
     if (ws.length) warnings.push(`${name}/metro.config.js mentions workspaces (line ${ws.slice(0, 5).join(', ')})`); else lines.push('metro.config.js: no workspaces references');
   } else lines.push(`${name}/metro.config.js: absent (Expo defaults)`);
 
@@ -223,6 +225,11 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
   const app = has('app.json') ? readJson('app.json') : undefined;
   if (has('app.json') && !app) errors.push(`${name}/app.json is not valid JSON`);
   if (app) {
+    // A plugin that is a local file runs inside eas-cli, which holds EXPO_TOKEN in the secret step. Package-name plugins are fine.
+    const plugins = Array.isArray(app.expo?.plugins) ? app.expo.plugins : [];
+    const local = plugins.filter((p) => { const n = Array.isArray(p) ? p[0] : p; return typeof n !== 'string' || /^(\.|\/|\\|~|[A-Za-z]:|(file|link|portal):)/i.test(n.trim()) || n.includes('..'); });
+    if (local.length) errors.push(`${name}/app.json lists ${local.length} plugin(s) that are local files or paths; only package-name plugins are allowed`);
+    else lines.push(`${name}/app.json plugins: package names only`);
     const bid = app.expo?.ios?.bundleIdentifier;
     if (bid === NEVILLE_BUNDLE_ID) lines.push(`app.json ios bundle id: ${NEVILLE_BUNDLE_ID}`);
     else if (name === 'native') errors.push(`native/app.json ios.bundleIdentifier is not ${NEVILLE_BUNDLE_ID}`);

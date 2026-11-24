@@ -359,7 +359,7 @@ test('check: metro.config.js parent or workspaces references are warned with lin
   const metro = "const a = 1;\nconst root = path.resolve(__dirname, '../..');\nconst workspaceRoot = x; // ::stop-commands::SECRETISH\n";
   const { dir } = fixture({ ...goodNative, 'metro.config.js': metro });
   const r = checkSelfContained(dir, 'native', { fs: nodeFs });
-  assert.ok(r.warnings.some((w: string) => /references a parent directory \(line 2\)/.test(w)));
+  assert.ok(r.lines.some((l: string) => /^info: native\/metro\.config\.js references the parent directory \(line 2\)/.test(l)));
   assert.ok(r.warnings.some((w: string) => /workspaces \(line 3\)/.test(w)));
   const all = [...r.lines, ...r.warnings, ...r.errors].join('\n');
   assert.ok(!all.includes('SECRETISH') && !all.includes('stop-commands'));
@@ -409,6 +409,9 @@ test('check: symlinked dir or files fail, and the dir must resolve inside the ro
   for (const [f, c] of Object.entries(goodNative)) wfs(join(outside, f), c);
   const root = mkdtempSync(join(tmpdir(), 'nev-root-')); symlinkSync(outside, join(root, 'native'));
   const errs = checkSelfContained(join(root, 'native'), 'native', { fs: nodeFs, root }).errors;
+  const lock = fixture(goodNative); const lt = join(lock.root, 'lock-target.json'); wfs(lt, '{}');
+  nodeFs.rmSync(join(lock.dir, 'package-lock.json')); symlinkSync(lt, join(lock.dir, 'package-lock.json'));
+  assert.ok(checkSelfContained(lock.dir, 'native', { fs: nodeFs, root: lock.root }).errors.includes('native/package-lock.json is a symlink'));
   assert.ok(errs.includes('native is a symlink') && errs.includes('native resolves outside the neville checkout'));
   // a normal dir is fine and its realpath is inside the root
   const ok = fixture(goodNative);
@@ -486,4 +489,30 @@ test('workflow: Node 22 for native, 20 for the shell, via one SHA-pinned setup-n
   assert.match(st, /node-version: \$\{\{ inputs\.neville_dir == 'native' && '22' \|\| '20' \}\}/);
   assert.equal(wfSteps.filter((s: string) => /setup-node/.test(s)).length, 1);
   assert.ok(stepIdx(/setup-node/) < stepIdx(/neville-check\.mjs/));
+});
+
+test('check: local-file or path plugins in app.json fail in both dirs; package-name plugins pass', () => {
+  const app = (plugins: unknown[]) => JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.neville' }, plugins } });
+  for (const bad of ['./plugins/x', '../x', '/abs/x', 'file:./x', 'link:../x', '~/x', 'C:\\x', 'a/../b', ['./p', { a: 1 }], 42]) {
+    for (const sub of ['native', 'ios-shell'] as const) {
+      const { dir } = fixture({ ...goodNative, 'app.json': app([bad]) }, sub);
+      const r = checkSelfContained(dir, sub, { fs: nodeFs, nodeVersion: '22.14.0' });
+      assert.ok(r.errors.some((e: string) => e === `${sub}/app.json lists 1 plugin(s) that are local files or paths; only package-name plugins are allowed`), `${sub} ${JSON.stringify(bad)}`);
+      assert.ok(!r.errors.join('').includes('plugins/x'));
+    }
+  }
+  const { dir } = fixture({ ...goodNative, 'app.json': app(['expo-router', ['expo-build-properties', { ios: {} }], '@scope/some-plugin', 'expo-secure-store']) });
+  const ok = checkSelfContained(dir, 'native', { fs: nodeFs, nodeVersion: '22.14.0' });
+  assert.deepEqual(ok.errors, []);
+  assert.ok(ok.lines.includes('native/app.json plugins: package names only'));
+});
+
+test('check: the expected parent reference in native/metro.config.js is an info line, but still a warning for ios-shell', () => {
+  const metro = "module.exports = require('x')(path.resolve(__dirname, '..'));\n";
+  const n = checkSelfContained(fixture({ ...goodNative, 'metro.config.js': metro }).dir, 'native', { fs: nodeFs, nodeVersion: '22.14.0' });
+  assert.deepEqual(n.warnings, []);
+  assert.deepEqual(n.errors, []);
+  assert.ok(n.lines.some((l: string) => /^info: native\/metro\.config\.js references the parent directory \(line 1\); expected/.test(l)));
+  const sh = checkSelfContained(fixture({ 'package.json': '{}', 'eas.json': JSON.stringify({ build: { production: {} } }), 'metro.config.js': metro }, 'ios-shell').dir, 'ios-shell', { fs: nodeFs });
+  assert.ok(sh.warnings.some((w: string) => /ios-shell\/metro\.config\.js references a parent directory/.test(w)));
 });
