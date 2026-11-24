@@ -21,7 +21,7 @@
  * Auth: REVENUECAT_API_KEY (secret v2 key). In the cloud agent environment the
  * proxy injects it for api.revenuecat.com, so any dummy value works there.
  */
-import { buildCatalog, entitlementForCategory, OFFERING_ID, ENTITLEMENT_ALL } from '../../lib/catalog';
+import { buildCatalog, OFFERING_ID } from '../../lib/catalog';
 
 const PROJECT = process.env.REVENUECAT_PROJECT_ID ?? 'proj686a561d';
 const BASE = `https://api.revenuecat.com/v2/projects/${PROJECT}`;
@@ -116,7 +116,8 @@ async function main() {
   }
   const packages = await listAll(`/offerings/${offering.id}/packages`);
   for (const item of catalog) {
-    const key = item.categoryId ? entitlementForCategory(item.categoryId) : ENTITLEMENT_ALL;
+    // The package key is the entitlement id for every product (a tranche's entitlement is not derivable from its category alone).
+    const key = item.entitlementId;
     let pkg = packages.find((p) => p.lookup_key === key);
     if (!pkg) {
       pkg = await api('POST', `/offerings/${offering.id}/packages`, { lookup_key: key, display_name: item.title });
