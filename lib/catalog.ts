@@ -5,12 +5,14 @@
  * Tim's decision (2026-11-18, issue #54): one all-categories pack plus an
  * unlock per category. Prices: pack $4.99, single category $1.99.
  *
- * Tim, 2026-11-24 (#124, docs/specs/kids-family-categories.md §3.4): kids and teen categories sell their paid
- * questions in tranches at $1.99 each (one non-consumable per tranche). Adult categories are unchanged: their paid set
- * is one tranche, granted by the existing `cat_<id>` entitlement. Tim, later the same day: "We should just have one
- * pack for everything" and "$4.99 just unlocks everything", so the existing $4.99 all-categories pack
- * (`wyr_premium_all`) opens EVERY category, adult, kids and teen. There is no separate With kids pack.
- * (Tim also described an "infinite scroll" $1.99 option that is not in this catalog yet: see its own issue.)
+ * Tim, 2026-11-24 (#124, docs/specs/kids-family-categories.md §3.4): one pack for everything, $4.99, `wyr_premium_all`.
+ * "Only the first 20 per category come with the pack unlock"; "1.99 buys the next 20 in a category", repeatable. So the
+ * pack opens the first 20 questions of every category, and each $1.99 opens the next batch in ONE category. For kids and
+ * teen categories that is one non-consumable per tranche beyond question 20 (lib/tranches.ts,
+ * constants/trancheAssignments.ts); an adult category stays one tranche on its existing `cat_<id>`. There is no separate
+ * With kids pack. The "infinite" generated questions are issue #203, not built, and not in this catalog.
+ * STAGING: the pack is not limited to 20 yet (PACK_LIMITED_TO_FIRST_20 in lib/tranches.ts is false) because the live paywall
+ * still sells it as "every category"; 4c changes the paywall and flips the flag.
  *
  * Identifiers are identical in RevenueCat (Test Store), App Store Connect and
  * Google Play, so changing one is a catalog migration, not a code tweak.
@@ -21,7 +23,7 @@ import type { CategoryDef, CategoryId } from '@/constants/questions';
 import { isCategoryFullyOpen, trancheRanges } from './tranches';
 import type { Access } from './tranches';
 
-/** Entitlement of the one all-categories pack: opens every category, adult, kids and teen (Tim, 2026-11-24). */
+/** Entitlement of the one all-categories pack: the first 20 questions of every category, adult, kids and teen (Tim, 2026-11-24). */
 export const ENTITLEMENT_ALL = 'premium_all';
 
 /** Store product identifier for the one all-categories pack. */
@@ -81,15 +83,17 @@ export function trancheCategories(categories: CategoryDef[] = CATEGORIES): Categ
 }
 
 /**
- * What the active entitlements open in one category. Adult: the all-categories pack or the category's own
- * `cat_<id>` opens its single tranche. Kids and teen: the all-categories pack opens everything, otherwise each owned
- * `cat_<id>_<k>` opens tranche k. (Until 4c: the legacy `cat_<id>` also opens a kids or teen category, because the
- * live paywall still sells it.)
+ * What the active entitlements give in one category. `pack` is the all-categories pack (the first 20 questions once the
+ * pack is limited, everything until then, see lib/tranches.ts). Adult: the category's own `cat_<id>` is its one tranche.
+ * Kids and teen: each owned `cat_<id>_<k>` is tranche k. (Until 4c: the legacy `cat_<id>` also opens a whole kids or
+ * teen category, because the live paywall still sells it.)
  */
 export function accessFor(active: ReadonlySet<string> | readonly string[], category: CategoryDef): Access {
   const set = active instanceof Set ? active : new Set(active as readonly string[]);
+  const pack = set.has(ENTITLEMENT_ALL);
   if (category.audience === 'adult') {
-    return { all: set.has(ENTITLEMENT_ALL) || set.has(entitlementForCategory(category.id)), ownedTranches: new Set() };
+    // An adult category is one tranche, granted by the existing `cat_<id>`.
+    return { all: false, pack, ownedTranches: set.has(entitlementForCategory(category.id)) ? new Set([1]) : new Set() };
   }
   const owned = new Set<number>();
   for (const r of trancheRanges(category)) {
@@ -98,21 +102,17 @@ export function accessFor(active: ReadonlySet<string> | readonly string[], categ
   // STAGING: the live paywall (app/unlock/[id].tsx) still sells the per-category unlock `cat_<id>` on kids and teen
   // categories, so until 4c changes that paywall to sell tranches, `cat_<id>` keeps opening the whole category and a
   // purchase never stops opening what it was bought for. 4c decides whether such legacy holders are grandfathered.
-  const legacyCategoryUnlock = set.has(entitlementForCategory(category.id));
-  return { all: set.has(ENTITLEMENT_ALL) || legacyCategoryUnlock, ownedTranches: owned };
+  return { all: set.has(entitlementForCategory(category.id)), pack, ownedTranches: owned };
 }
 
 /**
- * Whether a category is entirely open: nothing left to buy. An adult category is open with the all-categories
- * pack or its own entitlement; a kids or teen category with the all-categories pack or every one of its tranches.
- * An id that is not a category is treated as adult, so a category added later is covered by the pack.
+ * Whether a category is entirely open: nothing left to buy. Decided by the access model (lib/tranches.ts), so it follows
+ * the pack limit. An id that is not a category is treated as adult: the pack or its own entitlement opens it.
  */
 export function isCategoryEntitled(active: ReadonlySet<string> | readonly string[], id: CategoryId | string): boolean {
   const set = active instanceof Set ? active : new Set(active as readonly string[]);
   const category = getCategoryById(id as CategoryId);
-  if (category && category.audience !== 'adult') {
-    return isCategoryFullyOpen(category, accessFor(set, category));
-  }
+  if (category) return isCategoryFullyOpen(category, accessFor(set, category));
   return set.has(ENTITLEMENT_ALL) || set.has(entitlementForCategory(id));
 }
 

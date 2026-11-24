@@ -1,4 +1,5 @@
-// Unit 4a of #124 (docs/specs/kids-family-categories.md §3.4, docs/specs/plan.md): the pure tranche model.
+// Unit 4a of #124 (docs/specs/kids-family-categories.md §3.4, docs/specs/plan.md): the pure access model.
+// Tim, 2026-11-24: the pack opens the first 20 questions of every category; each $1.99 opens the next batch in ONE category.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -11,35 +12,33 @@ import {
 } from '../../constants/questions';
 import { TRANCHE_ASSIGNMENTS } from '../../constants/trancheAssignments';
 import {
+  PACK_LIMITED_TO_FIRST_20,
+  PACK_QUESTION_LIMIT,
   isCategoryFullyOpen,
   isQuestionOpen,
   nextTrancheToSell,
   noAccess,
   openQuestionCount,
-  trancheOf,
+  questionZone,
   trancheRanges,
   trancheSizes,
   unassignedPaidQuestions,
 } from '../../lib/tranches';
 import type { Access } from '../../lib/tranches';
-import {
-  ENTITLEMENT_ALL,
-  accessFor,
-  entitlementForCategory,
-  entitlementForTranche,
-  isCategoryEntitled,
-} from '../../lib/catalog';
+import { ENTITLEMENT_ALL, accessFor, entitlementForCategory, entitlementForTranche, isCategoryEntitled } from '../../lib/catalog';
 
 const young = CATEGORIES.filter((c) => c.audience !== 'adult');
 const adult = CATEGORIES.filter((c) => c.audience === 'adult');
 const cat = (id: string) => getCategoryById(id as any)!;
+const LIMITED = true; // the target behavior (4c): the pack opens only the first 20 questions per category
+const UNLIMITED = false; // today's behavior (4a staging)
 
 test('remainder rule (used to define NEW tranches): under 10 joins the previous tranche, otherwise its own', () => {
-  assert.deepEqual(trancheSizes(22), [22]);
-  assert.deepEqual(trancheSizes(33), [20, 13]);
-  assert.deepEqual(trancheSizes(47), [20, 27]);
-  assert.deepEqual(trancheSizes(39), [20, 19]);
-  assert.deepEqual(trancheSizes(25), [25]);
+  assert.deepEqual(trancheSizes(10), [10]);
+  assert.deepEqual(trancheSizes(13), [13]);
+  assert.deepEqual(trancheSizes(21), [21]);
+  assert.deepEqual(trancheSizes(27), [27]);
+  assert.deepEqual(trancheSizes(35), [20, 15]);
   assert.deepEqual(trancheSizes(20), [20]);
   assert.deepEqual(trancheSizes(40), [20, 20]);
   assert.deepEqual(trancheSizes(30), [20, 10]); // exactly 10 is its own tranche
@@ -47,52 +46,64 @@ test('remainder rule (used to define NEW tranches): under 10 joins the previous 
   assert.deepEqual(trancheSizes(0), []);
 });
 
-test('the 12 kids and teen tranches match the spec table (Tim, 2026-11-24)', () => {
+test('the pack opens the first 20 questions of every category; the kids and teen questions beyond 20 are 146 in 10 tranches (Tim, 2026-11-24)', () => {
+  assert.equal(PACK_QUESTION_LIMIT, 20);
   const sizes = Object.fromEntries(young.map((c) => [c.id, trancheRanges(c).map((r) => r.size)]));
   assert.deepEqual(sizes, {
-    'tiny-choices': [22],
-    'make-believe': [20, 13],
-    'giggle-factory': [20, 27],
-    'road-trip-rally': [22],
-    'dinner-table': [20, 19],
-    'heart-to-heart': [22],
-    'future-me': [22],
-    'real-talk': [22],
-    'holiday-table': [25],
+    'tiny-choices': [10],
+    'make-believe': [21],
+    'giggle-factory': [20, 15],
+    'road-trip-rally': [10],
+    'dinner-table': [27],
+    'heart-to-heart': [10],
+    'future-me': [10],
+    'real-talk': [10],
+    'holiday-table': [13],
   });
-  assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 12);
+  assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 10);
+  assert.equal(young.reduce((n, c) => n + trancheRanges(c).reduce((m, r) => m + r.size, 0), 0), 146);
+  for (const c of young) assert.equal(getCategoryQuestions(c.id).length - 20, trancheRanges(c).reduce((m, r) => m + r.size, 0), c.id);
 });
 
-test('frozen membership: every paid kids and teen question is in exactly one tranche, nothing free or unknown is, and no id is duplicated', () => {
+test('kids and teen: the pack list is positions 9 to 20 and the tranches are positions 21 onward, in list order', () => {
+  for (const c of young) {
+    const list = getCategoryQuestions(c.id).map((q) => q.id);
+    const a = TRANCHE_ASSIGNMENTS[c.id];
+    assert.deepEqual(a.pack, list.slice(getFreeQuestionCount(c), PACK_QUESTION_LIMIT), `${c.id} pack`);
+    assert.deepEqual(a.tranches.flat(), list.slice(PACK_QUESTION_LIMIT), `${c.id} tranches`);
+  }
+});
+
+test('frozen membership: every paid kids and teen question is in exactly one list, nothing free or unknown is, and no id is duplicated', () => {
   for (const c of young) {
     const qs = getCategoryQuestions(c.id);
     const free = new Set(qs.slice(0, getFreeQuestionCount(c)).map((q) => q.id));
     const paid = qs.slice(getFreeQuestionCount(c)).map((q) => q.id);
+    const a = TRANCHE_ASSIGNMENTS[c.id];
     const seen = new Set<string>();
-    for (const r of trancheRanges(c)) {
-      for (const id of r.ids) {
-        assert.ok(paid.includes(id), `${c.id}: ${id} is not a paid question of the category`);
-        assert.ok(!free.has(id), `${c.id}: free question ${id} is in a tranche`);
-        assert.ok(!seen.has(id), `${c.id}: ${id} is in two tranches`);
-        seen.add(id);
-      }
+    for (const id of [...a.pack, ...a.tranches.flat()]) {
+      assert.ok(paid.includes(id), `${c.id}: ${id} is not a paid question of the category`);
+      assert.ok(!free.has(id), `${c.id}: free question ${id} is in a list`);
+      assert.ok(!seen.has(id), `${c.id}: ${id} is in two lists`);
+      seen.add(id);
     }
-    assert.deepEqual(unassignedPaidQuestions(c), [], `${c.id}: paid questions in no tranche (assign them in constants/trancheAssignments.ts)`);
+    assert.deepEqual(unassignedPaidQuestions(c), [], `${c.id}: paid questions in no list (assign them in constants/trancheAssignments.ts)`);
     assert.equal(seen.size, paid.length, c.id);
   }
   assert.deepEqual(Object.keys(TRANCHE_ASSIGNMENTS).sort(), young.map((c) => c.id).sort());
 });
 
 test('frozen boundaries are pinned by id: an owned tranche cannot silently change what it opens', () => {
-  const ends = (id: string) => trancheRanges(cat(id)).map((r) => [r.ids[0], r.ids[r.ids.length - 1]]);
-  assert.deepEqual(ends('giggle-factory'), [['kf-29', 'kf-89'], ['kf-90', 'kf-120']]);
-  assert.deepEqual(ends('make-believe'), [['kf-4', 'kf-72'], ['kf-75', 'kf-223']]);
-  assert.deepEqual(ends('dinner-table'), [['kf-69', 'kf-167'], ['kf-168', 'kf-193']]);
-  assert.deepEqual(ends('holiday-table'), [['kf-121', 'kf-153']]);
-  assert.deepEqual(ends('real-talk'), [['tn-5', 'tn-30']]);
+  const t = (id: string) => TRANCHE_ASSIGNMENTS[id].tranches.map((l) => [l[0], l[l.length - 1]]);
+  assert.deepEqual(t('giggle-factory'), [['kf-41', 'kf-104'], ['kf-105', 'kf-120']]);
+  assert.deepEqual(t('make-believe'), [['kf-18', 'kf-223']]);
+  assert.deepEqual(t('dinner-table'), [['kf-159', 'kf-193']]);
+  assert.deepEqual(t('holiday-table'), [['kf-138', 'kf-153']]);
+  assert.deepEqual(t('real-talk'), [['tn-20', 'tn-30']]);
+  assert.deepEqual([TRANCHE_ASSIGNMENTS['giggle-factory'].pack[0], TRANCHE_ASSIGNMENTS['giggle-factory'].pack[11]], ['kf-29', 'kf-40']);
 });
 
-test('growth: a new paid question is closed (not free, not in an owned tranche) until it is assigned; owned tranches do not shrink', () => {
+test('growth: a new paid question is closed (even with the pack limited) until it is assigned; owned tranches do not shrink', () => {
   const holiday = cat('holiday-table');
   const before = trancheRanges(holiday).map((r) => r.size);
   const extra = { id: 'kf-9999', category: 'holiday-table', volume: 2, optionA: 'a', optionB: 'b' } as any;
@@ -101,60 +112,117 @@ test('growth: a new paid question is closed (not free, not in an owned tranche) 
     assert.deepEqual(trancheRanges(holiday).map((r) => r.size), before, 'adding a question must not re-cut an owned tranche');
     assert.deepEqual(unassignedPaidQuestions(holiday), ['kf-9999']);
     const idx = getCategoryQuestions(holiday.id).length - 1;
-    assert.equal(trancheOf(holiday, idx), -1);
-    const owns1: Access = { all: false, ownedTranches: new Set([1]) };
-    assert.equal(isQuestionOpen(holiday, idx, owns1), false);
-    assert.equal(isQuestionOpen(holiday, idx - 1, owns1), true); // the originally owned tranche still opens
-    assert.equal(isQuestionOpen(holiday, idx, { all: true, ownedTranches: new Set() }), true); // a pack opens it
-    assert.equal(isCategoryFullyOpen(holiday, owns1), false);
+    const owns1: Access = { all: false, pack: true, ownedTranches: new Set([1]) };
+    assert.equal(isQuestionOpen(holiday, idx, owns1, LIMITED), false);
+    assert.equal(isQuestionOpen(holiday, idx - 1, owns1, LIMITED), true); // the originally owned tranche still opens
+    assert.equal(isQuestionOpen(holiday, idx, { all: true, pack: false, ownedTranches: new Set() }, LIMITED), true); // owner access opens it
+    assert.equal(isCategoryFullyOpen(holiday, owns1, LIMITED), false);
   } finally {
     QUESTIONS.pop();
   }
   assert.deepEqual(unassignedPaidQuestions(holiday), []);
 });
 
-test('the free count is never a hardcoded 8: adult categories use 3 or 20, kids and teen 8', () => {
+test('the free count is never a hardcoded 8: adult 3 or 20, kids and teen 8', () => {
   const frees = new Set(adult.map((c) => getFreeQuestionCount(c)));
   assert.ok([...frees].every((n) => n === 3 || n === 20), [...frees].join());
   for (const c of young) assert.equal(getFreeQuestionCount(c), 8, c.id);
-  for (const c of adult) {
-    const qs = getCategoryQuestions(c.id);
-    const free = getFreeQuestionCount(c);
-    for (let i = 0; i < qs.length; i++) assert.equal(trancheOf(c, i) === 0, i < free, `${c.id} ${i}`);
+  for (const c of CATEGORIES) {
+    const n = getCategoryQuestions(c.id).length;
+    for (let i = 0; i < n; i++) assert.equal(questionZone(c, i).free, i < getFreeQuestionCount(c), `${c.id} ${i}`);
   }
 });
 
-test('an adult category is exactly one tranche, granted by the existing cat_<id> entitlement (never cat_<id>_1)', () => {
-  for (const c of adult) {
-    const ranges = trancheRanges(c);
-    assert.ok(ranges.length <= 1, `${c.id} is not split`);
-    const withCat = accessFor([entitlementForCategory(c.id)], c);
-    const withPack = accessFor([ENTITLEMENT_ALL], c);
-    const withWrongId = accessFor([`${entitlementForCategory(c.id)}_1`], c);
-    assert.equal(withCat.all, true, c.id);
-    assert.equal(withPack.all, true, c.id);
-    assert.equal(withWrongId.all, false, `${c.id}: cat_<id>_1 must not grant an adult category`);
+test('STAGING (4a): the pack is not limited yet, so it keeps opening everything it opens today in every category', () => {
+  assert.equal(PACK_LIMITED_TO_FIRST_20, false); // 4c flips this with the paywall change
+  for (const c of CATEGORIES) {
+    const n = getCategoryQuestions(c.id).length;
+    assert.equal(openQuestionCount(c, accessFor([ENTITLEMENT_ALL], c)), n, c.id);
+    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
   }
 });
 
-test('adult regression: every adult question is open or locked exactly as the old boolean rule says', () => {
+test('adult regression (today\'s behavior): every adult question is open or locked exactly as the old boolean rule says', () => {
   for (const c of adult) {
     const n = getCategoryQuestions(c.id).length;
     for (let i = 0; i < n; i++) {
-      assert.equal(isQuestionOpen(c, i, accessFor([], c)), !isQuestionLocked(c, i, false), `${c.id} ${i} locked`);
-      assert.equal(isQuestionOpen(c, i, accessFor([entitlementForCategory(c.id)], c)), !isQuestionLocked(c, i, true), `${c.id} ${i} cat`);
-      assert.equal(isQuestionOpen(c, i, accessFor([ENTITLEMENT_ALL], c)), !isQuestionLocked(c, i, true), `${c.id} ${i} pack`);
+      assert.equal(isQuestionOpen(c, i, accessFor([], c), UNLIMITED), !isQuestionLocked(c, i, false), `${c.id} ${i} locked`);
+      assert.equal(isQuestionOpen(c, i, accessFor([entitlementForCategory(c.id)], c), UNLIMITED), !isQuestionLocked(c, i, true), `${c.id} ${i} cat`);
+      assert.equal(isQuestionOpen(c, i, accessFor([ENTITLEMENT_ALL], c), UNLIMITED), !isQuestionLocked(c, i, true), `${c.id} ${i} pack`);
     }
   }
 });
 
-test('the one all-categories pack (Tim, 2026-11-24) opens every kids and teen category fully', () => {
-  for (const c of young) {
+test('an adult category is one tranche, granted by the existing cat_<id> entitlement (never cat_<id>_1)', () => {
+  for (const c of adult) {
+    assert.ok(trancheRanges(c).length <= 1, `${c.id} is not split`);
     const n = getCategoryQuestions(c.id).length;
-    assert.equal(accessFor([ENTITLEMENT_ALL], c).all, true, c.id);
-    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
-    assert.equal(openQuestionCount(c, accessFor([ENTITLEMENT_ALL], c)), n, c.id);
+    assert.equal(openQuestionCount(c, accessFor([entitlementForCategory(c.id)], c)), n, c.id);
+    assert.equal(openQuestionCount(c, accessFor([`${entitlementForCategory(c.id)}_1`], c), UNLIMITED), getFreeQuestionCount(c), `${c.id}: cat_<id>_1 must not grant an adult category`);
   }
+});
+
+test('TARGET (4c, pack limited): the pack opens exactly the first 20 questions of every category, adult included; Moral Compass and the other 3 free-tier adult categories keep questions 21 to 40 for their $1.99', () => {
+  for (const c of CATEGORIES) {
+    const n = getCategoryQuestions(c.id).length;
+    const pack = accessFor([ENTITLEMENT_ALL], c);
+    for (let i = 0; i < n; i++) assert.equal(isQuestionOpen(c, i, pack, LIMITED), i < PACK_QUESTION_LIMIT, `${c.id} ${i}`);
+    assert.equal(openQuestionCount(c, pack, LIMITED), Math.min(n, 20), c.id);
+  }
+  // adult: the per-category unlock still opens the whole category (its one tranche)
+  for (const c of adult) {
+    assert.equal(openQuestionCount(c, accessFor([entitlementForCategory(c.id)], c), LIMITED), getCategoryQuestions(c.id).length, c.id);
+  }
+  // 4 adult categories have 40 questions, so the pack alone leaves 20 each behind the $1.99
+  assert.deepEqual(
+    adult.filter((c) => getCategoryQuestions(c.id).length > 20).map((c) => c.id).sort(),
+    ['career-climber', 'moral-compass', 'social-blunders', 'tech-dystopia'],
+  );
+});
+
+test('TARGET (4c): a tranche opens only its own questions beyond 20; the pack plus a tranche opens the first 20 and that tranche', () => {
+  const g = cat('giggle-factory');
+  const list = getCategoryQuestions(g.id).map((q) => q.id);
+  const owns1 = accessFor([ENTITLEMENT_ALL, entitlementForTranche('giggle-factory', 1)], g);
+  list.forEach((_, i) => assert.equal(isQuestionOpen(g, i, owns1, LIMITED), i < 40, `question ${i}`));
+  const onlyTranche1 = accessFor([entitlementForTranche('giggle-factory', 1)], g); // no pack
+  list.forEach((_, i) => assert.equal(isQuestionOpen(g, i, onlyTranche1, LIMITED), i < 8 || (i >= 20 && i < 40), `question ${i}`));
+});
+
+test('questionZone and the paywall at the boundaries (Giggle Factory: 8 free, pack 9 to 20, then tranches of 20 and 15)', () => {
+  const g = cat('giggle-factory');
+  assert.deepEqual(questionZone(g, 7), { free: true, pack: false, tranche: 0 });
+  assert.deepEqual(questionZone(g, 8), { free: false, pack: true, tranche: 0 });
+  assert.deepEqual(questionZone(g, 19), { free: false, pack: true, tranche: 0 });
+  assert.deepEqual(questionZone(g, 20), { free: false, pack: false, tranche: 1 });
+  assert.deepEqual(questionZone(g, 39), { free: false, pack: false, tranche: 1 });
+  assert.deepEqual(questionZone(g, 40), { free: false, pack: false, tranche: 2 });
+  assert.deepEqual(questionZone(g, 54), { free: false, pack: false, tranche: 2 });
+  assert.equal(nextTrancheToSell(g, noAccess(), LIMITED)?.k, 1);
+  const owns1: Access = { all: false, pack: true, ownedTranches: new Set([1]) };
+  assert.equal(nextTrancheToSell(g, owns1, LIMITED)?.k, 2);
+  assert.equal(nextTrancheToSell(g, { all: false, pack: true, ownedTranches: new Set([1, 2]) }, LIMITED), null);
+  assert.equal(isCategoryFullyOpen(g, { all: false, pack: true, ownedTranches: new Set([1, 2]) }, LIMITED), true);
+});
+
+test('adult paywall (target): a premium-tier adult category the pack already opens fully has nothing left to sell', () => {
+  const h = cat('high-life'); // 20 questions: the pack covers all of them
+  assert.equal(nextTrancheToSell(h, accessFor([ENTITLEMENT_ALL], h), LIMITED), null);
+  assert.equal(nextTrancheToSell(h, noAccess(), LIMITED)?.k, 1);
+  const m = cat('moral-compass'); // 40 questions: tranche 1 is questions 21 to 40
+  assert.equal(nextTrancheToSell(m, accessFor([ENTITLEMENT_ALL], m), LIMITED)?.k, 1);
+});
+
+test('refund example: tranche 1 refunded, tranche 2 still owned opens exactly tranche 2 (plus the pack zone) and the paywall offers tranche 1', () => {
+  const g = cat('giggle-factory');
+  const access = accessFor([ENTITLEMENT_ALL, entitlementForTranche('giggle-factory', 2)], g);
+  assert.deepEqual([...access.ownedTranches], [2]);
+  const n = getCategoryQuestions(g.id).length;
+  const open = Array.from({ length: n }, (_, i) => isQuestionOpen(g, i, access, LIMITED));
+  open.forEach((o, i) => assert.equal(o, i < 20 || i >= 40, `question ${i}`));
+  assert.equal(openQuestionCount(g, access, LIMITED), 20 + 15);
+  assert.equal(nextTrancheToSell(g, access, LIMITED)?.k, 1);
+  assert.equal(isCategoryFullyOpen(g, access, LIMITED), false);
 });
 
 test('4a staging: the legacy per-category unlock cat_<id>, still sold by the live kids paywall, keeps opening the whole kids or teen category (4c changes the paywall)', () => {
@@ -164,48 +232,16 @@ test('4a staging: the legacy per-category unlock cat_<id>, still sold by the liv
     assert.equal(access.all, true, c.id);
     assert.equal(isCategoryEntitled([entitlementForCategory(c.id)], c.id), true, c.id);
     assert.equal(openQuestionCount(c, access), n, c.id);
-    // but another category's cat_<id> opens nothing here
     const other = young.find((o) => o.id !== c.id)!;
     assert.equal(isCategoryEntitled([entitlementForCategory(other.id)], c.id), false, c.id);
   }
 });
 
-test('trancheOf and isQuestionOpen at the boundaries (Giggle Factory: 8 free, then 20 and 27)', () => {
+test('an owned tranche set of every tranche fully opens a category with the pack', () => {
   const g = cat('giggle-factory');
-  assert.equal(trancheOf(g, 0), 0);
-  assert.equal(trancheOf(g, 7), 0);
-  assert.equal(trancheOf(g, 8), 1);
-  assert.equal(trancheOf(g, 27), 1);
-  assert.equal(trancheOf(g, 28), 2);
-  assert.equal(trancheOf(g, 54), 2);
-  assert.equal(nextTrancheToSell(g, noAccess())?.k, 1);
-  const owns1: Access = { all: false, ownedTranches: new Set([1]) };
-  assert.equal(isQuestionOpen(g, 27, owns1), true);
-  assert.equal(isQuestionOpen(g, 28, owns1), false);
-  assert.equal(nextTrancheToSell(g, owns1)?.k, 2);
-  assert.equal(nextTrancheToSell(g, { all: false, ownedTranches: new Set([1, 2]) }), null);
-  assert.equal(isCategoryFullyOpen(g, { all: false, ownedTranches: new Set([1, 2]) }), true);
-});
-
-test('refund example: tranche 1 refunded, tranche 2 still owned opens exactly tranche 2 and the paywall offers tranche 1', () => {
-  const g = cat('giggle-factory');
-  const access = accessFor([entitlementForTranche('giggle-factory', 2)], g);
-  assert.deepEqual([...access.ownedTranches], [2]);
-  const n = getCategoryQuestions(g.id).length;
-  const open = Array.from({ length: n }, (_, i) => isQuestionOpen(g, i, access));
-  open.forEach((o, i) => assert.equal(o, i < 8 || i >= 28, `question ${i}`));
-  assert.equal(open.filter(Boolean).length, 8 + 27);
-  assert.equal(openQuestionCount(g, access), 8 + 27);
-  assert.equal(nextTrancheToSell(g, access)?.k, 1);
-  assert.equal(isCategoryFullyOpen(g, access), false);
-});
-
-test('an owned tranche set of every tranche fully opens the category without the pack', () => {
-  const m = cat('make-believe');
-  const access = accessFor([entitlementForTranche('make-believe', 1), entitlementForTranche('make-believe', 2)], m);
-  assert.equal(isCategoryFullyOpen(m, access), true);
-  assert.equal(isCategoryEntitled([entitlementForTranche('make-believe', 1), entitlementForTranche('make-believe', 2)], 'make-believe'), true);
-  assert.equal(isCategoryEntitled([entitlementForTranche('make-believe', 1)], 'make-believe'), false);
+  const both = [ENTITLEMENT_ALL, entitlementForTranche('giggle-factory', 1), entitlementForTranche('giggle-factory', 2)];
+  assert.equal(isCategoryFullyOpen(g, accessFor(both, g), LIMITED), true);
+  assert.equal(isCategoryFullyOpen(g, accessFor(both.slice(0, 2), g), LIMITED), false);
 });
 
 test('an id that is not a category is treated as adult: the pack covers a category added later', () => {

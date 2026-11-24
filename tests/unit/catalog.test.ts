@@ -20,12 +20,12 @@ import { trancheRanges } from '../../lib/tranches';
 const adultPaid = CATEGORIES.filter((c) => c.audience === 'adult' && hasPaidContent(c) && !IOS_V1_EXCLUDED_CATEGORIES.includes(c.id));
 const young = CATEGORIES.filter((c) => c.audience !== 'adult' && hasPaidContent(c));
 
-test('catalog: the one all-categories pack, one product per adult paid category, and one product per kids or teen tranche', () => {
+test('catalog: the one all-categories pack, one product per adult paid category, and one product per kids or teen tranche beyond question 20', () => {
   const catalog = buildCatalog();
   assert.equal(adultPaid.length, 7);
-  assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 12);
-  assert.equal(catalog.length, 1 + adultPaid.length + 12); // 20
-  assert.equal(catalog.length, 20);
+  assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 10);
+  assert.equal(catalog.length, 1 + adultPaid.length + 10); // 18
+  assert.equal(catalog.length, 18);
   assert.equal(catalog[0].productId, PRODUCT_ALL);
   assert.equal(catalog[0].priceMicros, PRICE_ALL_MICROS);
   for (const c of adultPaid) {
@@ -94,7 +94,7 @@ test('access: pack opens every adult category, category unlock opens only itself
   assert.equal(isCategoryEntitled(new Set<string>(), 'high-life'), false);
 });
 
-test('access: the one pack opens every category, kids and teen included (Tim: "$4.99 just unlocks everything")', () => {
+test('access: the one pack opens every category, kids and teen included, until 4c limits it to the first 20 questions (see tranches.test.ts)', () => {
   for (const c of young) {
     assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
     assert.equal(isCategoryEntitled([], c.id), false, c.id);
@@ -106,5 +106,5 @@ test('iOS v1 leaves Midnight Secrets and Deep Desires out (Tim, 2026-11-18): no 
   const ids = buildCatalog().map((p) => p.productId);
   assert.equal(ids.includes('wyr_unlock_midnight_secrets'), false);
   assert.equal(ids.includes('wyr_unlock_deep_desires'), false);
-  assert.equal(buildCatalog().length, 20); // pack + 7 adult categories + 12 tranches
+  assert.equal(buildCatalog().length, 18); // pack + 7 adult categories + 10 tranches beyond question 20
 });

@@ -159,7 +159,7 @@ child's Family Sharing account from buying without approval, independent of our 
 
 Reuse the model: one non-consumable per category, `wyr_unlock_<id>` → entitlement `cat_<id>`, in the `default`
 offering. **Superseded by §3.4:** kids and teen categories are sold as tranches, and the one $4.99 pack opens every category (§3.4 Decisions, revised). The per-category product line above no longer applies to them.
-New iOS products (**superseded by §3.4: 12 tranche products, no separate With kids pack, catalog 8 → 20**; the old "9, 8 → 17" no longer applies). `buildCatalog()` picks them up automatically once
+New iOS products (**superseded by §3.4.1: 10 tranche products beyond question 20, no separate With kids pack, catalog 8 → 18**; the old "9, 8 → 17" no longer applies). `buildCatalog()` picks them up automatically once
 they have paid content; `npm run rc:sync` creates them in the Test Store; App Store Connect products are created by Tim
 (go-live is Tim's, per `docs/payments.md`).
 
@@ -179,7 +179,61 @@ Restore: the existing Restore Purchases button on the paywall, unchanged. Entitl
 **Payments changes need Tim's review before merge** (Units 3 and 4 below; also any change to `lib/catalog.ts`,
 `app/unlock/[id].tsx`, `contexts/UnlockedContext.tsx`, or RevenueCat/ASC products).
 
-### 3.4 Tranche pricing (proposal, 2026-11-24; replaces the per-category unlock for kids and teen categories)
+### 3.4 Tranche pricing (decided, revised 2026-11-24; replaces the per-category unlock for kids and teen categories)
+
+#### 3.4.1 Revised model (Tim's answers, 2026-11-24; supersedes the 12-tranche version below where they differ)
+
+Tim's exact words (answering the questions on #203): "1. Only the first 20 per category come with the pack unlock 2. 1.99 buys the next 20 in a
+category 3. 1.99 buys 20 more in one category, repeatable 4. ACcept this". Earlier the same day: "We should just have one pack for everything",
+"$4.99 just unlocks everything. However, ... if I reach the end of the original 20 (that should be the max for every category) ... that's $1.99 and is
+not included in the $4.99." The orchestrator's reading, checked against the data below: the one $4.99 pack (`wyr_premium_all`) opens the **first 20
+questions of every category** (for kids and teen: the 8 free plus the next 12); everything written beyond 20 is **not** in the pack; each $1.99 opens the
+next batch in **one** category, repeatable: first the written questions beyond 20, in list order, then generated ones once the written run out (#203,
+not built). Credits do not follow a user across devices (no accounts yet; Tim accepted).
+
+**What the data says (kids and teen), by position in each category's list:**
+
+| Category | Written | Free | The pack opens | Beyond 20 | $1.99 tranches (sizes) |
+|---|---|---|---|---|---|
+| Tiny Choices | 30 | 8 | 12 | 10 | 1 (10) |
+| Make-Believe | 41 | 8 | 12 | 21 | 1 (21) |
+| Giggle Factory | 55 | 8 | 12 | 35 | 2 (20, 15) |
+| Road Trip Rally | 30 | 8 | 12 | 10 | 1 (10) |
+| Dinner Table | 47 | 8 | 12 | 27 | 1 (27) |
+| Heart to Heart | 30 | 8 | 12 | 10 | 1 (10) |
+| Future Me | 30 | 8 | 12 | 10 | 1 (10) |
+| Real Talk | 30 | 8 | 12 | 10 | 1 (10) |
+| Holiday Table | 33 | 8 | 12 | 13 | 1 (13) |
+| **Total** | **326** | 72 | 108 | **146** | **10 tranches ($19.90 to buy all)** |
+
+Sizes use the same rule as before (20 per tranche, a remainder under 10 joins the previous one), applied once to the questions beyond 20 and then frozen as
+explicit ids (`constants/trancheAssignments.ts`).
+
+**Adult categories (what the data says).** Five premium-tier categories (High Life, Midnight Secrets, Time Traveler, Deep Desires, Wildest Dreams) have exactly 20
+questions (3 free), so the pack opens all of them, as today. Four free-tier categories (Moral Compass, Social Blunders, Career Climber, Tech Dystopia) have
+**40**: 20 free plus a volume-2 expansion of 20. Under "only the first 20 per category come with the pack" the pack would **stop** opening that expansion (it opens it
+today), and the per-category $1.99 (which sells exactly "the next 20") remains the only way in. That is the same rule applied to adult, but it is a change to what
+the pack opens in 4 adult categories; **flagged for Tim to confirm** (there are no buyers, see the RevenueCat check below, so no one loses access).
+
+**Not literally "20".** Written questions beyond 20 are only 10 to 35 per category, so 6 of the 9 kids and teen categories sell **fewer than 20** in their first purchase
+(10 or 13) and Giggle Factory sells 20 then 15. The paywall copy therefore says the real number ("Open the next {n} questions"). To make "the next 20" literally true,
+the partial tranches are topped up with generated questions (#203) or more are written: **an open question for Tim.**
+
+**Product shape, consumable or not, stated plainly.**
+- *One non-consumable per tranche* (recommended for the written questions): 10 kids and teen products (`wyr_unlock_<category>_<k>`), plus the 7 adult category products and the pack = **18 products**.
+  Apple **restores** non-consumables, so a reinstall or a new phone gets them back. The cost: it is a fixed list, so every new batch (including generated ones) would need a new product,
+  which cannot be unbounded.
+- *One repeatable consumable per category* ("20 more", $1.99): one product per category, repeatable without new products. Apple **does not restore consumables**, so a reinstall or new device
+  loses what was bought unless we keep a count ourselves, and kids routes keep no ID. App Review can also reject a consumable that unlocks permanent content. Tim accepted that credits do not follow a user
+  across devices, but that is a reason to use it only where there is no fixed set.
+- Recommendation: non-consumable tranches for the **written** questions (permanent content, restorable), and a repeatable consumable per category for the **generated** "keep going" only (#203, not built, not in this catalog).
+
+**Staging.** The live paywall still sells "Or unlock every category" as everything, so in 4a the pack is **not** limited yet (`PACK_LIMITED_TO_FIRST_20 = false` in `lib/tranches.ts`) and keeps opening
+what it opens today; the tests pin both that and the target. 4c changes the paywall and flips the flag (and updates the pack's name and description to "first 20 questions of every category").
+
+---
+**The rest of this section is the earlier version** (12 tranches that started right after the free 8, before Tim's answers on #203). Where it conflicts with 3.4.1 above, 3.4.1 wins:
+
 
 **Decision (Tim, 2026-11-24, exact words):** "I would like a tranch of 20 new questions opened every $1.99." The model: 8 free per
 category, then each $1.99 purchase opens the **next 20** questions of that category, repeatable until the category is
@@ -253,9 +307,9 @@ created; that file is stale, to be checked in 4d.) Nothing was ever sold for the
 earlier were never created, so there is nothing to retire.
 Adult paid sets are 17 to 20 questions per category, which is one tranche, so the adult model **already is** the tranche model with
 one tranche per category. Recommended: leave adult categories as they are.
-`buildCatalog()` now derives 9 kids and teen category products (8 → 17). It would instead derive the 12 tranche products (8 → 20).
-The two tests that fail on purpose today (`catalog.test.ts` product count, `asc-iap-create.test.ts` product-file parity) move to 20,
-and `store/ios/iap-products.json` plus the App Review screenshots gain the 12 tranche products (12 new) in that same Unit 4 change.
+`buildCatalog()` now derives 9 kids and teen category products (8 → 17). It would instead derive the 10 tranche products beyond question 20 (8 → 18, see 3.4.1).
+The two tests that fail on purpose today (`catalog.test.ts` product count, `asc-iap-create.test.ts` product-file parity) move to 18,
+and `store/ios/iap-products.json` plus the App Review screenshots gain the 10 tranche products (10 new) in that same Unit 4 change.
 
 **Decisions (Tim, 2026-11-24).** Tim's exact words: "accept all five tranche defaults". The defaults are the recommendations as they
 were put to him, relayed by the orchestrator session. They settle the five open questions:
@@ -278,7 +332,7 @@ the RevenueCat check found none.
 
 **Consequences for the build (Unit 4, see `docs/specs/plan.md`).** `premium_all` is not narrowed and nothing is renamed: it already opens kids and teen
 categories, and now that is the intended behavior. There is no With kids pack, so no `premium_kids` entitlement and no extra product. Product count after
-Unit 4 is 20 (8 today plus the 12 tranches), unless #203 changes the tranche model.
+Unit 4 is 18 (8 today plus the 10 tranches beyond question 20, see 3.4.1).
 
 ## 4. AI "more like this"
 
@@ -499,7 +553,7 @@ add coloured text or comments without rewriting the document, which would break 
 | 1 | Content: categories, retag, hand-pick free 8, write 103 new questions | `constants/kidsQuestions.ts` (split per category file if large), `api/_lib/data.js`, `scripts/verify-questions.ts` (new checks: every kids question in exactly one category, free count 8, ages set, blocklist clean) | **Yes**: read every new question (103) | `npm run verify:data`, `npm test` |
 | 2 | Model + kids-rule plumbing: `audience`, `ages`, remove `kids-family`, redirect, derive `isKidsPath`/`requiresParentalGate`/`FAMILY_FRIENDLY` from `audience` | `constants/questions.ts`, `lib/kidsPaths.ts`, `lib/parentalGate.ts`, `constants/seoPages.ts` (D4), `tests/unit/*` | No (privacy rule, but no payments) | unit tests incl. "every kids category is a kids route"; `tests/browserless/kids-no-tracking.mjs` on every new route |
 | 3 | Browse UI: Grown-ups / With kids switch, age chips, age label on cards, mode-scoped random | `app/index.tsx`, `app/categories/index.tsx`, `components/CategoryCard.tsx` | No | screenshots at phone width; navigation test |
-| 4 | Payments (replanned 2026-11-24, see §3.4 and `docs/specs/plan.md`: five PRs 4a to 4e): 12 tranche products, catalog sync, paywall copy, gate on every kids and teen purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `lib/tranches.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 20 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
+| 4 | Payments (replanned 2026-11-24, see §3.4 and `docs/specs/plan.md`: five PRs 4a to 4e): 10 tranche products, catalog sync, paywall copy, gate on every kids and teen purchase and link out; web kids paywall shows "unlock in the app" (no simulated grant) | `lib/catalog.ts`, `lib/tranches.ts`, `app/unlock/[id].tsx`, `scripts/revenuecat/sync-catalog.ts`, `docs/payments.md` | **Yes (payments)** | `npm test` (catalog has 18 products), `npm run rc:sync` twice (idempotent), DEVICE rows 7–15 of the payments test plan per new category |
 | 5 | AI pipeline (server): blocklist, generator, classifier, `kids_pool` table, cron, `GET /api/pool/<category>` endpoint, owner review page | `lib/kidsBlocklist.ts`, `api/cron/kids-pool.js`, `api/pool/[category].js`, `api/_lib/pool.js`, `db/migrations/*`, `app/owner/kids-pool.tsx`, `vercel.json` | **Yes** (key, spend cap, first batch review) | unit tests with a fake model client; dry run on one category; Tim approves the first 50 |
 | 6 | More like this (client) + votes accept pool ids + report link | `app/complete/[id].tsx`, `app/categories/[id].tsx`, `lib/pool.ts`, `api/_lib/votes.js`, `api/report.js`, `tests/browserless/kids-no-tracking.mjs` | **Yes** (touches the paid surface) | kids-no-tracking test passes with only the pool and report URLs added (Unit 7 adds the counter URL); offline check, including an HTML reply treated as offline |
 | 7 | Privacy policy (incl. the COPPA internal-operations notice, §5.4), listing kit, review notes, PRD, kids counters `api/count.js`, Smart App Banner + campaign links on landing pages | `app/privacy.tsx`, `api/count.js`, `tests/browserless/kids-no-tracking.mjs` (counter URL), `components/PageHead.tsx`, `docs/specs/app-store-listing.md`, `docs/kids-privacy.md` | **Yes** (policy text) | `tests/unit/legal-pages.test.ts` |
