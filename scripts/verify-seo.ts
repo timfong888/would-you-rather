@@ -17,7 +17,7 @@ import { CATEGORIES, QUESTIONS, getCategoryAudience, getCategoryQuestions, isKid
 import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
-import { SEO_FIRST_BATCH, isSeoBatchId } from '../lib/seoBatch';
+import { SEO_QUESTION_PAGES, SEO_BATCH_2, isSeoBatchId } from '../lib/seoBatch';
 import { GUIDES, guideQuestionIds } from '../lib/guides';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
@@ -152,7 +152,7 @@ for (const cat of CATEGORIES) {
   );
 }
 for (const loc of locs) if (lockedGameUrls.has(loc)) fail(`sitemap: lists locked question URL ${loc}`);
-// A question in the first SEO batch is indexed at /q/<id>; its playable /game/<id> is out of the sitemap (it canonicalises to /q/<id>).
+// A question with a read-only page (SEO_QUESTION_PAGES: batch one and two) is indexed at /q/<id>; its playable /game/<id> is out of the sitemap (it canonicalises to /q/<id>).
 for (const loc of freeGameUrls) {
   const id = loc.slice(loc.lastIndexOf('/') + 1);
   if (isSeoBatchId(id)) { if (locSet.has(loc)) fail(`sitemap: lists ${loc}, which canonicalises to /q/${id}`); }
@@ -160,12 +160,12 @@ for (const loc of freeGameUrls) {
 }
 for (const g of GUIDES) {
   if (!locSet.has(url(`/guides/${g.slug}`))) fail(`sitemap: missing guide /guides/${g.slug}`);
-  for (const id of guideQuestionIds(g)) if (!isSeoBatchId(id)) fail(`guide ${g.slug}: ${id} has no read-only question page (not in the first SEO batch)`);
+  for (const id of guideQuestionIds(g)) if (!isSeoBatchId(id)) fail(`guide ${g.slug}: ${id} has no read-only question page (not in SEO_QUESTION_PAGES, lib/seoBatch.js)`);
   if (g.kids) for (const id of guideQuestionIds(g)) {
     if (!isKidsCategoryId(QUESTIONS.find((q) => q.id === id)?.category ?? '')) fail(`kids: guide "${g.slug}" lists ${id}, outside the kids bank`);
   }
 }
-for (const id of SEO_FIRST_BATCH) {
+for (const id of SEO_QUESTION_PAGES) {
   if (!QUESTIONS.some((q) => q.id === id)) fail(`seo batch: ${id} is not a question`);
   if (!locSet.has(url(`/q/${id}`))) fail(`sitemap: missing read-only question page /q/${id}`);
 }
@@ -174,7 +174,7 @@ for (const id of SEO_FIRST_BATCH) {
 {
   const vercel = JSON.parse(read('vercel.json')) as { headers: { source: string; headers: { key: string; value: string }[] }[] };
   const link = new Map(vercel.headers.map((h) => [h.source, h.headers.find((x) => x.key === 'Link')?.value]));
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     if (link.get(`/game/${id}`) !== `<${CANONICAL_ORIGIN}/q/${id}>; rel="canonical"`) fail(`vercel.json: no canonical Link header on /game/${id} (run node scripts/sync-vercel-canonicals.mjs)`);
   }
 }
@@ -349,14 +349,19 @@ if (withDist) {
 
 if (withDist) {
   // Read-only question pages (docs/specs/seo-question-pages.md): exported, canonical to themselves, no script but JSON-LD, no form or vote control.
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     const file = `dist/q/${id}.html`;
     if (!existsSync(resolve(ROOT, file))) { fail(`dist: ${file} was not exported`); continue; }
     const html = read(file);
     if (tag(html, /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${file}: canonical is not ${url(`/q/${id}`)}`);
     if (/<script(?![^>]*application\/ld\+json)/i.test(html)) fail(`${file}: has a script other than JSON-LD (the page is read-only)`);
     if (/<(button|form|input|select|textarea)\b/i.test(html)) fail(`${file}: has a form or vote control (the page is read-only)`);
-    if (!html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: has no link into the playable web app`);
+    if (SEO_BATCH_2.includes(id)) {
+      // Paid-tier question: the page leads to the category's free questions, never straight to a paywall.
+      const catId = QUESTIONS.find((x) => x.id === id)?.category;
+      if (!html.includes(`href="${SITE_URL}/categories/${catId}"`)) fail(`${file}: has no link to the category's free questions`);
+      if (html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: paid question links straight to its playable screen (the paywall)`);
+    } else if (!html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: has no link into the playable web app`);
     const q = QUESTIONS.find((x) => x.id === id);
     if (q && getCategoryAudience(q.category) !== 'adult') {
       // kids and teen pages alike (the generator and the unit test use the same rule)
@@ -391,7 +396,7 @@ if (withDist) {
     }
   }
   // The playable page and the legacy share page point their canonical at the read-only page.
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     const share = `dist/p/${id}.html`;
     if (existsSync(resolve(ROOT, share)) && tag(read(share), /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${share}: canonical is not ${url(`/q/${id}`)}`);
   }

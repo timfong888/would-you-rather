@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../../constants/questions';
-import { SEO_FIRST_BATCH, isSeoBatchId, LANDING_FOR_CATEGORY } from '../../lib/seoBatch';
+import { SEO_FIRST_BATCH, SEO_BATCH_2, SEO_QUESTION_PAGES, isSeoBatchId, LANDING_FOR_CATEGORY } from '../../lib/seoBatch';
 import { questionPageHtml, relatedQuestions } from '../../lib/questionPage';
 import { SEO_PAGES, isKidsPage } from '../../constants/seoPages';
 
@@ -32,8 +32,32 @@ test('the first batch: about 100 real, distinct, free-tier questions, at most 12
   assert.ok(isSeoBatchId(SEO_FIRST_BATCH[0]) && !isSeoBatchId('hl-20-not-in-batch'));
 });
 
+test('batch two (a proposal for Tim\'s review): about 60 distinct kids-bank questions, none already in batch one, none adult or teen', () => {
+  assert.ok(SEO_BATCH_2.length >= 55 && SEO_BATCH_2.length <= 65, String(SEO_BATCH_2.length));
+  assert.equal(new Set(SEO_BATCH_2).size, SEO_BATCH_2.length);
+  for (const id of SEO_BATCH_2) {
+    assert.ok(byId.has(id), `${id} is not a question`);
+    assert.ok(!SEO_FIRST_BATCH.includes(id), `${id} is already in batch one`);
+    assert.equal(catOf(id).audience, 'kids', `${id} must be a kids-bank question`);
+  }
+  assert.equal(new Set(SEO_QUESTION_PAGES).size, SEO_FIRST_BATCH.length + SEO_BATCH_2.length);
+  assert.ok(SEO_BATCH_2.every((id) => isSeoBatchId(id)));
+});
+
+test('batch-two pages are for paid questions: their one call to action leads to the category\'s free questions, never to the paywall', () => {
+  for (const id of SEO_BATCH_2) {
+    const q = byId.get(id)!;
+    const html2 = questionPageHtml({ question: q, category: catOf(id), related: relatedQuestions(q, QUESTIONS), origin: ORIGIN, paid: true });
+    assert.ok(html2.includes(`href="${ORIGIN}/categories/${q.category}"`), id);
+    assert.ok(!html2.includes(`${ORIGIN}/game/${id}`), `${id} must not link straight to its playable screen`);
+    assert.ok(/Play the free .* questions/.test(html2), id);
+  }
+  // Batch one is free-tier: its call to action still plays the question.
+  assert.ok(page(SEO_FIRST_BATCH[0]).includes(`${ORIGIN}/game/${SEO_FIRST_BATCH[0]}`));
+});
+
 test('every question page is read-only: no script but JSON-LD, no form or vote control, canonical to itself, one link into the playable app', () => {
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     const html = page(id);
     assert.ok(html.includes(`<link rel="canonical" href="${ORIGIN}/q/${id}" />`), id);
     assert.equal(/<script(?![^>]*application\/ld\+json)/i.test(html), false, `${id} has a script`);
@@ -47,7 +71,7 @@ test('every question page is read-only: no script but JSON-LD, no form or vote c
 });
 
 test('related questions have /q pages themselves, never repeat the question, and a kids page only relates to kids questions', () => {
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     const q = byId.get(id)!;
     const rel = relatedQuestions(q, QUESTIONS);
     assert.ok(rel.length >= 1 && rel.length <= 5, id);
@@ -60,7 +84,7 @@ test('related questions have /q pages themselves, never repeat the question, and
 
 test('a kids question page links only to kids destinations (kids hub, kids category pages, kids landing pages, the playable app, other question pages)', () => {
   const kidsSlugs = new Set(SEO_PAGES.filter(isKidsPage).map((p) => `/${p.slug}`));
-  for (const id of SEO_FIRST_BATCH.filter((x) => catOf(x).audience !== 'adult')) {
+  for (const id of SEO_QUESTION_PAGES.filter((x) => catOf(x).audience !== 'adult')) {
     const html = page(id);
     for (const m of html.matchAll(/<a [^>]*href="([^"]+)"/g)) {
       if (!m[1].startsWith(ORIGIN)) continue;
@@ -86,7 +110,7 @@ test('vercel.json sends a canonical Link header on /game/<id> for every batch qu
     headers: { source: string; headers: { key: string; value: string }[] }[];
   };
   const bySource = new Map(config.headers.map((h) => [h.source, h.headers.find((x) => x.key === 'Link')?.value]));
-  for (const id of SEO_FIRST_BATCH) assert.equal(bySource.get(`/game/${id}`), `<${ORIGIN}/q/${id}>; rel="canonical"`, id);
+  for (const id of SEO_QUESTION_PAGES) assert.equal(bySource.get(`/game/${id}`), `<${ORIGIN}/q/${id}>; rel="canonical"`, id);
   const extra = config.headers.filter((h) => /^\/game\/[^/:]+$/.test(h.source) && !isSeoBatchId(h.source.slice(6)));
   assert.deepEqual(extra, [], 'a /game/<id> canonical header for a question outside the batch (run node scripts/sync-vercel-canonicals.mjs)');
 });
