@@ -50,7 +50,7 @@ name: Kids route smoke
 - inputText: "1"
 - tapOn: "CONTINUE"
 - assertVisible: "That was not right.*"
-- assertNotVisible: "START.*MORE CONVERSATIONS.*"
+- assertNotVisible: "Unlock [0-9]+ more dilemmas for.*"
 # Leave without buying
 - tapOn: "Go back"
 # Back on the category list, still scrolled to the locked rows (PLAY ALL is above the fold).
