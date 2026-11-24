@@ -49,7 +49,12 @@ export function audienceForAges(ages: AgeRange): Audience {
   return 'adult';
 }
 
-export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
+/**
+ * THE free count: the first N questions of EVERY category (adult, kids and teen) are free (Tim, 2026-11-24: "each category
+ * has N number of free questions, call it 5"). Change it here and only here; the tranche model (lib/tranches.ts), the
+ * catalog and the paywall copy all follow. A category with fewer than N questions is entirely free.
+ */
+export const FREE_QUESTIONS_PER_CATEGORY = 5;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -169,7 +174,7 @@ const ALL_CATEGORIES: CategoryDef[] = [
     audience: 'adult',
     ages: ADULT_AGES,
   },
-  // Kids and teen topic categories (spec §2.2). Each has 8 free questions; the rest are volume 2.
+  // Kids and teen topic categories (spec §2.2). The first 5 (FREE_QUESTIONS_PER_CATEGORY) are free; the "volume" tag is data only and no longer gates access.
   {
     id: 'tiny-choices',
     label: 'Tiny Choices',
@@ -1535,8 +1540,7 @@ export function getCategoryQuestions(categoryId: CategoryId): Question[] {
 //
 // Every screen must decide "is this question playable?" the same way, so the
 // rule lives here and nowhere else:
-//   - premium category: first FREE_TRIAL_COUNT questions are free
-//   - free category:    all of volume 1 is free; expansion volumes are paid
+//   - every category:   the first FREE_QUESTIONS_PER_CATEGORY questions are free, the rest are paid
 //   - unlocking a category (purchase or owner access) opens everything in it
 // ---------------------------------------------------------------------------
 
@@ -1546,11 +1550,7 @@ export function getQuestionVolume(q: Question): number {
 
 /** Number of questions at the start of the category that are free to play. */
 export function getFreeQuestionCount(category: CategoryDef): number {
-  const questions = getCategoryQuestions(category.id);
-  if (category.tier === 'premium') {
-    return Math.min(FREE_TRIAL_COUNT, questions.length);
-  }
-  return questions.filter((q) => getQuestionVolume(q) === 1).length;
+  return Math.min(FREE_QUESTIONS_PER_CATEGORY, getCategoryQuestions(category.id).length);
 }
 
 /** Number of questions in the category that sit behind the unlock. */

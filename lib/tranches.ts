@@ -1,24 +1,26 @@
 /**
- * Question access model: the all-categories pack, the free questions, and the paid tranches
- * (docs/specs/kids-family-categories.md §3.4; Tim 2026-11-24: "Only the first 20 per category come with the pack unlock",
- * "1.99 buys the next 20 in a category", repeatable).
+ * Question access model: the free questions, the paid steps, and the all-categories pack
+ * (docs/specs/kids-family-categories.md §3.4; Tim 2026-11-24: "each category has N number of free questions, call it 5.
+ * Then the next is to open 20 more for $1.99. $4.99 opens across all categories.").
  *
  * Pure: no React Native, no storage, no payments SDK. It decides which questions a given `Access` opens; where the
  * Access comes from (store entitlements) is lib/catalog.ts.
  *
- * Per category, by position in its list:
- *   - free: the first `getFreeQuestionCount(category)` (8 for kids and teen, 3 or 20 for adult). Never hardcode 8.
- *   - pack zone: positions up to PACK_QUESTION_LIMIT (20). The all-categories pack opens these (once it is limited).
- *   - tranches: everything beyond. Each $1.99 tranche opens the next batch in ONE category.
+ * ONE rule for every category (adult, kids, teen), by position in its list:
+ *   - free: the first FREE_QUESTIONS_PER_CATEGORY (constants/questions.ts, 5). The only place that number is set.
+ *   - step k (k = 1, 2, ...): the next batch, 20 questions (a remainder under 10 joins the step before it). Each costs $1.99
+ *       and opens that batch in ONE category.
  *       Kids and teen: membership is FROZEN as explicit question ids in constants/trancheAssignments.ts, so a purchased
- *       `cat_<category>_<k>` opens the same questions forever. The sizes rule (`trancheSizes`) only generated that table and
- *       sizes a NEW tranche; it is never re-applied to the live question count (it would shrink an owned tranche).
- *       A kids or teen paid question in no list is CLOSED until it is assigned.
- *       Adult: one tranche (all paid questions), granted by the existing `cat_<id>`; not split.
- * Access is the SET of owned tranche numbers, never a count or prefix: a refund of tranche 1 while tranche 2 is still owned
- * closes exactly tranche 1.
+ *       `cat_<category>_<k>` opens the same questions forever. `trancheSizes` only generated that table and sizes a NEW step;
+ *       it is never re-applied to the live question count (it would shrink an owned step). A kids or teen paid question in
+ *       no list is CLOSED until it is assigned.
+ *       Adult: one step on the existing `cat_<id>`: everything paid in the category (at most 35), as that product sells today.
+ *   - the all-categories pack ($4.99) opens STEP 1 of every category (Tim's open question: only step 1, or everything written?
+ *     This code does the first; see the PR). Later steps are bought per category.
+ * Access is the SET of owned step numbers, never a count or prefix: a refund of step 1 while step 2 is still owned closes
+ * exactly step 1.
  *
- * STAGING: the pack is not yet limited (PACK_LIMITED_TO_FIRST_20 = false). The live paywall still sells "Or unlock every
+ * STAGING: the pack is not yet limited (PACK_LIMITED_TO_FIRST_STEP = false). The live paywall still sells "Or unlock every
  * category" as everything, so until 4c changes that paywall the pack keeps opening everything it opens today. 4c flips the
  * flag. The tests exercise both settings, so the target behavior is pinned now.
  */
@@ -29,10 +31,8 @@ import { TRANCHE_ASSIGNMENTS } from '../constants/trancheAssignments';
 export const TRANCHE_SIZE = 20;
 /** A trailing remainder shorter than this joins the tranche before it (when sizing a NEW set of tranches). */
 export const MIN_LAST_TRANCHE = 10;
-/** The all-categories pack opens the first this-many questions of every category (Tim, 2026-11-24). */
-export const PACK_QUESTION_LIMIT = 20;
-/** Whether the pack is limited to the first PACK_QUESTION_LIMIT questions. false in 4a (staging); 4c turns it on. */
-export const PACK_LIMITED_TO_FIRST_20 = false;
+/** Whether the pack is limited to step 1 of every category. false in 4a (staging); 4c turns it on. */
+export const PACK_LIMITED_TO_FIRST_STEP = false;
 
 /**
  * What a player has, for one category.
@@ -99,15 +99,10 @@ function idToTranche(category: CategoryDef): Map<string, number> {
   return m;
 }
 
-/** Kids and teen: ids the pack opens. Adult: none listed (the pack zone is by position). */
-function packIds(category: CategoryDef): ReadonlySet<string> {
-  return new Set(TRANCHE_ASSIGNMENTS[category.id]?.pack ?? []);
-}
-
 export interface Zone {
   /** A free question. */
   free: boolean;
-  /** In the pack zone: the all-categories pack opens it once the pack is limited. */
+  /** In step 1: the all-categories pack opens it once the pack is limited. */
   pack: boolean;
   /** The tranche that opens it, 0 when none. */
   tranche: number;
@@ -119,19 +114,21 @@ export function questionZone(category: CategoryDef, questionIndex: number): Zone
   const q = getCategoryQuestions(category.id)[questionIndex];
   if (!q) return { free: false, pack: false, tranche: 0 };
   if (category.audience === 'adult') {
-    return { free, pack: questionIndex < PACK_QUESTION_LIMIT, tranche: free ? 0 : 1 };
+    // One step (everything paid); the pack opens the first TRANCHE_SIZE of it.
+    const pos = questionIndex - getFreeQuestionCount(category);
+    return { free, pack: !free && pos < TRANCHE_SIZE, tranche: free ? 0 : 1 };
   }
-  return { free, pack: packIds(category).has(q.id), tranche: idToTranche(category).get(q.id) ?? 0 };
+  const tranche = idToTranche(category).get(q.id) ?? 0;
+  return { free, pack: tranche === 1, tranche };
 }
 
 /** Paid questions of a kids or teen category that no list contains yet (closed until assigned). Always [] for adult. */
 export function unassignedPaidQuestions(category: CategoryDef): string[] {
   if (category.audience === 'adult') return [];
-  const pack = packIds(category);
   const m = idToTranche(category);
   return ids(category)
     .slice(getFreeQuestionCount(category))
-    .filter((id) => !pack.has(id) && !m.has(id));
+    .filter((id) => !m.has(id));
 }
 
 /** Whether the question at `questionIndex` can be played with this access. */
@@ -139,7 +136,7 @@ export function isQuestionOpen(
   category: CategoryDef,
   questionIndex: number,
   access: Access,
-  packLimited: boolean = PACK_LIMITED_TO_FIRST_20,
+  packLimited: boolean = PACK_LIMITED_TO_FIRST_STEP,
 ): boolean {
   if (access.all) return true;
   const z = questionZone(category, questionIndex);
@@ -149,7 +146,7 @@ export function isQuestionOpen(
 }
 
 /** How many questions the player can open right now in this category. */
-export function openQuestionCount(category: CategoryDef, access: Access, packLimited: boolean = PACK_LIMITED_TO_FIRST_20): number {
+export function openQuestionCount(category: CategoryDef, access: Access, packLimited: boolean = PACK_LIMITED_TO_FIRST_STEP): number {
   const n = getCategoryQuestions(category.id).length;
   let open = 0;
   for (let i = 0; i < n; i++) if (isQuestionOpen(category, i, access, packLimited)) open++;
@@ -157,7 +154,7 @@ export function openQuestionCount(category: CategoryDef, access: Access, packLim
 }
 
 /** True when every question is open: nothing left to buy. */
-export function isCategoryFullyOpen(category: CategoryDef, access: Access, packLimited: boolean = PACK_LIMITED_TO_FIRST_20): boolean {
+export function isCategoryFullyOpen(category: CategoryDef, access: Access, packLimited: boolean = PACK_LIMITED_TO_FIRST_STEP): boolean {
   return openQuestionCount(category, access, packLimited) === getCategoryQuestions(category.id).length;
 }
 
@@ -168,7 +165,7 @@ export function isCategoryFullyOpen(category: CategoryDef, access: Access, packL
 export function nextTrancheToSell(
   category: CategoryDef,
   access: Access,
-  packLimited: boolean = PACK_LIMITED_TO_FIRST_20,
+  packLimited: boolean = PACK_LIMITED_TO_FIRST_STEP,
 ): TrancheRange | null {
   if (access.all) return null;
   const list = ids(category);

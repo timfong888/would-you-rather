@@ -62,7 +62,7 @@ export function formatAges(category: Pick<BrowseCategory, 'audience' | 'ages'>):
   return min === max ? `Age ${min}` : `Ages ${min}–${max}`;
 }
 
-/** "8 free · 22 more": no price and no pack wording, so it holds under any unlock model. */
+/** "5 free · 25 more": no price and no pack wording, so it holds under any unlock model. */
 export function freeMoreHint(free: number, more: number): string {
   return more > 0 ? `${free} free · ${more} more` : `${free} free`;
 }

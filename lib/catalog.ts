@@ -5,14 +5,14 @@
  * Tim's decision (2026-11-18, issue #54): one all-categories pack plus an
  * unlock per category. Prices: pack $4.99, single category $1.99.
  *
- * Tim, 2026-11-24 (#124, docs/specs/kids-family-categories.md §3.4): one pack for everything, $4.99, `wyr_premium_all`.
- * "Only the first 20 per category come with the pack unlock"; "1.99 buys the next 20 in a category", repeatable. So the
- * pack opens the first 20 questions of every category, and each $1.99 opens the next batch in ONE category. For kids and
- * teen categories that is one non-consumable per tranche beyond question 20 (lib/tranches.ts,
- * constants/trancheAssignments.ts); an adult category stays one tranche on its existing `cat_<id>`. There is no separate
- * With kids pack. The "infinite" generated questions are issue #203, not built, and not in this catalog.
- * STAGING: the pack is not limited to 20 yet (PACK_LIMITED_TO_FIRST_20 in lib/tranches.ts is false) because the live paywall
- * still sells it as "every category"; 4c changes the paywall and flips the flag.
+ * Tim, 2026-11-24 (#124, docs/specs/kids-family-categories.md §3.4): ONE rule for every category. The first
+ * FREE_QUESTIONS_PER_CATEGORY (5, constants/questions.ts) are free; each $1.99 opens the next 20 in ONE category; the one
+ * $4.99 pack (`wyr_premium_all`) opens step 1 of every category. For kids and teen categories each step is one non-consumable
+ * (lib/tranches.ts, constants/trancheAssignments.ts); an adult category stays one step on its existing `cat_<id>`
+ * (everything paid, at most 35). There is no separate With kids pack. The "infinite" generated questions are issue #203, not
+ * built, and not in this catalog.
+ * STAGING: the pack is not limited to step 1 yet (PACK_LIMITED_TO_FIRST_STEP in lib/tranches.ts is false) because the live
+ * paywall still sells it as "every category"; 4c changes the paywall and flips the flag.
  *
  * Identifiers are identical in RevenueCat (Test Store), App Store Connect and
  * Google Play, so changing one is a catalog migration, not a code tweak.
@@ -23,7 +23,7 @@ import type { CategoryDef, CategoryId } from '@/constants/questions';
 import { isCategoryFullyOpen, trancheRanges } from './tranches';
 import type { Access } from './tranches';
 
-/** Entitlement of the one all-categories pack: the first 20 questions of every category, adult, kids and teen (Tim, 2026-11-24). */
+/** Entitlement of the one all-categories pack: step 1 (the next 20 after the free ones) of every category, adult, kids and teen (Tim, 2026-11-24). */
 export const ENTITLEMENT_ALL = 'premium_all';
 
 /** Store product identifier for the one all-categories pack. */
@@ -32,7 +32,7 @@ export const PRODUCT_ALL = 'wyr_premium_all';
 /** Display prices, USD micros. The store price (from the offering) wins in the UI. */
 export const PRICE_ALL_MICROS = 4_990_000;
 export const PRICE_CATEGORY_MICROS = 1_990_000;
-/** One kids or teen tranche. Same $1.99 as a category (Tim, 2026-11-24). */
+/** One kids or teen step. Same $1.99 as a category (Tim, 2026-11-24). */
 export const PRICE_TRANCHE_MICROS = 1_990_000;
 export const FALLBACK_PRICE_ALL = '$4.99';
 export const FALLBACK_PRICE_CATEGORY = '$1.99';
@@ -83,7 +83,7 @@ export function trancheCategories(categories: CategoryDef[] = CATEGORIES): Categ
 }
 
 /**
- * What the active entitlements give in one category. `pack` is the all-categories pack (the first 20 questions once the
+ * What the active entitlements give in one category. `pack` is the all-categories pack (step 1 of every category once the
  * pack is limited, everything until then, see lib/tranches.ts). Adult: the category's own `cat_<id>` is its one tranche.
  * Kids and teen: each owned `cat_<id>_<k>` is tranche k. (Until 4c: the legacy `cat_<id>` also opens a whole kids or
  * teen category, because the live paywall still sells it.)
@@ -137,7 +137,7 @@ export function buildCatalog(categories: CategoryDef[] = CATEGORIES): CatalogPro
       productId: PRODUCT_ALL,
       entitlementId: ENTITLEMENT_ALL,
       title: 'All Categories',
-      description: 'Every category, including questions added later.',
+      description: 'Opens the next 20 in every category.',
       priceMicros: PRICE_ALL_MICROS,
       categoryId: null,
       trancheIndex: null,
