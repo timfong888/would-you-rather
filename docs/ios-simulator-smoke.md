@@ -64,3 +64,11 @@ screenshot in the Expo dashboard if CI time ever matters.
 ## Editing a flow
 Maestro matches visible text or the accessibility label, case-insensitively, as a regex. Run locally with
 `maestro test .maestro/kids-smoke.yaml` against a simulator that has the app installed.
+
+## Known runner flake: Maestro driver startup (issue #220)
+
+On some runs the XCTest driver never starts and Maestro exits with `iOS driver not ready in time` (nothing ran against the app).
+The `Run Maestro flows` step retries the flows **once**, and only when that exact message is in the first run's output
+(it logs a `::warning::` annotation when it does). Any other failure, including a real flow failure, fails the job on the first run.
+Both runs are kept in the artifact as `maestro-out/run-1.log` and `run-2.log`. Count how often the warning appears in #220 before
+deciding whether to raise `MAESTRO_DRIVER_STARTUP_TIMEOUT` as well.
