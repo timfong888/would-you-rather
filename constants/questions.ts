@@ -51,6 +51,17 @@ export function audienceForAges(ages: AgeRange): Audience {
 
 export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
 
+/**
+ * THE target free count: the first N questions of EVERY category (adult, kids, teen) are free (Tim, 2026-11-24: "each
+ * category has N number of free questions, call it 5"). Change it here and only here. The tranche model (lib/tranches.ts)
+ * and the catalog already use it; the live screens, the sitemap and the SEO pages keep today's counts (3 or 20 adult, 8
+ * kids and teen) until UNIFORM_FREE_COUNT_LIVE is turned on, in the same PR as the paywall change (4c), because turning it
+ * on locks 15 questions in each of the four free-tier adult categories and changes the sitemap and the SEO pages.
+ */
+export const FREE_QUESTIONS_PER_CATEGORY = 5;
+/** false in 4a (staging): getFreeQuestionCount keeps returning today's counts. 4c flips it. */
+export const UNIFORM_FREE_COUNT_LIVE = false;
+
 export interface CategoryDef {
   id: CategoryId;
   label: string;
@@ -1545,7 +1556,13 @@ export function getQuestionVolume(q: Question): number {
 }
 
 /** Number of questions at the start of the category that are free to play. */
+export function targetFreeQuestionCount(category: CategoryDef): number {
+  return Math.min(FREE_QUESTIONS_PER_CATEGORY, getCategoryQuestions(category.id).length);
+}
+
+/** What the live screens, the sitemap and the SEO pages use. Today's counts until UNIFORM_FREE_COUNT_LIVE (4c). */
 export function getFreeQuestionCount(category: CategoryDef): number {
+  if (UNIFORM_FREE_COUNT_LIVE) return targetFreeQuestionCount(category);
   const questions = getCategoryQuestions(category.id);
   if (category.tier === 'premium') {
     return Math.min(FREE_TRIAL_COUNT, questions.length);
