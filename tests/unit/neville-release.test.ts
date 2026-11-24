@@ -240,3 +240,16 @@ test('pollBuild gives up after 3 consecutive network-failed polls instead of pol
     { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
   assert.equal(ok.state, 'PROCESSING');
 });
+
+test('pollBuild: an early empty 200 (NOT_FOUND) followed by an outage reports FETCH_ERROR, not NOT_FOUND', async () => {
+  let n = 0;
+  const r = await pollBuild(async () => { if (++n === 1) return { status: 200, body: { data: [] } }; throw new Error('fetch failed'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(r.state, 'FETCH_ERROR');
+  assert.equal(finalOutcome(r.state, { uploadComplete: true }).exitCode, 0);
+  // a real earlier PROCESSING answer is still kept
+  let m = 0;
+  const p = await pollBuild(async () => { if (++m === 1) return { status: 200, body: { data: [{ attributes: { processingState: 'PROCESSING' } }] } }; throw new Error('x'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(p.state, 'PROCESSING');
+});

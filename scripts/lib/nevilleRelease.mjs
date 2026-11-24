@@ -100,7 +100,8 @@ export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, s
       // A revoked or under-scoped key will not recover: stop now instead of retrying for 30 minutes.
       if (r.status === 401 || r.status === 403) return { state: httpState, polls: i };
     }
-    if (netFails >= maxNetFails) return { state: sawOk ? state : (httpState || state), polls: i };
+    // Giving up on a network outage: an earlier 200 with no build row (NOT_FOUND, Apple still indexing) is not a real answer, so it does not outrank the outage.
+    if (netFails >= maxNetFails) return { state: sawOk && state !== 'NOT_FOUND' ? state : (httpState || state), polls: i };
     if (i < maxPolls) await sleep(intervalMs);
   }
   // A transient 5xx or 429 on the last poll must not hide a real processing state seen earlier.
