@@ -1,0 +1,10 @@
+appId: com.timfong888.wouldyourather
+name: q-conn
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: ".*"
+    timeout: 30000
+- assertVisible: ".*connection.*"

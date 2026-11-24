@@ -1,0 +1,10 @@
+appId: com.timfong888.wouldyourather
+name: p-home
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: ".*"
+    timeout: 30000
+- assertVisible: "POPULAR QUESTION LISTS|Grown-ups|With kids|SELECT YOUR CATEGORY.*"

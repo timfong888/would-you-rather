@@ -1,0 +1,10 @@
+appId: com.timfong888.wouldyourather
+name: p-title
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: ".*"
+    timeout: 30000
+- assertVisible: "Would You Rather"
