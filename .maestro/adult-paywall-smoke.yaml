@@ -25,19 +25,19 @@ name: Adult paywall smoke
     visible: "Would You Rather?"
     timeout: 20000
 - scrollUntilVisible:
-    element: "MORAL COMPASS.*"
+    element: ".*TIME TRAVELER.*"
     direction: DOWN
     timeout: 30000
-- tapOn: "MORAL COMPASS.*"
+- tapOn: ".*TIME TRAVELER.*"
 - extendedWaitUntil:
     visible: "PLAY ALL.*"
     timeout: 20000
 - takeScreenshot: 10-adult-category
 - scrollUntilVisible:
-    element: "Unlock"
+    element: "🔒.*"
     direction: DOWN
     timeout: 30000
-- tapOn: "Unlock"
+- tapOn: "🔒.*"
 # Paywall: price block and CTA are on screen (fallback price; no store is configured in CI). Not tapped.
 - extendedWaitUntil:
     visible: "ONE-TIME CATEGORY UNLOCK.*"

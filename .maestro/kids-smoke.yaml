@@ -36,10 +36,10 @@ name: Kids route smoke
 - takeScreenshot: 04-kids-category
 # Tap a locked question: kids/teen paywalls sit behind the parental gate
 - scrollUntilVisible:
-    element: "Unlock"
+    element: "🔒.*"
     direction: DOWN
     timeout: 30000
-- tapOn: "Unlock"
+- tapOn: "🔒.*"
 - extendedWaitUntil:
     visible: "Grown-ups only"
     timeout: 20000
