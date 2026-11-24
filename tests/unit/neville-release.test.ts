@@ -119,9 +119,15 @@ test('tailLines replaces URLs (signed tokens) and neutralises workflow commands'
   assert.ok(!out.includes('SECRETSIG') && !out.includes('x.example'));
   assert.match(out, /<url>/);
   // The runner trims leading whitespace before looking for `::`, so test it the way the runner does.
-  const asRunner = (t: string) => t.split('\n').map((l) => l.trimStart());
+  const asRunner = (t: string) => t.split(/\r\n|\r|\n/).map((l) => l.trimStart());
   for (const l of asRunner(out)) assert.ok(!l.startsWith('::'), l);
   assert.ok(out.split('\n').every((l: string) => l.startsWith('| ')));
+  // A bare \r (CLI progress output) starts a new line for the runner: it must not smuggle a command either.
+  const cr = tailLines('progress 10%\r::error title=x::injected\nok\r\n::stop-commands::z', redact);
+  for (const l of asRunner(cr)) assert.ok(!l.startsWith('::'), l);
+  assert.ok(!cr.includes('\r'));
+  const crErr = tailErrors('error: a\r::add-mask::q failed', redact);
+  for (const l of asRunner(crErr)) assert.ok(!l.startsWith('::'), l);
   // Even a whitespace-led command line is neutralised.
   const spaced = tailLines('   ::add-mask::x\n\t::stop-commands::y', redact);
   for (const l of asRunner(spaced)) assert.ok(!l.startsWith('::'), l);
