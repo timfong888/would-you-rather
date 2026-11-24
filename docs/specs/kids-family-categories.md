@@ -220,7 +220,8 @@ content work for Tim to approve, not something a purchase flow can hide.
 
 **Access rule.** `isQuestionLocked(category, index, unlocked: boolean)` becomes tranche-aware: a question is open if it is in the
 free 8, or its tranche's entitlement is active, or `premium_all` applies to an adult category, or `premium_kids` applies to a kids or teen category (see Decisions). The paywall offers
-only the **next** tranche, so owned tranches are a prefix. This changes `lib/catalog.ts`, `constants/questions.ts` access helpers,
+only the **lowest tranche not owned**. Access is decided per tranche from the **set of owned tranche numbers**, never from a prefix or a
+count: a refund of tranche 1 while tranche 2 is still owned must close exactly tranche 1 and keep tranche 2 open. This changes `lib/catalog.ts`, `constants/questions.ts` access helpers,
 `contexts/UnlockedContext.tsx` and `app/unlock/[id].tsx`: all payments surface, all Unit 4.
 
 **Every purchase sits behind the parental gate** (existing `ParentalGate`), for kids and teen categories alike. The paywall copy
@@ -233,9 +234,9 @@ grants anything (D7, unchanged).
 old Kids & Family category, and the 9 kids category products planned for Unit 4 were never created, so there is nothing to retire.
 Adult paid sets are 17 to 20 questions per category, which is one tranche, so the adult model **already is** the tranche model with
 one tranche per category. Recommended: leave adult categories as they are.
-`buildCatalog()` now derives 9 kids and teen category products (8 → 17). It would instead derive the 12 tranche products (8 → 20).
-The two tests that fail on purpose today (`catalog.test.ts` product count, `asc-iap-create.test.ts` product-file parity) move to 20,
-and `store/ios/iap-products.json` plus the App Review screenshots gain the 12 tranche products in that same Unit 4 change.
+`buildCatalog()` now derives 9 kids and teen category products (8 → 17). It would instead derive the 12 tranche products plus the With kids pack (8 → 21).
+The two tests that fail on purpose today (`catalog.test.ts` product count, `asc-iap-create.test.ts` product-file parity) move to 21,
+and `store/ios/iap-products.json` plus the App Review screenshots gain the 12 tranche products and the With kids pack (13 new) in that same Unit 4 change.
 
 **Decisions (Tim, 2026-11-24).** Tim's exact words: "accept all five tranche defaults". The defaults are the recommendations as they
 were put to him, relayed by the orchestrator session. They settle the five open questions:
