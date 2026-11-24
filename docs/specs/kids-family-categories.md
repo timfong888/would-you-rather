@@ -272,7 +272,7 @@ the pack opens in 4 adult categories; **flagged for Tim to confirm** (there are 
 the partial tranches are topped up with generated questions (#203) or more are written: **an open question for Tim.**
 
 **Product shape, consumable or not, stated plainly.**
-- (Superseded by §3.4.0: 13 steps, 21 products.) *One non-consumable per tranche* (recommended for the written questions): 10 kids and teen products (`wyr_unlock_<category>_<k>`), plus the 7 adult category products and the pack = **18 products**.
+- (Superseded by §3.4.0: one step per kids category, 17 products.) *One non-consumable per tranche* (recommended for the written questions): 10 kids and teen products (`wyr_unlock_<category>_<k>`), plus the 7 adult category products and the pack = **18 products**.
   Apple **restores** non-consumables, so a reinstall or a new phone gets them back. The cost: it is a fixed list, so every new batch (including generated ones) would need a new product,
   which cannot be unbounded.
 - *One repeatable consumable per category* ("20 more", $1.99): one product per category, repeatable without new products. Apple **does not restore consumables**, so a reinstall or new device
