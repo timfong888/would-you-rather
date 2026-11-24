@@ -158,12 +158,12 @@ child's Family Sharing account from buying without approval, independent of our 
 ### 3.3 RevenueCat products and entitlements
 
 Reuse the model: one non-consumable per category, `wyr_unlock_<id>` → entitlement `cat_<id>`, in the `default`
-offering; `premium_all` opens every category including these (the access rule in `lib/catalog.ts` already does this).
+offering. **Superseded by §3.4:** `premium_all` is narrowed to adult categories and kids and teen categories are sold as tranches (§3.4 Decisions). The per-category product line above no longer applies to them.
 New iOS products: **9** (8 topic + Holiday Table), catalog 8 → 17. `buildCatalog()` picks them up automatically once
 they have paid content; `npm run rc:sync` creates them in the Test Store; App Store Connect products are created by Tim
 (go-live is Tim's, per `docs/payments.md`).
 
-Pricing options (decision D2):
+Pricing options (decision D2; **kids and teen categories now follow §3.4 tranches, Tim 2026-11-24**):
 
 | Option | Per category | Bundle | Notes |
 |---|---|---|---|
@@ -178,6 +178,95 @@ Restore: the existing Restore Purchases button on the paywall, unchanged. Entitl
 
 **Payments changes need Tim's review before merge** (Units 3 and 4 below; also any change to `lib/catalog.ts`,
 `app/unlock/[id].tsx`, `contexts/UnlockedContext.tsx`, or RevenueCat/ASC products).
+
+### 3.4 Tranche pricing (proposal, 2026-11-24; replaces the per-category unlock for kids and teen categories)
+
+**Decision (Tim, 2026-11-24, exact words):** "I would like a tranch of 20 new questions opened every $1.99." The model: 8 free per
+category, then each $1.99 purchase opens the **next 20** questions of that category, repeatable until the category is
+exhausted. This supersedes §3.3's "$1.99 unlocks the whole category" and D2's 9 per-category products for kids and teen
+categories. **Status: decided (Tim accepted all five defaults on 2026-11-24, see Decisions below). Nothing here is built yet; it is Unit 4.**
+
+**What a tranche is.** Let *F* be the category's free count, **always read from `getFreeQuestionCount(category)`, never hardcoded**. It is 8 for
+every kids and teen category, but 3 for premium-tier adult categories and 20 for free-tier adult ones. Tranche *k* of a kids or teen category is the
+paid questions at positions `F + 20(k-1)` to `F + 20k - 1` in its list (free *F* first, then paid, in the order the data lists them).
+**Adult categories are not split:** an adult category has exactly one tranche (all its paid questions after *F*), and it is granted by the
+**existing `cat_<id>` entitlement** (`entitlementForCategory`), not by a `cat_<id>_1` id, so no existing adult buyer loses access. Only kids and teen
+categories use the `cat_<category>_<k>` ids. Rule for the end of a list: a remainder under 10 joins the previous
+tranche, otherwise it is a tranche of its own. With today's 254 paid questions:
+
+| Category | Paid | Tranches (sizes) |
+|---|---|---|
+| Tiny Choices | 22 | 1 (22) |
+| Make-Believe | 33 | 2 (20, 13) |
+| Giggle Factory | 47 | 2 (20, 27) |
+| Road Trip Rally | 22 | 1 (22) |
+| Dinner Table | 39 | 2 (20, 19) |
+| Heart to Heart | 22 | 1 (22) |
+| Future Me | 22 | 1 (22) |
+| Real Talk | 22 | 1 (22) |
+| Holiday Table | 25 | 1 (25) |
+| **Total** | **254** | **12 purchases, $23.88 if a family buys everything** |
+
+Only 3 of the 12 tranches are exactly 20 questions (the first tranche of Make-Believe, Giggle Factory and Dinner Table). The other 9
+are not: 22 (five of them), 13, 27, 19 and 25. Alternative, to make every tranche exactly 20 paid: trim 2 from each 22-question
+category (one clean 20), or write 18 more for each (40 paid, two clean 20s); Make-Believe, Giggle Factory, Dinner Table and Holiday
+Table need their own trim or top-up (13 to 20 needs 7 more, 27 to 40 needs 13 more, 39 to 40 needs 1 more, 25 to 20 trims 5). That is
+content work for Tim to approve, not something a purchase flow can hide.
+
+**Product shape (recommended): one non-consumable per tranche.** Product `wyr_unlock_<category>_<k>` ($1.99), entitlement
+`cat_<category>_<k>`, 12 products in the `default` offering. Why not a repeatable consumable (`wyr_<category>_next20`, 9 products):
+- Apple does not restore consumables. A parent who reinstalls or buys a new phone loses what they paid for unless we keep a
+  purchase count on our side, and kids routes keep no ID. Content that stays unlocked is a non-consumable by Apple's own
+  definition, and App Review can reject a consumable that unlocks permanent content.
+- Family Sharing and Restore Purchases work only for non-consumables.
+- Cost of the recommendation: every new tranche (new writing, later AI batches) needs a new product created in App Store
+  Connect and RevenueCat. Fine for the 12 now; AI "More like this" (Unit 5 and 6) must not be sold this way and needs its own answer.
+
+**Access rule.** The boolean `isQuestionLocked(category, index, unlocked)` is replaced by a new `isQuestionOpen(category, index, access)` (4a adds it
+alongside, 4b moves every caller and deletes the boolean helpers, see `docs/specs/plan.md`). A question is open if its index is below the category's
+`getFreeQuestionCount` (not a hardcoded 8: adult free counts are 3 or 20), or its tranche's entitlement is active (kids and teen: `cat_<category>_<k>`; adult: the existing `cat_<id>`), or `premium_all` applies to an adult category, or `premium_kids` applies to a kids or teen category (see Decisions). The paywall offers
+only the **lowest tranche not owned**. Access is decided per tranche from the **set of owned tranche numbers**, never from a prefix or a
+count: a refund of tranche 1 while tranche 2 is still owned must close exactly tranche 1 and keep tranche 2 open. This changes `lib/catalog.ts`, `constants/questions.ts` access helpers,
+`contexts/UnlockedContext.tsx` and `app/unlock/[id].tsx`: all payments surface, all Unit 4.
+
+**Every purchase sits behind the parental gate** (existing `ParentalGate`), for kids and teen categories alike. The paywall copy
+changes from "Unlock N more" to "Open the next {n} questions · $1.99", where `{n}` is the **actual size of that tranche** (20, 22, 13, 27, 19 or 25;
+9 of the 12 are not 20), and shows how many remain. Copy must never promise a number the purchase does not deliver.
+
+**Web.** Until #53 decides web payments, a kids or teen paywall on web shows "Unlock in the iPhone app" behind the gate and never
+grants anything (§3.1, unchanged). That includes the temporary production web free unlock (`WEB_FREE_UNLOCK`): it opens adult categories only, and a
+stored free unlock or `premium_all` on web never opens a kids or teen tranche (pinned by a 4c test, in the same PR that removes the free button from the kids paywall, so the button is never left doing nothing). Owner access, for the owner and testers, still opens everything.
+
+**The existing 8 products** (`wyr_premium_all` and 7 adult `wyr_unlock_*`): the 7 adult ones are untouched. `wyr_premium_all` keeps its id,
+entitlement and $4.99 price but is **narrowed to adult categories**, so its name and description change in the same Unit 4 change
+(catalog, `store/ios/iap-products.json`, App Store Connect): "All Grown-up Categories" and "Every adult category, plus future questions"
+(working wording, within the 30 and 45 character limits). Today `premium_all` also opens questions 9+ of the kids and teen categories in the
+app's access rule, but no product exists in App Store Connect yet (`store/ios/iap.md`: none created as of 2026-11-20), the web build grants
+access free, and RevenueCat holders are Test Store testers. So there should be no paying holder to grandfather. **Before 4a ships, the
+orchestrator or Tim confirms that no real `wyr_premium_all` purchase exists; if one does, that holder keeps kids access (grandfather) and
+this paragraph changes.** Nothing was ever sold for the
+old Kids & Family category, and the 9 kids category products planned for Unit 4 were never created, so there is nothing to retire.
+Adult paid sets are 17 to 20 questions per category, which is one tranche, so the adult model **already is** the tranche model with
+one tranche per category. Recommended: leave adult categories as they are.
+`buildCatalog()` now derives 9 kids and teen category products (8 → 17). It would instead derive the 12 tranche products plus the With kids pack (8 → 21).
+The two tests that fail on purpose today (`catalog.test.ts` product count, `asc-iap-create.test.ts` product-file parity) move to 21,
+and `store/ios/iap-products.json` plus the App Review screenshots gain the 12 tranche products and the With kids pack (13 new) in that same Unit 4 change.
+
+**Decisions (Tim, 2026-11-24).** Tim's exact words: "accept all five tranche defaults". The defaults are the recommendations as they
+were put to him, relayed by the orchestrator session. They settle the five open questions:
+1. **The $4.99 all-categories pack** (`wyr_premium_all`) stays, for **adult categories only**. A separate **"With kids" pack** is added.
+   Kids and teen tranches are **not** covered by the $4.99 pack. **Flagged assumption: the With kids pack price is $9.99.** That is the
+   orchestrator's default, not a number Tim chose; confirm before any App Store Connect product exists.
+2. **Adult categories** stay as they are. Their 17 to 20 paid questions are already one tranche.
+3. **End of list:** a remainder under 10 questions merges into the previous tranche. No new questions are written now.
+4. **One non-consumable product per tranche** (12 products, restorable), not a repeatable consumable.
+5. **Order:** the 20 questions in each tranche come in current id order. Tim may curate later.
+
+**Consequences for the build (Unit 4, see `docs/specs/plan.md`).** `premium_all` must stop granting kids and teen categories. Nothing was
+ever sold for them and no `wyr_premium_all` product exists in the store yet (see above), so no paying buyer should lose access; that is
+confirmed before 4a ships. The With kids pack needs its own entitlement (working name `premium_kids`)
+and product (working name `wyr_premium_kids`) that grants every kids and teen tranche. Both names and the price are assumptions until
+the App Store Connect products exist, and no product is created without asking the orchestrator first.
 
 ## 4. AI "more like this"
 
