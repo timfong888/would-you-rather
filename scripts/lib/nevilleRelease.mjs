@@ -1,6 +1,6 @@
 // Pure helpers for the Neville iOS TestFlight workflow (scripts/neville-testflight.mjs).
 // No I/O here except through injected functions, so every branch is unit-testable with mocks.
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 export const SHA_RE = /^[0-9a-f]{40}$/;
 export const NEVILLE_BUNDLE_ID = 'pckg.neville';
@@ -21,6 +21,23 @@ export function validateNevilleDir(name) {
 export function resolveNevilleDir(root, name) {
   if (typeof root !== 'string' || !root) throw new Error('NEVILLE_ROOT is not set.');
   return join(root, validateNevilleDir(name));
+}
+
+// The chosen dir must be a real directory (not a symlink) whose realpath is inside the realpath of the root.
+// Returns a list of fixed-text errors (never echoes paths). `fs` is injected for tests.
+export function checkDirSafety(root, name, fs) {
+  const errors = [];
+  try {
+    const dir = join(root, validateNevilleDir(name));
+    const st = fs.lstatSync(dir);
+    if (st.isSymbolicLink()) errors.push(`${name} is a symlink`);
+    else if (!st.isDirectory()) errors.push(`${name} is not a directory`);
+    const real = fs.realpathSync(dir), realRoot = fs.realpathSync(root);
+    if (!real.startsWith(realRoot + sep)) errors.push(`${name} resolves outside the neville checkout`);
+  } catch (e) {
+    errors.push(/neville_dir/.test(e.message) ? e.message : `${name} is missing or unreadable`);
+  }
+  return errors;
 }
 
 export function validateSha(sha) {
@@ -132,9 +149,24 @@ export function summaryMarkdown(build, state, version, dir) {
 // Secretless check that the chosen neville directory builds on its own. Reads files only; prints no file content
 // (only fixed text and line numbers), so nothing from neville can start a workflow command in the log.
 // Returns { lines, warnings, errors }. `fs` is injected for tests.
-export function checkSelfContained(dir, name, { fs, profile = 'production', gitRoot = '' }) {
+export const MAX_CHECK_FILE_BYTES = 256 * 1024;
+export const MAX_CHECK_LINE = 2000;
+// Files that change what `npm ci`/EAS resolve or run at config time. Not allowed in either dir; an explicit decision would be needed.
+export const FORBIDDEN_FILES = ['.npmrc', '.yarnrc', '.yarnrc.yml', 'app.config.js', 'app.config.ts'];
+export function checkSelfContained(dir, name, { fs, root, profile = 'production', gitRoot = '' }) {
   validateNevilleDir(name);
   const lines = [], warnings = [], errors = [];
+  if (root) errors.push(...checkDirSafety(root, name, fs));
+  // Any symlink among the files we read (or a forbidden config file of any kind) fails closed.
+  for (const f of ['package.json', 'eas.json', 'app.json', 'metro.config.js', ...FORBIDDEN_FILES]) {
+    let st; try { st = fs.lstatSync(join(dir, f)); } catch { continue; }
+    if (st.isSymbolicLink()) errors.push(`${name}/${f} is a symlink`);
+  }
+  let present = [];
+  try { present = fs.readdirSync(dir); } catch { /* reported by the required-file checks */ }
+  for (const f of present.filter((n) => FORBIDDEN_FILES.includes(n) || n.startsWith('.yarnrc'))) {
+    errors.push(`${name}/${FORBIDDEN_FILES.includes(f) ? f : '.yarnrc*'} is present and not allowed (changes install/config resolution)`);
+  }
   const has = (f) => fs.existsSync(join(dir, f));
   const readJson = (f) => { try { return JSON.parse(fs.readFileSync(join(dir, f), 'utf8')); } catch { return undefined; } };
   const required = name === 'native' ? ['package.json', 'app.json', 'eas.json'] : ['package.json', 'eas.json'];
@@ -153,7 +185,10 @@ export function checkSelfContained(dir, name, { fs, profile = 'production', gitR
   }
 
   if (has('metro.config.js')) {
-    const src = fs.readFileSync(join(dir, 'metro.config.js'), 'utf8').split(/\r\n|\r|\n/);
+    const raw = fs.statSync(join(dir, 'metro.config.js')).size > MAX_CHECK_FILE_BYTES ? undefined : fs.readFileSync(join(dir, 'metro.config.js'), 'utf8');
+    const src = raw === undefined ? [] : raw.split(/\r\n|\r|\n/);
+    if (raw === undefined) errors.push(`${name}/metro.config.js is larger than ${MAX_CHECK_FILE_BYTES} bytes; not scanned`);
+    else if (src.some((l) => l.length > MAX_CHECK_LINE)) { errors.push(`${name}/metro.config.js has a line longer than ${MAX_CHECK_LINE} characters; not scanned`); src.length = 0; }
     const parent = []; const ws = [];
     src.forEach((l, i) => {
       if (/(\.\.\/|__dirname *\+ *['"]\/\.\.|path\.(resolve|join)\([^)]*['"]\.\.['"])/.test(l)) parent.push(i + 1);

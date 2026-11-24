@@ -10,11 +10,12 @@
 // so a failed run is debuggable from the public log.
 import { createPrivateKey, sign } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
-import { NEVILLE_APP_ID, resolveNevilleDir, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/nevilleRelease.mjs';
+import { NEVILLE_APP_ID, resolveNevilleDir, checkDirSafety, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/nevilleRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -33,6 +34,10 @@ const profile = env.EAS_PROFILE || 'production';
 if (!/^[A-Za-z0-9_-]{1,40}$/.test(profile)) die('EAS_PROFILE has unexpected characters.', 2);
 let nevilleDir; // root + allowlisted subdir only; anything else dies before a secret is used
 try { nevilleDir = resolveNevilleDir(env.NEVILLE_ROOT, env.NEVILLE_SUBDIR); } catch (e) { die(e.message, 2); }
+{ // no symlink, and the real path stays inside the real neville checkout, before anything is spawned
+  const bad = checkDirSafety(env.NEVILLE_ROOT, env.NEVILLE_SUBDIR, fs);
+  if (bad.length) die(`neville directory check failed: ${bad.join('; ')}`, 2);
+}
 
 // Mask everything sensitive in the public log, including each line of the key (masks are per-line).
 for (const v of [ASC_KEY_ID, ASC_ISSUER_ID, APPLE_TEAM_ID, EXPO_TOKEN, ...ASC_PRIVATE_KEY.replace(/\\n/g, '\n').split(/\r?\n/)]) {

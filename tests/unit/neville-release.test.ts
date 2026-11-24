@@ -145,6 +145,11 @@ test('finalOutcome: only VALID and PROCESSING are green', () => {
 const wfRaw = readFileSync(new URL('../../.github/workflows/neville-ios-testflight.yml', import.meta.url), 'utf8');
 const wf = wfRaw.split('\n').filter((l: string) => !l.trimStart().startsWith('#')).join('\n');
 
+// Step-level view of the job: ordering is asserted on steps, not on raw text offsets.
+const wfSteps: string[] = wf.split(/\n      - /).slice(1);
+const stepIdx = (re: RegExp) => { const i = wfSteps.findIndex((s: string) => re.test(s)); assert.ok(i >= 0, `no step matches ${re}`); return i; };
+const secretStep = () => { const idx = wfSteps.map((s: string, i: number) => (s.includes('secrets.') ? i : -1)).filter((i: number) => i >= 0); assert.equal(idx.length, 1, 'secrets in exactly one step'); return idx[0]; };
+
 test('workflow: dispatch only, read-only token, guarded job', () => {
   assert.match(wf, /^on:\n  workflow_dispatch:/m);
   assert.doesNotMatch(wf, /pull_request|push:|schedule:|workflow_run/);
@@ -161,7 +166,7 @@ test('workflow: hardcoded neville repo and ref, one sha input checked before sec
   assert.match(wf, /git clone --no-tags "https:\/\/github\.com\/\$\{NEVILLE_REPO\}\.git"/);
   assert.match(wf, /\^\[0-9a-f\]\{40\}\$/);
   assert.match(wf, /merge-base --is-ancestor/);
-  assert.ok(wf.indexOf('merge-base --is-ancestor') < wf.indexOf('secrets.'));
+  assert.ok(stepIdx(/merge-base --is-ancestor/) < secretStep());
 });
 
 test('workflow: neville is checked out outside the workspace', () => {
@@ -277,7 +282,8 @@ test('neville_dir allowlist accepts exactly ios-shell and native, rejects anythi
 test('workflow: neville_dir is a choice of exactly two options, default ios-shell, never interpolated into a script', () => {
   assert.match(wf, /neville_dir:\n        description: [^\n]+\n        type: choice\n        options:\n          - ios-shell\n          - native\n        default: ios-shell/);
   assert.match(wf, /case "\$NEVILLE_SUBDIR" in ios-shell\|native\) ;;/);
-  assert.ok(wf.indexOf('case "$NEVILLE_SUBDIR"') < wf.indexOf('git clone'));
+  assert.ok(stepIdx(/case "\$NEVILLE_SUBDIR"/) < stepIdx(/git clone/));
+  assert.ok(stepIdx(/case "\$NEVILLE_SUBDIR"/) < secretStep());
   // inputs.* appears only as the value of an env: entry, so it never lands inside a run: script.
   for (const l of wf.split('\n').filter((x: string) => x.includes('inputs.'))) assert.match(l, /^\s+[A-Z_]+: \$\{\{ inputs\.[a-z_]+ \}\}$/, l);
   assert.doesNotMatch(wf, /working-directory:.*inputs\./);
@@ -292,8 +298,11 @@ test('workflow: no secret reaches the allowlist, clone, check or install steps',
       assert.match(st, /NEVILLE_SUBDIR: \$\{\{ inputs\.neville_dir \}\}/);
     }
   }
-  assert.ok(wf.indexOf('neville-check.mjs') < wf.indexOf('secrets.'));
-  assert.ok(wf.indexOf('npm ci --ignore-scripts') < wf.indexOf('secrets.'));
+  assert.ok(stepIdx(/neville-check\.mjs/) < secretStep());
+  assert.ok(stepIdx(/git clone/) < stepIdx(/neville-check\.mjs/));
+  assert.ok(stepIdx(/neville-check\.mjs/) < stepIdx(/npm ci --ignore-scripts/));
+  assert.ok(stepIdx(/npm ci --ignore-scripts/) < secretStep());
+  assert.match(wfSteps[secretStep()], /Build on EAS/);
   assert.match(wf, /EAS_PROFILE: production/);
 });
 
@@ -380,4 +389,75 @@ test('summaryMarkdown names the directory and build number, and refuses a non-al
   assert.match(md, /\| 165 \| VALID \|/);
   assert.throws(() => summaryMarkdown('165', 'VALID', '2.0.0', '../x'), /neville_dir/);
   assert.ok(!summaryMarkdown('165', 'VALID', '1.1.0').includes('Directory:'));
+});
+
+import { symlinkSync, realpathSync } from 'node:fs';
+
+test('check: symlinked dir or files fail, and the dir must resolve inside the root', () => {
+  // symlinked file
+  const a = fixture(goodNative);
+  const target = join(a.root, 'elsewhere.json'); wfs(target, goodNative['eas.json']);
+  nodeFs.rmSync(join(a.dir, 'eas.json')); symlinkSync(target, join(a.dir, 'eas.json'));
+  assert.ok(checkSelfContained(a.dir, 'native', { fs: nodeFs, root: a.root }).errors.some((e: string) => e === 'native/eas.json is a symlink'));
+  // symlinked metro.config.js
+  const m = fixture(goodNative); wfs(join(m.root, 'real-metro.js'), '');
+  symlinkSync(join(m.root, 'real-metro.js'), join(m.dir, 'metro.config.js'));
+  assert.ok(checkSelfContained(m.dir, 'native', { fs: nodeFs, root: m.root }).errors.some((e: string) => e === 'native/metro.config.js is a symlink'));
+  // symlinked dir pointing outside the root
+  const outside = mkdtempSync(join(tmpdir(), 'nev-out-'));
+  for (const [f, c] of Object.entries(goodNative)) wfs(join(outside, f), c);
+  const root = mkdtempSync(join(tmpdir(), 'nev-root-')); symlinkSync(outside, join(root, 'native'));
+  const errs = checkSelfContained(join(root, 'native'), 'native', { fs: nodeFs, root }).errors;
+  assert.ok(errs.includes('native is a symlink') && errs.includes('native resolves outside the neville checkout'));
+  // a normal dir is fine and its realpath is inside the root
+  const ok = fixture(goodNative);
+  assert.deepEqual(checkSelfContained(ok.dir, 'native', { fs: nodeFs, root: ok.root }).errors, []);
+  assert.ok(realpathSync(ok.dir).startsWith(realpathSync(ok.root) + '/'));
+});
+
+test('check: a huge metro.config.js or one huge line fails closed fast instead of being scanned', () => {
+  const longLine = fixture({ ...goodNative, 'metro.config.js': 'path.resolve('.repeat(15000) });
+  let t0 = Date.now();
+  let r = checkSelfContained(longLine.dir, 'native', { fs: nodeFs });
+  assert.ok(Date.now() - t0 < 1000, 'long line must not be scanned');
+  assert.ok(r.errors.some((e: string) => /line longer than 2000 characters; not scanned/.test(e)));
+  const bigFile = fixture({ ...goodNative, 'metro.config.js': 'x = 1;\n'.repeat(100000) });
+  t0 = Date.now();
+  r = checkSelfContained(bigFile.dir, 'native', { fs: nodeFs });
+  assert.ok(Date.now() - t0 < 1000);
+  assert.ok(r.errors.some((e: string) => /larger than 262144 bytes; not scanned/.test(e)));
+  // normal-sized files still scan
+  assert.deepEqual(checkSelfContained(fixture({ ...goodNative, 'metro.config.js': 'module.exports = {};\n' }).dir, 'native', { fs: nodeFs }).errors, []);
+});
+
+test('check: .npmrc, .yarnrc*, app.config.js/ts fail in either dir, printing only fixed names', () => {
+  for (const sub of ['native', 'ios-shell'] as const) {
+    for (const f of ['.npmrc', '.yarnrc', '.yarnrc.yml', 'app.config.js', 'app.config.ts']) {
+      const files: Record<string, string> = { ...goodNative, [f]: 'registry=https://evil.example/ SECRETISH' };
+      const { dir } = fixture(files, sub);
+      const r = checkSelfContained(dir, sub, { fs: nodeFs });
+      assert.ok(r.errors.some((e: string) => e.startsWith(`${sub}/${f} is present and not allowed`)), `${sub}/${f}`);
+      assert.ok(!r.errors.join('\n').includes('SECRETISH') && !r.errors.join('\n').includes('evil.example'));
+    }
+  }
+  const odd = fixture({ ...goodNative, '.yarnrc.custom': 'x' });
+  assert.ok(checkSelfContained(odd.dir, 'native', { fs: nodeFs }).errors.some((e: string) => e.startsWith('native/.yarnrc* is present')));
+});
+
+test('neville-testflight.mjs rejects a bad or symlinked NEVILLE_SUBDIR before any spawn or network call', () => {
+  const bin = mkdtempSync(join(tmpdir(), 'nev-bin-')); const marker = join(bin, 'SPAWNED');
+  for (const name of ['npx', 'node', 'git']) { wfs(join(bin, name), `#!/bin/sh\ntouch "${marker}"\n`); nodeFs.chmodSync(join(bin, name), 0o755); }
+  const secrets = { EXPO_TOKEN: 'tok-EXPO-123456', ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'issuer-uuid-9', ASC_PRIVATE_KEY: 'PEM-BODY-xyz', APPLE_TEAM_ID: 'VJKU43W3C2' };
+  const root = mkdtempSync(join(tmpdir(), 'nev-root-')); mkdirSync(join(root, 'native'));
+  const outside = mkdtempSync(join(tmpdir(), 'nev-out-')); symlinkSync(outside, join(root, 'ios-shell'));
+  const script = new URL('../../scripts/neville-testflight.mjs', import.meta.url).pathname;
+  const run = (sub: string, r = root) => spawnSync(process.execPath, [script], { env: { PATH: bin, HOME: bin, NEVILLE_ROOT: r, NEVILLE_SUBDIR: sub, ...secrets }, encoding: 'utf8', timeout: 20000 });
+  for (const bad of ['../native', 'native/..', '/etc', 'other', '', 'ios-shell']) {
+    const r = run(bad);
+    assert.equal(r.status, 2, `${bad}: ${r.stdout}${r.stderr}`);
+    assert.ok(!nodeFs.existsSync(marker), `spawn happened for ${bad}`);
+    for (const v of Object.values(secrets)) assert.ok(!(r.stdout + r.stderr).includes(v), 'secret leaked');
+  }
+  assert.match(run('other').stderr, /neville_dir must be one of: ios-shell, native/);
+  assert.match(run('ios-shell').stderr, /symlink|resolves outside/);
 });
