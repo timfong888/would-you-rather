@@ -9,6 +9,7 @@ import {
   Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
+import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isKidsCategoryId, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
@@ -408,12 +409,12 @@ export default function GameScreen() {
       }
       router.push(`/game/${nextQuestion.id}?cat=${catId}&idx=${nextIdx}`);
     } else {
-      router.push('/categories');
+      router.push(browseHrefFor(catId));
     }
   };
 
   const handleLeaveCategory = () => {
-    router.push('/categories');
+    router.push(browseHrefFor(catId));
   };
 
   // Real percentages only, from the server, at or above the vote threshold.

@@ -9,6 +9,7 @@ import {
   Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import {
   CATEGORIES,
@@ -292,7 +293,7 @@ export default function CompleteScreen() {
             </Pressable>
           )}
           <Pressable
-            onPress={() => router.push('/categories')}
+            onPress={() => router.push(browseHrefFor(category.id))}
             style={({ pressed }) => [
               styles.exploreCta,
               { borderColor: catColor },

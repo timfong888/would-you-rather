@@ -41,6 +41,7 @@ interface Entry { path: string; lastmod?: string }
 const entries: Entry[] = [
   { path: '/', lastmod: PAGES },
   { path: '/categories', lastmod: CONTENT },
+  { path: '/kids', lastmod: CONTENT },
   ...CATEGORIES.map((c) => ({ path: `/categories/${c.id}`, lastmod: CONTENT })),
   ...SEO_PAGES.map((p) => ({ path: `/${p.slug}`, lastmod: PAGES })),
 ];
