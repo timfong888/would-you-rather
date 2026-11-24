@@ -91,11 +91,15 @@ try {
   if (up.status !== 0) die(`upload step failed (exit ${up.status}).\n${tailErrors(`${up.stderr}\n${up.stdout}`, redact)}`);
 
   // 5. Poll the builds endpoint (GET). Only build number and processing state are reported.
+  const uploadComplete = lines.some((l) => l.trim() === 'state: COMPLETE');
   const { state } = await pollBuild(get, { build, version, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) });
   say(`build ${build}: ${state}`);
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summaryMarkdown(build, state));
-  const outcome = finalOutcome(state);
-  if (outcome.kind === 'still-processing') say(`::notice title=Still processing::Build ${build} is ${state} on Apple's side; this is not an error. Re-check with Apple ops "builds".`);
+  const outcome = finalOutcome(state, { uploadComplete });
+  const shown = outcome.kind === 'unverified' ? 'UPLOADED (Apple reported the upload COMPLETE; status check unreachable)' : state;
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summaryMarkdown(build, shown, version));
+  if (outcome.kind === 'valid') say(`Neville ${version} build ${build}: processed by Apple (VALID), ready in TestFlight.`);
+  else if (outcome.kind === 'unverified') say(`::warning title=Apple status check failed::Neville ${version} build ${build} was uploaded and Apple reported the upload COMPLETE, but the processing-state check hit a network error after 3 retries per poll. The build was delivered; check TestFlight.`);
+  else if (outcome.kind === 'still-processing') say(`::notice title=Still processing::Build ${build} is ${state} on Apple's side; this is not an error. Re-check with Apple ops "builds".`);
   else if (outcome.exitCode !== 0) die(`Build ${build} did not reach a usable state (${state}). Check TestFlight / run Apple ops "builds".`);
 } catch (e) {
   die(`neville release failed: ${e.message}`);
