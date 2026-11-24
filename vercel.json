@@ -9,8 +9,8 @@
     }
   ],
   "redirects": [
-    { "source": "/categories/kids-family", "destination": "/categories", "permanent": true },
-    { "source": "/complete/kids-family", "destination": "/categories", "permanent": true },
+    { "source": "/categories/kids-family", "destination": "/kids", "permanent": true },
+    { "source": "/complete/kids-family", "destination": "/kids", "permanent": true },
     { "source": "/unlock/kids-family", "destination": "/unlock/tiny-choices", "permanent": true }
   ],
   "rewrites": [
@@ -21,6 +21,7 @@
     { "source": "/complete/:id",                                        "destination": "/complete/[id].html" },
     { "source": "/unlock/:id",                                          "destination": "/unlock/[id].html" },
     { "source": "/categories",                                          "destination": "/categories.html" },
+    { "source": "/kids",                                                "destination": "/kids.html" },
     { "source": "/privacy",                                             "destination": "/privacy.html" },
     { "source": "/support",                                             "destination": "/support.html" },
     { "source": "/terms",                                               "destination": "/terms.html" },

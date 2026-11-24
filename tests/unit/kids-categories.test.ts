@@ -104,23 +104,23 @@ test('/categories/kids-family redirects, on the web (vercel.json) and in the app
   const vercel = JSON.parse(readFileSync('vercel.json', 'utf8'));
   assert.deepEqual(
     vercel.redirects.filter((r: any) => r.source === '/categories/kids-family'),
-    [{ source: '/categories/kids-family', destination: '/categories', permanent: true }],
+    [{ source: '/categories/kids-family', destination: '/kids', permanent: true }],
   );
   const screen = readFileSync('app/categories/[id].tsx', 'utf8');
   assert.match(screen, /RETIRED_KIDS_CATEGORY_IDS\.includes\(id\)/);
-  assert.match(screen, /<Redirect href="\/categories" \/>/);
+  assert.match(screen, /<Redirect href="\/kids" \/>/);
 });
 
 test('the other retired routes redirect too: /unlock/kids-family reaches a live kids unlock (the gate), /complete/kids-family the list', () => {
   const vercel = JSON.parse(readFileSync('vercel.json', 'utf8'));
   const to = (src: string) => vercel.redirects.find((r: any) => r.source === src)?.destination;
-  assert.equal(to('/complete/kids-family'), '/categories');
+  assert.equal(to('/complete/kids-family'), '/kids');
   const unlockTarget = to('/unlock/kids-family');
   assert.equal(unlockTarget, '/unlock/tiny-choices');
   const id = unlockTarget.split('/').pop() as string;
   assert.equal(getCategoryAudience(id), 'kids'); // a live kids category, so App Review still sees the gate
   assert.match(readFileSync('app/unlock/kids-family.tsx', 'utf8'), /<Redirect href="\/unlock\/tiny-choices" \/>/);
-  assert.match(readFileSync('app/complete/kids-family.tsx', 'utf8'), /<Redirect href="\/categories" \/>/);
+  assert.match(readFileSync('app/complete/kids-family.tsx', 'utf8'), /<Redirect href="\/kids" \/>/);
 });
 
 test('the home random button draws from adult categories only', () => {
@@ -128,7 +128,9 @@ test('the home random button draws from adult categories only', () => {
   assert.ok(pool.length >= 3);
   for (const c of pool) assert.equal(c.audience, 'adult', c.id);
   assert.equal(pool.some((c) => c.tier !== 'free'), false);
-  assert.match(readFileSync('app/index.tsx', 'utf8'), /randomPlayCategories\(CATEGORIES\)/);
+  const home = readFileSync('app/index.tsx', 'utf8');
+  assert.match(home, /randomPlayCategories\(GROWNUP_CATEGORIES\)/);
+  assert.match(home, /GROWNUP_CATEGORIES = categoriesForMode\('grownups', CATEGORIES\)/);
 });
 
 test('D4: every kids landing page lists its full set (free or not) from kids categories only', () => {

@@ -4,6 +4,9 @@ import { RETIRED_KIDS_CATEGORY_IDS, isKidsCategoryId } from '../constants/questi
 // Landing pages written to the kids question bank (they set `questionTag`).
 const KIDS_PATHS = new Set(SEO_PAGES.filter((p) => p.questionTag).map((p) => `/${p.slug}`));
 
+/** The With kids browse screen. */
+export const KIDS_BROWSE_PATH = '/kids';
+
 const CATEGORY_ROUTE = /^\/(categories|complete|unlock)\/([^/]+)$/;
 
 function decode(segment: string): string {
@@ -21,6 +24,8 @@ function decode(segment: string): string {
  */
 export function isKidsPath(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, '') || '/';
+  // With kids mode (browse screen with the age chips) is a kids route even though it lists the teen category.
+  if (path === KIDS_BROWSE_PATH) return true;
   if (KIDS_PATHS.has(path) || /^\/(game|p|results)\/kf-/.test(path)) return true;
   const route = path.match(CATEGORY_ROUTE);
   if (route === null) return false;
