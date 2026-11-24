@@ -76,7 +76,7 @@ try {
     '--non-interactive', '--wait', '--json'], { cwd: nevilleDir, env: childEnv, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (eas.status !== 0) {
     // stderr only: stdout holds the --json result, never what went wrong.
-    const tail = tailLines(eas.stderr, redact, 60) || '  (no stderr output)';
+    const tail = tailLines(eas.stderr, redact, 60) || '| (no stderr output)';
     die(`eas build failed (exit ${eas.status}). Last lines of EAS output (secrets redacted):\n${tail}`);
   }
   const { version, build, ipaUrl } = parseEasBuild(eas.stdout);

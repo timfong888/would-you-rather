@@ -88,7 +88,7 @@ test('tailErrors redacts secrets and truncates', () => {
   const redact = makeRedactor(['KEYID12345', 'ISSUER-UUID-1', key]);
   const out = tailErrors(`ok line\nerror: auth failed for KEYID12345 issuer ISSUER-UUID-1\nMIGTAgEAMBMGByqGSM49 error ${'x'.repeat(500)}`, redact);
   assert.ok(!out.includes('KEYID12345') && !out.includes('ISSUER-UUID-1'));
-  assert.ok(out.split('\n').every((l: string) => l.startsWith('  ') && l.length <= 302));
+  assert.ok(out.split('\n').every((l: string) => l.startsWith('| ') && l.length <= 302));
   assert.ok(!out.includes('ok line'));
 });
 
@@ -98,8 +98,8 @@ test('tailLines keeps the last 60 lines, redacts secrets, truncates, prefixes', 
   const out = tailLines(lines.join('\n') + '\nEXPOTOKEN-abc', redact).split('\n');
   assert.equal(out.length, 60);
   assert.ok(!out.join('\n').includes('KEYID12345') && !out.join('\n').includes('EXPOTOKEN-abc'));
-  assert.ok(out.every((l: string) => l.startsWith('  ') && l.length <= 302));
-  assert.equal(out[out.length - 1], '  ***');
+  assert.ok(out.every((l: string) => l.startsWith('| ') && l.length <= 302));
+  assert.equal(out[out.length - 1], '| ***');
 });
 
 test('tailLines redacts a multi-line PEM key that spans lines', () => {
@@ -118,8 +118,13 @@ test('tailLines replaces URLs (signed tokens) and neutralises workflow commands'
   const out = tailLines('fetch https://x.example/a?sig=SECRETSIG&b=1 failed\n::stop-commands::abc\n::add-mask::oops', redact);
   assert.ok(!out.includes('SECRETSIG') && !out.includes('x.example'));
   assert.match(out, /<url>/);
-  for (const l of out.split('\n')) assert.ok(!l.startsWith('::'), l);
-  assert.ok(out.split('\n').every((l: string) => l.startsWith('  ')));
+  // The runner trims leading whitespace before looking for `::`, so test it the way the runner does.
+  const asRunner = (t: string) => t.split('\n').map((l) => l.trimStart());
+  for (const l of asRunner(out)) assert.ok(!l.startsWith('::'), l);
+  assert.ok(out.split('\n').every((l: string) => l.startsWith('| ')));
+  // Even a whitespace-led command line is neutralised.
+  const spaced = tailLines('   ::add-mask::x\n\t::stop-commands::y', redact);
+  for (const l of asRunner(spaced)) assert.ok(!l.startsWith('::'), l);
 });
 
 test('finalOutcome: only VALID and PROCESSING are green', () => {
