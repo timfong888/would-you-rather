@@ -49,12 +49,18 @@ export function audienceForAges(ages: AgeRange): Audience {
   return 'adult';
 }
 
+export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
+
 /**
- * THE free count: the first N questions of EVERY category (adult, kids and teen) are free (Tim, 2026-11-24: "each category
- * has N number of free questions, call it 5"). Change it here and only here; the tranche model (lib/tranches.ts), the
- * catalog and the paywall copy all follow. A category with fewer than N questions is entirely free.
+ * THE target free count: the first N questions of EVERY category (adult, kids, teen) are free (Tim, 2026-11-24: "each
+ * category has N number of free questions, call it 5"). Change it here and only here. The tranche model (lib/tranches.ts)
+ * and the catalog already use it; the live screens, the sitemap and the SEO pages keep today's counts (3 or 20 adult, 8
+ * kids and teen) until UNIFORM_FREE_COUNT_LIVE is turned on, in the same PR as the paywall change (4c), because turning it
+ * on locks 15 questions in each of the four free-tier adult categories and changes the sitemap and the SEO pages.
  */
 export const FREE_QUESTIONS_PER_CATEGORY = 5;
+/** false in 4a (staging): getFreeQuestionCount keeps returning today's counts. 4c flips it. */
+export const UNIFORM_FREE_COUNT_LIVE = false;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -174,7 +180,7 @@ const ALL_CATEGORIES: CategoryDef[] = [
     audience: 'adult',
     ages: ADULT_AGES,
   },
-  // Kids and teen topic categories (spec §2.2). The first 5 (FREE_QUESTIONS_PER_CATEGORY) are free; the "volume" tag is data only and no longer gates access.
+  // Kids and teen topic categories (spec §2.2). Each has 8 free questions; the rest are volume 2.
   {
     id: 'tiny-choices',
     label: 'Tiny Choices',
@@ -1540,7 +1546,8 @@ export function getCategoryQuestions(categoryId: CategoryId): Question[] {
 //
 // Every screen must decide "is this question playable?" the same way, so the
 // rule lives here and nowhere else:
-//   - every category:   the first FREE_QUESTIONS_PER_CATEGORY questions are free, the rest are paid
+//   - premium category: first FREE_TRIAL_COUNT questions are free
+//   - free category:    all of volume 1 is free; expansion volumes are paid
 //   - unlocking a category (purchase or owner access) opens everything in it
 // ---------------------------------------------------------------------------
 
@@ -1549,8 +1556,18 @@ export function getQuestionVolume(q: Question): number {
 }
 
 /** Number of questions at the start of the category that are free to play. */
-export function getFreeQuestionCount(category: CategoryDef): number {
+export function targetFreeQuestionCount(category: CategoryDef): number {
   return Math.min(FREE_QUESTIONS_PER_CATEGORY, getCategoryQuestions(category.id).length);
+}
+
+/** What the live screens, the sitemap and the SEO pages use. Today's counts until UNIFORM_FREE_COUNT_LIVE (4c). */
+export function getFreeQuestionCount(category: CategoryDef): number {
+  if (UNIFORM_FREE_COUNT_LIVE) return targetFreeQuestionCount(category);
+  const questions = getCategoryQuestions(category.id);
+  if (category.tier === 'premium') {
+    return Math.min(FREE_TRIAL_COUNT, questions.length);
+  }
+  return questions.filter((q) => getQuestionVolume(q) === 1).length;
 }
 
 /** Number of questions in the category that sit behind the unlock. */

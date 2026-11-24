@@ -8,8 +8,10 @@ import {
   getCategoryById,
   getCategoryQuestions,
   FREE_QUESTIONS_PER_CATEGORY,
+  UNIFORM_FREE_COUNT_LIVE,
   getFreeQuestionCount,
   isQuestionLocked,
+  targetFreeQuestionCount,
 } from '../../constants/questions';
 import { TRANCHE_ASSIGNMENTS } from '../../constants/trancheAssignments';
 import {
@@ -58,16 +60,16 @@ test('kids and teen: step 1 is positions 6 to 25 and withheld is positions 26 on
   for (const c of young) {
     const list = getCategoryQuestions(c.id).map((q) => q.id);
     const a = TRANCHE_ASSIGNMENTS[c.id];
-    assert.deepEqual(a.tranches.flat(), list.slice(getFreeQuestionCount(c), getFreeQuestionCount(c) + 20), `${c.id} step`);
-    assert.deepEqual(a.withheld, list.slice(getFreeQuestionCount(c) + 20), `${c.id} withheld`);
+    assert.deepEqual(a.tranches.flat(), list.slice(targetFreeQuestionCount(c), targetFreeQuestionCount(c) + 20), `${c.id} step`);
+    assert.deepEqual(a.withheld, list.slice(targetFreeQuestionCount(c) + 20), `${c.id} withheld`);
   }
 });
 
 test('frozen membership: every paid kids and teen question is in exactly one list (step or withheld), nothing free or unknown is, and no id is duplicated', () => {
   for (const c of young) {
     const qs = getCategoryQuestions(c.id);
-    const free = new Set(qs.slice(0, getFreeQuestionCount(c)).map((q) => q.id));
-    const paid = qs.slice(getFreeQuestionCount(c)).map((q) => q.id);
+    const free = new Set(qs.slice(0, targetFreeQuestionCount(c)).map((q) => q.id));
+    const paid = qs.slice(targetFreeQuestionCount(c)).map((q) => q.id);
     const a = TRANCHE_ASSIGNMENTS[c.id];
     const seen = new Set<string>();
     for (const id of [...a.tranches.flat(), ...a.withheld]) {
@@ -88,7 +90,7 @@ test('withheld questions are closed for the pack and for every step, so nothing 
     const full = accessFor([ENTITLEMENT_ALL, entitlementForTranche(c.id, 1)], c);
     assert.equal(openQuestionCount(c, full, LIMITED), 25, c.id);
     assert.equal(openQuestionCount(c, full, LIMITED) < n, true, c.id);
-    assert.equal(isCategoryFullyOpen(c, full, LIMITED), true, c.id);
+    assert.equal(isCategoryFullyOpen(c, full, LIMITED), false, c.id); // strict: withheld questions are never open, so a boolean caller never opens them
     assert.equal(nextTrancheToSell(c, full, LIMITED), null, c.id);
     assert.equal(isCategoryFullyOpen(c, accessFor([], c), LIMITED), false, c.id);
   }
@@ -125,10 +127,10 @@ test('growth: a new paid question is closed (even with the pack limited) until i
 
 test('the free count is one constant: N = 5 in every category, adult, kids and teen (Tim, 2026-11-24)', () => {
   assert.equal(FREE_QUESTIONS_PER_CATEGORY, 5);
-  for (const c of CATEGORIES) assert.equal(getFreeQuestionCount(c), FREE_QUESTIONS_PER_CATEGORY, c.id);
+  for (const c of CATEGORIES) assert.equal(targetFreeQuestionCount(c), FREE_QUESTIONS_PER_CATEGORY, c.id);
   for (const c of CATEGORIES) {
     const n = getCategoryQuestions(c.id).length;
-    for (let i = 0; i < n; i++) assert.equal(questionZone(c, i).free, i < getFreeQuestionCount(c), `${c.id} ${i}`);
+    for (let i = 0; i < n; i++) assert.equal(questionZone(c, i).free, i < targetFreeQuestionCount(c), `${c.id} ${i}`);
   }
 });
 
@@ -141,14 +143,26 @@ test('STAGING (4a): the pack is not limited yet, so it keeps opening everything 
   }
 });
 
-test('adult regression (today\'s behavior): every adult question is open or locked exactly as the old boolean rule says', () => {
+test('LIVE counts are untouched in 4a (Sinatra P1): adult 3 or 20 free, kids and teen 8, until UNIFORM_FREE_COUNT_LIVE flips in 4c', () => {
+  assert.equal(UNIFORM_FREE_COUNT_LIVE, false);
+  const expected: Record<string, number> = {
+    'high-life': 3, 'midnight-secrets': 3, 'time-traveler': 3, 'deep-desires': 3, 'wildest-dreams': 3,
+    'moral-compass': 20, 'social-blunders': 20, 'career-climber': 20, 'tech-dystopia': 20,
+  };
+  for (const c of adult) assert.equal(getFreeQuestionCount(c), expected[c.id], c.id);
+  for (const c of young) assert.equal(getFreeQuestionCount(c), 8, c.id);
+  for (const c of CATEGORIES) assert.equal(isQuestionLocked(c, getFreeQuestionCount(c) - 1, false), false, c.id), assert.equal(isQuestionLocked(c, getFreeQuestionCount(c), false), true, c.id);
+});
+
+test('adult regression: with the live free counts, a purchase or the pack opens every adult question exactly as the old boolean rule says', () => {
   for (const c of adult) {
     const n = getCategoryQuestions(c.id).length;
     for (let i = 0; i < n; i++) {
-      assert.equal(isQuestionOpen(c, i, accessFor([], c), UNLIMITED), !isQuestionLocked(c, i, false), `${c.id} ${i} locked`);
       assert.equal(isQuestionOpen(c, i, accessFor([entitlementForCategory(c.id)], c), UNLIMITED), !isQuestionLocked(c, i, true), `${c.id} ${i} cat`);
       assert.equal(isQuestionOpen(c, i, accessFor([ENTITLEMENT_ALL], c), UNLIMITED), !isQuestionLocked(c, i, true), `${c.id} ${i} pack`);
     }
+    assert.equal(isCategoryEntitled([entitlementForCategory(c.id)], c.id), true, c.id);
+    assert.equal(isCategoryEntitled([], c.id), false, c.id);
   }
 });
 
@@ -157,7 +171,7 @@ test('an adult category is one tranche, granted by the existing cat_<id> entitle
     assert.ok(trancheRanges(c).length <= 1, `${c.id} is not split`);
     const n = getCategoryQuestions(c.id).length;
     assert.equal(openQuestionCount(c, accessFor([entitlementForCategory(c.id)], c)), n, c.id);
-    assert.equal(openQuestionCount(c, accessFor([`${entitlementForCategory(c.id)}_1`], c), UNLIMITED), getFreeQuestionCount(c), `${c.id}: cat_<id>_1 must not grant an adult category`);
+    assert.equal(openQuestionCount(c, accessFor([`${entitlementForCategory(c.id)}_1`], c), UNLIMITED), targetFreeQuestionCount(c), `${c.id}: cat_<id>_1 must not grant an adult category`);
   }
 });
 
@@ -201,7 +215,8 @@ test('questionZone and the paywall at the boundaries (Giggle Factory: 5 free, st
   assert.equal(nextTrancheToSell(g, noAccess(), LIMITED)?.k, 1);
   assert.equal(nextTrancheToSell(g, { all: false, pack: true, ownedTranches: new Set() }, LIMITED), null); // the pack opens step 1
   assert.equal(nextTrancheToSell(g, { all: false, pack: false, ownedTranches: new Set([1]) }, LIMITED), null);
-  assert.equal(isCategoryFullyOpen(g, { all: false, pack: false, ownedTranches: new Set([1]) }, LIMITED), true);
+  assert.equal(isCategoryFullyOpen(g, { all: false, pack: false, ownedTranches: new Set([1]) }, LIMITED), false); // withheld stays closed
+  assert.equal(isCategoryEntitled([entitlementForTranche('giggle-factory', 1)], 'giggle-factory'), false);
 });
 
 test('adult paywall (target): a premium-tier adult category the pack opens fully has nothing left to sell', () => {
@@ -239,7 +254,7 @@ test('an id that is not a category is treated as adult: the pack covers a catego
 
 test('old boolean helpers still exist and behave the same in 4a (callers move in 4b)', () => {
   const g = cat('giggle-factory');
-  assert.equal(isQuestionLocked(g, 4, false), false);
-  assert.equal(isQuestionLocked(g, 5, false), true);
-  assert.equal(isQuestionLocked(g, 5, true), false);
+  assert.equal(isQuestionLocked(g, 7, false), false);
+  assert.equal(isQuestionLocked(g, 8, false), true);
+  assert.equal(isQuestionLocked(g, 8, true), false);
 });

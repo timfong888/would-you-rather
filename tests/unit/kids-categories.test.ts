@@ -42,17 +42,18 @@ test('the 9 categories exist with their ages, audience and emoji, and kids-famil
   assert.equal(QUESTIONS.some((q) => (q.category as string) === 'kids-family'), false);
 });
 
-test('326 written, 45 free, 281 paid; every category has 5 free questions (Tim, 2026-11-24: N = 5 for every category) listed first', () => {
+test('326 written, 72 free, 254 paid; every category has 8 free questions listed first', () => {
   let written = 0, free = 0, paid = 0;
   for (const c of young) {
     const qs = getCategoryQuestions(c.id);
     assert.equal(qs.length, EXPECTED[c.id].written, `${c.id} written`);
-    assert.equal(getFreeQuestionCount(c), 5, `${c.id} free`);
-    qs.forEach((q, i) => assert.equal(isQuestionLocked(c, i, false), i >= 5));
-    assert.equal(getLockedQuestionCount(c), qs.length - 5);
+    assert.equal(getFreeQuestionCount(c), 8, `${c.id} free`);
+    qs.forEach((q, i) => assert.equal((q.volume ?? 1) === 1, i < 8, `${q.id} at ${i} in ${c.id}`));
+    qs.forEach((q, i) => assert.equal(isQuestionLocked(c, i, false), i >= 8));
+    assert.equal(getLockedQuestionCount(c), qs.length - 8);
     written += qs.length; free += getFreeQuestionCount(c); paid += getLockedQuestionCount(c);
   }
-  assert.deepEqual([written, free, paid], [326, 45, 281]);
+  assert.deepEqual([written, free, paid], [326, 72, 254]);
 });
 
 test('ids: the 223 existing ids are all still there; 73 new kf- and 30 tn- ids are added', () => {

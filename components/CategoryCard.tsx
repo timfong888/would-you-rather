@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import type { CategoryDef } from '@/constants/questions';
-import { FREE_QUESTIONS_PER_CATEGORY } from '@/constants/questions';
+import { FREE_TRIAL_COUNT } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 

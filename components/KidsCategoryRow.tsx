@@ -4,7 +4,7 @@ import { getFreeQuestionCount, getLockedQuestionCount, type CategoryDef } from '
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { formatAges, freeMoreHint } from '@/lib/browse';
 
-/** A With kids category card: emoji, name, age range, and "5 free · N more" (no price, so it fits any unlock model). */
+/** A With kids category card: emoji, name, age range, and "8 free · N more" (no price, so it fits any unlock model). */
 export default function KidsCategoryRow({ category, onPress }: { category: CategoryDef; onPress: () => void }) {
   const { styles } = useThemedStyles(makeStyles);
   const ages = formatAges(category);

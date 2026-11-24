@@ -535,7 +535,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     funnel: 'tofu',
     audienceType: 'Couples',
     // Not midnight-secrets / deep-desires: the deep page lists those (one page per question).
-    categoryIds: ['moral-compass', 'social-blunders'],
+    categoryIds: ['moral-compass'],
     limit: 20,
     keywords: ['would you rather questions for couples', 'date night questions', 'couples conversation starters'],
   },

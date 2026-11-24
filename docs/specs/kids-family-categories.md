@@ -188,7 +188,7 @@ Tim's exact words: "Just keep it simple, each category has N number of free ques
 to think about how to scale this later." The orchestrator's reading:
 
 - **One rule for every category** (adult, kids, teen). The first N = **5** questions are free. N is the single constant `FREE_QUESTIONS_PER_CATEGORY` in
-  `constants/questions.ts`; `getFreeQuestionCount` returns it; nothing else hardcodes it.
+  `constants/questions.ts`; `targetFreeQuestionCount` returns it and the tranche model and catalog use it. **The live screens keep today's counts until `UNIFORM_FREE_COUNT_LIVE` is turned on in 4c** (staged like the pack limit).
 - Each $1.99 **step** opens the next 20 in ONE category. Adult: one step, everything paid (at most 35). Kids and teen: exactly one step of 20 for now (see the kids cap below). Generated questions: #203, not built.
 - The $4.99 pack opens **step 1 of every category**. **Decided (Tim): step 1 only.** The code does step 1 only, behind `PACK_LIMITED_TO_FIRST_STEP` (false in 4a, flipped in 4c).
 - Kids and teen: one non-consumable per step, membership frozen as explicit ids (`constants/trancheAssignments.ts`). Adult: one step on the existing `cat_<id>` that opens everything paid (at most 35), as that product sells today, so no new adult products and no existing buyer loses anything.
@@ -215,7 +215,7 @@ to think about how to scale this later." The orchestrator's reading:
 
 Adult: 5 premium-tier categories (20 written: 5 free + 15 paid, one `cat_<id>`; 3 are on iOS v1) and 4 free-tier categories (40 written: 5 free + 35 paid, one `cat_<id>`).
 
-**What changes versus today for adult (the user-visible part):**
+**What changes versus today for adult (the user-visible part; happens in 4c, not 4a):**
 
 | Adult group | Today | New rule |
 |---|---|---|
@@ -223,7 +223,7 @@ Adult: 5 premium-tier categories (20 written: 5 free + 15 paid, one `cat_<id>`; 
 | Free-tier: Moral Compass, Social Blunders, Career Climber, Tech Dystopia | **20 free** + 20 expansion for $1.99 | **5 free** (**-15**), 35 behind `cat_<id>` $1.99 (the same product). Users lose 15 free questions per category, 60 in all. With the pack limited, the pack opens 20 of the 35 and `cat_<id>` opens the last 15. |
 | Existing `cat_<id>` and pack buyers | everything | everything (unchanged while the pack is staged; after 4c the pack opens step 1 only, **a change for existing pack holders**, RevenueCat read-only showed 0 production holders on 2026-11-24). |
 
-SEO: the adult category pages list only free questions in JSON-LD, so each free-tier adult page goes from 20 to 5 listed questions. Flagged for Tim.
+SEO (4c): the adult category pages list only free questions in JSON-LD, so each free-tier adult page goes from 20 to 5 listed questions. Flagged for Tim.
 
 **Restore, non-consumable vs consumable.** A non-consumable is restorable by Apple on any device with no account of ours, which is why the kids routes can sell it with no persisted ID. A consumable ("next 20") is simpler to catalogue (one product for all categories) but Apple does not restore it, so we would need our own ledger tied to a user, which the kids no-tracking rule forbids, and App Review can reject a consumable that unlocks permanent content. Keep non-consumables. **Cheaper to maintain alternative:** one non-consumable per kids or teen *category* that opens everything written (9 products, 17 in all), at the cost of no "next 20" pricing for 4 categories with more than one step and no room to price generated questions per step; generated questions (#203) could then be a separate consumable. Not recommended: it breaks Tim's "next 20 for $1.99".
 

@@ -7,7 +7,8 @@
  * Access comes from (store entitlements) is lib/catalog.ts.
  *
  * ONE rule for every category (adult, kids, teen), by position in its list:
- *   - free: the first FREE_QUESTIONS_PER_CATEGORY (constants/questions.ts, 5). The only place that number is set.
+ *   - free: the first FREE_QUESTIONS_PER_CATEGORY (constants/questions.ts, 5), via `targetFreeQuestionCount`. The live screens
+ *       keep today's counts until UNIFORM_FREE_COUNT_LIVE (4c).
  *   - step k (k = 1, 2, ...): the next batch, 20 questions (a remainder under 10 joins the step before it). Each costs $1.99
  *       and opens that batch in ONE category.
  *       Kids and teen: membership is FROZEN as explicit question ids in constants/trancheAssignments.ts, so a purchased
@@ -25,7 +26,7 @@
  * category" as everything, so until 4c changes that paywall the pack keeps opening everything it opens today. 4c flips the
  * flag. The tests exercise both settings, so the target behavior is pinned now.
  */
-import { getCategoryQuestions, getFreeQuestionCount } from '../constants/questions';
+import { getCategoryQuestions, targetFreeQuestionCount } from '../constants/questions';
 import type { CategoryDef } from '../constants/questions';
 import { TRANCHE_ASSIGNMENTS } from '../constants/trancheAssignments';
 
@@ -82,7 +83,7 @@ function ids(category: CategoryDef): string[] {
 /** The tranches of a category, in order. Adult: one tranche of every paid question (none when nothing is paid). */
 export function trancheRanges(category: CategoryDef): TrancheRange[] {
   if (category.audience === 'adult') {
-    const paid = ids(category).slice(getFreeQuestionCount(category));
+    const paid = ids(category).slice(targetFreeQuestionCount(category));
     return paid.length ? [{ k: 1, ids: paid, size: paid.length }] : [];
   }
   const assigned = TRANCHE_ASSIGNMENTS[category.id]?.tranches ?? [];
@@ -111,12 +112,12 @@ export interface Zone {
 
 /** Where the question at `questionIndex` sits. A kids or teen paid question in no list has no zone and is closed. */
 export function questionZone(category: CategoryDef, questionIndex: number): Zone {
-  const free = questionIndex < getFreeQuestionCount(category);
+  const free = questionIndex < targetFreeQuestionCount(category);
   const q = getCategoryQuestions(category.id)[questionIndex];
   if (!q) return { free: false, pack: false, tranche: 0 };
   if (category.audience === 'adult') {
     // One step (everything paid); the pack opens the first TRANCHE_SIZE of it.
-    const pos = questionIndex - getFreeQuestionCount(category);
+    const pos = questionIndex - targetFreeQuestionCount(category);
     return { free, pack: !free && pos < TRANCHE_SIZE, tranche: free ? 0 : 1 };
   }
   const tranche = idToTranche(category).get(q.id) ?? 0;
@@ -129,7 +130,7 @@ export function unassignedPaidQuestions(category: CategoryDef): string[] {
   const m = idToTranche(category);
   const withheld = new Set(TRANCHE_ASSIGNMENTS[category.id]?.withheld ?? []);
   return ids(category)
-    .slice(getFreeQuestionCount(category))
+    .slice(targetFreeQuestionCount(category))
     .filter((id) => !m.has(id) && !withheld.has(id));
 }
 
@@ -155,10 +156,12 @@ export function openQuestionCount(category: CategoryDef, access: Access, packLim
   return open;
 }
 
-/** True when every question that is for sale is open: nothing left to buy. Withheld kids and teen questions are not for sale. */
+/**
+ * True when every written question is open. Strict on purpose: withheld kids and teen questions are NOT open, so a boolean
+ * caller (`isCategoryEntitled`) never opens them. Use `nextTrancheToSell(...) === null` for "nothing left to buy".
+ */
 export function isCategoryFullyOpen(category: CategoryDef, access: Access, packLimited: boolean = PACK_LIMITED_TO_FIRST_STEP): boolean {
-  const withheld = new Set(TRANCHE_ASSIGNMENTS[category.id]?.withheld ?? []);
-  return getCategoryQuestions(category.id).every((q, i) => withheld.has(q.id) || isQuestionOpen(category, i, access, packLimited));
+  return openQuestionCount(category, access, packLimited) === getCategoryQuestions(category.id).length;
 }
 
 /**

@@ -4,7 +4,7 @@
  *
  * - every question id is unique and uses its prefix: `kf-` in a kids category, `tn-` in a teen category, the category's
  *   initials in an adult one; every question belongs to exactly one existing category
- * - every category's free count is FREE_QUESTIONS_PER_CATEGORY (constants/questions.ts), the first questions in list order
+ * - every kids and teen category has exactly 8 free (volume 1) questions, listed first, and the rest are paid
  * - no kids or teen question matches the tone blocklist (violence, romance, brands, ...), and no two repeat
  * - every category has free content (volume 1)
  * - every category has an `audience` and `ages`, and they agree: audience is kids iff the youngest age is under 13
@@ -26,6 +26,7 @@ type PlainQuestion = {
 };
 
 /** Free questions per kids and teen category (decision D2; spec §2.2). */
+const KIDS_FREE_COUNT = 8;
 
 /**
  * Tone blocklist for kids and teen questions (spec §4.3 list, applied to the written bank).
@@ -93,6 +94,9 @@ for (const cat of CATEGORIES) {
   const qs = QUESTIONS.filter((q) => q.category === cat.id);
   if (qs.length === 0) fail(`category ${cat.id} has no questions`);
   if (getFreeQuestionCount(cat) === 0) fail(`category ${cat.id} has no free questions`);
+  if (cat.audience !== 'adult' && getFreeQuestionCount(cat) !== KIDS_FREE_COUNT) {
+    fail(`category ${cat.id} has ${getFreeQuestionCount(cat)} free questions, expected ${KIDS_FREE_COUNT}`);
+  }
   if (cat.audience !== 'adult' && cat.tier !== 'free') fail(`category ${cat.id}: kids and teen categories use tier "free" with volume 2 for paid questions`);
   // Free content must come first so index-based gating works.
   const firstPaid = qs.findIndex((q) => (q.volume ?? 1) >= 2);
