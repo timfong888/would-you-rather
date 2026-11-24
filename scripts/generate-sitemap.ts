@@ -21,7 +21,7 @@ import { resolve } from 'path';
 import { CATEGORIES, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
 import { SEO_PAGES, getSeoPageQuestions, getSeoPageUpdated, type Persona } from '../constants/seoPages';
 import { ORGANIZATION_DESCRIPTION } from '../lib/seo';
-import { SEO_FIRST_BATCH, isSeoBatchId } from '../lib/seoBatch';
+import { SEO_QUESTION_PAGES, isSeoBatchId } from '../lib/seoBatch';
 import { GUIDES } from '../lib/guides';
 import { SITE_URL } from '../constants/config';
 
@@ -55,7 +55,7 @@ for (const cat of CATEGORIES) {
     if (!isQuestionLocked(cat, i, false) && !isSeoBatchId(q.id)) entries.push({ path: `/game/${q.id}`, lastmod: CONTENT });
   });
 }
-for (const id of SEO_FIRST_BATCH) entries.push({ path: `/q/${id}`, lastmod: CONTENT });
+for (const id of SEO_QUESTION_PAGES) entries.push({ path: `/q/${id}`, lastmod: CONTENT });
 for (const g of GUIDES) entries.push({ path: `/guides/${g.slug}`, lastmod: g.updated });
 
 const loc = (path: string) => `${SITE_URL}${path === '/' ? '' : path}`;

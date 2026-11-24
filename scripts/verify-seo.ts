@@ -17,7 +17,7 @@ import { CATEGORIES, QUESTIONS, getCategoryAudience, getCategoryQuestions, isKid
 import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
-import { SEO_FIRST_BATCH, isSeoBatchId } from '../lib/seoBatch';
+import { SEO_QUESTION_PAGES, isSeoBatchId } from '../lib/seoBatch';
 import { GUIDES, guideQuestionIds } from '../lib/guides';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
@@ -165,7 +165,7 @@ for (const g of GUIDES) {
     if (!isKidsCategoryId(QUESTIONS.find((q) => q.id === id)?.category ?? '')) fail(`kids: guide "${g.slug}" lists ${id}, outside the kids bank`);
   }
 }
-for (const id of SEO_FIRST_BATCH) {
+for (const id of SEO_QUESTION_PAGES) {
   if (!QUESTIONS.some((q) => q.id === id)) fail(`seo batch: ${id} is not a question`);
   if (!locSet.has(url(`/q/${id}`))) fail(`sitemap: missing read-only question page /q/${id}`);
 }
@@ -174,7 +174,7 @@ for (const id of SEO_FIRST_BATCH) {
 {
   const vercel = JSON.parse(read('vercel.json')) as { headers: { source: string; headers: { key: string; value: string }[] }[] };
   const link = new Map(vercel.headers.map((h) => [h.source, h.headers.find((x) => x.key === 'Link')?.value]));
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     if (link.get(`/game/${id}`) !== `<${CANONICAL_ORIGIN}/q/${id}>; rel="canonical"`) fail(`vercel.json: no canonical Link header on /game/${id} (run node scripts/sync-vercel-canonicals.mjs)`);
   }
 }
@@ -349,7 +349,7 @@ if (withDist) {
 
 if (withDist) {
   // Read-only question pages (docs/specs/seo-question-pages.md): exported, canonical to themselves, no script but JSON-LD, no form or vote control.
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     const file = `dist/q/${id}.html`;
     if (!existsSync(resolve(ROOT, file))) { fail(`dist: ${file} was not exported`); continue; }
     const html = read(file);
@@ -391,7 +391,7 @@ if (withDist) {
     }
   }
   // The playable page and the legacy share page point their canonical at the read-only page.
-  for (const id of SEO_FIRST_BATCH) {
+  for (const id of SEO_QUESTION_PAGES) {
     const share = `dist/p/${id}.html`;
     if (existsSync(resolve(ROOT, share)) && tag(read(share), /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${share}: canonical is not ${url(`/q/${id}`)}`);
   }

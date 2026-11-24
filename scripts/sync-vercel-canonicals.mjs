@@ -13,10 +13,10 @@ import { fileURLToPath } from 'url';
 
 const FILE = join(dirname(fileURLToPath(import.meta.url)), '../vercel.json');
 const { CANONICAL_ORIGIN } = await import('../lib/site.js');
-const { SEO_FIRST_BATCH } = await import('../lib/seoBatch.js');
+const { SEO_QUESTION_PAGES } = await import('../lib/seoBatch.js');
 
 export const canonicalHeaders = () =>
-  SEO_FIRST_BATCH.map((id) => ({
+  SEO_QUESTION_PAGES.map((id) => ({
     source: `/game/${id}`,
     headers: [{ key: 'Link', value: `<${CANONICAL_ORIGIN}/q/${id}>; rel="canonical"` }],
   }));

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const { CANONICAL_ORIGIN } = await import('../lib/site.js');
 const { QUESTIONS, CATEGORIES } = await import('../api/_lib/data.js');
-const { SEO_FIRST_BATCH } = await import('../lib/seoBatch.js');
+const { SEO_QUESTION_PAGES } = await import('../lib/seoBatch.js');
 const { questionPageHtml, relatedQuestions } = await import('../lib/questionPage.js');
 
 const ORIGIN = (process.env.EXPO_PUBLIC_SITE_URL ?? CANONICAL_ORIGIN).replace(/\/+$/, '');
@@ -22,7 +22,7 @@ const OUT = join(__dirname, '../dist/q');
 await mkdir(OUT, { recursive: true });
 const byId = new Map(QUESTIONS.map((q) => [q.id, q]));
 let count = 0;
-for (const id of SEO_FIRST_BATCH) {
+for (const id of SEO_QUESTION_PAGES) {
   const question = byId.get(id);
   if (!question) {
     console.error(`generate-question-pages: batch id ${id} is not a question`);
