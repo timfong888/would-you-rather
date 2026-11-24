@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build the Neville iOS app on EAS and send it to TestFlight. Used by .github/workflows/neville-ios-testflight.yml.
 // Env (all GitHub Actions secrets, only this step sees them): EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY,
-//   plus NEVILLE_DIR (checkout of timfong888/neville at a merged sha), EAS_PROFILE, APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
+//   plus NEVILLE_ROOT (checkout of timfong888/neville at a merged sha) and NEVILLE_SUBDIR (allowlist: ios-shell | native), EAS_PROFILE, APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
 // Flow: preflight app (GET) -> eas build (EAS creates the missing provisioning profile via the ASC key)
 //   -> existing scripts/asc-upload.mjs -> poll builds (GET) -> job summary with build number and state only.
 // Never prints: the key, key id, issuer id, JWT, team id or Expo token (all masked and redacted). On the success path the only
@@ -12,9 +12,9 @@ import { createPrivateKey, sign } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
-import { NEVILLE_APP_ID, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/nevilleRelease.mjs';
+import { NEVILLE_APP_ID, resolveNevilleDir, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/nevilleRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -31,7 +31,8 @@ for (const [k, v] of Object.entries({ EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC
 if (!/^[A-Z0-9]{10}$/.test(APPLE_TEAM_ID)) die('APPLE_TEAM_ID is not a 10-character team id.', 2);
 const profile = env.EAS_PROFILE || 'production';
 if (!/^[A-Za-z0-9_-]{1,40}$/.test(profile)) die('EAS_PROFILE has unexpected characters.', 2);
-const nevilleDir = resolve(env.NEVILLE_DIR || 'neville');
+let nevilleDir; // root + allowlisted subdir only; anything else dies before a secret is used
+try { nevilleDir = resolveNevilleDir(env.NEVILLE_ROOT, env.NEVILLE_SUBDIR); } catch (e) { die(e.message, 2); }
 
 // Mask everything sensitive in the public log, including each line of the key (masks are per-line).
 for (const v of [ASC_KEY_ID, ASC_ISSUER_ID, APPLE_TEAM_ID, EXPO_TOKEN, ...ASC_PRIVATE_KEY.replace(/\\n/g, '\n').split(/\r?\n/)]) {
@@ -71,7 +72,7 @@ try {
     EXPO_ASC_API_KEY_PATH: keyPath, EXPO_ASC_KEY_ID: ASC_KEY_ID, EXPO_ASC_ISSUER_ID: ASC_ISSUER_ID,
     EXPO_NO_TELEMETRY: '1',
   };
-  say(`eas build: starting (profile ${profile}); output is captured, waiting for EAS`);
+  say(`eas build: starting (directory ${env.NEVILLE_SUBDIR}, profile ${profile}); output is captured, waiting for EAS`);
   const eas = spawnSync('npx', ['--yes', 'eas-cli@27.11.0', 'build', '--platform', 'ios', '--profile', profile,
     '--non-interactive', '--wait', '--json'], { cwd: nevilleDir, env: childEnv, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (eas.status !== 0) {
@@ -96,7 +97,7 @@ try {
   say(`build ${build}: ${state}`);
   const outcome = finalOutcome(state, { uploadComplete });
   const shown = outcome.kind === 'unverified' ? 'UPLOADED (Apple reported the upload COMPLETE; status check unreachable)' : state;
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summaryMarkdown(build, shown, version));
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summaryMarkdown(build, shown, version, env.NEVILLE_SUBDIR));
   if (outcome.kind === 'valid') say(`Neville ${version} build ${build}: processed by Apple (VALID), ready in TestFlight.`);
   else if (outcome.kind === 'unverified') say(`::warning title=Apple status check failed::Neville ${version} build ${build} was uploaded and Apple reported the upload COMPLETE, but the processing-state check hit a network error after 3 attempts per poll. The build was delivered; check TestFlight.`);
   else if (outcome.kind === 'still-processing') say(`::notice title=Still processing::Build ${build} is ${state} on Apple's side; this is not an error. Re-check with Apple ops "builds".`);

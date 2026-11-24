@@ -1,5 +1,6 @@
 // Pure helpers for the Neville iOS TestFlight workflow (scripts/neville-testflight.mjs).
 // No I/O here except through injected functions, so every branch is unit-testable with mocks.
+import { join } from 'node:path';
 
 export const SHA_RE = /^[0-9a-f]{40}$/;
 export const NEVILLE_BUNDLE_ID = 'pckg.neville';
@@ -7,6 +8,20 @@ export const NEVILLE_APP_ID = '6740147041';
 // Live version is 1.0 (last build 157). Never produce a build that lands on the live version train.
 export const MIN_VERSION = [1, 1, 0];
 export const MIN_BUILD = 158;
+
+// Which directory of the neville repo to build. A fixed allowlist, never a path: the workflow input is a choice,
+// and this re-checks it in code so no value can reach a filesystem path (no traversal, no absolute paths).
+export const NEVILLE_DIRS = ['ios-shell', 'native'];
+export function validateNevilleDir(name) {
+  if (typeof name !== 'string' || !NEVILLE_DIRS.includes(name)) {
+    throw new Error(`neville_dir must be one of: ${NEVILLE_DIRS.join(', ')}.`); // never echo the offending value
+  }
+  return name;
+}
+export function resolveNevilleDir(root, name) {
+  if (typeof root !== 'string' || !root) throw new Error('NEVILLE_ROOT is not set.');
+  return join(root, validateNevilleDir(name));
+}
 
 export function validateSha(sha) {
   if (typeof sha !== 'string' || !SHA_RE.test(sha)) {
@@ -108,9 +123,67 @@ export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, s
   return { state: sawOk ? state : (httpState || state), polls: maxPolls };
 }
 
-export function summaryMarkdown(build, state, version) {
+export function summaryMarkdown(build, state, version, dir) {
   const v = version ? `Version ${version}, build ${build}` : `Build ${build}`;
-  return `### Neville iOS build\n\n${v}: ${state === 'VALID' ? 'processed by Apple, ready in TestFlight' : state}\n\n| Build number | TestFlight processing state |\n| --- | --- |\n| ${build} | ${state} |\n`;
+  const d = dir === undefined ? '' : `Directory: \`${validateNevilleDir(dir)}\`\n\n`;
+  return `### Neville iOS build\n\n${d}${v}: ${state === 'VALID' ? 'processed by Apple, ready in TestFlight' : state}\n\n| Build number | TestFlight processing state |\n| --- | --- |\n| ${build} | ${state} |\n`;
+}
+
+// Secretless check that the chosen neville directory builds on its own. Reads files only; prints no file content
+// (only fixed text and line numbers), so nothing from neville can start a workflow command in the log.
+// Returns { lines, warnings, errors }. `fs` is injected for tests.
+export function checkSelfContained(dir, name, { fs, profile = 'production', gitRoot = '' }) {
+  validateNevilleDir(name);
+  const lines = [], warnings = [], errors = [];
+  const has = (f) => fs.existsSync(join(dir, f));
+  const readJson = (f) => { try { return JSON.parse(fs.readFileSync(join(dir, f), 'utf8')); } catch { return undefined; } };
+  const required = name === 'native' ? ['package.json', 'app.json', 'eas.json'] : ['package.json', 'eas.json'];
+  for (const f of required) { if (!has(f)) errors.push(`${name}/${f} is missing`); }
+  lines.push(`directory: ${name}`);
+  if (gitRoot) lines.push(`git root: ${gitRoot}`);
+
+  const pkg = has('package.json') ? readJson('package.json') : undefined;
+  if (has('package.json') && !pkg) errors.push(`${name}/package.json is not valid JSON`);
+  if (pkg?.workspaces) warnings.push(`${name}/package.json declares workspaces`); else if (pkg) lines.push(`no workspaces in ${name}/package.json`);
+  if (name === 'native' && pkg) {
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
+    const up = Object.entries(deps).filter(([, v]) => /^(file|link|portal):\.\.|^workspace:/.test(String(v))).map(([k]) => k);
+    if (up.length) errors.push(`native/package.json depends on a parent path or workspace (${up.length} package(s)); native must not depend on parent files`);
+    else lines.push('no parent or workspace dependencies in native/package.json');
+  }
+
+  if (has('metro.config.js')) {
+    const src = fs.readFileSync(join(dir, 'metro.config.js'), 'utf8').split(/\r\n|\r|\n/);
+    const parent = []; const ws = [];
+    src.forEach((l, i) => {
+      if (/(\.\.\/|__dirname *\+ *['"]\/\.\.|path\.(resolve|join)\([^)]*['"]\.\.['"])/.test(l)) parent.push(i + 1);
+      if (/workspaces?|workspaceRoot|monorepo/i.test(l)) ws.push(i + 1);
+    });
+    lines.push(`${name}/metro.config.js: present`);
+    if (parent.length) warnings.push(`${name}/metro.config.js references a parent directory (line ${parent.slice(0, 5).join(', ')})`); else lines.push('metro.config.js: no parent-directory references');
+    if (ws.length) warnings.push(`${name}/metro.config.js mentions workspaces (line ${ws.slice(0, 5).join(', ')})`); else lines.push('metro.config.js: no workspaces references');
+  } else lines.push(`${name}/metro.config.js: absent (Expo defaults)`);
+
+  if (has('../package.json') || fs.existsSync(join(dir, '..', 'package.json'))) {
+    let top; try { top = JSON.parse(fs.readFileSync(join(dir, '..', 'package.json'), 'utf8')); } catch { /* ignore */ }
+    if (top?.workspaces) warnings.push('neville/package.json declares workspaces'); else lines.push('no workspaces in neville/package.json');
+  } else lines.push('neville/package.json: absent');
+
+  const eas = has('eas.json') ? readJson('eas.json') : undefined;
+  if (has('eas.json') && !eas) errors.push(`${name}/eas.json is not valid JSON`);
+  if (eas) {
+    if (!eas.build?.[profile]) errors.push(`${name}/eas.json has no build profile "${profile}"`); else lines.push(`eas profile "${profile}": present`);
+    lines.push(`eas appVersionSource: ${String(eas.cli?.appVersionSource ?? 'unset').slice(0, 20).replace(/[^A-Za-z]/g, '')}`);
+  }
+  const app = has('app.json') ? readJson('app.json') : undefined;
+  if (has('app.json') && !app) errors.push(`${name}/app.json is not valid JSON`);
+  if (app) {
+    const bid = app.expo?.ios?.bundleIdentifier;
+    if (bid === NEVILLE_BUNDLE_ID) lines.push(`app.json ios bundle id: ${NEVILLE_BUNDLE_ID}`);
+    else if (name === 'native') errors.push(`native/app.json ios.bundleIdentifier is not ${NEVILLE_BUNDLE_ID}`);
+    else warnings.push(`${name}/app.json ios.bundleIdentifier is not ${NEVILLE_BUNDLE_ID}`);
+  }
+  return { lines, warnings, errors };
 }
 
 // Keep a failing child's output short and secret-free before it reaches the public log. Same order as tailLines:
