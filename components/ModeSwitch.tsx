@@ -13,7 +13,7 @@ export default function ModeSwitch({ mode }: { mode: BrowseMode }) {
   const router = useRouter();
   const { styles } = useThemedStyles(makeStyles);
   const options: { id: BrowseMode; label: string; go: () => void }[] = [
-    { id: 'grownups', label: 'Grown-ups', go: () => (router.canGoBack() ? router.back() : router.replace('/')) },
+    { id: 'grownups', label: 'Grown-ups', go: () => router.dismissTo('/') },
     { id: 'kids', label: 'With kids', go: () => router.push(KIDS_BROWSE_PATH) },
   ];
   return (

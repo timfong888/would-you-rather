@@ -100,3 +100,9 @@ test('leave/explore from a category goes back to the mode that lists it', () => 
     assert.doesNotMatch(readFileSync(f, 'utf8'), /router\.push\('\/categories'\)/, f);
   }
 });
+
+test('the Grown-ups switch returns to home by dismissTo, not back (back can land on a kids game screen)', () => {
+  const src = readFileSync('components/ModeSwitch.tsx', 'utf8');
+  assert.match(src, /router\.dismissTo\('\/'\)/);
+  assert.doesNotMatch(src, /router\.back\(\)|router\.replace\('\/'\)/);
+});
