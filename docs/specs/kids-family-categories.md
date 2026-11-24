@@ -242,9 +242,12 @@ entitlement and $4.99 price but is **narrowed to adult categories**, so its name
 (catalog, `store/ios/iap-products.json`, App Store Connect): "All Grown-up Categories" and "Every adult category, plus future questions"
 (working wording, within the 30 and 45 character limits). Today `premium_all` also opens questions 9+ of the kids and teen categories in the
 app's access rule, but no product exists in App Store Connect yet (`store/ios/iap.md`: none created as of 2026-11-20), the web build grants
-access free, and RevenueCat holders are Test Store testers. So there should be no paying holder to grandfather. **Before 4a ships, the
-orchestrator or Tim confirms that no real `wyr_premium_all` purchase exists; if one does, that holder keeps kids access (grandfather) and
-this paragraph changes.** Nothing was ever sold for the
+access free, and RevenueCat holders are Test Store testers. **Checked read-only in RevenueCat on 2026-11-24 (project wyr, counts only):
+4 customers in total; 0 production (real) purchases of any product; 0 customers hold `wyr_premium_all` in any environment, and 0 have a
+`premium_all` entitlement. The only purchases are 5 sandbox purchases of 3 adult category products (High Life, Moral Compass, Wildest Dreams).
+So there is nothing to grandfather and narrowing `premium_all` takes access from no one.** (Side note: sandbox purchases of three
+adult App Store products exist, so those products exist in at least a sandbox form even though `store/ios/iap.md` says none were created;
+that file is stale, to be checked in 4d.) Nothing was ever sold for the
 old Kids & Family category, and the 9 kids category products planned for Unit 4 were never created, so there is nothing to retire.
 Adult paid sets are 17 to 20 questions per category, which is one tranche, so the adult model **already is** the tranche model with
 one tranche per category. Recommended: leave adult categories as they are.
@@ -255,8 +258,10 @@ and `store/ios/iap-products.json` plus the App Review screenshots gain the 12 tr
 **Decisions (Tim, 2026-11-24).** Tim's exact words: "accept all five tranche defaults". The defaults are the recommendations as they
 were put to him, relayed by the orchestrator session. They settle the five open questions:
 1. **The $4.99 all-categories pack** (`wyr_premium_all`) stays, for **adult categories only**. A separate **"With kids" pack** is added.
-   Kids and teen tranches are **not** covered by the $4.99 pack. **Flagged assumption: the With kids pack price is $9.99.** That is the
-   orchestrator's default, not a number Tim chose; confirm before any App Store Connect product exists.
+   Kids and teen tranches are **not** covered by the $4.99 pack. **The With kids pack price is $4.99, per Tim's later message** ("Kids just came 4.99",
+   2026-11-24, read by the orchestrator as the pack price; the orchestrator's earlier $9.99 default is replaced). **Pending Tim's confirmation**
+   before any App Store Connect product exists. It is the same price as the adult pack, so two packs at one price is an open question for Tim: does
+   it make sense to keep both, or should one pack cover everything?
 2. **Adult categories** stay as they are. Their 17 to 20 paid questions are already one tranche.
 3. **End of list:** a remainder under 10 questions merges into the previous tranche. No new questions are written now.
 4. **One non-consumable product per tranche** (12 products, restorable), not a repeatable consumable.

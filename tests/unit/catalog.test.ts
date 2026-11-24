@@ -59,8 +59,9 @@ test('approved prices (Tim, 2026-11-18): $4.99 pack, $1.99 category; 2026-11-24:
   assert.equal(PRICE_TRANCHE_MICROS, 1_990_000);
 });
 
-test('FLAGGED ASSUMPTION: the With kids pack is $9.99 (the orchestrator default, not Tim\'s number; confirm before the store has it)', () => {
-  assert.equal(PRICE_KIDS_MICROS, 9_990_000);
+test('the With kids pack is $4.99: Tim wrote "Kids just came 4.99" (2026-11-24), pending his confirmation; same price as the adult pack', () => {
+  assert.equal(PRICE_KIDS_MICROS, 4_990_000);
+  assert.equal(PRICE_KIDS_MICROS, PRICE_ALL_MICROS); // two packs at one price: flagged for discussion in the 4a PR
 });
 
 test('free categories with no paid content are not for sale; the retired Kids & Family category has no product', () => {

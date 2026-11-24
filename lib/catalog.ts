@@ -9,7 +9,7 @@
  * questions in tranches of about 20 at $1.99 each (one non-consumable per tranche), the $4.99 pack covers ADULT
  * categories only, and a separate With kids pack covers every kids and teen tranche. Adult categories are unchanged:
  * their paid set is one tranche, granted by the existing `cat_<id>` entitlement.
- * FLAGGED ASSUMPTION: the With kids pack price ($9.99) and its names are the orchestrator's defaults, not Tim's.
+ * The With kids pack price is $4.99: Tim wrote "Kids just came 4.99" (2026-11-24), read by the orchestrator as the pack price; pending his confirmation. Same price as the adult pack. FLAGGED ASSUMPTION: the pack names are the orchestrator's defaults.
  *
  * Identifiers are identical in RevenueCat (Test Store), App Store Connect and
  * Google Play, so changing one is a catalog migration, not a code tweak.
@@ -37,11 +37,11 @@ export const PRICE_ALL_MICROS = 4_990_000;
 export const PRICE_CATEGORY_MICROS = 1_990_000;
 /** One kids or teen tranche. Same $1.99 as a category (Tim, 2026-11-24). */
 export const PRICE_TRANCHE_MICROS = 1_990_000;
-/** The With kids pack. Flagged assumption: the orchestrator's default, not Tim's number. */
-export const PRICE_KIDS_MICROS = 9_990_000;
+/** The With kids pack: $4.99 per Tim ("Kids just came 4.99", 2026-11-24), pending his confirmation. Same as the adult pack (PRICE_ALL_MICROS). */
+export const PRICE_KIDS_MICROS = 4_990_000;
 export const FALLBACK_PRICE_ALL = '$4.99';
 export const FALLBACK_PRICE_CATEGORY = '$1.99';
-export const FALLBACK_PRICE_KIDS = '$9.99';
+export const FALLBACK_PRICE_KIDS = '$4.99';
 
 /** RevenueCat offering that holds every package. One offering, one package per product. */
 export const OFFERING_ID = 'default';
