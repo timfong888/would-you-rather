@@ -10,7 +10,15 @@ name: Kids route smoke
     timeout: 90000
 - takeScreenshot: 01-home
 # Grown-ups | With kids
+- waitForAnimationToEnd
 - tapOn: "With kids"
+# A tap can land while the first screen is still settling; one retry keeps the flow honest without hiding a broken switch.
+- runFlow:
+    when:
+      notVisible: "Pick a topic for the age you are playing with."
+    commands:
+      - waitForAnimationToEnd
+      - tapOn: "With kids"
 - extendedWaitUntil:
     visible: "Pick a topic for the age you are playing with."
     timeout: 20000

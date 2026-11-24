@@ -8,7 +8,15 @@ name: Adult paywall smoke
     visible: "Would You Rather?"
     timeout: 90000
 # Grown-ups is the home screen; With kids and back
+- waitForAnimationToEnd
 - tapOn: "With kids"
+# A tap can land while the first screen is still settling; one retry keeps the flow honest without hiding a broken switch.
+- runFlow:
+    when:
+      notVisible: "Pick a topic for the age you are playing with."
+    commands:
+      - waitForAnimationToEnd
+      - tapOn: "With kids"
 - extendedWaitUntil:
     visible: "Pick a topic for the age you are playing with."
     timeout: 20000

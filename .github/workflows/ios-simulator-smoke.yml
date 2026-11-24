@@ -131,6 +131,10 @@ jobs:
         if: always()
         run: |
           xcrun simctl io "$UDID" screenshot maestro-out/final-state.png || true
+          # App-side errors from the simulator system log (JS errors in a Release build land here, if anywhere).
+          xcrun simctl spawn "$UDID" log show --last 15m --style compact \
+            --predicate 'process == "WouldYouRather" AND (messageType == error OR messageType == fault OR eventMessage CONTAINS[c] "exception" OR eventMessage CONTAINS[c] "RCTFatal" OR eventMessage CONTAINS[c] "javascript")' \
+            2>&1 | tail -n 60 || true
           # Text dump of what is on screen, so a failed run can be read from the log alone.
           maestro --device "$UDID" hierarchy > maestro-out/final-hierarchy.json 2>&1 || true
           python3 - <<'PY' || true
