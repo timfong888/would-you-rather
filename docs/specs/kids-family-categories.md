@@ -158,7 +158,7 @@ child's Family Sharing account from buying without approval, independent of our 
 ### 3.3 RevenueCat products and entitlements
 
 Reuse the model: one non-consumable per category, `wyr_unlock_<id>` → entitlement `cat_<id>`, in the `default`
-offering; `premium_all` opens every category including these (the access rule in `lib/catalog.ts` already does this).
+offering. **Superseded by §3.4:** `premium_all` is narrowed to adult categories and kids and teen categories are sold as tranches (§3.4 Decisions). The per-category product line above no longer applies to them.
 New iOS products: **9** (8 topic + Holiday Table), catalog 8 → 17. `buildCatalog()` picks them up automatically once
 they have paid content; `npm run rc:sync` creates them in the Test Store; App Store Connect products are created by Tim
 (go-live is Tim's, per `docs/payments.md`).
@@ -225,12 +225,20 @@ count: a refund of tranche 1 while tranche 2 is still owned must close exactly t
 `contexts/UnlockedContext.tsx` and `app/unlock/[id].tsx`: all payments surface, all Unit 4.
 
 **Every purchase sits behind the parental gate** (existing `ParentalGate`), for kids and teen categories alike. The paywall copy
-changes from "Unlock N more" to "Open the next 20 questions · $1.99" and shows how many remain.
+changes from "Unlock N more" to "Open the next {n} questions · $1.99", where `{n}` is the **actual size of that tranche** (20, 22, 13, 27, 19 or 25;
+9 of the 12 are not 20), and shows how many remain. Copy must never promise a number the purchase does not deliver.
 
 **Web.** Until #53 decides web payments, a kids or teen paywall on web shows "Unlock in the iPhone app" behind the gate and never
 grants anything (D7, unchanged).
 
-**The existing 8 live products** (`wyr_premium_all` and 7 adult `wyr_unlock_*`): untouched, no migration. Nothing was ever sold for the
+**The existing 8 products** (`wyr_premium_all` and 7 adult `wyr_unlock_*`): the 7 adult ones are untouched. `wyr_premium_all` keeps its id,
+entitlement and $4.99 price but is **narrowed to adult categories**, so its name and description change in the same Unit 4 change
+(catalog, `store/ios/iap-products.json`, App Store Connect): "All Grown-up Categories" and "Every adult category, plus future questions"
+(working wording, within the 30 and 45 character limits). Today `premium_all` also opens questions 9+ of the kids and teen categories in the
+app's access rule, but no product exists in App Store Connect yet (`store/ios/iap.md`: none created as of 2026-11-20), the web build grants
+access free, and RevenueCat holders are Test Store testers. So there should be no paying holder to grandfather. **Before 4a ships, the
+orchestrator or Tim confirms that no real `wyr_premium_all` purchase exists; if one does, that holder keeps kids access (grandfather) and
+this paragraph changes.** Nothing was ever sold for the
 old Kids & Family category, and the 9 kids category products planned for Unit 4 were never created, so there is nothing to retire.
 Adult paid sets are 17 to 20 questions per category, which is one tranche, so the adult model **already is** the tranche model with
 one tranche per category. Recommended: leave adult categories as they are.
@@ -249,7 +257,8 @@ were put to him, relayed by the orchestrator session. They settle the five open 
 5. **Order:** the 20 questions in each tranche come in current id order. Tim may curate later.
 
 **Consequences for the build (Unit 4, see `docs/specs/plan.md`).** `premium_all` must stop granting kids and teen categories. Nothing was
-ever sold for them, so no existing buyer loses anything. The With kids pack needs its own entitlement (working name `premium_kids`)
+ever sold for them and no `wyr_premium_all` product exists in the store yet (see above), so no paying buyer should lose access; that is
+confirmed before 4a ships. The With kids pack needs its own entitlement (working name `premium_kids`)
 and product (working name `wyr_premium_kids`) that grants every kids and teen tranche. Both names and the price are assumptions until
 the App Store Connect products exist, and no product is created without asking the orchestrator first.
 
