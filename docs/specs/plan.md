@@ -57,6 +57,8 @@ Tiny Choices 10; Make-Believe 21; Giggle Factory 20 and 15; Road Trip Rally 10; 
 (one `cat_<id>` per category; four free-tier adult categories have 20 questions beyond the first 20, which the pack would no longer open: flagged for Tim). Product count after Unit 4:
 **18** (the pack, 7 adult categories, 10 tranches). Written tranches are non-consumable (restorable); a repeatable consumable per category is for the *generated* part only (#203, not built).
 
+**No store sync before 4c/4d.** The legacy kids and teen per-category products (`wyr_unlock_<kids id>`) are not in the catalog any more and must not be created: they were never created in RevenueCat (checked read-only on 2026-11-24: the `default` offering has 8 packages, the pack and 7 adult categories, and none for kids), so the live kids "ONE-TIME CATEGORY UNLOCK" button already has no package to buy on `main` today and 4a does not change that; 4c replaces that button with the tranche paywall. `npm run rc:sync` is not run until the orchestrator says so.
+
 **Rule.** Every payments change is its own PR. They are never batched, none is auto-merged, and each goes to Tim's queue with a link and
 one line on what a user would notice. No App Store Connect product, and no RevenueCat product, is created without asking the orchestrator
 first. The CI that creates products (`apple-iap-create`, `apple-iap-review-screenshot`) is never run by the build.
