@@ -203,8 +203,11 @@ tranche, otherwise it is a tranche of its own. With today's 254 paid questions:
 | Holiday Table | 25 | 1 (25) |
 | **Total** | **254** | **12 purchases, $23.88 if a family buys everything** |
 
-Four of the 12 tranches are not 20 questions. Alternative: write 6 more questions for each 22-question category (28 written,
-so one clean 20) and trim or top up the others; that is content work for Tim to approve.
+Only 3 of the 12 tranches are exactly 20 questions (the first tranche of Make-Believe, Giggle Factory and Dinner Table). The other 9
+are not: 22 (five of them), 13, 27, 19 and 25. Alternative, to make every tranche exactly 20 paid: trim 2 from each 22-question
+category (one clean 20), or write 18 more for each (40 paid, two clean 20s); Make-Believe, Giggle Factory, Dinner Table and Holiday
+Table need their own trim or top-up (13 to 20 needs 7 more, 27 to 40 needs 13 more, 39 to 40 needs 1 more, 25 to 20 trims 5). That is
+content work for Tim to approve, not something a purchase flow can hide.
 
 **Product shape (recommended): one non-consumable per tranche.** Product `wyr_unlock_<category>_<k>` ($1.99), entitlement
 `cat_<category>_<k>`, 12 products in the `default` offering. Why not a repeatable consumable (`wyr_<category>_next20`, 9 products):
