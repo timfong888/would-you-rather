@@ -88,18 +88,38 @@ test('tailErrors redacts secrets and truncates', () => {
   const redact = makeRedactor(['KEYID12345', 'ISSUER-UUID-1', key]);
   const out = tailErrors(`ok line\nerror: auth failed for KEYID12345 issuer ISSUER-UUID-1\nMIGTAgEAMBMGByqGSM49 error ${'x'.repeat(500)}`, redact);
   assert.ok(!out.includes('KEYID12345') && !out.includes('ISSUER-UUID-1'));
-  assert.ok(out.split('\n').every((l: string) => l.length <= 300));
+  assert.ok(out.split('\n').every((l: string) => l.startsWith('  ') && l.length <= 302));
   assert.ok(!out.includes('ok line'));
 });
 
-test('tailLines keeps the last 60 lines, redacts secrets, truncates', () => {
+test('tailLines keeps the last 60 lines, redacts secrets, truncates, prefixes', () => {
   const redact = makeRedactor(['KEYID12345', 'EXPOTOKEN-abc']);
   const lines = Array.from({ length: 100 }, (_, i) => `line ${i} KEYID12345 ${'x'.repeat(i === 99 ? 500 : 1)}`);
   const out = tailLines(lines.join('\n') + '\nEXPOTOKEN-abc', redact).split('\n');
   assert.equal(out.length, 60);
   assert.ok(!out.join('\n').includes('KEYID12345') && !out.join('\n').includes('EXPOTOKEN-abc'));
-  assert.ok(out.every((l: string) => l.length <= 300));
-  assert.equal(out[out.length - 1], '***');
+  assert.ok(out.every((l: string) => l.startsWith('  ') && l.length <= 302));
+  assert.equal(out[out.length - 1], '  ***');
+});
+
+test('tailLines redacts a multi-line PEM key that spans lines', () => {
+  const pem = '-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEG\nCCqGSM49AwEHBG0wawIBAQQg\n-----END PRIVATE KEY-----';
+  const redact = makeRedactor([pem]);
+  const out = tailLines(`before\nkey dump:\n${pem}\nafter`, redact);
+  for (const frag of ['BEGIN PRIVATE KEY', 'MIGTAgEAMBMGByqGSM49AgEG', 'CCqGSM49AwEHBG0wawIBAQQg', 'END PRIVATE KEY']) {
+    assert.ok(!out.includes(frag), frag);
+  }
+  assert.match(out, /before/);
+  assert.match(out, /after/);
+});
+
+test('tailLines replaces URLs (signed tokens) and neutralises workflow commands', () => {
+  const redact = makeRedactor(['KEYID12345']);
+  const out = tailLines('fetch https://x.example/a?sig=SECRETSIG&b=1 failed\n::stop-commands::abc\n::add-mask::oops', redact);
+  assert.ok(!out.includes('SECRETSIG') && !out.includes('x.example'));
+  assert.match(out, /<url>/);
+  for (const l of out.split('\n')) assert.ok(!l.startsWith('::'), l);
+  assert.ok(out.split('\n').every((l: string) => l.startsWith('  ')));
 });
 
 test('finalOutcome: only VALID and PROCESSING are green', () => {

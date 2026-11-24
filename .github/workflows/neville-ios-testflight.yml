@@ -75,6 +75,11 @@ jobs:
             echo "ios-shell/metro.config.js: absent (Expo defaults)"
           fi
           grep -q '"workspaces"' package.json && echo "::warning::ios-shell/package.json declares workspaces" || echo "no workspaces in ios-shell/package.json"
+          if [ -f ../package.json ]; then
+            grep -q '"workspaces"' ../package.json && echo "::warning::neville/package.json declares workspaces" || echo "no workspaces in neville/package.json"
+          else
+            echo "neville/package.json: absent"
+          fi
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
