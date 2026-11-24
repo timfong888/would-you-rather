@@ -272,6 +272,10 @@ were put to him, relayed by the orchestrator session. They settle the five open 
 4. **One non-consumable product per tranche** (12 products, restorable), not a repeatable consumable.
 5. **Order:** the 20 questions in each tranche come in current id order. Tim may curate later.
 
+**Staging (4a to 4c).** The live paywall still sells the per-category unlock `cat_<id>` on kids and teen categories, so until 4c changes it to sell
+tranches, `cat_<id>` keeps opening the whole category (and `premium_all` opens everything). 4c decides whether any such legacy holder is grandfathered;
+the RevenueCat check found none.
+
 **Consequences for the build (Unit 4, see `docs/specs/plan.md`).** `premium_all` is not narrowed and nothing is renamed: it already opens kids and teen
 categories, and now that is the intended behavior. There is no With kids pack, so no `premium_kids` entitlement and no extra product. Product count after
 Unit 4 is 20 (8 today plus the 12 tranches), unless #203 changes the tranche model.

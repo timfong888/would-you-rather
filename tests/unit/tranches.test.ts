@@ -148,14 +148,25 @@ test('adult regression: every adult question is open or locked exactly as the ol
   }
 });
 
-test('the one all-categories pack (Tim, 2026-11-24) opens every kids and teen category fully; an adult cat_<id> never opens one', () => {
+test('the one all-categories pack (Tim, 2026-11-24) opens every kids and teen category fully', () => {
   for (const c of young) {
     const n = getCategoryQuestions(c.id).length;
     assert.equal(accessFor([ENTITLEMENT_ALL], c).all, true, c.id);
     assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
     assert.equal(openQuestionCount(c, accessFor([ENTITLEMENT_ALL], c)), n, c.id);
-    assert.equal(accessFor([entitlementForCategory(c.id)], c).all, false, c.id);
-    assert.equal(isCategoryEntitled([entitlementForCategory(c.id)], c.id), false, c.id);
+  }
+});
+
+test('4a staging: the legacy per-category unlock cat_<id>, still sold by the live kids paywall, keeps opening the whole kids or teen category (4c changes the paywall)', () => {
+  for (const c of young) {
+    const n = getCategoryQuestions(c.id).length;
+    const access = accessFor([entitlementForCategory(c.id)], c);
+    assert.equal(access.all, true, c.id);
+    assert.equal(isCategoryEntitled([entitlementForCategory(c.id)], c.id), true, c.id);
+    assert.equal(openQuestionCount(c, access), n, c.id);
+    // but another category's cat_<id> opens nothing here
+    const other = young.find((o) => o.id !== c.id)!;
+    assert.equal(isCategoryEntitled([entitlementForCategory(other.id)], c.id), false, c.id);
   }
 });
 

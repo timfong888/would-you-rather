@@ -83,7 +83,8 @@ export function trancheCategories(categories: CategoryDef[] = CATEGORIES): Categ
 /**
  * What the active entitlements open in one category. Adult: the all-categories pack or the category's own
  * `cat_<id>` opens its single tranche. Kids and teen: the all-categories pack opens everything, otherwise each owned
- * `cat_<id>_<k>` opens tranche k.
+ * `cat_<id>_<k>` opens tranche k. (Until 4c: the legacy `cat_<id>` also opens a kids or teen category, because the
+ * live paywall still sells it.)
  */
 export function accessFor(active: ReadonlySet<string> | readonly string[], category: CategoryDef): Access {
   const set = active instanceof Set ? active : new Set(active as readonly string[]);
@@ -94,7 +95,11 @@ export function accessFor(active: ReadonlySet<string> | readonly string[], categ
   for (const r of trancheRanges(category)) {
     if (set.has(entitlementForTranche(category.id, r.k))) owned.add(r.k);
   }
-  return { all: set.has(ENTITLEMENT_ALL), ownedTranches: owned };
+  // STAGING: the live paywall (app/unlock/[id].tsx) still sells the per-category unlock `cat_<id>` on kids and teen
+  // categories, so until 4c changes that paywall to sell tranches, `cat_<id>` keeps opening the whole category and a
+  // purchase never stops opening what it was bought for. 4c decides whether such legacy holders are grandfathered.
+  const legacyCategoryUnlock = set.has(entitlementForCategory(category.id));
+  return { all: set.has(ENTITLEMENT_ALL) || legacyCategoryUnlock, ownedTranches: owned };
 }
 
 /**
