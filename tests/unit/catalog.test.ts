@@ -23,8 +23,8 @@ const young = CATEGORIES.filter((c) => c.audience !== 'adult' && hasPaidContent(
 test('catalog: the one all-categories pack, one product per adult paid category, and one product per kids or teen step after the 5 free questions', () => {
   const catalog = buildCatalog();
   assert.equal(adultPaid.length, 7);
-  assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 13);
-  assert.equal(catalog.length, 1 + adultPaid.length + 13); // 21
+  assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 9);
+  assert.equal(catalog.length, 1 + adultPaid.length + 9); // 17
   assert.equal(catalog[0].productId, PRODUCT_ALL);
   assert.equal(catalog[0].priceMicros, PRICE_ALL_MICROS);
   for (const c of adultPaid) {
@@ -105,5 +105,5 @@ test('iOS v1 leaves Midnight Secrets and Deep Desires out (Tim, 2026-11-18): no 
   const ids = buildCatalog().map((p) => p.productId);
   assert.equal(ids.includes('wyr_unlock_midnight_secrets'), false);
   assert.equal(ids.includes('wyr_unlock_deep_desires'), false);
-  assert.equal(buildCatalog().length, 21); // pack + 7 adult categories + 13 kids and teen steps
+  assert.equal(buildCatalog().length, 17); // pack + 7 adult categories + 9 kids and teen steps (one per category)
 });

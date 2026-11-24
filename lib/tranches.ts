@@ -12,8 +12,9 @@
  *       and opens that batch in ONE category.
  *       Kids and teen: membership is FROZEN as explicit question ids in constants/trancheAssignments.ts, so a purchased
  *       `cat_<category>_<k>` opens the same questions forever. `trancheSizes` only generated that table and sizes a NEW step;
- *       it is never re-applied to the live question count (it would shrink an owned step). A kids or teen paid question in
- *       no list is CLOSED until it is assigned.
+ *       it is never re-applied to the live question count (it would shrink an owned step). A kids or teen category has ONE step
+ *       for now (Tim: "max it 20 per kid"); the written questions after it are `withheld` (kept, closed, not sold). A paid
+ *       question in neither list is CLOSED until it is assigned.
  *       Adult: one step on the existing `cat_<id>`: everything paid in the category (at most 35), as that product sells today.
  *   - the all-categories pack ($4.99) opens STEP 1 of every category (Tim's open question: only step 1, or everything written?
  *     This code does the first; see the PR). Later steps are bought per category.
@@ -122,13 +123,14 @@ export function questionZone(category: CategoryDef, questionIndex: number): Zone
   return { free, pack: tranche === 1, tranche };
 }
 
-/** Paid questions of a kids or teen category that no list contains yet (closed until assigned). Always [] for adult. */
+/** Paid questions of a kids or teen category that neither a step nor `withheld` contains (closed until assigned). Always [] for adult. */
 export function unassignedPaidQuestions(category: CategoryDef): string[] {
   if (category.audience === 'adult') return [];
   const m = idToTranche(category);
+  const withheld = new Set(TRANCHE_ASSIGNMENTS[category.id]?.withheld ?? []);
   return ids(category)
     .slice(getFreeQuestionCount(category))
-    .filter((id) => !m.has(id));
+    .filter((id) => !m.has(id) && !withheld.has(id));
 }
 
 /** Whether the question at `questionIndex` can be played with this access. */
@@ -153,9 +155,10 @@ export function openQuestionCount(category: CategoryDef, access: Access, packLim
   return open;
 }
 
-/** True when every question is open: nothing left to buy. */
+/** True when every question that is for sale is open: nothing left to buy. Withheld kids and teen questions are not for sale. */
 export function isCategoryFullyOpen(category: CategoryDef, access: Access, packLimited: boolean = PACK_LIMITED_TO_FIRST_STEP): boolean {
-  return openQuestionCount(category, access, packLimited) === getCategoryQuestions(category.id).length;
+  const withheld = new Set(TRANCHE_ASSIGNMENTS[category.id]?.withheld ?? []);
+  return getCategoryQuestions(category.id).every((q, i) => withheld.has(q.id) || isQuestionOpen(category, i, access, packLimited));
 }
 
 /**
