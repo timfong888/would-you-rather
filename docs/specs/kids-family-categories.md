@@ -319,8 +319,7 @@ were put to him, relayed by the orchestrator session. They settle the five open 
    included in the $4.99, that generates new questions on demand; it is its own issue with open questions (#203) and is **not built**.
    Tim's exact words: "Originally when you proposed the family pack $9.99 I agreed, but $4.99 just unlocks everything. However, we have an "inffinite
    scroll" option meaning if I reach the end of the original 20 (that should be the max for every category) and someone wants to keep going, that's $1.99
-   and is not included in the $4.99." **Open (in #203): what "the original 20, the max for every category" means for kids categories with 30 to 55 written
-   questions, and whether the 12 tranche products below still exist.** The tranche model in this section stands as built in 4a until Tim answers.
+   and is not included in the $4.99." **Answered later the same day (#203, see 3.4.1):** the pack opens the first 20 questions of every category; "$1.99 buys the next 20 in a category", repeatable. The 12-tranche table below is the earlier version; the current model is 10 tranches beyond question 20 (3.4.1).
 2. **Adult categories** stay as they are. Their 17 to 20 paid questions are already one tranche.
 3. **End of list:** a remainder under 10 questions merges into the previous tranche. No new questions are written now.
 4. **One non-consumable product per tranche** (12 products, restorable), not a repeatable consumable.
