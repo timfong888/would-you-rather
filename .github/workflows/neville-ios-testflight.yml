@@ -46,30 +46,40 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: timfong888/neville
-          ref: main
-          fetch-depth: 0
-          path: neville
-          persist-credentials: false
-
-      - name: Pin neville to the requested sha (must be merged on main)
-        working-directory: neville
+      # Neville lives OUTSIDE this repo's tree ($RUNNER_TEMP), so EAS/Expo never resolves this repo's
+      # package.json workspace or metro.config.js. Public repo, hardcoded, cloned without credentials.
+      - name: Clone neville outside the workspace and pin it to the requested sha (must be merged on main)
         env:
           NEVILLE_SHA: ${{ inputs.neville_sha }}
+          NEVILLE_DEST: ${{ runner.temp }}/neville
         run: |
+          git clone --no-tags "https://github.com/${NEVILLE_REPO}.git" "$NEVILLE_DEST"
+          cd "$NEVILLE_DEST"
           git cat-file -e "${NEVILLE_SHA}^{commit}" || { echo "sha not found in neville"; exit 1; }
           git merge-base --is-ancestor "$NEVILLE_SHA" origin/main || { echo "sha is not an ancestor of neville main; refusing"; exit 1; }
           git checkout --detach "$NEVILLE_SHA"
           echo "building neville at ${NEVILLE_SHA:0:12}"
+
+      - name: Check ios-shell is self-contained (no secrets)
+        working-directory: ${{ runner.temp }}/neville/ios-shell
+        run: |
+          test -f package.json || { echo "ios-shell/package.json is missing"; exit 1; }
+          test -f eas.json || { echo "ios-shell/eas.json is missing"; exit 1; }
+          echo "git root: $(git rev-parse --show-toplevel | sed "s|$RUNNER_TEMP|\$RUNNER_TEMP|")"
+          if [ -f metro.config.js ]; then
+            echo "ios-shell/metro.config.js: present"
+            grep -nE "(\.\./|__dirname *\+ *['\"]/\.\.)" metro.config.js && echo "::warning::metro.config.js references a parent directory" || echo "no parent-directory references"
+          else
+            echo "ios-shell/metro.config.js: absent (Expo defaults)"
+          fi
+          grep -q '"workspaces"' package.json && echo "::warning::ios-shell/package.json declares workspaces" || echo "no workspaces in ios-shell/package.json"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 
       - name: Install neville dependencies (no scripts, no secrets)
-        working-directory: neville/ios-shell
+        working-directory: ${{ runner.temp }}/neville/ios-shell
         run: |
           if [ -f package-lock.json ]; then npm ci --ignore-scripts; else echo "no package-lock.json; skipping install"; fi
 
@@ -79,5 +89,5 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
-          NEVILLE_DIR: neville/ios-shell
+          NEVILLE_DIR: ${{ runner.temp }}/neville/ios-shell
         run: node scripts/neville-testflight.mjs

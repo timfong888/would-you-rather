@@ -11,7 +11,7 @@ import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
-import { NEVILLE_APP_ID, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors } from './lib/nevilleRelease.mjs';
+import { NEVILLE_APP_ID, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/nevilleRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -72,8 +72,9 @@ try {
   const eas = spawnSync('npx', ['--yes', 'eas-cli@27.11.0', 'build', '--platform', 'ios', '--profile', profile,
     '--non-interactive', '--wait', '--json'], { cwd: nevilleDir, env: childEnv, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (eas.status !== 0) {
-    const tail = tailErrors(`${eas.stderr}\n${eas.stdout}`, redact);
-    die(`eas build failed (exit ${eas.status}).${tail ? `\n${tail}` : ''}`);
+    // stdout holds the --json result on success only; on failure the useful text is stderr.
+    const tail = tailLines(`${eas.stderr}\n${eas.stdout}`, redact, 60);
+    die(`eas build failed (exit ${eas.status}). Last lines of EAS output (secrets redacted):\n${tail}`);
   }
   const { version, build, ipaUrl } = parseEasBuild(eas.stdout);
   say(`eas build finished: version ${version}, build ${build}`);

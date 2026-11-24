@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 // @ts-ignore plain .mjs module
-import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, finalOutcome } from '../../scripts/lib/nevilleRelease.mjs';
+import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines, finalOutcome } from '../../scripts/lib/nevilleRelease.mjs';
 // @ts-ignore plain .mjs module
 import { makeRedactor } from '../../scripts/lib/ascAppsList.mjs';
 
@@ -92,6 +92,16 @@ test('tailErrors redacts secrets and truncates', () => {
   assert.ok(!out.includes('ok line'));
 });
 
+test('tailLines keeps the last 60 lines, redacts secrets, truncates', () => {
+  const redact = makeRedactor(['KEYID12345', 'EXPOTOKEN-abc']);
+  const lines = Array.from({ length: 100 }, (_, i) => `line ${i} KEYID12345 ${'x'.repeat(i === 99 ? 500 : 1)}`);
+  const out = tailLines(lines.join('\n') + '\nEXPOTOKEN-abc', redact).split('\n');
+  assert.equal(out.length, 60);
+  assert.ok(!out.join('\n').includes('KEYID12345') && !out.join('\n').includes('EXPOTOKEN-abc'));
+  assert.ok(out.every((l: string) => l.length <= 300));
+  assert.equal(out[out.length - 1], '***');
+});
+
 test('finalOutcome: only VALID and PROCESSING are green', () => {
   assert.equal(finalOutcome('VALID').exitCode, 0);
   assert.equal(finalOutcome('PROCESSING').exitCode, 0);
@@ -116,15 +126,23 @@ test('workflow: dispatch only, read-only token, guarded job', () => {
 
 test('workflow: hardcoded neville repo and ref, one sha input checked before secrets', () => {
   assert.equal((wf.match(/^      [a-z_]+:\n        description:/gm) || []).length, 1);
-  assert.match(wf, /repository: timfong888\/neville\n\s+ref: main/);
+  assert.match(wf, /NEVILLE_REPO: timfong888\/neville/);
+  assert.match(wf, /git clone --no-tags "https:\/\/github\.com\/\$\{NEVILLE_REPO\}\.git"/);
   assert.match(wf, /\^\[0-9a-f\]\{40\}\$/);
   assert.match(wf, /merge-base --is-ancestor/);
   assert.ok(wf.indexOf('merge-base --is-ancestor') < wf.indexOf('secrets.'));
 });
 
+test('workflow: neville is checked out outside the workspace', () => {
+  assert.match(wf, /NEVILLE_DEST: \$\{\{ runner\.temp \}\}\/neville/);
+  assert.match(wf, /NEVILLE_DIR: \$\{\{ runner\.temp \}\}\/neville\/ios-shell/);
+  assert.doesNotMatch(wf, /path: neville/);
+  assert.doesNotMatch(wf, /working-directory: neville/);
+});
+
 test('workflow: every action pinned to a full sha, secrets in exactly one step', () => {
   const uses = [...wf.matchAll(/uses: (\S+)/g)].map((m) => m[1]);
-  assert.ok(uses.length >= 3);
+  assert.ok(uses.length >= 2);
   for (const u of uses) assert.match(u, /@[0-9a-f]{40}$/, u);
   const secretLines = wf.split('\n').filter((l: string) => l.includes('secrets.'));
   assert.equal(secretLines.length, 4);

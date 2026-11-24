@@ -96,6 +96,12 @@ export function tailErrors(text, redact, max = 15) {
     .slice(-max).map((l) => redact(l).slice(0, 300)).join('\n');
 }
 
+// Last lines of a failing child's output for the public log: secrets redacted, lines truncated.
+// Used for `eas build`, whose own error text is the only way to see why it failed.
+export function tailLines(text, redact, max = 60) {
+  return String(text).split(/\r?\n/).filter((l) => l.trim()).slice(-max).map((l) => redact(l).slice(0, 300)).join('\n');
+}
+
 // How the run ends once polling stops. Only a build Apple is still working on is a green notice;
 // a build that never appeared or a failing GET (revoked or under-scoped key) must not end green.
 export function finalOutcome(state) {
