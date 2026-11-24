@@ -159,7 +159,7 @@ child's Family Sharing account from buying without approval, independent of our 
 
 Reuse the model: one non-consumable per category, `wyr_unlock_<id>` → entitlement `cat_<id>`, in the `default`
 offering. **Superseded by §3.4:** kids and teen categories are sold as tranches, and the one $4.99 pack opens every category (§3.4 Decisions, revised). The per-category product line above no longer applies to them.
-New iOS products (**superseded by §3.4.1: 10 tranche products beyond question 20, no separate With kids pack, catalog 8 → 18**; the old "9, 8 → 17" no longer applies). `buildCatalog()` picks them up automatically once
+New iOS products (**superseded by §3.4.0: 9 kids and teen steps (one per category, 20 questions), no separate With kids pack, catalog 8 → 17**). `buildCatalog()` picks them up automatically once
 they have paid content; `npm run rc:sync` creates them in the Test Store; App Store Connect products are created by Tim
 (go-live is Tim's, per `docs/payments.md`).
 
