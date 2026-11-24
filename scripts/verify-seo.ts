@@ -162,6 +162,15 @@ for (const id of SEO_FIRST_BATCH) {
   if (!locSet.has(url(`/q/${id}`))) fail(`sitemap: missing read-only question page /q/${id}`);
 }
 
+// The canonical for a playable /game/<id> whose question has a read-only page must be in the server response (vercel.json Link header).
+{
+  const vercel = JSON.parse(read('vercel.json')) as { headers: { source: string; headers: { key: string; value: string }[] }[] };
+  const link = new Map(vercel.headers.map((h) => [h.source, h.headers.find((x) => x.key === 'Link')?.value]));
+  for (const id of SEO_FIRST_BATCH) {
+    if (link.get(`/game/${id}`) !== `<${CANONICAL_ORIGIN}/q/${id}>; rel="canonical"`) fail(`vercel.json: no canonical Link header on /game/${id} (run node scripts/sync-vercel-canonicals.mjs)`);
+  }
+}
+
 const robots = read('public/robots.txt');
 if (!robots.split('\n').some((l) => l.trim() === `Sitemap: ${SITE_URL}/sitemap.xml`)) {
   fail(`robots.txt: Sitemap line is not ${SITE_URL}/sitemap.xml`);

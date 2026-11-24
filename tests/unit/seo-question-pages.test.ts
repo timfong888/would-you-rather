@@ -79,3 +79,14 @@ test('the landing page each category links to exists, and kids categories only m
     if (CATEGORIES.find((c) => c.id === cat)!.audience !== 'adult') assert.ok(isKidsPage(p!), `${cat} -> ${slug} must be a kids page`);
   }
 });
+
+test('vercel.json sends a canonical Link header on /game/<id> for every batch question (crawlers get it without running scripts)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const config = JSON.parse(require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../vercel.json'), 'utf8')) as {
+    headers: { source: string; headers: { key: string; value: string }[] }[];
+  };
+  const bySource = new Map(config.headers.map((h) => [h.source, h.headers.find((x) => x.key === 'Link')?.value]));
+  for (const id of SEO_FIRST_BATCH) assert.equal(bySource.get(`/game/${id}`), `<${ORIGIN}/q/${id}>; rel="canonical"`, id);
+  const extra = config.headers.filter((h) => /^\/game\/[^/:]+$/.test(h.source) && !isSeoBatchId(h.source.slice(6)));
+  assert.deepEqual(extra, [], 'a /game/<id> canonical header for a question outside the batch (run node scripts/sync-vercel-canonicals.mjs)');
+});
