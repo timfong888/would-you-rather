@@ -2,6 +2,8 @@
 
 iPhone only for v1 (`ios.supportsTablet: false`, Tim 2026-11-18): no iPad build or screenshots.
 
+Before building for TestFlight, check the simulator smoke test on the PR: see [ios-simulator-smoke.md](ios-simulator-smoke.md) (it also lists what stays manual).
+
 Profiles in `eas.json`:
 
 | Profile | Use | Distribution | RevenueCat key |

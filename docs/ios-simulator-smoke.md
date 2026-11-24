@@ -49,6 +49,18 @@ Billable minutes are rounded up per job.
 Measured on `macos-15`: a green run takes about **20 to 23 minutes** wall clock (3 green runs) (prebuild and pods about 3, xcodebuild Release about 9,
 simulator first boot about 1, two flows about 4). At $0.062 per minute that is roughly **$1.25 to $1.45 per run** if the repo were private.
 
+## PR checklist (app changes)
+Before asking for a TestFlight build to click through:
+1. The `iOS simulator smoke (Maestro)` check is green on the PR (it runs by itself for app code; or run it from the Actions tab).
+2. Changed a screen or label a flow relies on? Update `.maestro/*.yaml` in the same PR. Flows match visible text or the
+   accessibility label, and a `Pressable` with an `accessibilityLabel` hides its child text from Maestro.
+3. Still manual on a real device, every time it applies: real and sandbox purchases, Restore, Ask to Buy, background and
+   lock-screen audio, share sheets and universal links.
+
+Decision (issue #199, 2026-11-24): the GitHub macOS runner is the smoke test. An EAS Workflow + Maestro variant built fine but
+Maestro could not see the home controls on the EAS-built binary (draft PR #218, parked). Revisit with a look at the failure
+screenshot in the Expo dashboard if CI time ever matters.
+
 ## Editing a flow
 Maestro matches visible text or the accessibility label, case-insensitively, as a regex. Run locally with
 `maestro test .maestro/kids-smoke.yaml` against a simulator that has the app installed.
