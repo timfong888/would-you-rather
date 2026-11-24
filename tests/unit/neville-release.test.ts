@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 // @ts-ignore plain .mjs module
-import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines, finalOutcome } from '../../scripts/lib/nevilleRelease.mjs';
+import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines, finalOutcome, withRetry } from '../../scripts/lib/nevilleRelease.mjs';
 // @ts-ignore plain .mjs module
 import { makeRedactor } from '../../scripts/lib/ascAppsList.mjs';
 
@@ -179,4 +179,77 @@ test('workflow: every action pinned to a full sha, secrets in exactly one step',
   assert.equal(secretLines.length, 4);
   const first = wf.indexOf('secrets.'), last = wf.lastIndexOf('secrets.');
   assert.ok(!wf.slice(first, last).includes('- name:'), 'secrets span more than one step');
+});
+
+test('withRetry retries a throwing call 3 times with doubling backoff, then rethrows', async () => {
+  const waits: number[] = [];
+  let n = 0;
+  await assert.rejects(withRetry(async () => { n++; throw new Error('fetch failed'); }, { sleep: async (ms: number) => { waits.push(ms); }, baseMs: 10 }), /fetch failed/);
+  assert.equal(n, 3);
+  assert.deepEqual(waits, [10, 20]);
+  let m = 0;
+  const ok = await withRetry(async () => { if (++m < 3) throw new Error('x'); return 'ok'; }, { sleep: async () => {}, baseMs: 0 });
+  assert.equal(ok, 'ok');
+});
+
+test('pollBuild survives a throwing GET: retries, recovers, or reports FETCH_ERROR without throwing', async () => {
+  let n = 0;
+  const recovered = await pollBuild(async () => { if (++n < 3) throw new Error('fetch failed'); return { status: 200, body: { data: [{ attributes: { processingState: 'VALID' } }] } }; },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 1, retryBaseMs: 0 });
+  assert.equal(recovered.state, 'VALID');
+  let calls = 0;
+  const dead = await pollBuild(async () => { calls++; throw new Error('fetch failed'); }, { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 2, retryBaseMs: 0 });
+  assert.equal(dead.state, 'FETCH_ERROR');
+  assert.equal(calls, 6);
+});
+
+test('finalOutcome: a network error is only a warning once Apple reported the upload COMPLETE', () => {
+  assert.deepEqual(finalOutcome('FETCH_ERROR', { uploadComplete: true }), { exitCode: 0, kind: 'unverified' });
+  assert.equal(finalOutcome('FETCH_ERROR').exitCode, 1);
+  for (const s of ['FAILED', 'INVALID', 'NOT_FOUND', 'HTTP_403', 'HTTP_500']) assert.equal(finalOutcome(s, { uploadComplete: true }).exitCode, 1, s);
+});
+
+test('summaryMarkdown names version, build and that Apple processed it', () => {
+  const md = summaryMarkdown('164', 'VALID', '1.1.0');
+  assert.match(md, /Version 1\.1\.0, build 164: processed by Apple/);
+  assert.match(summaryMarkdown('164', 'PROCESSING'), /Build 164: PROCESSING/);
+});
+
+test('pollBuild: a network error never hides an earlier HTTP error answer', async () => {
+  let n = 0;
+  const r = await pollBuild(async () => { if (++n === 1) return { status: 503, body: {} }; throw new Error('fetch failed'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 2, retryBaseMs: 0 });
+  assert.equal(r.state, 'HTTP_503');
+  assert.equal(finalOutcome(r.state, { uploadComplete: true }).exitCode, 1);
+  // network error first, then HTTP error: HTTP wins as well
+  let m = 0;
+  const r2 = await pollBuild(async () => { if (++m <= 3) throw new Error('fetch failed'); return { status: 500, body: {} }; },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 2, retryBaseMs: 0 });
+  assert.equal(r2.state, 'HTTP_500');
+});
+
+test('pollBuild gives up after 3 consecutive network-failed polls instead of polling for the whole budget', async () => {
+  let calls = 0;
+  const r = await pollBuild(async () => { calls++; throw new Error('fetch failed'); }, { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(r.state, 'FETCH_ERROR');
+  assert.equal(r.polls, 3);
+  assert.equal(calls, 9);
+  // a good answer in between resets the streak
+  let n = 0;
+  const ok = await pollBuild(async () => { n++; if (n <= 6) throw new Error('x'); if (n === 7) return { status: 200, body: { data: [{ attributes: { processingState: 'PROCESSING' } }] } }; throw new Error('x'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(ok.state, 'PROCESSING');
+});
+
+test('pollBuild: an early empty 200 (NOT_FOUND) followed by an outage reports FETCH_ERROR, not NOT_FOUND', async () => {
+  let n = 0;
+  const r = await pollBuild(async () => { if (++n === 1) return { status: 200, body: { data: [] } }; throw new Error('fetch failed'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(r.state, 'FETCH_ERROR');
+  assert.equal(finalOutcome(r.state, { uploadComplete: true }).exitCode, 0);
+  // a real earlier PROCESSING answer is still kept
+  let m = 0;
+  const p = await pollBuild(async () => { if (++m === 1) return { status: 200, body: { data: [{ attributes: { processingState: 'PROCESSING' } }] } }; throw new Error('x'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(p.state, 'PROCESSING');
 });

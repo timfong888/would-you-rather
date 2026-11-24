@@ -61,16 +61,36 @@ export async function preflightApp(get, { appId = NEVILLE_APP_ID, bundleId = NEV
   }
 }
 
+// Retry a network call that may throw (DNS, reset, timeout: `fetch failed`). Backoff doubles from baseMs; the last error is rethrown.
+export async function withRetry(fn, { attempts = 3, baseMs = 2000, sleep }) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try { return await fn(); } catch (e) {
+      lastErr = e;
+      if (i < attempts) await sleep(baseMs * 2 ** (i - 1));
+    }
+  }
+  throw lastErr;
+}
+
 // Poll GET /v1/builds for this one build. Returns { state, polls }. Only build number and state leave this function.
-export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, sleep, maxPolls = 60, intervalMs = 30000 }) {
+// A GET that throws (network error) is tried up to 3 times with backoff; if it still fails that poll counts as FETCH_ERROR and polling goes on.
+// After maxNetFails consecutive such polls it gives up (a sustained outage must end in the warning well before the job timeout).
+export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, sleep, maxPolls = 60, intervalMs = 30000, retryBaseMs = 2000, maxNetFails = 3 }) {
+  let netFails = 0;
   let state = 'NOT_FOUND'; // last real answer from Apple
   let sawOk = false;
   let httpState = '';
   for (let i = 1; i <= maxPolls; i++) {
     const q = `/v1/builds?filter[app]=${appId}&filter[version]=${encodeURIComponent(build)}` +
       `&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&limit=1&fields[builds]=version,processingState`;
-    const r = await get(q);
-    if (r.status === 200) {
+    let r;
+    try { r = await withRetry(() => get(q), { sleep, baseMs: retryBaseMs }); } catch { r = { status: 'FETCH_ERROR', body: {} }; }
+    netFails = r.status === 'FETCH_ERROR' ? netFails + 1 : 0;
+    if (r.status === 'FETCH_ERROR') {
+      // Only when Apple never answered with an HTTP status: a network error must not hide an earlier 5xx/429 (which stays red).
+      if (!httpState) httpState = 'FETCH_ERROR';
+    } else if (r.status === 200) {
       sawOk = true;
       const row = (r.body?.data || [])[0];
       state = row?.attributes?.processingState || 'NOT_FOUND';
@@ -80,14 +100,17 @@ export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, s
       // A revoked or under-scoped key will not recover: stop now instead of retrying for 30 minutes.
       if (r.status === 401 || r.status === 403) return { state: httpState, polls: i };
     }
+    // Giving up on a network outage: an earlier 200 with no build row (NOT_FOUND, Apple still indexing) is not a real answer, so it does not outrank the outage.
+    if (netFails >= maxNetFails) return { state: sawOk && state !== 'NOT_FOUND' ? state : (httpState || state), polls: i };
     if (i < maxPolls) await sleep(intervalMs);
   }
   // A transient 5xx or 429 on the last poll must not hide a real processing state seen earlier.
   return { state: sawOk ? state : (httpState || state), polls: maxPolls };
 }
 
-export function summaryMarkdown(build, state) {
-  return `### Neville iOS build\n\n| Build number | TestFlight processing state |\n| --- | --- |\n| ${build} | ${state} |\n`;
+export function summaryMarkdown(build, state, version) {
+  const v = version ? `Version ${version}, build ${build}` : `Build ${build}`;
+  return `### Neville iOS build\n\n${v}: ${state === 'VALID' ? 'processed by Apple, ready in TestFlight' : state}\n\n| Build number | TestFlight processing state |\n| --- | --- |\n| ${build} | ${state} |\n`;
 }
 
 // Keep a failing child's output short and secret-free before it reaches the public log. Same order as tailLines:
@@ -111,7 +134,10 @@ export function tailLines(text, redact, max = 60) {
 
 // How the run ends once polling stops. Only a build Apple is still working on is a green notice;
 // a build that never appeared or a failing GET (revoked or under-scoped key) must not end green.
-export function finalOutcome(state) {
+// uploadComplete: Apple already reported the upload COMPLETE. Then a status check that never got an answer (network error)
+// is only a warning: the build was delivered. Any real Apple answer (FAILED, INVALID, NOT_FOUND, HTTP error) still fails.
+export function finalOutcome(state, { uploadComplete = false } = {}) {
+  if (state === 'FETCH_ERROR' && uploadComplete) return { exitCode: 0, kind: 'unverified' };
   if (state === 'VALID') return { exitCode: 0, kind: 'valid' };
   if (state === 'PROCESSING') return { exitCode: 0, kind: 'still-processing' };
   if (state === 'FAILED' || state === 'INVALID') return { exitCode: 1, kind: 'rejected' };
