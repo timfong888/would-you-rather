@@ -49,7 +49,7 @@ Paid and withheld questions are public (Tim: "all withheld paid questions are pu
 
 ### 1a. First batch (about 100 pages)
 
-Only the questions in the first batch get a `/q/<id>` page, a sitemap entry and a canonical from `/game/<id>` and `/p/<id>`; the rest keep today's behavior until the research expands the list. The list is a frozen file, `constants/seoFirstBatch.ts` (explicit ids, never recomputed), and a test fails if an id is not a real question. Criteria, in order:
+Only the questions in the first batch get a `/q/<id>` page, a sitemap entry and a canonical from `/game/<id>` and `/p/<id>`; the rest keep today's behavior until the research expands the list. The list is a frozen file, `lib/seoBatch.js` (explicit ids, never recomputed), and a test fails if an id is not a real question. Criteria, in order:
 1. Kids and family first (persona 1 is parents), then adult.
 2. Questions already published on the 14 SEO landing pages (they were chosen and tagged by hand).
 3. Page priority by the keyword research, then list order within a page; at most 12 per category so every kids category is represented; deduplicated across pages.
