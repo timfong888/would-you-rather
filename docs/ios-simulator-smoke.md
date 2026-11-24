@@ -46,8 +46,8 @@ excerpt of GitHub's [runner pricing page](https://docs.github.com/en/billing/ref
 page itself could not be opened from the build environment, and the included-minutes allowance per plan was not confirmed.
 Billable minutes are rounded up per job.
 
-Measured on `macos-15`: a green run takes about **23 to 25 minutes** wall clock (prebuild and pods about 3, xcodebuild Release about 9,
-simulator first boot about 1, two flows about 4). At $0.062 per minute that is roughly **$1.45 to $1.55 per run** if the repo were private.
+Measured on `macos-15`: a green run takes about **20 to 23 minutes** wall clock (3 green runs) (prebuild and pods about 3, xcodebuild Release about 9,
+simulator first boot about 1, two flows about 4). At $0.062 per minute that is roughly **$1.25 to $1.45 per run** if the repo were private.
 
 ## Editing a flow
 Maestro matches visible text or the accessibility label, case-insensitively, as a regex. Run locally with
