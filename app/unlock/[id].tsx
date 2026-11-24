@@ -11,6 +11,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useRootNavigationState } from 'expo-router';
+import { browseHrefFor } from '@/lib/browse';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
@@ -207,7 +208,7 @@ export default function UnlockScreen() {
     return (
       <View style={[styles.errorContainer, { paddingTop: insets.top + SPACING.lg }]}>
         <Text style={styles.errorText}>Category not found</Text>
-        <Pressable onPress={() => router.push('/categories')} style={styles.backButton}>
+        <Pressable onPress={() => router.push(browseHrefFor(id))} style={styles.backButton}>
           <Text style={styles.backButtonText}>Browse Categories</Text>
         </Pressable>
       </View>

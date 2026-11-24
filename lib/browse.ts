@@ -5,6 +5,8 @@
  * chip shows the categories whose age range overlaps it. Nothing here is persisted: the mode is the route (`/kids`
  * is a kids route, see lib/kidsPaths.ts) and the chip is component state.
  */
+import { RETIRED_KIDS_CATEGORY_IDS, getCategoryAudience } from '../constants/questions';
+
 export type BrowseMode = 'grownups' | 'kids';
 
 export interface BrowseCategory {
@@ -63,4 +65,16 @@ export function formatAges(category: Pick<BrowseCategory, 'audience' | 'ages'>):
 /** "8 free · 22 more": no price and no pack wording, so it holds under any unlock model. */
 export function freeMoreHint(free: number, more: number): string {
   return more > 0 ? `${free} free · ${more} more` : `${free} free`;
+}
+
+/**
+ * Where "leave / explore" goes from a category's screens: kids and teen categories (and the retired kids id) return to
+ * With kids, which lists them; everything else to the Grown-ups list. Without this a family that started in With kids
+ * would land on a list that shows no kids category, and on a route that is not a kids route.
+ */
+export function browseHrefFor(categoryId: string | undefined | null): '/kids' | '/categories' {
+  if (!categoryId) return '/categories';
+  if (RETIRED_KIDS_CATEGORY_IDS.includes(categoryId)) return '/kids';
+  const audience = getCategoryAudience(categoryId);
+  return audience && audience !== 'adult' ? '/kids' : '/categories';
 }

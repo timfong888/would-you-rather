@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { CATEGORIES, getFreeQuestionCount, getLockedQuestionCount } from '../../constants/questions';
 import {
   AGE_BANDS,
+  browseHrefFor,
   categoriesForBand,
   categoriesForMode,
   formatAges,
@@ -86,4 +88,15 @@ test('/kids (With kids mode) is a kids route, so nothing is tracked there', () =
   assert.equal(isKidsPath('/kids/'), true);
   assert.equal(isKidsPath('/'), false);
   assert.equal(isKidsPath('/categories'), false);
+});
+
+test('leave/explore from a category goes back to the mode that lists it', () => {
+  assert.equal(browseHrefFor('tiny-choices'), '/kids');
+  assert.equal(browseHrefFor('real-talk'), '/kids'); // teen is listed under With kids
+  assert.equal(browseHrefFor('kids-family'), '/kids'); // retired id
+  assert.equal(browseHrefFor('midnight-secrets'), '/categories');
+  assert.equal(browseHrefFor(undefined), '/categories');
+  for (const f of ['app/game/[id].tsx', 'app/complete/[id].tsx', 'app/results/[id].tsx', 'app/unlock/[id].tsx']) {
+    assert.doesNotMatch(readFileSync(f, 'utf8'), /router\.push\('\/categories'\)/, f);
+  }
 });

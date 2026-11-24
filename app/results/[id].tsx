@@ -9,6 +9,7 @@ import {
   Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isKidsCategoryId, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
@@ -407,7 +408,7 @@ export default function ResultsScreen() {
           </Pressable>
         ) : (
           <Pressable
-            onPress={() => router.push('/categories')}
+            onPress={() => router.push(browseHrefFor(category?.id ?? question?.category))}
             style={({ pressed }) => [
               styles.nextButton,
               { backgroundColor: catColor },
