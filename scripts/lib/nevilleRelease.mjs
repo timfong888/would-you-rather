@@ -90,10 +90,23 @@ export function summaryMarkdown(build, state) {
   return `### Neville iOS build\n\n| Build number | TestFlight processing state |\n| --- | --- |\n| ${build} | ${state} |\n`;
 }
 
-// Keep a failing child's output short and secret-free before it reaches the public log.
+// Keep a failing child's output short and secret-free before it reaches the public log. Same order as tailLines:
+// redact the whole text, replace URLs, then filter/slice/truncate and prefix every line with `| `.
 export function tailErrors(text, redact, max = 15) {
-  return String(text).split(/\r?\n/).filter((l) => /error|fail|denied|not found|invalid/i.test(l))
-    .slice(-max).map((l) => redact(l).slice(0, 300)).join('\n');
+  const safe = redact(String(text)).replace(/https?:\/\/\S+/g, '<url>');
+  return safe.split(/\r\n|\r|\n/).filter((l) => /error|fail|denied|not found|invalid/i.test(l))
+    .slice(-max).map((l) => `| ${l.slice(0, 300)}`).join('\n');
+}
+
+// Last lines of a failing child's output for the public log. Order matters:
+// 1) redact the WHOLE text first, so a multi-line secret (a PEM key) is matched before it is split into lines;
+// 2) replace URLs, which may carry signed tokens;
+// 3) split on every line break the Actions runner honours (\r\n, a lone \r, \n), drop blanks, keep the last `max`, truncate each line to 300 chars;
+// 4) prefix every line with `| ` (NOT whitespace: the Actions runner trims leading whitespace before looking for `::`),
+//    so no printed line can be parsed as a workflow command.
+export function tailLines(text, redact, max = 60) {
+  const safe = redact(String(text)).replace(/https?:\/\/\S+/g, '<url>');
+  return safe.split(/\r\n|\r|\n/).filter((l) => l.trim()).slice(-max).map((l) => `| ${l.slice(0, 300)}`).join('\n');
 }
 
 // How the run ends once polling stops. Only a build Apple is still working on is a green notice;

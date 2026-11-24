@@ -123,6 +123,7 @@ const rewrites: { source: string; destination: string }[] = JSON.parse(read('ver
 const needsRewrite = [
   ...SEO_PAGES.map((p) => `/${p.slug}`),
   '/categories',
+  '/kids',
 ];
 for (const source of needsRewrite) {
   const r = rewrites.find((x) => x.source === source);
@@ -138,7 +139,7 @@ if (new Set(locs).size !== locs.length) fail('sitemap: duplicate <loc> entries')
 for (const loc of locs) if (new URL(loc).host !== host) fail(`sitemap: ${loc} is not on ${host} (EXPO_PUBLIC_SITE_URL)`);
 const locSet = new Set(locs);
 const url = (path: string) => `${SITE_URL}${path === '/' ? '' : path}`;
-for (const path of ['/', '/categories', ...CATEGORIES.map((c) => `/categories/${c.id}`), ...SEO_PAGES.map((p) => `/${p.slug}`)]) {
+for (const path of ['/', '/categories', '/kids', ...CATEGORIES.map((c) => `/categories/${c.id}`), ...SEO_PAGES.map((p) => `/${p.slug}`)]) {
   if (!locSet.has(url(path))) fail(`sitemap: missing ${url(path)}`);
 }
 const lockedGameUrls = new Set<string>();

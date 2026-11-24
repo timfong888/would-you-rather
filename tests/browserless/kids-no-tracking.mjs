@@ -122,6 +122,27 @@ const browser = await chromium.launch();
     }
   }
 }
+// With kids browse screen (/kids): a kids route. Loading it, switching age chips and tapping "pick one for me" sends
+// nothing, keeps no ID, stores nothing, sets no cookie. The chip choice is not persisted.
+{
+  const { ctx, page, ph, events } = await player(browser, 'pre-existing-adult-id');
+  await page.goto(`${HOST}/kids`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  for (const label of ['3–5', '6–9', '10–12', '13–17', 'All']) {
+    await page.getByRole('radio', { name: label === 'All' ? 'All ages' : `Ages ${label}` }).click();
+    await page.waitForTimeout(150);
+  }
+  check((await page.getByText('Ages 3–5').count()) >= 1, 'kids browse: age labels are shown on the cards');
+  await page.getByRole('radio', { name: 'Ages 3–5' }).click();
+  check((await page.getByText('Ages 13–17').count()) === 0, 'kids browse: the 3–5 chip hides the teen category');
+  await page.getByRole('button', { name: 'Pick one for me' }).click();
+  await page.waitForTimeout(1200);
+  check(/\/game\/kf-/.test(page.url()), 'kids browse: pick-one lands on a kids question', page.url());
+  const stored = await page.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter((k) => /^(wyr_|ph_)/.test(k)));
+  const ok = events.length === 0 && ph.length === 0 && (await vid(page)) === null && stored.length === 0 && (await ctx.cookies()).length === 0;
+  check(ok, 'kids browse: /kids and its chips and pick-one send nothing, keep no ID, store nothing, set no cookie', ok ? '' : JSON.stringify({ events, ph: ph.length, stored }));
+  await ctx.close();
+}
 await browser.close();
 const failed = results.filter((r) => !r).length;
 console.log(`\n${results.length - failed}/${results.length} checks passed`);

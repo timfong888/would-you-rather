@@ -4,14 +4,17 @@
 //   plus NEVILLE_DIR (checkout of timfong888/neville at a merged sha), EAS_PROFILE, APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
 // Flow: preflight app (GET) -> eas build (EAS creates the missing provisioning profile via the ASC key)
 //   -> existing scripts/asc-upload.mjs -> poll builds (GET) -> job summary with build number and state only.
-// Never prints: the key, key id, issuer id, JWT, team id, or any Apple data other than build number and state.
+// Never prints: the key, key id, issuer id, JWT, team id or Expo token (all masked and redacted). On the success path the only
+// Apple data printed is build number and processing state. If `eas build` FAILS, the last 60 lines of its output are printed
+// (secrets redacted); EAS can include non-secret Apple-side names there (team, certificate or profile labels). Accepted on purpose,
+// so a failed run is debuggable from the public log.
 import { createPrivateKey, sign } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
-import { NEVILLE_APP_ID, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors } from './lib/nevilleRelease.mjs';
+import { NEVILLE_APP_ID, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/nevilleRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -72,8 +75,9 @@ try {
   const eas = spawnSync('npx', ['--yes', 'eas-cli@27.11.0', 'build', '--platform', 'ios', '--profile', profile,
     '--non-interactive', '--wait', '--json'], { cwd: nevilleDir, env: childEnv, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (eas.status !== 0) {
-    const tail = tailErrors(`${eas.stderr}\n${eas.stdout}`, redact);
-    die(`eas build failed (exit ${eas.status}).${tail ? `\n${tail}` : ''}`);
+    // stderr only: stdout holds the --json result, never what went wrong.
+    const tail = tailLines(eas.stderr, redact, 60) || '| (no stderr output)';
+    die(`eas build failed (exit ${eas.status}). Last lines of EAS output (secrets redacted):\n${tail}`);
   }
   const { version, build, ipaUrl } = parseEasBuild(eas.stdout);
   say(`eas build finished: version ${version}, build ${build}`);

@@ -17,9 +17,13 @@ import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { categoriesIndexJsonLd } from '@/lib/seo';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+import ModeSwitch from '@/components/ModeSwitch';
+import { categoriesForMode } from '@/lib/browse';
 
-const FEATURED = CATEGORIES.filter((c) => c.featured);
-const ALL = CATEGORIES;
+// Grown-ups mode: adult categories only. Kids and teen categories live under With kids (/kids).
+const GROWNUP = categoriesForMode('grownups', CATEGORIES);
+const FEATURED = GROWNUP.filter((c) => c.featured);
+const ALL = GROWNUP;
 
 export default function CategoriesScreen() {
   const router = useRouter();
@@ -35,7 +39,7 @@ export default function CategoriesScreen() {
   };
 
   const pageTitle = 'Browse Categories — Would You Rather?';
-  const pageDescription = `Choose from ${CATEGORIES.length} categories of Would You Rather dilemmas — from Moral Compass to Tech Dystopia. Free and premium packs available.`;
+  const pageDescription = `Choose from ${GROWNUP.length} categories of Would You Rather dilemmas — from Moral Compass to Tech Dystopia. Free and premium packs available.`;
 
   return (
     <ScrollView
@@ -49,6 +53,7 @@ export default function CategoriesScreen() {
         canonicalUrl={`${SITE_URL}/categories`}
       />
       <JsonLd data={categoriesIndexJsonLd(CATEGORIES)} />
+      <ModeSwitch mode="grownups" />
       {/* App Header */}
       <View style={styles.header}>
         <Text style={styles.appTitle}>WOULD YOU RATHER</Text>

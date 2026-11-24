@@ -10,6 +10,8 @@ import {
 import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { QUESTIONS, CATEGORIES, getCategoryQuestions, getAccessibleQuestions } from '@/constants/questions';
+import ModeSwitch from '@/components/ModeSwitch';
+import { categoriesForMode } from '@/lib/browse';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -22,6 +24,9 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import ThemeToggle from '@/components/ThemeToggle';
 import SafeScrollView from '@/components/SafeScrollView';
 import VersionText from '@/components/VersionText';
+
+/** Grown-ups mode lists adult categories only; kids and teen categories live under With kids (/kids). */
+const GROWNUP_CATEGORIES = categoriesForMode('grownups', CATEGORIES);
 
 // react-native-web turns role="heading" + aria-level into a real <h1>/<h2>.
 const h1 = { role: 'heading', 'aria-level': 1 } as object;
@@ -46,7 +51,7 @@ export default function HomeScreen() {
   };
 
   const handleRandomQuestion = () => {
-    const freeCats = randomPlayCategories(CATEGORIES);
+    const freeCats = randomPlayCategories(GROWNUP_CATEGORIES);
     const cat = freeCats[Math.floor(Math.random() * freeCats.length)];
     navigateToQuestion(cat);
   };
@@ -78,6 +83,8 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
+      <ModeSwitch mode="grownups" />
+
       {/* Hero */}
       <View style={styles.hero}>
         <Text style={styles.appLabel}>Turn boredom into real conversation</Text>
@@ -104,8 +111,8 @@ export default function HomeScreen() {
       <View style={styles.statsRow}>
         {[
           { label: 'Questions', value: TOTAL_QUESTIONS.toString() },
-          { label: 'Categories', value: CATEGORIES.length.toString() },
-          { label: 'Free', value: CATEGORIES.filter(c => c.tier === 'free').length.toString() },
+          { label: 'Categories', value: GROWNUP_CATEGORIES.length.toString() },
+          { label: 'Free', value: GROWNUP_CATEGORIES.filter(c => c.tier === 'free').length.toString() },
         ].map((stat) => (
           <View key={stat.label} style={styles.statCard}>
             <Text style={styles.statValue}>{stat.value}</Text>
@@ -125,7 +132,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.categoryList}>
-          {CATEGORIES.map((cat) => {
+          {GROWNUP_CATEGORIES.map((cat) => {
             const count = getCategoryQuestions(cat.id).length;
             const isPremium = cat.tier === 'premium';
             return (

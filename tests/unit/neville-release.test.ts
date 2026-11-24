@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 // @ts-ignore plain .mjs module
-import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, finalOutcome } from '../../scripts/lib/nevilleRelease.mjs';
+import { validateSha, versionAtLeast, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines, finalOutcome } from '../../scripts/lib/nevilleRelease.mjs';
 // @ts-ignore plain .mjs module
 import { makeRedactor } from '../../scripts/lib/ascAppsList.mjs';
 
@@ -88,8 +88,49 @@ test('tailErrors redacts secrets and truncates', () => {
   const redact = makeRedactor(['KEYID12345', 'ISSUER-UUID-1', key]);
   const out = tailErrors(`ok line\nerror: auth failed for KEYID12345 issuer ISSUER-UUID-1\nMIGTAgEAMBMGByqGSM49 error ${'x'.repeat(500)}`, redact);
   assert.ok(!out.includes('KEYID12345') && !out.includes('ISSUER-UUID-1'));
-  assert.ok(out.split('\n').every((l: string) => l.length <= 300));
+  assert.ok(out.split('\n').every((l: string) => l.startsWith('| ') && l.length <= 302));
   assert.ok(!out.includes('ok line'));
+});
+
+test('tailLines keeps the last 60 lines, redacts secrets, truncates, prefixes', () => {
+  const redact = makeRedactor(['KEYID12345', 'EXPOTOKEN-abc']);
+  const lines = Array.from({ length: 100 }, (_, i) => `line ${i} KEYID12345 ${'x'.repeat(i === 99 ? 500 : 1)}`);
+  const out = tailLines(lines.join('\n') + '\nEXPOTOKEN-abc', redact).split('\n');
+  assert.equal(out.length, 60);
+  assert.ok(!out.join('\n').includes('KEYID12345') && !out.join('\n').includes('EXPOTOKEN-abc'));
+  assert.ok(out.every((l: string) => l.startsWith('| ') && l.length <= 302));
+  assert.equal(out[out.length - 1], '| ***');
+});
+
+test('tailLines redacts a multi-line PEM key that spans lines', () => {
+  const pem = '-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEG\nCCqGSM49AwEHBG0wawIBAQQg\n-----END PRIVATE KEY-----';
+  const redact = makeRedactor([pem]);
+  const out = tailLines(`before\nkey dump:\n${pem}\nafter`, redact);
+  for (const frag of ['BEGIN PRIVATE KEY', 'MIGTAgEAMBMGByqGSM49AgEG', 'CCqGSM49AwEHBG0wawIBAQQg', 'END PRIVATE KEY']) {
+    assert.ok(!out.includes(frag), frag);
+  }
+  assert.match(out, /before/);
+  assert.match(out, /after/);
+});
+
+test('tailLines replaces URLs (signed tokens) and neutralises workflow commands', () => {
+  const redact = makeRedactor(['KEYID12345']);
+  const out = tailLines('fetch https://x.example/a?sig=SECRETSIG&b=1 failed\n::stop-commands::abc\n::add-mask::oops', redact);
+  assert.ok(!out.includes('SECRETSIG') && !out.includes('x.example'));
+  assert.match(out, /<url>/);
+  // The runner trims leading whitespace before looking for `::`, so test it the way the runner does.
+  const asRunner = (t: string) => t.split(/\r\n|\r|\n/).map((l) => l.trimStart());
+  for (const l of asRunner(out)) assert.ok(!l.startsWith('::'), l);
+  assert.ok(out.split('\n').every((l: string) => l.startsWith('| ')));
+  // A bare \r (CLI progress output) starts a new line for the runner: it must not smuggle a command either.
+  const cr = tailLines('progress 10%\r::error title=x::injected\nok\r\n::stop-commands::z', redact);
+  for (const l of asRunner(cr)) assert.ok(!l.startsWith('::'), l);
+  assert.ok(!cr.includes('\r'));
+  const crErr = tailErrors('error: a\r::add-mask::q failed', redact);
+  for (const l of asRunner(crErr)) assert.ok(!l.startsWith('::'), l);
+  // Even a whitespace-led command line is neutralised.
+  const spaced = tailLines('   ::add-mask::x\n\t::stop-commands::y', redact);
+  for (const l of asRunner(spaced)) assert.ok(!l.startsWith('::'), l);
 });
 
 test('finalOutcome: only VALID and PROCESSING are green', () => {
@@ -116,15 +157,23 @@ test('workflow: dispatch only, read-only token, guarded job', () => {
 
 test('workflow: hardcoded neville repo and ref, one sha input checked before secrets', () => {
   assert.equal((wf.match(/^      [a-z_]+:\n        description:/gm) || []).length, 1);
-  assert.match(wf, /repository: timfong888\/neville\n\s+ref: main/);
+  assert.match(wf, /NEVILLE_REPO: timfong888\/neville/);
+  assert.match(wf, /git clone --no-tags "https:\/\/github\.com\/\$\{NEVILLE_REPO\}\.git"/);
   assert.match(wf, /\^\[0-9a-f\]\{40\}\$/);
   assert.match(wf, /merge-base --is-ancestor/);
   assert.ok(wf.indexOf('merge-base --is-ancestor') < wf.indexOf('secrets.'));
 });
 
+test('workflow: neville is checked out outside the workspace', () => {
+  assert.match(wf, /NEVILLE_DEST: \$\{\{ runner\.temp \}\}\/neville/);
+  assert.match(wf, /NEVILLE_DIR: \$\{\{ runner\.temp \}\}\/neville\/ios-shell/);
+  assert.doesNotMatch(wf, /path: neville/);
+  assert.doesNotMatch(wf, /working-directory: neville/);
+});
+
 test('workflow: every action pinned to a full sha, secrets in exactly one step', () => {
   const uses = [...wf.matchAll(/uses: (\S+)/g)].map((m) => m[1]);
-  assert.ok(uses.length >= 3);
+  assert.ok(uses.length >= 2);
   for (const u of uses) assert.match(u, /@[0-9a-f]{40}$/, u);
   const secretLines = wf.split('\n').filter((l: string) => l.includes('secrets.'));
   assert.equal(secretLines.length, 4);

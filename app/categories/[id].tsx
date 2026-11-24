@@ -41,9 +41,9 @@ export default function CategoryScreen() {
   const category = CATEGORIES.find((c) => c.id === id);
 
   // The single Kids & Family category was replaced by topic categories (#124). Old links go to the
-  // category list; the web build also redirects before the app loads (vercel.json). The unit tests pin both.
+  // With kids screen (/kids); the web build also redirects before the app loads (vercel.json). The unit tests pin both.
   if (!category && id && RETIRED_KIDS_CATEGORY_IDS.includes(id)) {
-    return <Redirect href="/categories" />;
+    return <Redirect href="/kids" />;
   }
 
   if (!category) {
