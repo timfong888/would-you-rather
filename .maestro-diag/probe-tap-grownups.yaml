@@ -1,0 +1,10 @@
+appId: com.timfong888.wouldyourather
+name: probe-tap-grownups
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 60000
+- waitForAnimationToEnd
+- tapOn: "Grown-ups"

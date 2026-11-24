@@ -1,0 +1,7 @@
+name: diag
+jobs:
+  maestro_test:
+    type: maestro
+    params:
+      build_id: ae3939bb-acd6-4862-b6db-5b542d9076db
+      flow_path: ['.maestro-diag/probe-grownups.yaml','.maestro-diag/probe-withkids-exact.yaml','.maestro-diag/probe-kids-regex.yaml','.maestro-diag/probe-settings.yaml','.maestro-diag/probe-tagline.yaml','.maestro-diag/probe-tap-grownups.yaml','.maestro-diag/probe-tap-settings.yaml']
