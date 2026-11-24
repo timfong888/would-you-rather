@@ -17,6 +17,7 @@ import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { questionPageJsonLd } from '@/lib/seo';
+import { isSeoBatchId } from '@/lib/seoBatch';
 import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
@@ -437,11 +438,12 @@ export default function GameScreen() {
       <PageHead
         title={truncatedTitle}
         description={pageDescription.slice(0, 200)}
-        canonicalUrl={`${SITE_URL}/game/${question.id}`}
+        // A question with a read-only page (/q/<id>) is indexed there; this playable page points at it (docs/specs/seo-question-pages.md).
+        canonicalUrl={`${SITE_URL}${isSeoBatchId(question.id) ? '/q/' : '/game/'}${question.id}`}
         imageUrl={`${SITE_URL}/api/card?id=${encodeURIComponent(question.id)}&ratio=1.91x1`}
         twitterCard="summary_large_image"
       />
-      <JsonLd data={questionPageJsonLd(question, category)} />
+      {!isSeoBatchId(question.id) && <JsonLd data={questionPageJsonLd(question, category)} />}
       {/* Leave Category Link */}
       {category && (
         <Pressable

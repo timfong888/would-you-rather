@@ -17,6 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const { CANONICAL_ORIGIN } = await import('../lib/site.js');
 const { sharePageMeta } = await import('../lib/sharePage.js');
+const { isSeoBatchId } = await import('../lib/seoBatch.js');
 const { QUESTIONS, CATEGORIES, THEME_FOR_CATEGORY } =
   await import('../api/_lib/data.js');
 
@@ -97,7 +98,7 @@ for (const question of QUESTIONS) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${esc(ogTitle)}</title>
   <meta name="description" content="${esc(ogDescription)}" />
-  <link rel="icon" href="${BASE_URL}/favicon.ico" />
+  ${isSeoBatchId(id) ? `<link rel="canonical" href="${BASE_URL}/q/${esc(id)}" />\n  ` : ''}<link rel="icon" href="${BASE_URL}/favicon.ico" />
   <link rel="apple-touch-icon" href="${BASE_URL}/apple-touch-icon.png" />
 
   <!-- Open Graph -->
