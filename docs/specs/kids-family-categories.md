@@ -186,8 +186,12 @@ category, then each $1.99 purchase opens the **next 20** questions of that categ
 exhausted. This supersedes §3.3's "$1.99 unlocks the whole category" and D2's 9 per-category products for kids and teen
 categories. **Status: decided (Tim accepted all five defaults on 2026-11-24, see Decisions below). Nothing here is built yet; it is Unit 4.**
 
-**What a tranche is.** Tranche *k* of a category is the paid questions at positions `8 + 20(k-1)` to `8 + 20k - 1` in its list
-(free 8 first, then paid, in the order the data lists them). Rule for the end of a list: a remainder under 10 joins the previous
+**What a tranche is.** Let *F* be the category's free count, **always read from `getFreeQuestionCount(category)`, never hardcoded**. It is 8 for
+every kids and teen category, but 3 for premium-tier adult categories and 20 for free-tier adult ones. Tranche *k* of a kids or teen category is the
+paid questions at positions `F + 20(k-1)` to `F + 20k - 1` in its list (free *F* first, then paid, in the order the data lists them).
+**Adult categories are not split:** an adult category has exactly one tranche (all its paid questions after *F*), and it is granted by the
+**existing `cat_<id>` entitlement** (`entitlementForCategory`), not by a `cat_<id>_1` id, so no existing adult buyer loses access. Only kids and teen
+categories use the `cat_<category>_<k>` ids. Rule for the end of a list: a remainder under 10 joins the previous
 tranche, otherwise it is a tranche of its own. With today's 254 paid questions:
 
 | Category | Paid | Tranches (sizes) |
@@ -219,8 +223,8 @@ content work for Tim to approve, not something a purchase flow can hide.
   Connect and RevenueCat. Fine for the 12 now; AI "More like this" (Unit 5 and 6) must not be sold this way and needs its own answer.
 
 **Access rule.** The boolean `isQuestionLocked(category, index, unlocked)` is replaced by a new `isQuestionOpen(category, index, access)` (4a adds it
-alongside, 4b moves every caller and deletes the boolean helpers, see `docs/specs/plan.md`). A question is open if it is in the
-free 8, or its tranche's entitlement is active, or `premium_all` applies to an adult category, or `premium_kids` applies to a kids or teen category (see Decisions). The paywall offers
+alongside, 4b moves every caller and deletes the boolean helpers, see `docs/specs/plan.md`). A question is open if its index is below the category's
+`getFreeQuestionCount` (not a hardcoded 8: adult free counts are 3 or 20), or its tranche's entitlement is active (kids and teen: `cat_<category>_<k>`; adult: the existing `cat_<id>`), or `premium_all` applies to an adult category, or `premium_kids` applies to a kids or teen category (see Decisions). The paywall offers
 only the **lowest tranche not owned**. Access is decided per tranche from the **set of owned tranche numbers**, never from a prefix or a
 count: a refund of tranche 1 while tranche 2 is still owned must close exactly tranche 1 and keep tranche 2 open. This changes `lib/catalog.ts`, `constants/questions.ts` access helpers,
 `contexts/UnlockedContext.tsx` and `app/unlock/[id].tsx`: all payments surface, all Unit 4.
