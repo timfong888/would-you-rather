@@ -4,12 +4,9 @@ import { CATEGORIES, hasPaidContent } from '../../constants/questions';
 import { IOS_V1_EXCLUDED_CATEGORIES } from '../../constants/iosV1';
 import {
   ENTITLEMENT_ALL,
-  ENTITLEMENT_KIDS,
   PRODUCT_ALL,
-  PRODUCT_KIDS,
   PRICE_ALL_MICROS,
   PRICE_CATEGORY_MICROS,
-  PRICE_KIDS_MICROS,
   PRICE_TRANCHE_MICROS,
   buildCatalog,
   entitlementForCategory,
@@ -23,12 +20,12 @@ import { trancheRanges } from '../../lib/tranches';
 const adultPaid = CATEGORIES.filter((c) => c.audience === 'adult' && hasPaidContent(c) && !IOS_V1_EXCLUDED_CATEGORIES.includes(c.id));
 const young = CATEGORIES.filter((c) => c.audience !== 'adult' && hasPaidContent(c));
 
-test('catalog: the adult pack, one product per adult paid category, the With kids pack, and one product per kids or teen tranche', () => {
+test('catalog: the one all-categories pack, one product per adult paid category, and one product per kids or teen tranche', () => {
   const catalog = buildCatalog();
   assert.equal(adultPaid.length, 7);
   assert.equal(young.reduce((n, c) => n + trancheRanges(c).length, 0), 12);
-  assert.equal(catalog.length, 1 + adultPaid.length + 1 + 12); // 21
-  assert.equal(catalog.length, 21);
+  assert.equal(catalog.length, 1 + adultPaid.length + 12); // 20
+  assert.equal(catalog.length, 20);
   assert.equal(catalog[0].productId, PRODUCT_ALL);
   assert.equal(catalog[0].priceMicros, PRICE_ALL_MICROS);
   for (const c of adultPaid) {
@@ -47,10 +44,6 @@ test('catalog: the adult pack, one product per adult paid category, the With kid
       assert.equal(p.trancheSize, r.size);
     }
   }
-  const kids = catalog.find((p) => p.productId === PRODUCT_KIDS);
-  assert.ok(kids);
-  assert.equal(kids.entitlementId, ENTITLEMENT_KIDS);
-  assert.equal(kids.priceMicros, PRICE_KIDS_MICROS);
 });
 
 test('approved prices (Tim, 2026-11-18): $4.99 pack, $1.99 category; 2026-11-24: $1.99 per tranche', () => {
@@ -59,9 +52,11 @@ test('approved prices (Tim, 2026-11-18): $4.99 pack, $1.99 category; 2026-11-24:
   assert.equal(PRICE_TRANCHE_MICROS, 1_990_000);
 });
 
-test('the With kids pack is $4.99: Tim wrote "Kids just came 4.99" (2026-11-24), pending his confirmation; same price as the adult pack', () => {
-  assert.equal(PRICE_KIDS_MICROS, 4_990_000);
-  assert.equal(PRICE_KIDS_MICROS, PRICE_ALL_MICROS); // two packs at one price: flagged for discussion in the 4a PR
+test('there is ONE pack for everything (Tim, 2026-11-24): no separate With kids pack exists', () => {
+  const ids = buildCatalog().map((p) => p.productId);
+  assert.equal(ids.includes('wyr_premium_kids'), false);
+  assert.equal(buildCatalog().filter((p) => p.categoryId === null).length, 1);
+  assert.equal(buildCatalog().find((p) => p.categoryId === null)!.productId, PRODUCT_ALL);
 });
 
 test('free categories with no paid content are not for sale; the retired Kids & Family category has no product', () => {
@@ -73,21 +68,19 @@ test('identifiers are stable and store-safe', () => {
   assert.equal(entitlementForCategory('high-life'), 'cat_high-life');
   assert.equal(productForTranche('giggle-factory', 2), 'wyr_unlock_giggle_factory_2');
   assert.equal(entitlementForTranche('giggle-factory', 2), 'cat_giggle-factory_2');
-  assert.equal(PRODUCT_KIDS, 'wyr_premium_kids');
-  assert.equal(ENTITLEMENT_KIDS, 'premium_kids');
   for (const p of buildCatalog()) assert.match(p.productId, /^[a-z0-9_]+$/);
   assert.equal(new Set(buildCatalog().map((p) => p.productId)).size, buildCatalog().length);
   assert.equal(new Set(buildCatalog().map((p) => p.entitlementId)).size, buildCatalog().length);
 });
 
-test('App Store Connect field limits hold for the tranche and pack names (title 30, description 45 for tranches and the kids pack)', () => {
-  for (const p of buildCatalog().filter((x) => x.trancheIndex !== null || x.productId === PRODUCT_KIDS)) {
+test('App Store Connect field limits hold for the tranche names (title 30, description 45)', () => {
+  for (const p of buildCatalog().filter((x) => x.trancheIndex !== null)) {
     assert.ok(p.title.length <= 30, `${p.productId} title "${p.title}"`);
     assert.ok(p.description.length <= 45, `${p.productId} description "${p.description}"`);
   }
 });
 
-test('4a keeps the all-categories pack name; the adult-only rename ships in 4c with the narrowing and the paywall', () => {
+test('the all-categories pack keeps its name: it now covers every category, adult, kids and teen', () => {
   const pack = buildCatalog().find((p) => p.productId === PRODUCT_ALL)!;
   assert.equal(pack.title, 'All Categories');
   assert.equal(pack.description, 'Every category, including questions added later.');
@@ -101,10 +94,10 @@ test('access: pack opens every adult category, category unlock opens only itself
   assert.equal(isCategoryEntitled(new Set<string>(), 'high-life'), false);
 });
 
-test('access: in 4a the all-categories pack still opens kids and teen categories (today\'s behavior, narrowed in 4c); the With kids pack opens them too', () => {
+test('access: the one pack opens every category, kids and teen included (Tim: "$4.99 just unlocks everything")', () => {
   for (const c of young) {
     assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
-    assert.equal(isCategoryEntitled([ENTITLEMENT_KIDS], c.id), true, c.id);
+    assert.equal(isCategoryEntitled([], c.id), false, c.id);
   }
 });
 
@@ -113,5 +106,5 @@ test('iOS v1 leaves Midnight Secrets and Deep Desires out (Tim, 2026-11-18): no 
   const ids = buildCatalog().map((p) => p.productId);
   assert.equal(ids.includes('wyr_unlock_midnight_secrets'), false);
   assert.equal(ids.includes('wyr_unlock_deep_desires'), false);
-  assert.equal(buildCatalog().length, 21); // pack + 7 adult categories + With kids pack + 12 tranches
+  assert.equal(buildCatalog().length, 20); // pack + 7 adult categories + 12 tranches
 });

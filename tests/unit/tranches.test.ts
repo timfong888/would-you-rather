@@ -23,9 +23,7 @@ import {
 } from '../../lib/tranches';
 import type { Access } from '../../lib/tranches';
 import {
-  ALL_PACK_OPENS_YOUNG_CATEGORIES,
   ENTITLEMENT_ALL,
-  ENTITLEMENT_KIDS,
   accessFor,
   entitlementForCategory,
   entitlementForTranche,
@@ -150,19 +148,12 @@ test('adult regression: every adult question is open or locked exactly as the ol
   }
 });
 
-test('4a keeps today\'s behavior for the all-categories pack: it still opens kids and teen categories until 4c narrows it with the paywall', () => {
-  assert.equal(ALL_PACK_OPENS_YOUNG_CATEGORIES, true); // 4c flips this and the assertions below
-  for (const c of young) {
-    assert.equal(accessFor([ENTITLEMENT_ALL], c).all, true, c.id);
-    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
-  }
-});
-
-test('the With kids pack opens every kids and teen category fully; an adult cat_<id> never opens one', () => {
+test('the one all-categories pack (Tim, 2026-11-24) opens every kids and teen category fully; an adult cat_<id> never opens one', () => {
   for (const c of young) {
     const n = getCategoryQuestions(c.id).length;
-    assert.equal(isCategoryEntitled([ENTITLEMENT_KIDS], c.id), true, c.id);
-    assert.equal(openQuestionCount(c, accessFor([ENTITLEMENT_KIDS], c)), n, c.id);
+    assert.equal(accessFor([ENTITLEMENT_ALL], c).all, true, c.id);
+    assert.equal(isCategoryEntitled([ENTITLEMENT_ALL], c.id), true, c.id);
+    assert.equal(openQuestionCount(c, accessFor([ENTITLEMENT_ALL], c)), n, c.id);
     assert.equal(accessFor([entitlementForCategory(c.id)], c).all, false, c.id);
     assert.equal(isCategoryEntitled([entitlementForCategory(c.id)], c.id), false, c.id);
   }
