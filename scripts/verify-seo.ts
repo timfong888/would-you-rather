@@ -18,6 +18,7 @@ import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
 import { SEO_FIRST_BATCH, isSeoBatchId } from '../lib/seoBatch';
+import { GUIDES, guideQuestionIds } from '../lib/guides';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
 const ROOT = resolve(__dirname, '..');
@@ -156,6 +157,13 @@ for (const loc of freeGameUrls) {
   const id = loc.slice(loc.lastIndexOf('/') + 1);
   if (isSeoBatchId(id)) { if (locSet.has(loc)) fail(`sitemap: lists ${loc}, which canonicalises to /q/${id}`); }
   else if (!locSet.has(loc)) fail(`sitemap: missing playable question URL ${loc}`);
+}
+for (const g of GUIDES) {
+  if (!locSet.has(url(`/guides/${g.slug}`))) fail(`sitemap: missing guide /guides/${g.slug}`);
+  for (const id of guideQuestionIds(g)) if (!isSeoBatchId(id)) fail(`guide ${g.slug}: ${id} has no read-only question page (not in the first SEO batch)`);
+  if (g.kids) for (const id of guideQuestionIds(g)) {
+    if (!isKidsCategoryId(QUESTIONS.find((q) => q.id === id)?.category ?? '')) fail(`kids: guide "${g.slug}" lists ${id}, outside the kids bank`);
+  }
 }
 for (const id of SEO_FIRST_BATCH) {
   if (!QUESTIONS.some((q) => q.id === id)) fail(`seo batch: ${id} is not a question`);
@@ -358,6 +366,27 @@ if (withDist) {
         const path = href.slice(SITE_URL.length) || '/';
         const ok = path === '/kids' || path.startsWith('/game/') || path.startsWith('/q/') || path.startsWith('/categories/') || SEO_PAGES.some((p) => `/${p.slug}` === path && isKidsPage(p));
         if (!ok) fail(`${file}: kids question page links to ${path}, which is not a kids destination`);
+      }
+    }
+  }
+  // Pillar guides (issue #211): exported, canonical to themselves, read-only, keyword in title and h1, links to every listed question page.
+  for (const g of GUIDES) {
+    const file = `dist/guides/${g.slug}.html`;
+    if (!existsSync(resolve(ROOT, file))) { fail(`dist: ${file} was not exported`); continue; }
+    const html = read(file);
+    if (tag(html, /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/guides/${g.slug}`)) fail(`${file}: canonical is not ${url(`/guides/${g.slug}`)}`);
+    if (/<script(?![^>]*application\/ld\+json)/i.test(html)) fail(`${file}: has a script other than JSON-LD`);
+    if (/<(button|form|input|select|textarea)\b/i.test(html)) fail(`${file}: has a form or vote control`);
+    if ((html.match(/<h1>/g) ?? []).length !== 1) fail(`${file}: expected exactly one <h1>`);
+    if (!(unescape(tag(html, /<title[^>]*>([^<]*)<\/title>/)) ?? '').toLowerCase().includes(g.keyword)) fail(`${file}: title does not contain "${g.keyword}"`);
+    if (!(unescape(tag(html, /<h1>([^<]*)<\/h1>/)) ?? '').toLowerCase().includes(g.keyword)) fail(`${file}: h1 does not contain "${g.keyword}"`);
+    for (const id of guideQuestionIds(g)) if (!html.includes(`href="${SITE_URL}/q/${id}"`)) fail(`${file}: does not link to /q/${id}`);
+    if (g.kids) {
+      for (const m of html.matchAll(/<a [^>]*href="([^"]+)"/g)) {
+        if (!m[1].startsWith(SITE_URL)) continue;
+        const path = m[1].slice(SITE_URL.length) || '/';
+        const ok = path === '/kids' || path.startsWith('/q/') || path.startsWith('/categories/') || path.startsWith('/guides/') || SEO_PAGES.some((p) => `/${p.slug}` === path && isKidsPage(p));
+        if (!ok) fail(`${file}: kids guide links to ${path}, which is not a kids destination`);
       }
     }
   }

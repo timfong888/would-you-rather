@@ -121,6 +121,7 @@
   "rewrites": [
     { "source": "/p/:id",                                               "destination": "/p/:id.html" },
     { "source": "/q/:id",                                               "destination": "/q/:id.html" },
+    { "source": "/guides/:slug",                                        "destination": "/guides/:slug.html" },
     { "source": "/game/:id",                                            "destination": "/game/[id].html" },
     { "source": "/results/:id",                                         "destination": "/results/[id].html" },
     { "source": "/categories/:id",                                      "destination": "/categories/[id].html" },
