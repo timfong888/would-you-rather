@@ -285,7 +285,7 @@ test('workflow: neville_dir is a choice of exactly two options, default ios-shel
   assert.ok(stepIdx(/case "\$NEVILLE_SUBDIR"/) < stepIdx(/git clone/));
   assert.ok(stepIdx(/case "\$NEVILLE_SUBDIR"/) < secretStep());
   // inputs.* appears only as the value of an env: entry, so it never lands inside a run: script.
-  for (const l of wf.split('\n').filter((x: string) => x.includes('inputs.'))) assert.match(l, /^\s+[A-Z_]+: \$\{\{ inputs\.[a-z_]+ \}\}$/, l);
+  for (const l of wf.split('\n').filter((x: string) => x.includes('inputs.'))) assert.match(l, /^\s+([A-Z_]+: \$\{\{ inputs\.[a-z_]+ \}\}|node-version: \$\{\{ inputs\.neville_dir == 'native' && '22' \|\| '20' \}\})$/, l);
   assert.doesNotMatch(wf, /working-directory:.*inputs\./);
   assert.doesNotMatch(wf, /ios-shell\n.*working-directory|neville\/ios-shell/);
 });
@@ -313,7 +313,8 @@ const fixture = (files: Record<string, string>, sub = 'native') => {
   return { root, dir };
 };
 const goodNative = {
-  'package.json': JSON.stringify({ name: 'n', dependencies: { expo: '~58.0.0' } }),
+  'package.json': JSON.stringify({ name: 'n', engines: { node: '>=22.13' }, dependencies: { expo: '~58.0.0' } }),
+  'package-lock.json': '{}',
   'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.neville' } } }),
   'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: {} } }),
 };
@@ -336,7 +337,7 @@ test('check: native fails without its own package.json, app.json or eas.json, an
   for (const f of Object.keys(goodNative)) {
     const { [f as keyof typeof goodNative]: _, ...rest } = goodNative;
     const { dir } = fixture(rest);
-    assert.ok(checkSelfContained(dir, 'native', { fs: nodeFs }).errors.some((e: string) => e.includes(`native/${f} is missing`)), f);
+    assert.ok(checkSelfContained(dir, 'native', { fs: nodeFs }).errors.some((e: string) => e.includes(f === 'package-lock.json' ? 'native/package-lock.json is missing' : `native/${f} is missing`)), f);
   }
   for (const v of ['file:../shared', 'link:../shared', 'workspace:*']) {
     const { dir } = fixture({ ...goodNative, 'package.json': JSON.stringify({ dependencies: { shared: v } }) });
@@ -460,4 +461,29 @@ test('neville-testflight.mjs rejects a bad or symlinked NEVILLE_SUBDIR before an
   }
   assert.match(run('other').stderr, /neville_dir must be one of: ios-shell, native/);
   assert.match(run('ios-shell').stderr, /symlink|resolves outside/);
+});
+
+test('check: native requires Node >= 22.13 and says so in fixed text; engines is printed sanitised', () => {
+  const { dir } = fixture({ ...goodNative, 'package.json': JSON.stringify({ engines: { node: '>=22.13 ::stop-commands::\n' + 'x'.repeat(100) } }) });
+  const ok = checkSelfContained(dir, 'native', { fs: nodeFs, nodeVersion: '22.13.0' });
+  assert.deepEqual(ok.errors, []);
+  const out = ok.lines.join('\n');
+  assert.match(out, /Expo SDK 58 requires Node >= 22\.13/);
+  assert.match(out, /runner Node satisfies >= 22\.13/);
+  const eng = ok.lines.find((l: string) => l.includes('engines.node')) as string;
+  assert.ok(eng.length < 90 && !eng.includes('\n') && !eng.includes('::stop') );
+  for (const v of ['22.12.9', '20.19.0', '22.0.0']) {
+    assert.ok(checkSelfContained(dir, 'native', { fs: nodeFs, nodeVersion: v }).errors.some((e: string) => /needs Node >= 22\.13/.test(e)), v);
+  }
+  assert.ok(checkSelfContained(dir, 'native', { fs: nodeFs, nodeVersion: '22.14.1' }).errors.length === 0);
+  // the shell is not held to the native Node floor
+  const sh = fixture({ 'package.json': '{}', 'eas.json': JSON.stringify({ build: { production: {} } }) }, 'ios-shell');
+  assert.deepEqual(checkSelfContained(sh.dir, 'ios-shell', { fs: nodeFs, nodeVersion: '20.1.0' }).errors, []);
+});
+
+test('workflow: Node 22 for native, 20 for the shell, via one SHA-pinned setup-node with literal results only', () => {
+  const st = wfSteps[stepIdx(/actions\/setup-node@/)];
+  assert.match(st, /node-version: \$\{\{ inputs\.neville_dir == 'native' && '22' \|\| '20' \}\}/);
+  assert.equal(wfSteps.filter((s: string) => /setup-node/.test(s)).length, 1);
+  assert.ok(stepIdx(/setup-node/) < stepIdx(/neville-check\.mjs/));
 });

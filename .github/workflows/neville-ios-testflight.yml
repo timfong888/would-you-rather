@@ -82,7 +82,8 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          # Expo SDK 58 (eas-cli, Metro) needs Node >= 22.13: native runs on 22, the shell stays on 20. Both literals.
+          node-version: ${{ inputs.neville_dir == 'native' && '22' || '20' }}
 
       - name: Check the chosen neville directory is self-contained (no secrets)
         env:

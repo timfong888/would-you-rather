@@ -153,7 +153,9 @@ export const MAX_CHECK_FILE_BYTES = 256 * 1024;
 export const MAX_CHECK_LINE = 2000;
 // Files that change what `npm ci`/EAS resolve or run at config time. Not allowed in either dir; an explicit decision would be needed.
 export const FORBIDDEN_FILES = ['.npmrc', '.yarnrc', '.yarnrc.yml', 'app.config.js', 'app.config.ts'];
-export function checkSelfContained(dir, name, { fs, root, profile = 'production', gitRoot = '' }) {
+// Expo SDK 58 (eas-cli and Metro) needs Node >= 22.13; native/ is built on Node 22.
+export const NATIVE_MIN_NODE = [22, 13, 0];
+export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.versions.node, profile = 'production', gitRoot = '' }) {
   validateNevilleDir(name);
   const lines = [], warnings = [], errors = [];
   if (root) errors.push(...checkDirSafety(root, name, fs));
@@ -174,8 +176,16 @@ export function checkSelfContained(dir, name, { fs, root, profile = 'production'
   lines.push(`directory: ${name}`);
   if (gitRoot) lines.push(`git root: ${gitRoot}`);
 
+  if (name === 'native') {
+    lines.push('native: Expo SDK 58 requires Node >= 22.13 (eas-cli and Metro); the workflow runs native on Node 22');
+    if (!versionAtLeast(nodeVersion, NATIVE_MIN_NODE)) errors.push(`this runner's Node is older than ${NATIVE_MIN_NODE.slice(0, 2).join('.')}; native needs Node >= 22.13`);
+    else lines.push('runner Node satisfies >= 22.13');
+    if (!has('package-lock.json')) errors.push('native/package-lock.json is missing (native installs with npm ci)');
+  }
   const pkg = has('package.json') ? readJson('package.json') : undefined;
   if (has('package.json') && !pkg) errors.push(`${name}/package.json is not valid JSON`);
+  const eng = pkg?.engines?.node;
+  if (typeof eng === 'string') lines.push(`${name}/package.json engines.node: ${eng.replace(/[^0-9A-Za-z.<>=^~| *-]/g, '?').slice(0, 40)}`);
   if (pkg?.workspaces) warnings.push(`${name}/package.json declares workspaces`); else if (pkg) lines.push(`no workspaces in ${name}/package.json`);
   if (name === 'native' && pkg) {
     const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
