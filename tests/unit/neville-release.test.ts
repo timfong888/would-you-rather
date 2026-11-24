@@ -227,3 +227,16 @@ test('pollBuild: a network error never hides an earlier HTTP error answer', asyn
     { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 2, retryBaseMs: 0 });
   assert.equal(r2.state, 'HTTP_500');
 });
+
+test('pollBuild gives up after 3 consecutive network-failed polls instead of polling for the whole budget', async () => {
+  let calls = 0;
+  const r = await pollBuild(async () => { calls++; throw new Error('fetch failed'); }, { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(r.state, 'FETCH_ERROR');
+  assert.equal(r.polls, 3);
+  assert.equal(calls, 9);
+  // a good answer in between resets the streak
+  let n = 0;
+  const ok = await pollBuild(async () => { n++; if (n <= 6) throw new Error('x'); if (n === 7) return { status: 200, body: { data: [{ attributes: { processingState: 'PROCESSING' } }] } }; throw new Error('x'); },
+    { build: '164', version: '1.1.0', sleep: async () => {}, maxPolls: 60, retryBaseMs: 0 });
+  assert.equal(ok.state, 'PROCESSING');
+});

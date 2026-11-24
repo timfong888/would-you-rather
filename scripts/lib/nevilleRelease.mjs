@@ -75,7 +75,9 @@ export async function withRetry(fn, { attempts = 3, baseMs = 2000, sleep }) {
 
 // Poll GET /v1/builds for this one build. Returns { state, polls }. Only build number and state leave this function.
 // A GET that throws (network error) is tried up to 3 times with backoff; if it still fails that poll counts as FETCH_ERROR and polling goes on.
-export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, sleep, maxPolls = 60, intervalMs = 30000, retryBaseMs = 2000 }) {
+// After maxNetFails consecutive such polls it gives up (a sustained outage must end in the warning well before the job timeout).
+export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, sleep, maxPolls = 60, intervalMs = 30000, retryBaseMs = 2000, maxNetFails = 3 }) {
+  let netFails = 0;
   let state = 'NOT_FOUND'; // last real answer from Apple
   let sawOk = false;
   let httpState = '';
@@ -84,6 +86,7 @@ export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, s
       `&filter[preReleaseVersion.version]=${encodeURIComponent(version)}&limit=1&fields[builds]=version,processingState`;
     let r;
     try { r = await withRetry(() => get(q), { sleep, baseMs: retryBaseMs }); } catch { r = { status: 'FETCH_ERROR', body: {} }; }
+    netFails = r.status === 'FETCH_ERROR' ? netFails + 1 : 0;
     if (r.status === 'FETCH_ERROR') {
       // Only when Apple never answered with an HTTP status: a network error must not hide an earlier 5xx/429 (which stays red).
       if (!httpState) httpState = 'FETCH_ERROR';
@@ -97,6 +100,7 @@ export async function pollBuild(get, { appId = NEVILLE_APP_ID, build, version, s
       // A revoked or under-scoped key will not recover: stop now instead of retrying for 30 minutes.
       if (r.status === 401 || r.status === 403) return { state: httpState, polls: i };
     }
+    if (netFails >= maxNetFails) return { state: sawOk ? state : (httpState || state), polls: i };
     if (i < maxPolls) await sleep(intervalMs);
   }
   // A transient 5xx or 429 on the last poll must not hide a real processing state seen earlier.
