@@ -7,7 +7,9 @@ test('the gate applies to every kids and teen category, and to no adult category
   for (const c of CATEGORIES) {
     assert.equal(requiresParentalGate(c.id), c.audience !== 'adult', `${c.id} (${c.audience})`);
   }
-  assert.equal(requiresParentalGate('kids-family'), true);
+  assert.equal(requiresParentalGate('tiny-choices'), true);
+  assert.equal(requiresParentalGate('real-talk'), true); // teen: gated, though not a kids route
+  assert.equal(requiresParentalGate('kids-family'), false); // retired: not a category any more
   assert.equal(requiresParentalGate('high-life'), false);
   assert.equal(requiresParentalGate('moral-compass'), false);
   assert.equal(requiresParentalGate('not-a-category'), false);

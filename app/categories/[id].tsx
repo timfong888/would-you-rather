@@ -7,7 +7,7 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import {
   CATEGORIES,
@@ -17,6 +17,7 @@ import {
   hasPaidContent,
   isQuestionLocked,
   getAccessibleQuestions,
+  RETIRED_KIDS_CATEGORY_IDS,
 } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
@@ -38,6 +39,12 @@ export default function CategoryScreen() {
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const category = CATEGORIES.find((c) => c.id === id);
+
+  // The single Kids & Family category was replaced by topic categories (#124). Old links go to the
+  // category list; the web build also redirects before the app loads (vercel.json). The unit tests pin both.
+  if (!category && id && RETIRED_KIDS_CATEGORY_IDS.includes(id)) {
+    return <Redirect href="/categories" />;
+  }
 
   if (!category) {
     return (

@@ -10,6 +10,15 @@ export interface CategoryLike {
 }
 
 /**
+ * The categories the home "start playing" button may draw from: free-tier adult categories only. Kids and teen
+ * categories are browsed on purpose (spec §2.1); a random tap must never drop a grown-up onto a kids route, which
+ * clears their analytics state. Until the With kids mode exists (Unit 3) this is the only guard.
+ */
+export function randomPlayCategories<T extends CategoryLike>(categories: readonly T[]): T[] {
+  return categories.filter((c) => c.tier === 'free' && c.audience === 'adult');
+}
+
+/**
  * Next category in list order after `currentId`, wrapping around, that the player can
  * start without paying (free tier or already unlocked). Never moves a player from a
  * kids or teen category into adult ones, or an adult player into a kids or teen category

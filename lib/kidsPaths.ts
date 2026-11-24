@@ -1,5 +1,5 @@
 import { SEO_PAGES } from '../constants/seoPages';
-import { isKidsCategoryId } from '../constants/questions';
+import { RETIRED_KIDS_CATEGORY_IDS, isKidsCategoryId } from '../constants/questions';
 
 // Landing pages written to the kids question bank (they set `questionTag`).
 const KIDS_PATHS = new Set(SEO_PAGES.filter((p) => p.questionTag).map((p) => `/${p.slug}`));
@@ -23,7 +23,10 @@ export function isKidsPath(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, '') || '/';
   if (KIDS_PATHS.has(path) || /^\/(game|p|results)\/kf-/.test(path)) return true;
   const route = path.match(CATEGORY_ROUTE);
-  return route !== null && isKidsCategoryId(decode(route[2]));
+  if (route === null) return false;
+  const id = decode(route[2]);
+  // A retired kids category (`kids-family`) stays a kids route so a stale link never fires analytics before it redirects.
+  return isKidsCategoryId(id) || RETIRED_KIDS_CATEGORY_IDS.includes(id);
 }
 
 /**

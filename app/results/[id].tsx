@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isKidsCategoryId, isQuestionLocked } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 import { useTally } from '@/lib/useTally';
@@ -172,10 +172,11 @@ export default function ResultsScreen() {
     'career-climber': ['#WouldYouRather', '#CareerClimber', '#WorkLife'],
     'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
     'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
-    'kids-family': ['#WouldYouRather', '#FamilyGameNight', '#KidsQuestions'],
   };
 
-  const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];
+  const hashtags = cat
+    ? (isKidsCategoryId(cat) ? ['#WouldYouRather', '#FamilyGameNight', '#KidsQuestions'] : categoryHashtags[cat] || ['#WouldYouRather'])
+    : ['#WouldYouRather'];
 
   const handleTikTokShare = useCallback(async () => {
     const title = 'Would You Rather?';
