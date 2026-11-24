@@ -218,7 +218,8 @@ content work for Tim to approve, not something a purchase flow can hide.
 - Cost of the recommendation: every new tranche (new writing, later AI batches) needs a new product created in App Store
   Connect and RevenueCat. Fine for the 12 now; AI "More like this" (Unit 5 and 6) must not be sold this way and needs its own answer.
 
-**Access rule.** `isQuestionLocked(category, index, unlocked: boolean)` becomes tranche-aware: a question is open if it is in the
+**Access rule.** The boolean `isQuestionLocked(category, index, unlocked)` is replaced by a new `isQuestionOpen(category, index, access)` (4a adds it
+alongside, 4b moves every caller and deletes the boolean helpers, see `docs/specs/plan.md`). A question is open if it is in the
 free 8, or its tranche's entitlement is active, or `premium_all` applies to an adult category, or `premium_kids` applies to a kids or teen category (see Decisions). The paywall offers
 only the **lowest tranche not owned**. Access is decided per tranche from the **set of owned tranche numbers**, never from a prefix or a
 count: a refund of tranche 1 while tranche 2 is still owned must close exactly tranche 1 and keep tranche 2 open. This changes `lib/catalog.ts`, `constants/questions.ts` access helpers,
