@@ -1,0 +1,13 @@
+appId: com.timfong888.wouldyourather
+name: idx11
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: ".*"
+    timeout: 30000
+- copyTextFrom:
+    text: ".+"
+    index: 11
+- assertTrue: ${maestro.copiedText} == "ZZZNEVER"
