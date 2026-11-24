@@ -42,7 +42,7 @@ Rules:
 3. **The playable page and the share page must not compete in the index.** For a question that has a `/q/<id>` page, `/game/<id>` and `/p/<id>` carry `<link rel=canonical href="/q/<id>">`, are not in the sitemap, and the question JSON-LD moves from `/game/<id>` to `/q/<id>`. (Canonical only, not `noindex`: the two together send search engines conflicting signals.)
 4. **Links already shared keep working**: `/p/<id>` behaves exactly as today.
 5. **Sitemap**: the first batch (section 1a, about 100 questions) is listed at `/q/<id>` instead of `/game/<id>` one for one, so the sitemap stays at 202 URLs plus the guides (`/guides/<slug>`). When the batch is extended, or all 586 questions get a page after Tim has reviewed the first batch, `/q/<id>` (about 621 URLs in all) replaces more `/game/<id>` entries. The floor test `tests/unit/seo-counts.test.ts` (added by the payments PR #202) must keep passing.
-6. **Category pages and SEO list pages list every question**, free and paid, each linking to its `/q/<id>` (S3); the per-question "Play this one" buttons become those links plus one hub button. The free count only governs in-app access.
+6. **Category pages and SEO list pages list every question**, free and paid (S3). Each question links to its `/q/<id>` only if the id is in `lib/seoBatch.js`; the rest keep today's link targets until the batch is extended, so no list links to a page that does not exist. The per-question "Play this one" buttons become those links plus one hub button. The free count only governs in-app access.
 7. **Kids pages follow the kids rule**: no analytics, no storage writes, no third-party requests, no ads, links only to kids destinations, nothing identifying a visitor. Kids share links keep their bare form (`lib/shareQuestion.ts`: no `link_id` or generation).
 
 Paid and withheld questions are public (Tim: "all withheld paid questions are public"), kids included.
@@ -124,11 +124,11 @@ Tools in this account: Semrush MCP, OpenSEO MCP (asks for confirmation above 2,0
 |---|---|---|
 | S1 | This design (docs, #207) | Docs only |
 | S2 | `/q/<id>`: read-only indexed page for the first batch of about 100 questions (all 586 after Tim has seen it); `/game/<id>` and `/p/<id>` canonical to it; sitemap lists `/q/<id>`; JSON-LD moves; tests: counts floor, no vote control, canonical rules | Unblocks decoupling SEO from the free count |
-| S3 | Category pages and SEO list pages list every question and link to `/q/<id>`; list-page "Play this one" removed; `verify-seo` updated | Required (with S2) before 4c flips the free count |
+| S3 | Category pages and SEO list pages list every question; link to `/q/<id>` for batch ids only (rest keep today's targets until expansion); decouple the remaining `/game/<id>` sitemap entries from the free count; list-page "Play this one" removed; `verify-seo` updated | Required (with S2) before 4c flips the free count |
 | S4 | **Dropped (spike, section 1b)**: the Share action stays on `/p/<id>`, which already unfurls, enters the web app and opens the iOS app. Revived only if Tim wants `/game/<id>` as the share URL | |
 | S5 | Web-only iOS badge, behind `APP_STORE_LIVE` | Flag stays off until the app is public |
 | S6 | Related questions, persona copy, cross-links; link-check test (no orphan pages) | |
 | S7 | Adult question pages show aggregate results, labelled; seeds off by default and only with Tim's answer | After research and Tim's answer on the flag |
 | S8 | First pillar guides under `/guides/` | After the research step ranks the topics |
 
-4c of the payments plan (#124) waits for S2 and S3, so the free-count flip can never shrink SEO.
+4c of the payments plan (#124) waits for S2 and S3, and the guarantee is scoped. S2 replaces only the batch's `/game/<id>` entries (about 105 of the 167 playable-question URLs); the other `/game/<id>` sitemap entries still depend on `isQuestionLocked`. So 4c may not flip the free count until either S3 decouples those remaining entries from the free count, or the batch covers every currently free question. The floor test `tests/unit/seo-counts.test.ts` (167 playable-question URLs, 202 in all) is the gate.
