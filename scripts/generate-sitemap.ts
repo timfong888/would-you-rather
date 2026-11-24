@@ -22,6 +22,7 @@ import { CATEGORIES, getCategoryQuestions, isQuestionLocked } from '../constants
 import { SEO_PAGES, getSeoPageQuestions, getSeoPageUpdated, type Persona } from '../constants/seoPages';
 import { ORGANIZATION_DESCRIPTION } from '../lib/seo';
 import { SEO_FIRST_BATCH, isSeoBatchId } from '../lib/seoBatch';
+import { GUIDES } from '../lib/guides';
 import { SITE_URL } from '../constants/config';
 
 function lastModified(paths: string[]): string | undefined {
@@ -55,6 +56,7 @@ for (const cat of CATEGORIES) {
   });
 }
 for (const id of SEO_FIRST_BATCH) entries.push({ path: `/q/${id}`, lastmod: CONTENT });
+for (const g of GUIDES) entries.push({ path: `/guides/${g.slug}`, lastmod: g.updated });
 
 const loc = (path: string) => `${SITE_URL}${path === '/' ? '' : path}`;
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
