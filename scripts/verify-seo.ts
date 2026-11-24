@@ -13,7 +13,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { isDeepStrictEqual } from 'util';
 import { resolve } from 'path';
-import { CATEGORIES, QUESTIONS, getCategoryQuestions, isKidsCategoryId, isQuestionLocked } from '../constants/questions';
+import { CATEGORIES, QUESTIONS, getCategoryAudience, getCategoryQuestions, isKidsCategoryId, isQuestionLocked } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
@@ -350,7 +350,8 @@ if (withDist) {
     if (/<(button|form|input|select|textarea)\b/i.test(html)) fail(`${file}: has a form or vote control (the page is read-only)`);
     if (!html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: has no link into the playable web app`);
     const q = QUESTIONS.find((x) => x.id === id);
-    if (q && isKidsCategoryId(q.category)) {
+    if (q && getCategoryAudience(q.category) !== 'adult') {
+      // kids and teen pages alike (the generator and the unit test use the same rule)
       for (const m of html.matchAll(/<a [^>]*href="([^"]+)"/g)) {
         const href = m[1];
         if (!href.startsWith(SITE_URL)) continue;
