@@ -52,7 +52,7 @@
       "node": "20.19.4",
       "ios": {
         "simulator": true,
-        "image": "macos-sequoia-15.6-xcode-26.2"
+        "image": "macos-sequoia-15.6-xcode-16.4"
       },
       "env": {
         "EXPO_PUBLIC_DEPLOY_ENV": "development"

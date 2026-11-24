@@ -1,7 +1,0 @@
-name: diag
-jobs:
-  maestro_test:
-    type: maestro
-    params:
-      build_id: ae3939bb-acd6-4862-b6db-5b542d9076db
-      flow_path: ['.maestro-diag/idx00.yaml', '.maestro-diag/idx01.yaml', '.maestro-diag/idx02.yaml', '.maestro-diag/idx03.yaml', '.maestro-diag/idx04.yaml', '.maestro-diag/idx05.yaml', '.maestro-diag/idx06.yaml', '.maestro-diag/idx07.yaml', '.maestro-diag/idx08.yaml', '.maestro-diag/idx09.yaml', '.maestro-diag/idx10.yaml', '.maestro-diag/idx11.yaml']

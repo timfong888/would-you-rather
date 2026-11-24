@@ -12,6 +12,8 @@ jobs:
   maestro_test:
     needs: [build_ios_for_e2e]
     type: maestro
+    runs_on: macos-sequoia-15.6-xcode-16.4
     params:
+      maestro_version: 2.12.1
       build_id: ${{ needs.build_ios_for_e2e.outputs.build_id }}
       flow_path: ['.maestro/kids-smoke.yaml', '.maestro/adult-paywall-smoke.yaml']
