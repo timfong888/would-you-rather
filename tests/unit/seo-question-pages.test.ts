@@ -44,6 +44,18 @@ test('batch two (a proposal for Tim\'s review): about 60 distinct kids-bank ques
   assert.ok(SEO_BATCH_2.every((id) => isSeoBatchId(id)));
 });
 
+test('batch-two pages are for paid questions: their one call to action leads to the category\'s free questions, never to the paywall', () => {
+  for (const id of SEO_BATCH_2) {
+    const q = byId.get(id)!;
+    const html2 = questionPageHtml({ question: q, category: catOf(id), related: relatedQuestions(q, QUESTIONS), origin: ORIGIN, paid: true });
+    assert.ok(html2.includes(`href="${ORIGIN}/categories/${q.category}"`), id);
+    assert.ok(!html2.includes(`${ORIGIN}/game/${id}`), `${id} must not link straight to its playable screen`);
+    assert.ok(/Play the free .* questions/.test(html2), id);
+  }
+  // Batch one is free-tier: its call to action still plays the question.
+  assert.ok(page(SEO_FIRST_BATCH[0]).includes(`${ORIGIN}/game/${SEO_FIRST_BATCH[0]}`));
+});
+
 test('every question page is read-only: no script but JSON-LD, no form or vote control, canonical to itself, one link into the playable app', () => {
   for (const id of SEO_QUESTION_PAGES) {
     const html = page(id);
