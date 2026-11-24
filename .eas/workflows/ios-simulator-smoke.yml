@@ -1,0 +1,17 @@
+# Same Maestro flows as .github/workflows/ios-simulator-smoke.yml, run on Expo's infrastructure.
+# Manual only (eas workflow:run); no triggers, so nothing spends Expo credits by itself.
+name: ios-simulator-smoke
+
+jobs:
+  build_ios_for_e2e:
+    type: build
+    params:
+      platform: ios
+      profile: e2e-test
+
+  maestro_test:
+    needs: [build_ios_for_e2e]
+    type: maestro
+    params:
+      build_id: ${{ needs.build_ios_for_e2e.outputs.build_id }}
+      flow_path: ['.maestro/kids-smoke.yaml', '.maestro/adult-paywall-smoke.yaml']
