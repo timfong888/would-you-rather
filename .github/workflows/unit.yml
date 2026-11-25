@@ -1,0 +1,34 @@
+name: Unit tests and type check
+
+# Runs on every pull request, with no path filter, so the `unit` check always reports and can be required on main (#257).
+# `npm test` is the unit and analytics test suites. The type check compares tsc's error count with the baseline
+# (32 known errors in test code, scripts/check-tsc-baseline.mjs): more errors fail, fewer pass.
+# No secrets, read-only token. Runs the PR's own code with a read-only token, so fork PRs are safe too.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Unit tests
+        run: npm test
+      - name: Type check against the baseline
+        run: node scripts/check-tsc-baseline.mjs
