@@ -33,7 +33,7 @@ export function canPlayCategory(state: AccessState, id: string): boolean {
 export function openTranchesFor(state: AccessState, category: CategoryDef): Access {
   if (category.audience !== 'adult') return canPlayCategory(state, category.id);
   if (state.ownerAccess || state.entitlements.has(ENTITLEMENT_ALL)) return true;
-  // A free test unlock keyed by category id (the old web free unlock) or by ENTITLEMENT_ALL opens everything.
+  // A free test unlock keyed by ENTITLEMENT_ALL opens everything (the bare category id of the old web free unlock opens tranche 1 only, below).
   if (state.testUnlockEnabled && state.testUnlocks.has(ENTITLEMENT_ALL)) return true;
   const owned = new Set<number>();
   for (const t of getTranches(category)) {
@@ -94,6 +94,12 @@ export type PaywallEntry = 'wait' | 'to-category' | 'track-view';
 export function paywallEntry(input: { entitlementsLoaded: boolean; navReady: boolean; unlocked: boolean }): PaywallEntry {
   if (!input.entitlementsLoaded || !input.navReady) return 'wait';
   return input.unlocked ? 'to-category' : 'track-view';
+}
+
+/** True when the tranche the paywall offered at entry is now open (a late entitlement landed). */
+export function offeredTrancheOpen(access: Access, offeredK: number | undefined): boolean {
+  if (offeredK === undefined) return false;
+  return access === true || (access instanceof Set && access.has(offeredK));
 }
 
 /**

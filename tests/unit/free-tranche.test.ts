@@ -266,6 +266,52 @@ test('every app file that carries the FREE FOR NOW marker tests the env flag inl
 test('the all-categories unlock reports what it opens, not one tranche', () => {
   const src = code('app/unlock/[id].tsx');
   assert.match(src, /purchasedSizeRef\.current = kind === 'all' \? remainingLocked : nextSize;/);
-  assert.equal((src.match(/purchasedSizeRef\.current = /g) ?? []).length, 3);
+  assert.equal((src.match(/purchasedSizeRef\.current = /g) ?? []).length, 4);
   assert.match(src, /^        purchasedSizeRef\.current = nextSize;$/m); // restore branch, indented with its block
+});
+
+// ── Follow-up batch on 4f4560c: late redirect, completed count, owner code, wording ──
+import { offeredTrancheOpen } from '../../lib/access';
+import { openPrefixCount } from '../../constants/questions';
+
+test('a late entitlement for the tranche the paywall offered ends the paywall, even with more to sell', () => {
+  // tranche 1 offered; cat_<id> arrives; tranche 2 of a 40-question category is still unowned
+  assert.equal(offeredTrancheOpen(new Set([1]), 1), true);
+  assert.equal(offeredTrancheOpen(new Set([2]), 1), false);
+  assert.equal(offeredTrancheOpen(new Set<number>(), 1), false);
+  assert.equal(offeredTrancheOpen(false, 1), false);
+  assert.equal(offeredTrancheOpen(true, 2), true);
+  assert.equal(offeredTrancheOpen(new Set([1]), undefined), false);
+  // and the paywall would still have something to sell, which is why nothingToSell alone strands the buyer
+  assert.equal(hasLockedRemaining(td, new Set([1])), true);
+  const src = code('app/unlock/[id].tsx');
+  assert.match(src, /offeredKRef\.current = nextTranche\?\.k \?\? 1;/);
+  assert.match(src, /const unlockedNow = nothingToSell \|\| offeredTrancheOpen\(access, offeredKRef\.current\);/);
+});
+
+test('completed count is the open run from question 1, not every accessible question', () => {
+  const n = getCategoryQuestions(td.id).length;
+  assert.equal(openPrefixCount(td, false), 5);
+  assert.equal(openPrefixCount(td, new Set([1])), 20);
+  assert.equal(openPrefixCount(td, new Set([1, 2])), n);
+  assert.equal(openPrefixCount(td, true), n);
+  // refunded tranche 1 with tranche 2 kept: Q21-40 are open but were not played
+  assert.equal(openPrefixCount(td, new Set([2])), 5);
+  assert.match(code('app/complete/[id].tsx'), /const completedCount = openPrefixCount\(category, access\);/);
+});
+
+test('owner-code redemption sets the start question and says everything is unlocked', () => {
+  const src = code('app/unlock/[id].tsx');
+  const owner = src.slice(src.indexOf('const handleRedeemCode'), src.indexOf('const spinAnim'));
+  assert.match(owner, /purchasedStartRef\.current = trancheStart;/);
+  assert.match(owner, /purchasedAllRef\.current = true;/);
+  assert.equal(COPY.everythingUnlocked, 'Everything is unlocked.');
+  assert.match(src, /purchasedAllRef\.current \? COPY\.everythingUnlocked : COPY\.unlockedBody\(purchasedSizeRef\.current\)/);
+  assert.match(src, /purchasedAllRef\.current = kind === 'all';/);
+});
+
+test('the all-categories wording and the access.ts comment match the behaviour', () => {
+  const access = readFileSync('lib/access.ts', 'utf8');
+  assert.doesNotMatch(access, /keyed by category id \(the old web free unlock\) or by ENTITLEMENT_ALL opens everything/);
+  assert.match(access, /ENTITLEMENT_ALL opens everything \(the bare category id of the old web free unlock opens tranche 1 only/);
 });

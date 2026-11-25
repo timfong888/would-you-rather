@@ -1659,6 +1659,18 @@ export function isTrancheStart(category: CategoryDef, questionIndex: number): bo
   return getTranches(category).some((t) => t.first - 1 === questionIndex);
 }
 
+/**
+ * How many questions from the start are open without a gap: the free set plus consecutive owned
+ * tranches. This is what "completed" means on the complete screen. A tranche owned after a gap
+ * (a refunded tranche 1 with tranche 2 kept) is not counted: those questions were not played.
+ */
+export function openPrefixCount(category: CategoryDef, access: Access): number {
+  const n = getCategoryQuestions(category.id).length;
+  let i = 0;
+  while (i < n && !isQuestionLocked(category, i, access)) i++;
+  return i;
+}
+
 /** True when the player owns at least one paid tranche (or everything). */
 export function hasAnyTranche(access: Access): boolean {
   return access === true || (access instanceof Set && access.size > 0);

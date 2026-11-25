@@ -16,7 +16,7 @@ import {
   getCategoryById,
   getCategoryQuestions,
   getQuestionById,
-  getAccessibleQuestions,
+  openPrefixCount,
   getNextTranche,
   isKidsCategoryId,
   SELLABLE_TRANCHE_MAX,
@@ -150,9 +150,9 @@ export default function CompleteScreen() {
 
   const catColor = category.color;
   const access = openTranches(category);
-  // Everything the user could play without paying counts as "completed" here;
+  // "Completed" is the open run from question 1 (the free set plus consecutive owned tranches);
   // what's left is the upsell: the next tranche to open.
-  const completedCount = getAccessibleQuestions(category, access).length;
+  const completedCount = openPrefixCount(category, access);
   const remaining = questions.length - completedCount;
   const nextTranche = getNextTranche(category, access);
   const nextSize = nextTranche ? trancheSize(nextTranche) : 0;

@@ -29,7 +29,7 @@ import {
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
-import { paywallEntry, paywallLateUnlock, restoreOpensTranche } from '@/lib/access';
+import { offeredTrancheOpen, paywallEntry, paywallLateUnlock, restoreOpensTranche } from '@/lib/access';
 import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track as trackEvent } from '@/lib/analytics';
@@ -123,6 +123,9 @@ export default function UnlockScreen() {
     setCode('');
     setCodeState('idle');
     setCodeOpen(false);
+    purchasedStartRef.current = trancheStart;
+    purchasedSizeRef.current = remainingLocked;
+    purchasedAllRef.current = true;
     setPaymentState('success');
   };
 
@@ -146,6 +149,10 @@ export default function UnlockScreen() {
   const nothingToSell = category ? !hasLockedRemaining(category, access) : isUnlocked(id as CategoryId);
   const purchasedStartRef = useRef(trancheStart);
   const purchasedSizeRef = useRef(nextSize);
+  // The all-categories unlock and owner access open everything: the success screen says so.
+  const purchasedAllRef = useRef(false);
+  // The tranche this paywall offered when it was first shown: a late entitlement for it ends the paywall.
+  const offeredKRef = useRef<number | undefined>(undefined);
   const BENEFITS = benefitsFor(nextSize);
 
   useEffect(() => {
@@ -199,6 +206,7 @@ export default function UnlockScreen() {
       cancelEntryNavRef.current = replaceWhenReady(router, `/categories/${id as string}`);
       return;
     }
+    offeredKRef.current = nextTranche?.k ?? 1;
     track('paywall_viewed', { category_id: id, pack_type: 'tranche', tranche: nextTranche?.k });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entitlementsLoaded, navReady]);
@@ -206,7 +214,7 @@ export default function UnlockScreen() {
   // Entitlements that arrive after the entry decision (Sinatra P2 on PR #128):
   // a buyer whose first fetch outlived the load timeout is sent on once their
   // category unlocks, as long as the paywall is idle.
-  const unlockedNow = nothingToSell;
+  const unlockedNow = nothingToSell || offeredTrancheOpen(access, offeredKRef.current);
   useEffect(() => {
     if (
       !paywallLateUnlock({
@@ -250,6 +258,7 @@ export default function UnlockScreen() {
     if (!WEB_FREE_UI || paymentState !== 'idle') return;
     purchasedStartRef.current = trancheStart;
     purchasedSizeRef.current = kind === 'all' ? remainingLocked : nextSize;
+    purchasedAllRef.current = kind === 'all';
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
@@ -268,6 +277,7 @@ export default function UnlockScreen() {
     if (paymentState !== 'idle') return;
     purchasedStartRef.current = trancheStart;
     purchasedSizeRef.current = kind === 'all' ? remainingLocked : nextSize;
+    purchasedAllRef.current = kind === 'all';
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
@@ -313,6 +323,7 @@ export default function UnlockScreen() {
       try {
         purchasedStartRef.current = trancheStart;
         purchasedSizeRef.current = nextSize;
+        purchasedAllRef.current = false;
         const active = await purchases.restore();
         applyEntitlements(active);
         // Success only when the restore opens the tranche this paywall offers; otherwise the paywall stays.
@@ -675,7 +686,7 @@ export default function UnlockScreen() {
               {category.emoji}  {category.label}
             </Text>
             <Text style={[styles.successBody, { color: colors.textSecondary }]}>
-              {COPY.unlockedBody(purchasedSizeRef.current)}
+              {purchasedAllRef.current ? COPY.everythingUnlocked : COPY.unlockedBody(purchasedSizeRef.current)}
             </Text>
           </View>
 
