@@ -38,8 +38,7 @@ export default function SettingsScreen() {
     track('owner_access_revoked');
   };
 
-  // Packs with paid content (premium categories + free categories with an
-  // expansion pack) that this device can fully play.
+  // Categories with paid questions that this device has unlocked (at least one tranche owned).
   const unlockedPacks = CATEGORIES.filter(
     (cat) => hasPaidContent(cat) && isUnlocked(cat.id)
   );

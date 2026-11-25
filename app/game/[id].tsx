@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
 import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isKidsCategoryId, isQuestionLocked } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, isTrancheStart } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -259,20 +259,18 @@ export default function GameScreen() {
   const isLastInCategory = catId ? currentIdx >= totalInCategory - 1 : false;
   const nextIdx = currentIdx + 1;
   const nextQuestion = catId && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
-  // Is the next question behind the unlock? (premium trial ended, or the free
-  // set of a free category is finished and the expansion pack starts.)
+  // Is the next question behind the unlock? (the free set or an owned tranche has ended)
   const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, openTranches(category)));
-  // Finishing the free set of a free category is a real milestone: celebrate
-  // it on the complete screen (which carries the expansion upsell) instead of
-  // dropping straight onto the paywall. Premium trials keep the direct paywall.
-  // Only the exact last-free → first-locked step counts: someone who arrived
-  // via a share link on an expansion question and continues goes to the
-  // paywall, not to a "you finished the free set" screen they never played.
+  // Reaching the end of the free set or of an owned tranche is a real milestone:
+  // celebrate it on the complete screen (which carries the upsell for the next
+  // tranche) instead of dropping straight onto the paywall. Only the exact
+  // last-open → first-locked step counts: someone who arrived via a share link
+  // on a locked question and continues goes to the paywall, not to a "you
+  // finished" screen they never played.
   const endsFreeSet =
     nextLocked &&
     category !== undefined &&
-    category.tier === 'free' &&
-    currentIdx + 1 === getFreeQuestionCount(category);
+    isTrancheStart(category, currentIdx + 1);
 
   // Funnel events for someone who opened a shared link (#134). Kids items send nothing.
   const trackRecipient = (action: RecipientAction, surface?: string, outcomeNow = outcome) => {

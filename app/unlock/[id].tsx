@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { COPY } from '@/constants/copy';
 import {
   View,
   Text,
@@ -15,7 +16,16 @@ import { browseHrefFor } from '@/lib/browse';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getCategoryById, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
+import {
+  getCategoryById,
+  getCategoryQuestions,
+  getFreeQuestionCount,
+  getLockedQuestionCount,
+  getNextTranche,
+  hasLockedRemaining,
+  SELLABLE_TRANCHE_MAX,
+  trancheSize,
+} from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
 import { paywallEntry, paywallLateUnlock } from '@/lib/access';
@@ -71,6 +81,7 @@ export default function UnlockScreen() {
   const { styles, colors } = useThemedStyles(makeStyles);
   const {
     isUnlocked,
+    openTranches,
     unlock,
     unlockAll,
     ownerAccessAvailable,
@@ -122,9 +133,16 @@ export default function UnlockScreen() {
   const questions = getCategoryQuestions(id as CategoryId);
   const freeCount = category ? getFreeQuestionCount(category) : 0;
   const lockedCount = category ? getLockedQuestionCount(category) : 0;
-  // A free category sells an expansion pack; a premium category sells the rest of itself.
-  const isExpansion = category?.tier === 'free';
-  const BENEFITS = benefitsFor(lockedCount);
+  // Every category sells its next unowned tranche (#238): the next 15 or 20 questions.
+  const access = category ? openTranches(category) : false;
+  const nextTranche = category ? getNextTranche(category, access) : undefined;
+  const nextSize = nextTranche ? trancheSize(nextTranche) : lockedCount;
+  const trancheStart = nextTranche ? nextTranche.first - 1 : freeCount;
+  // Tranche 2 has no store product until step F5; the web free unlock opens everything.
+  const sellable = nextTranche === undefined || nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK;
+  const nothingToSell = category ? !hasLockedRemaining(category, access) : isUnlocked(id as CategoryId);
+  const purchasedStartRef = useRef(trancheStart);
+  const BENEFITS = benefitsFor(nextSize);
 
   useEffect(() => {
     if (paymentState === 'processing') {
@@ -170,21 +188,21 @@ export default function UnlockScreen() {
   const navReady = !!useRootNavigationState()?.key;
   useEffect(() => {
     if (entryCheckedRef.current) return;
-    const entry = paywallEntry({ entitlementsLoaded, navReady, unlocked: isUnlocked(id as CategoryId) });
+    const entry = paywallEntry({ entitlementsLoaded, navReady, unlocked: nothingToSell });
     if (entry === 'wait') return;
     entryCheckedRef.current = true;
     if (entry === 'to-category') {
       cancelEntryNavRef.current = replaceWhenReady(router, `/categories/${id as string}`);
       return;
     }
-    track('paywall_viewed', { category_id: id, pack_type: isExpansion ? 'expansion' : 'premium' });
+    track('paywall_viewed', { category_id: id, pack_type: 'tranche', tranche: nextTranche?.k });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entitlementsLoaded, navReady]);
 
   // Entitlements that arrive after the entry decision (Sinatra P2 on PR #128):
   // a buyer whose first fetch outlived the load timeout is sent on once their
   // category unlocks, as long as the paywall is idle.
-  const unlockedNow = isUnlocked(id as CategoryId);
+  const unlockedNow = nothingToSell;
   useEffect(() => {
     if (
       !paywallLateUnlock({
@@ -215,8 +233,8 @@ export default function UnlockScreen() {
     );
   }
 
-  const teaserQuestions = questions.slice(freeCount, freeCount + 3);
-  const remainingCount = Math.max(questions.length - (freeCount + teaserQuestions.length), 0);
+  const teaserQuestions = questions.slice(trancheStart, trancheStart + 3);
+  const remainingCount = Math.max(nextSize - teaserQuestions.length, 0);
 
   const productId = productForCategory(id as string);
   // Store price when loaded, else the approved price ($1.99 category, $4.99 pack).
@@ -226,11 +244,13 @@ export default function UnlockScreen() {
   // Temporary web free unlock: no checkout, no charge.
   const handleFreeUnlock = (kind: 'category' | 'all') => {
     if (!WEB_FREE_UI || paymentState !== 'idle') return;
+    purchasedStartRef.current = trancheStart;
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
       category_id: id,
-      pack_type: kind === 'all' ? 'all' : isExpansion ? 'expansion' : 'premium',
+      pack_type: kind === 'all' ? 'all' : 'tranche',
+      tranche: nextTranche?.k,
       payment_method: 'free_unlock',
     });
     if (kind === 'all') unlockAll();
@@ -240,11 +260,13 @@ export default function UnlockScreen() {
 
   const handleBuy = async (kind: 'category' | 'all') => {
     if (paymentState !== 'idle') return;
+    purchasedStartRef.current = trancheStart;
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
       category_id: id,
-      pack_type: kind === 'all' ? 'all' : isExpansion ? 'expansion' : 'premium',
+      pack_type: kind === 'all' ? 'all' : 'tranche',
+      tranche: nextTranche?.k,
       payment_method: 'store',
     });
     setPaymentState('processing');
@@ -306,9 +328,11 @@ export default function UnlockScreen() {
   };
 
   const handleStartPlaying = () => {
-    const firstLockedQ = questions[freeCount];
+    // The first question the purchase opened (captured when it started; the tranche advances once it lands).
+    const startIdx = purchasedStartRef.current;
+    const firstLockedQ = questions[startIdx];
     if (firstLockedQ) {
-      router.replace(`/game/${firstLockedQ.id}?cat=${id}&idx=${freeCount}`);
+      router.replace(`/game/${firstLockedQ.id}?cat=${id}&idx=${startIdx}`);
     } else {
       router.replace(`/categories/${id as string}`);
     }
@@ -355,7 +379,7 @@ export default function UnlockScreen() {
           </View>
           <View style={[styles.premiumLabel, { borderColor: category.color }]}>
             <Text style={[styles.premiumLabelText, { color: category.color }]}>
-              {isExpansion ? 'EXPANSION PACK' : 'PREMIUM ACCESS'}
+              MORE DILEMMAS
             </Text>
           </View>
         </View>
@@ -364,16 +388,14 @@ export default function UnlockScreen() {
         <View style={styles.headlineBlock}>
           <Text style={styles.headline}>KEEP THE CONVERSATION GOING</Text>
           <Text style={styles.subheadline}>
-            {isExpansion ? "You've played every free dilemma in " : "You've had a taste of "}
+            You've played the free ones in{' '}
             <Text style={[styles.categoryNameInline, { color: category.color }]}>
               "{category.label}"
             </Text>
-            {isExpansion
-              ? ' — and the best debates are the ones you haven\'t had yet.'
-              : ' — the questions that make people lean in, laugh, and reveal what they really think.'}
+            {' — and the best debates are the ones you haven\'t had yet.'}
           </Text>
           <Text style={styles.lossAversion}>
-            {lockedCount} more conversations waiting. Don't leave them on the table.
+            {nextSize} more conversations waiting. Don't leave them on the table.
           </Text>
         </View>
 
@@ -402,6 +424,7 @@ export default function UnlockScreen() {
         </View>
 
         <Pressable
+          disabled={!sellable}
           onPress={() => {
             if (WEB_FREE_UI) {
               handleFreeUnlock('category');
@@ -418,9 +441,9 @@ export default function UnlockScreen() {
             pressed && styles.btnPressed,
           ]}
           accessibilityRole="button"
-          accessibilityLabel={WEB_FREE_UI ? `Unlock ${lockedCount} more dilemmas for free` : `Unlock ${lockedCount} more dilemmas for ${shownPrice}`}
+          accessibilityLabel={WEB_FREE_UI ? `${COPY.openNext(nextSize)} for free` : `${COPY.openNext(nextSize)} for ${shownPrice}`}
         >
-          <Text style={styles.unlockBtnText}>START {lockedCount} MORE CONVERSATIONS →</Text>
+          <Text style={styles.unlockBtnText}>{sellable ? `START ${nextSize} MORE CONVERSATIONS →` : 'MORE AVAILABLE SOON'}</Text>
         </Pressable>
 
         {(purchasesAvailable || WEB_FREE_UI) && (
@@ -548,9 +571,7 @@ export default function UnlockScreen() {
             </View>
           </View>
           <Text style={styles.socialCardFooter}>
-            {isExpansion
-              ? `Unlock ${lockedCount} more dilemmas and you'll both have a full conversation's worth of takes to debate.`
-              : `Unlock all ${questions.length} dilemmas and you'll both have a full conversation's worth of takes to debate.`}
+            {`${COPY.openNext(nextSize)} and you'll both have a full conversation's worth of takes to debate.`}
           </Text>
         </View>
 
@@ -574,7 +595,7 @@ export default function UnlockScreen() {
           <View style={styles.teaserList}>
             {teaserQuestions.map((q, i) => (
               <View key={q.id} style={styles.teaserItem}>
-                <Text style={styles.teaserNum}>{freeCount + i + 1}.</Text>
+                <Text style={styles.teaserNum}>{trancheStart + i + 1}.</Text>
                 <Ionicons name="lock-closed-outline" size={13} color={colors.textMuted} />
                 <Text style={styles.teaserText} numberOfLines={1}>
                   {'••••••••••••••••••••'}

@@ -1643,6 +1643,33 @@ export function getAccessibleQuestions(category: CategoryDef, access: Access): Q
 }
 
 /**
+ * Highest tranche number that has a store product today. Step F5 creates the `_2` products and raises it.
+ * Until then the tranche-2 buttons are disabled (the web free unlock still opens everything).
+ */
+export const SELLABLE_TRANCHE_MAX = 1;
+
+/** The first paid tranche the player does not own yet, or undefined when nothing locked remains. */
+export function getNextTranche(category: CategoryDef, access: Access): Tranche | undefined {
+  if (access === true) return undefined;
+  return getTranches(category).find((t) => access === false || !access.has(t.k));
+}
+
+/** True when `questionIndex` (0-based) is the first question of a paid tranche. */
+export function isTrancheStart(category: CategoryDef, questionIndex: number): boolean {
+  return getTranches(category).some((t) => t.first - 1 === questionIndex);
+}
+
+/** Size of a tranche in questions. */
+export function trancheSize(t: Tranche): number {
+  return t.last - t.first + 1;
+}
+
+/** True while at least one question in the category is still locked for this player. */
+export function hasLockedRemaining(category: CategoryDef, access: Access): boolean {
+  return getNextTranche(category, access) !== undefined;
+}
+
+/**
  * Questions published to search engines and shown in category JSON-LD. Frozen at the
  * rule before #238 (grown-up premium: 3, former-free: all of volume 1, kids and teen:
  * their free count) until step F3 decides what SEO should publish (#238, Decision 4).
