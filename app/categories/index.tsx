@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { CATEGORIES, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount, hasPaidContent } from '@/constants/questions';
+import { CATEGORIES, FREE_QUESTION_COUNT, getCategoryQuestions, getFreeQuestionCount, getLockedQuestionCount } from '@/constants/questions';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { COPY } from '@/constants/copy';
 import { SEO, SITE_URL } from '@/constants/config';
@@ -39,7 +39,7 @@ export default function CategoriesScreen() {
   };
 
   const pageTitle = 'Browse Categories — Would You Rather?';
-  const pageDescription = `Choose from ${GROWNUP.length} categories of Would You Rather dilemmas — from Moral Compass to Tech Dystopia. Free and premium packs available.`;
+  const pageDescription = `Choose from ${GROWNUP.length} categories of Would You Rather dilemmas — from Moral Compass to Tech Dystopia. ${FREE_QUESTION_COUNT} free questions in every category.`;
 
   return (
     <ScrollView
@@ -62,7 +62,7 @@ export default function CategoriesScreen() {
 
       {/* Trial Banner */}
       <View style={styles.trialBanner}>
-        <Text style={styles.trialBannerText}>{COPY.freeTrialBanner}</Text>
+        <Text style={styles.trialBannerText}>{COPY.freeBanner(FREE_QUESTION_COUNT)}</Text>
       </View>
 
       {/* Featured Section */}
@@ -89,13 +89,9 @@ export default function CategoriesScreen() {
                   {cat.label.toUpperCase()}
                 </Text>
                 <Text style={styles.featuredCount}>{unanswered} of {total} unanswered</Text>
-                {cat.tier === 'premium' ? (
-                  <Text style={styles.featuredFreeHint}>{COPY.freeTrialHint}</Text>
-                ) : hasPaidContent(cat) ? (
-                  <Text style={styles.featuredFreeHint}>
-                    {COPY.expansionHint(getFreeQuestionCount(cat), getLockedQuestionCount(cat))}
-                  </Text>
-                ) : null}
+                <Text style={styles.featuredFreeHint}>
+                  {COPY.freeMoreHint(getFreeQuestionCount(cat), getLockedQuestionCount(cat))}
+                </Text>
               </Pressable>
             );
           })}
@@ -109,7 +105,6 @@ export default function CategoriesScreen() {
         <View style={styles.allList}>
           {ALL.map((cat) => {
             const { total, unanswered } = progressFor(cat.id);
-            const isPremium = cat.tier === 'premium';
             return (
               <Pressable
                 key={cat.id}
@@ -125,24 +120,14 @@ export default function CategoriesScreen() {
                 <View style={styles.rowText}>
                   <Text style={styles.rowName}>{cat.label.toUpperCase()}</Text>
                   <Text style={styles.rowCount}>{unanswered} of {total} unanswered</Text>
-                  {isPremium ? (
-                    <Text style={styles.rowFreeHint}>{COPY.freeTrialHint}</Text>
-                  ) : hasPaidContent(cat) ? (
-                    <Text style={styles.rowFreeHint}>
-                      {COPY.expansionHint(getFreeQuestionCount(cat), getLockedQuestionCount(cat))}
-                    </Text>
-                  ) : null}
+                  <Text style={styles.rowFreeHint}>
+                    {COPY.freeMoreHint(getFreeQuestionCount(cat), getLockedQuestionCount(cat))}
+                  </Text>
                 </View>
                 <View style={styles.rowRight}>
-                  {isPremium ? (
-                    <View style={styles.premiumPill}>
-                      <Text style={styles.premiumPillText}>👑 PREMIUM</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.freePill}>
-                      <Text style={styles.freePillText}>🔓 FREE</Text>
-                    </View>
-                  )}
+                  <View style={styles.freePill}>
+                    <Text style={styles.freePillText}>{COPY.freePill(getFreeQuestionCount(cat))}</Text>
+                  </View>
                   <Text style={styles.chevron}>›</Text>
                 </View>
               </Pressable>

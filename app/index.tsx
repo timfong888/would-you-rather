@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getCategoryQuestions, getAccessibleQuestions } from '@/constants/questions';
+import { QUESTIONS, CATEGORIES, getCategoryQuestions, getAccessibleQuestions, getFreeQuestionCount } from '@/constants/questions';
 import ModeSwitch from '@/components/ModeSwitch';
 import { categoriesForMode } from '@/lib/browse';
 import { COPY } from '@/constants/copy';
@@ -112,7 +112,6 @@ export default function HomeScreen() {
         {[
           { label: 'Questions', value: TOTAL_QUESTIONS.toString() },
           { label: 'Categories', value: GROWNUP_CATEGORIES.length.toString() },
-          { label: 'Free', value: GROWNUP_CATEGORIES.filter(c => c.tier === 'free').length.toString() },
         ].map((stat) => (
           <View key={stat.label} style={styles.statCard}>
             <Text style={styles.statValue}>{stat.value}</Text>
@@ -134,7 +133,6 @@ export default function HomeScreen() {
         <View style={styles.categoryList}>
           {GROWNUP_CATEGORIES.map((cat) => {
             const count = getCategoryQuestions(cat.id).length;
-            const isPremium = cat.tier === 'premium';
             return (
               <Pressable
                 key={cat.id}
@@ -151,15 +149,9 @@ export default function HomeScreen() {
                   <Text style={styles.categoryRowLabel}>{cat.label.toUpperCase()}</Text>
                   <Text style={styles.categoryRowCount}>{COPY.dilemmaCount(count)}</Text>
                 </View>
-                {isPremium ? (
-                  <View style={styles.premiumBadge}>
-                    <Text style={styles.premiumBadgeText}>PREMIUM</Text>
-                  </View>
-                ) : (
-                  <View style={styles.freeBadge}>
-                    <Text style={styles.freeBadgeText}>FREE</Text>
-                  </View>
-                )}
+                <View style={styles.freeBadge}>
+                  <Text style={styles.freeBadgeText}>{COPY.freePill(getFreeQuestionCount(cat))}</Text>
+                </View>
                 <Text style={styles.rowChevron}>›</Text>
               </Pressable>
             );

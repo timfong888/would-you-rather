@@ -127,7 +127,7 @@ test('the home random button draws from adult categories only', () => {
   const pool = randomPlayCategories(CATEGORIES);
   assert.ok(pool.length >= 3);
   for (const c of pool) assert.equal(c.audience, 'adult', c.id);
-  assert.equal(pool.some((c) => c.tier !== 'free'), false);
+  assert.equal(pool.length, CATEGORIES.filter((c) => c.audience === 'adult').length, 'every grown-up category, free questions in each (#238)');
   const home = readFileSync('app/index.tsx', 'utf8');
   assert.match(home, /randomPlayCategories\(GROWNUP_CATEGORIES\)/);
   assert.match(home, /GROWNUP_CATEGORIES = categoriesForMode\('grownups', CATEGORIES\)/);
