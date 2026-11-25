@@ -1,83 +1,62 @@
-// Regression for #186: the text that goes with a shared question is only an invitation.
-// The link card already shows the question, so the text must never repeat it or state the sharer's pick.
+// #229: the message that goes with a shared question is exactly "Which would you pick?", everywhere.
+// The link card shows the question and the pick travels in the link, so the body never repeats either.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { shareInvite, SHARE_INVITES, __resetInviteMemory } from '../../lib/shareInvite';
-import { QUESTIONS, CATEGORIES } from '../../constants/questions';
+import { SHARE_PROMPT } from '../../lib/shareInvite';
+import { SHARE_TITLE, sharePageMeta } from '../../lib/sharePage';
+import { buildShareLink } from '../../lib/shareQuestion';
+import { decodePick } from '../../lib/matchShare';
+import { QUESTIONS } from '../../constants/questions';
 import { KIDS_QUESTIONS } from '../../constants/kidsQuestions';
+import { CANONICAL_ORIGIN } from '../../lib/site';
 
-const lines = Object.entries(SHARE_INVITES).filter(([k]) => k !== '_readme') as [string, string[]][];
-const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
-// Whole-phrase match. Options under 12 characters ("Night", "Fame") are ordinary words an invitation may use.
-const repeats = (text: string, option: string) => option.length >= 12 && new RegExp(`(^|\\W)${option.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`).test(text);
-// "I picked", "I chose", "my answer", "my take" and similar: the sharer's own pick.
-const SAYS_MY_PICK = /\b(i|i've|i'd)\s+(picked|pick|chose|choose|went|voted|vote|selected)\b|\bmy\s+(pick|answer|choice|vote|take)\b|\boption [ab]\b/i;
+const root = join(__dirname, '../..');
+const SURFACES = ['app/game/[id].tsx', 'app/results/[id].tsx', 'app/complete/[id].tsx', 'components/SeoLandingPage.tsx'];
 
-test('every category (and a default) has a pool of 8 distinct, non-blank lines', () => {
-  const ids = new Set(lines.map(([k]) => k));
-  for (const c of CATEGORIES) assert.ok(ids.has(c.id), `missing pool for ${c.id}`);
-  assert.ok(ids.has('default'));
-  for (const [k, pool] of lines) {
-    assert.equal(pool.length, 8, k);
-    assert.equal(new Set(pool.map(norm)).size, pool.length, `${k} has duplicates`);
-    for (const l of pool) assert.ok(l.trim().length > 0 && !l.includes('http') && !/[{}]/.test(l), `${k}: ${l}`);
+test('the share body is exactly "Which would you pick?"', () => {
+  assert.equal(SHARE_PROMPT, 'Which would you pick?');
+});
+
+test('og:title (and twitter:title) is the same words as the body', () => {
+  assert.equal(SHARE_TITLE, SHARE_PROMPT);
+  for (const q of [...QUESTIONS, ...KIDS_QUESTIONS].slice(0, 50)) {
+    assert.equal(sharePageMeta(q, CANONICAL_ORIGIN).title, SHARE_PROMPT, q.id);
   }
 });
 
-test('no invitation line states or hints at the sharer\'s pick', () => {
-  for (const [k, pool] of lines) for (const l of pool) assert.ok(!SAYS_MY_PICK.test(l), `${k}: ${l}`);
-});
-
-test('share text never contains the shared question, checked against every real question', () => {
-  const all = [...QUESTIONS, ...KIDS_QUESTIONS];
-  assert.ok(all.length > 500, `only ${all.length} questions loaded`);
-  for (const q of all) {
-    const a = norm(q.optionA), b = norm(q.optionB);
-    for (let r = 0; r < 8; r++) {
-      const text = norm(shareInvite(q.category, () => r / 8));
-      assert.ok(!repeats(text, a), `${q.id}: text contains option A`);
-      assert.ok(!repeats(text, b), `${q.id}: text contains option B`);
-      assert.ok(!text.includes('— or —') && !text.includes('would you rather'), `${q.id}: text restates the question`);
-    }
-  }
-});
-
-test('every line, against every question, never contains either option', () => {
-  const opts = [...QUESTIONS, ...KIDS_QUESTIONS].flatMap((q) => [norm(q.optionA), norm(q.optionB)]);
-  for (const [k, pool] of lines) for (const l of pool) for (const o of opts) assert.ok(!repeats(norm(l), o), `${k}: "${l}" contains "${o}"`);
-});
-
-test('picks from the category pool, falls back to default, never repeats back to back', () => {
-  __resetInviteMemory();
-  const pool = SHARE_INVITES['tiny-choices'];
-  for (let i = 0; i < 100; i++) assert.ok(pool.includes(shareInvite('tiny-choices')));
-  assert.ok(SHARE_INVITES.default.includes(shareInvite('not-a-category')));
-  assert.ok(SHARE_INVITES.default.includes(shareInvite(undefined)));
-  __resetInviteMemory();
-  let prev = '';
-  for (let i = 0; i < 200; i++) {
-    const l = shareInvite('high-life', () => 0.5);
-    assert.notEqual(l, prev);
-    prev = l;
-  }
-  assert.equal(shareInvite('x', () => 0, { default: [] }), '');
-});
-
-test('every question share surface sends only the invitation as text', () => {
-  const root = join(__dirname, '../..');
-  const files = ['app/game/[id].tsx', 'app/results/[id].tsx', 'app/complete/[id].tsx', 'components/SeoLandingPage.tsx'];
-  for (const f of files) {
+test('every question share surface sends only SHARE_PROMPT as the message text', () => {
+  for (const f of SURFACES) {
     const src = readFileSync(join(root, f), 'utf8');
-    assert.match(src, /shareInvite\(/, `${f} does not use shareInvite`);
-    const textLines = src.split('\n').filter((l) => /\bconst text =|runShare\(shareUrl/.test(l));
+    assert.match(src, /SHARE_PROMPT/, `${f} does not use SHARE_PROMPT`);
+    assert.ok(!/shareInvite\(/.test(src), `${f} still builds an invite line`);
+    // Every `text` handed to a share API is SHARE_PROMPT, except the match reply (shareText) and the TikTok caption.
+    const textLines = src.split('\n').filter((l) => /\bconst text =|runShare\(\w+, /.test(l));
     assert.ok(textLines.length > 0, f);
     for (const l of textLines) {
-      if (/shareText\(/.test(l)) continue; // match-reply lines are a separate, existing copy set
-      if (/hashtags/.test(l)) continue; // TikTok caption: no link card there, so it keeps the question
-      assert.ok(!/option[AB]/.test(l), `${f}: share text built from the question: ${l.trim()}`);
-      assert.ok(!SAYS_MY_PICK.test(l), `${f}: ${l.trim()}`);
+      if (/shareText\(/.test(l)) continue; // "Tell them" reply: separate existing copy set
+      if (/hashtags/.test(l)) continue; // TikTok caption keeps the question (no link card there)
+      assert.ok(/SHARE_PROMPT/.test(l), `${f}: ${l.trim()}`);
+      assert.ok(!/option[AB]/.test(l), `${f}: ${l.trim()}`);
     }
   }
+});
+
+test('no question text in any share body except the TikTok caption', () => {
+  for (const f of SURFACES) {
+    const src = readFileSync(join(root, f), 'utf8');
+    const withQuestion = src.split('\n').filter((l) => /(const text =|text:).*option[AB]/.test(l));
+    for (const l of withQuestion) assert.ok(/hashtags/.test(l), `${f}: ${l.trim()}`);
+  }
+});
+
+test('adult links carry link_id, gen and the pick as f; kids links carry no link_id or gen (only f once answered)', () => {
+  const adult = new URL(buildShareLink({ origin: CANONICAL_ORIGIN, questionId: 'hl-1', linkId: 'ab12cd34', generation: 1, kids: false, friendPick: 'B' }));
+  assert.deepEqual([...adult.searchParams.keys()], ['link_id', 'gen', 'f']);
+  assert.equal(decodePick(adult.searchParams.get('f')), 'B');
+  const kidsAsked = buildShareLink({ origin: CANONICAL_ORIGIN, questionId: 'kf-29', linkId: 'ab12cd34', generation: 1, kids: true, friendPick: null });
+  assert.equal(kidsAsked, `${CANONICAL_ORIGIN}/p/kf-29`);
+  const kids = new URL(buildShareLink({ origin: CANONICAL_ORIGIN, questionId: 'kf-29', linkId: 'ab12cd34', generation: 1, kids: true, friendPick: 'A' }));
+  assert.deepEqual([...kids.searchParams.keys()], ['f']);
 });

@@ -15,7 +15,7 @@ import { SITE_URL } from '@/constants/config';
 import { ORGANIZATION_DESCRIPTION, landingPageJsonLd } from '@/lib/seo';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
-import { shareInvite } from '@/lib/shareInvite';
+import { SHARE_PROMPT } from '@/lib/shareInvite';
 import { questionPageUrl } from '@/lib/seoLinks';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
@@ -77,7 +77,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
   const handleShare = async (q: Question) => {
     const { url, linkId } = buildShareUrl(q.id, 0);
     track('share_clicked', { question_id: q.id, surface: 'seo_landing', slug: page.slug, link_id: linkId });
-    const text = shareInvite(q.category);
+    const text = SHARE_PROMPT;
     if (Platform.OS !== 'web') {
       // Native app routes: the OS share sheet.
       try {

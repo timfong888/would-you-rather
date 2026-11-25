@@ -27,7 +27,7 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl, trackVoteForActivation } from '@/lib/analytics';
 import { shareLink, shareEvents, SHARE_FEEDBACK } from '@/lib/shareQuestion';
-import { shareInvite } from '@/lib/shareInvite';
+import { SHARE_PROMPT } from '@/lib/shareInvite';
 import { decodeFriend, matchOutcome, pickLine, headingFor, shareText, uiText, matchEvent } from '@/lib/matchShare';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
@@ -185,7 +185,7 @@ export default function GameScreen() {
     }
 
     // The link card shows the question, so the text is only an invitation (#186).
-    await runShare(shareUrl, shareInvite(catId));
+    await runShare(shareUrl, SHARE_PROMPT);
   }, [question, catId, id, selected, confirmed, incomingGeneration, incomingLinkId, visitorId, isKidsCategory, runShare]);
 
   // Match share (#92): once this player has an answer, compare it with the friend's pick
