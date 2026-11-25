@@ -70,6 +70,17 @@ test('no key: unavailable, never loads the SDK, purchase throws', async () => {
   assert.equal(calls.load, 0);
 });
 
+test('a Test Store key on production: unavailable, never loads the SDK, purchase throws', async () => {
+  const { loadSdk, calls } = fakeSdk();
+  for (const deployEnv of ['production', undefined, 'staging']) {
+    const p = createWebPurchases({ apiKey: 'test_abc', deployEnv, loadSdk, store: memStore({ [WEB_USER_STORAGE_KEY]: 'id1' }) });
+    assert.equal(p.isAvailable(), false, String(deployEnv));
+    assert.deepEqual(await p.getEntitlements(), []);
+    await assert.rejects(p.purchase('wyr_unlock_high_life'));
+  }
+  assert.equal(calls.load, 0);
+});
+
 test('browsing creates no user id and sends nothing to RevenueCat', async () => {
   const { loadSdk, calls } = fakeSdk();
   const store = memStore();
