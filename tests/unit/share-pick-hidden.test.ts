@@ -39,3 +39,11 @@ test('a share link carries the pick only as the f code, never as A or B in the c
     assert.ok(!url.pathname.includes(pick) || url.pathname === '/p/hl-5');
   }
 });
+
+test('"Share my take" on the results and complete screens derives the kids flag from isKidsCategoryId, not the retired kids-family id', () => {
+  for (const f of ['app/results/[id].tsx', 'app/complete/[id].tsx']) {
+    const src = readFileSync(join(__dirname, '../..', f), 'utf8');
+    assert.ok(!src.includes("'kids-family'"), `${f} still checks the retired kids-family id`);
+    assert.ok(/buildShareUrl\([^)]*isKidsCategoryId\([^)]*\)[^)]*safeVoted\)/.test(src), `${f}: the my-take link must use isKidsCategoryId`);
+  }
+});
