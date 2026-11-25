@@ -83,46 +83,64 @@ categories, they have a fixed number that is free and the additional 20 they hav
 it was 5 free, so that means there are no longer any that have just completely 20 or more free". Today Moral Compass, Social
 Blunders, Career Climber and Tech Dystopia are `tier: 'free'` (20 free, 20 paid) and the other five give 3 free.
 
-**Rule (Tim, 2026-11-25, option C in #238).** No free tier. One free count `F`, then paid tranches: "each unlocked scope within a single
-category is just an additional 20 questions capped, no matter what the category". **Free count `F = 5` is not yet confirmed**: Tim wrote
-"i believe we said it was 5", and nothing in the repo says 5 (code: 3 and 8). No app code until the orchestrator confirms it.
-Labels, paywall, store text and docs derive from the tranche function, never from a typed number.
+**Rule (Tim's correction, 2026-11-25).** "correction, there is no category that is considered free if a free category means there is no upgrade path and
+all questions are free. instead, to simplify it, every category has the same restrictions: 5 free questions and an upgrade. the reasoning: if somebody
+really doesn't want to pay, there are plenty of categories that have free, like we have 8 or more categories each with 5 free questions. that's 40 questions,
+which is a pretty long would you rather game without paying anything". This corrects his earlier "each unlocked scope within a single category is just an
+additional 20 questions capped, no matter what the category". The two conflict for the four 40-question categories (one upgrade of 20 leaves 15 unreachable).
+**Free count `F = 5` is still not confirmed by Tim** ("i believe we said it was 5"); nothing in the repo says 5 (code: 3 and 8). No app code until the orchestrator
+sends the answers below.
 
-**Tranche function.** `tranches(category)`: with `n` questions in category order and `F = getFreeQuestionCount(category)`, tranche `k` (1-based)
-holds positions `F + 20(k-1) + 1` to `min(F + 20k, n)` (1-based). A remainder under 10 joins the previous tranche (the kids rule in
-`docs/specs/kids-family-categories.md` §3.4; no grown-up remainder is under 10). Free = positions 1 to `F`. Computed from the data on main (`npx tsx` over
-`getCategoryQuestions`, 2026-11-25), `F = 5`:
+**Free questions under the rule (`F = 5`, counted from the data on main, 2026-11-25).**
+- Grown-up: 9 categories x 5 = **45** free (260 questions in total). On iOS v1 Midnight Secrets and Deep Desires are hidden, so 7 x 5 = **35**.
+- Kids and teen: 9 categories x 5 = **45** free of 326 questions. Today they give 8 each = 72 free (spec §3.4, decided 2026-11-24). Whether kids move to 5 is open.
+- Tim's "8 or more categories, 40 questions" is 8 x 5; the true count is 45 on web and 35 on iOS for grown-ups.
 
-| Category | n | Free | Tranche 1 | Tranche 2 |
+**The question for Tim (the two readings, 40-question categories).** After the free 5, does one upgrade open everything, or are there two upgrades?
+- **Reading 1, one upgrade opens all the rest.** Matches "5 free questions and an upgrade". Moral Compass, Social Blunders, Career Climber and Tech Dystopia: one $1.99 upgrade opens 35 questions (6-40); the five 20-question categories open 15 (6-20). **No new products**: the 7 existing `wyr_unlock_<id>` products keep their ids and entitlements (`cat_<id>`); only their text changes. Smallest payments change. Price question: 35 questions cost the same $1.99 as 15.
+- **Reading 2, upgrades of 20.** Matches the earlier sentence. The four 40-question categories get two upgrades (6-25 = 20, 26-40 = 15); the 20-question ones get one (15). Four new products at $1.99 (assumed): `wyr_unlock_moral_compass_2`, `wyr_unlock_social_blunders_2`, `wyr_unlock_career_climber_2`, `wyr_unlock_tech_dystopia_2`, entitlements `cat_<id>_2`. Catalog 8 -> 12 on iOS. Tranche 1 keeps the existing ids.
+
+**Still open (#238).** Reading 1 or 2; `F = 5`; kids at 5 or 8 (and one upgrade or tranches); SEO pages for questions 6 to 20 of the four former-free categories; product text and price; home count (260 or 586); web free-unlock wording.
+
+**Tranche function (one function, one parameter).** `tranches(category, step)`: `n` questions in category order, `F = getFreeQuestionCount(category)`. Free is positions 1 to `F`. Tranche `k` holds
+positions `F + step(k-1) + 1` to `min(F + step*k, n)`. A remainder under 10 joins the previous tranche (the kids rule, §3.4). Reading 1 is `step = Infinity` (one tranche, always positions `F+1` to `n`).
+Reading 2 is `step = 20`. Access is decided by the set of owned tranche numbers, never a prefix or a count (so a refund of tranche 1 keeps tranche 2). Grown-up tranche 1 keeps the
+legacy `cat_<id>`; later tranches use `cat_<id>_<k>`. Tranche 1 of a 40-question category in reading 2 crosses the old volume line (positions 21-25 are volume 2); `volume` stops mattering for access.
+
+Grown-up, `F = 5` (n = question total; positions are 1-based; ids are in category order, e.g. `td-1..td-5` free):
+
+| Category | n | Free | Reading 1: one upgrade | Reading 2: upgrades of 20 |
 |---|---|---|---|---|
-| The High Life | 20 | 1-5 (hl-1..hl-5) | 6-20, 15 questions (hl-6..hl-20) | none |
-| Midnight Secrets | 20 | 1-5 | 6-20, 15 (ms-6..ms-20) | none |
-| Time Traveler | 20 | 1-5 | 6-20, 15 (tt-6..tt-20) | none |
-| Deep Desires | 20 | 1-5 | 6-20, 15 (dd-6..dd-20) | none |
-| Wildest Dreams | 20 | 1-5 | 6-20, 15 (wd-6..wd-20) | none |
-| Moral Compass | 40 | 1-5 (mc-1..mc-5) | 6-25, 20 (mc-6..mc-25) | 26-40, 15 (mc-26..mc-40) |
-| Social Blunders | 40 | 1-5 | 6-25, 20 (sb-6..sb-25) | 26-40, 15 (sb-26..sb-40) |
-| Career Climber | 40 | 1-5 | 6-25, 20 (cc-6..cc-25) | 26-40, 15 (cc-26..cc-40) |
-| Tech Dystopia | 40 | 1-5 (td-1..td-5) | 6-25, 20 (td-6..td-25) | 26-40, 15 (td-26..td-40) |
+| The High Life | 20 | 1-5 (5) | 6-20 (15) | 6-20 (15) |
+| Midnight Secrets | 20 | 1-5 (5) | 6-20 (15) | 6-20 (15) |
+| Time Traveler | 20 | 1-5 (5) | 6-20 (15) | 6-20 (15) |
+| Deep Desires | 20 | 1-5 (5) | 6-20 (15) | 6-20 (15) |
+| Wildest Dreams | 20 | 1-5 (5) | 6-20 (15) | 6-20 (15) |
+| Moral Compass | 40 | 1-5 (5) | 6-40 (35) | 6-25 (20), 26-40 (15) |
+| Social Blunders | 40 | 1-5 (5) | 6-40 (35) | 6-25 (20), 26-40 (15) |
+| Career Climber | 40 | 1-5 (5) | 6-40 (35) | 6-25 (20), 26-40 (15) |
+| Tech Dystopia | 40 | 1-5 (5) | 6-40 (35) | 6-25 (20), 26-40 (15) |
 
-Tranche 1 of the four 40-question categories crosses the old volume boundary (positions 21-25 are volume 2); `volume` stops mattering for access.
+**`wyr_premium_all`** ($4.99) opens every tranche of every grown-up category, including tranches added later, in both readings (§3.4: not kids or teen).
 
-**Products.** Tranche 1 keeps today's ids: `wyr_unlock_<category>` / entitlement `cat_<id>` (so nothing that exists changes id; only its text and the
-questions it opens change). Tranche 2 follows the kids pattern `wyr_unlock_<category>_<k>` / `cat_<id>_<k>`. Four new products, $1.99 each (price is
-an assumption; Tim approved $1.99 for the old per-category unlock): `wyr_unlock_moral_compass_2`, `wyr_unlock_social_blunders_2`,
-`wyr_unlock_career_climber_2`, `wyr_unlock_tech_dystopia_2`. Catalog grows from 8 to 12 grown-up products (iOS v1; Midnight Secrets and Deep Desires
-stay out of iOS v1, so only 7 of the 9 categories sell there).
+Kids and teen, `F = 5` shown for comparison (today `F = 8`, 12 tranches, Unit 4, not built; `lib/tranches.ts` does not exist on main):
 
-**`wyr_premium_all`** ($4.99) opens every tranche of every grown-up category, including tranches added later (as `docs/specs/kids-family-categories.md` §3.4 already decided: it does not open kids or teen tranches).
+| Category | n | Free | Reading 1: one upgrade | Reading 2: upgrades of 20 (remainder under 10 merges) | Tranches today (F=8) |
+|---|---|---|---|---|---|
+| Tiny Choices | 30 | 1-5 (5) | 6-30 (25) | 6-30 (25) (1) | 1 |
+| Make-Believe | 41 | 1-5 (5) | 6-41 (36) | 6-25 (20), 26-41 (16) (2) | 2 |
+| Giggle Factory | 55 | 1-5 (5) | 6-55 (50) | 6-25 (20), 26-45 (20), 46-55 (10) (3) | 2 |
+| Road Trip Rally | 30 | 1-5 (5) | 6-30 (25) | 6-30 (25) (1) | 1 |
+| Dinner Table | 47 | 1-5 (5) | 6-47 (42) | 6-25 (20), 26-47 (22) (2) | 2 |
+| Heart to Heart | 30 | 1-5 (5) | 6-30 (25) | 6-30 (25) (1) | 1 |
+| Future Me | 30 | 1-5 (5) | 6-30 (25) | 6-30 (25) (1) | 1 |
+| Real Talk (teen) | 30 | 1-5 (5) | 6-30 (25) | 6-30 (25) (1) | 1 |
+| Holiday Table | 33 | 1-5 (5) | 6-33 (28) | 6-33 (28) (1) | 1 |
 
-**Kids.** Kids and teen tranches are already specified (§3.4; 12 products, `F = 8`, same 20-question step, remainder under 10 merges) and are Unit 4, not built
-(`lib/tranches.ts` does not exist on main). One function serves both: only `F` and the entitlement id differ (grown-up tranche 1 keeps the legacy
-`cat_<id>`). Whether kids move to `F = 5` is Decision 3 in #238.
+Kids under reading 1 would be one upgrade per category (9 products, up to 50 questions each), which reverses the tranche decision of 2026-11-24; under reading 2 with `F = 5` they have 13 tranches. One function serves both audiences; only `F`, `step` and the entitlement id differ. Decision 3 in #238 stays open.
 
-**Creating a product without a write by the Apple ops key.** The Apple ops workflow is read-only and stays so. Two ways to create the four products,
-both Tim's: (1) by hand in App Store Connect: app > Monetization > In-App Purchases > "+" > Non-Consumable, product id, $1.99, en-US text, review screenshot; or (2) the existing
-`Apple IAP create` workflow (`apple-iap-create.yml`, dry run first, then `apply=true` with its confirm string, which is hard-coded `CREATE-8-IAPS` and must change to the new count in a
-separate PR). Note both use the same `ASC_*` secrets; only workflow (2) writes. RevenueCat products, entitlements and packages come from `npm run rc:sync` (Tim runs it; I never do) or the RevenueCat dashboard.
+**Creating a product without a write by the Apple ops key.** The Apple ops workflow is read-only and stays so. Reading 1 needs no new product. Reading 2 needs four, created by Tim: (1) by hand in App Store Connect: app > Monetization > In-App Purchases > "+" > Non-Consumable, product id, $1.99, en-US text, review screenshot; or (2) the existing
+`Apple IAP create` workflow (`apple-iap-create.yml`: dry run first, then `apply=true` with its confirm string, hard-coded `CREATE-8-IAPS`, which a small separate PR must change first). Both use the same `ASC_*` secrets; only workflow (2) writes. RevenueCat products, entitlements and packages come from `npm run rc:sync` (Tim runs it; I never do) or the RevenueCat dashboard.
 
 | Step | What | Files |
 |---|---|---|
@@ -130,21 +148,18 @@ separate PR). Note both use the same `ASC_*` secrets; only workflow (2) writes. 
 | F2 | Labels and paywall: no FREE pill, one paywall copy, derived counts, random play uses every category | `app/index.tsx`, `app/categories/*`, `app/unlock/[id].tsx`, `app/game/[id].tsx`, `app/results/[id].tsx`, `app/complete/[id].tsx`, `components/CategoryCard.tsx`, `constants/copy.ts`, `lib/nextCategory.ts` |
 | F3 | SEO per Tim's answer | `constants/seoPages.ts`, `scripts/verify-seo.ts`, sitemap |
 | F4 | Store text and docs | `store/ios/*`, `docs/specs/app-store-listing.md`, `docs/specs/kids-family-categories.md` |
-| F5 | Payments, one PR: tranche function and access by owned tranche set, the 4 `_2` products in the catalog, new paywall text ("Open the next {n} questions") | `lib/catalog.ts`, `constants/questions.ts`, `store/ios/iap-products.json`, `app/unlock/[id].tsx`; App Store Connect and RevenueCat creation are Tim's |
+| F5 | Payments, one PR: Reading 1: new paywall text and product text only. Reading 2: tranche function, access by owned tranche set, the 4 `_2` products in the catalog, paywall text ("Open the next {n} questions") | `lib/catalog.ts`, `constants/questions.ts`, `store/ios/iap-products.json`, `app/unlock/[id].tsx`; App Store Connect and RevenueCat creation are Tim's |
 | F6 | Review screenshots re-rendered if the paywall changes | `store/ios/iap-review/` |
 
-**Buyers.** None known: RevenueCat revenue is $0 over 28 days, the iOS app is unreleased, web unlocks for free. Existing product ids and entitlements keep their ids; tranche 1 of a 40-question category now opens positions 6 to 25, not all 40, so
-the four existing `wyr_unlock_*` products change text (`READY_TO_SUBMIT`, never approved) and four `_2` products are added (separate PR).
+**Buyers.** None known: RevenueCat revenue is $0 over 28 days, the iOS app is unreleased, web unlocks for free. Existing product ids and entitlements keep their ids in both readings. The 8 products are `READY_TO_SUBMIT` (never approved), so their text can change. Reading 2 adds four products (separate PR).
 
-**Acceptance tests for the tranche rule** (`tests/unit/tranches.test.ts`, run `npx tsx --test tests/unit/tranches.test.ts`; plus device checks):
-1. For each grown-up category the tranche table above is reproduced exactly (first, last, size), free = positions 1 to `F`, tranches contiguous, no gaps or overlap, last tranche ends at `n`.
-2. Access is by the set of owned tranches: owning only tranche 2 opens 26-40 and nothing in 6-25; refunding tranche 1 while owning 2 closes exactly 6-25.
-3. `premium_all` opens every tranche of every grown-up category and none of a kids or teen category.
-4. `buildCatalog()` yields the 8 current ids plus the four `_2` ids; ids and entitlement ids match the pattern.
-5. iPhone (TestFlight, sandbox): Tech Dystopia, answer 5, question 6 shows the paywall "Open the next 20 questions"; buy tranche 1: 6-25 play, 26 shows the paywall "Open the next 15 questions"; buy tranche 2: all 40 play; relaunch and Restore keep both. High Life: question 6 paywall "Open the next 15", one purchase opens to 20.
-6. Web with the free unlock on: one tap opens the next tranche only (or all, per Tim), and the copy says "free for now".
+**Acceptance tests.** Unit, `npx tsx --test tests/unit/tranches.test.ts` (written with the rule):
+- Both readings: every grown-up category has `getFreeQuestionCount === 5`; free + tranches cover positions 1 to `n` with no gap or overlap; `getAccessibleQuestions(c, false).length === 5`; no category has `tier === 'free'` and every category has at least one tranche; `premium_all` opens every grown-up tranche and no kids or teen tranche; access is by owned set (owning only a later tranche opens only that tranche).
+- Reading 1: each category has exactly one tranche, 15 or 35 questions as in the table; `buildCatalog()` still yields the 8 current ids.
+- Reading 2: tranches reproduce the table exactly (first, last, size); `buildCatalog()` yields 8 + the four `_2` ids; refunding tranche 1 while owning tranche 2 closes exactly 6-25.
+Device (TestFlight, sandbox): answer 5 in Tech Dystopia, question 6 shows the paywall. Reading 1: one purchase opens 6-40, relaunch and Restore keep it. Reading 2: purchase 1 opens 6-25 and question 26 shows "Open the next 15", purchase 2 opens to 40. High Life: question 6 paywall, one purchase opens to 20. Web with the free unlock on: copy says "free for now", and Tim states whether a tap opens one tranche or all.
 
-**Done when.** The ticket's acceptance tests 1 to 10 and the tranche tests above pass on web and iPhone, and Tim has reviewed each PR.
+**Done when.** The ticket's acceptance tests 1 to 10 and the tests above pass on web and iPhone, and Tim has reviewed each PR.
 
 ## Later
 
