@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isKidsCategoryId, isQuestionLocked } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, endsOpenSet } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 import { useTally } from '@/lib/useTally';
@@ -224,10 +224,10 @@ export default function ResultsScreen() {
     ? categoryQuestions[currentIdx + 1]
     : null;
   // Same routing rule as the game screen: a locked next question goes to the
-  // paywall, except the last-free → first-locked step of a free category,
-  // which celebrates on the complete screen (with the expansion upsell).
+  // paywall, except the last-open → first-locked step of a tranche,
+  // which celebrates on the complete screen (with the upsell).
   const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, currentIdx + 1, openTranches(category)));
-  const endsFreeSet = nextLocked && !!category && category.tier === 'free' && currentIdx + 1 === getFreeQuestionCount(category);
+  const endsFreeSet = !!category && endsOpenSet(category, currentIdx, openTranches(category));
   const handleNextQuestion = () => {
     if (!nextQuestion || !cat) return;
     if (endsFreeSet) {

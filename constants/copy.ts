@@ -5,7 +5,12 @@ export const COPY = {
     `Every category has ${free} free questions to spark the conversation before you decide`,
   freeMoreHint: (free: number, more: number) => `${free} free · ${more} more`,
   freePill: (free: number) => `${free} FREE`,
-  /** Still used by the category page until the next step replaces it. */
-  expansionBanner: (free: number, more: number) =>
-    `✓ ${free} free dilemmas · 👑 ${more} more waiting in the expansion pack`,
+  lockedBanner: (free: number, more: number) => `✓ ${free} free dilemmas · 👑 ${more} more to unlock`,
+  moreDilemmas: (n: number) => `👑 ${n} MORE DILEMMAS`,
+  openNext: (n: number) => `Open the next ${n} questions`,
+  restoredNotIncluded: 'Your purchases were restored, but they do not include this upgrade.',
+  everythingUnlocked: 'Everything is unlocked.',
+  unlockedTitle: 'Unlocked!',
+  unlockedBody: (n: number) => `${n} more dilemmas are now yours to explore.`,
+  openNextShort: (n: number) => `OPEN THE NEXT ${n}`,
 };

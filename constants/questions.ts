@@ -1643,15 +1643,94 @@ export function getAccessibleQuestions(category: CategoryDef, access: Access): Q
 }
 
 /**
- * Questions published to search engines and shown in category JSON-LD. Frozen at the
- * rule before #238 (grown-up premium: 3, former-free: all of volume 1, kids and teen:
- * their free count) until step F3 decides what SEO should publish (#238, Decision 4).
+ * Highest tranche number that has a store product today. Step F5 creates the `_2` products and raises it.
+ * Until then the tranche-2 buttons are disabled (the web free unlock still opens everything).
  */
+export const SELLABLE_TRANCHE_MAX = 1;
+
+/** The first paid tranche the player does not own yet, or undefined when nothing locked remains. */
+export function getNextTranche(category: CategoryDef, access: Access): Tranche | undefined {
+  if (access === true) return undefined;
+  return getTranches(category).find((t) => access === false || !access.has(t.k));
+}
+
+/** True when `questionIndex` (0-based) is the first question of a paid tranche. */
+export function isTrancheStart(category: CategoryDef, questionIndex: number): boolean {
+  return getTranches(category).some((t) => t.first - 1 === questionIndex);
+}
+
+/**
+ * How many questions from the start are open without a gap: the free set plus consecutive owned
+ * tranches. This is what "completed" means on the complete screen. A tranche owned after a gap
+ * (a refunded tranche 1 with tranche 2 kept) is not counted: those questions were not played.
+ */
+export function openPrefixCount(category: CategoryDef, access: Access): number {
+  const n = getCategoryQuestions(category.id).length;
+  let i = 0;
+  while (i < n && !isQuestionLocked(category, i, access)) i++;
+  return i;
+}
+
+/** True when the player owns at least one paid tranche (or everything). */
+export function hasAnyTranche(access: Access): boolean {
+  return access === true || (access instanceof Set && access.size > 0);
+}
+
+/**
+ * True only for the exact last-open to first-locked step: the current question is open
+ * and the next one starts a paid tranche. A share recipient on a locked question is not
+ * "finishing" anything, so they go to the paywall instead of the complete screen.
+ */
+export function endsOpenSet(category: CategoryDef, currentIdx: number, access: Access): boolean {
+  return (
+    !isQuestionLocked(category, currentIdx, access) &&
+    isQuestionLocked(category, currentIdx + 1, access) &&
+    isTrancheStart(category, currentIdx + 1)
+  );
+}
+
+/** Size of a tranche in questions. */
+export function trancheSize(t: Tranche): number {
+  return t.last - t.first + 1;
+}
+
+/** True while at least one question in the category is still locked for this player. */
+export function hasLockedRemaining(category: CategoryDef, access: Access): boolean {
+  return getNextTranche(category, access) !== undefined;
+}
+
+/**
+ * How many questions each category publishes to search engines and in category JSON-LD.
+ * Pinned per category id on purpose: it must not move when a category is retagged or the
+ * free count changes (Tim, 2026-11-25: questions 6 to 20 of Moral Compass, Social Blunders,
+ * Career Climber and Tech Dystopia stay public). Premium grown-up categories publish 3,
+ * those four publish their 20 volume-1 questions, kids and teen publish 8. A category
+ * not listed here falls back to its free count.
+ */
+export const PUBLIC_QUESTION_COUNTS: Readonly<Partial<Record<CategoryId, number>>> = {
+  'high-life': 3,
+  'midnight-secrets': 3,
+  'time-traveler': 3,
+  'deep-desires': 3,
+  'wildest-dreams': 3,
+  'moral-compass': 20,
+  'social-blunders': 20,
+  'career-climber': 20,
+  'tech-dystopia': 20,
+  'tiny-choices': 8,
+  'make-believe': 8,
+  'giggle-factory': 8,
+  'road-trip-rally': 8,
+  'dinner-table': 8,
+  'heart-to-heart': 8,
+  'future-me': 8,
+  'real-talk': 8,
+  'holiday-table': 8,
+};
+
 export function getPublicQuestionCount(category: CategoryDef): number {
-  if (category.audience !== 'adult') return getFreeQuestionCount(category);
-  const questions = getCategoryQuestions(category.id);
-  if (category.tier === 'premium') return Math.min(LEGACY_PREMIUM_PUBLIC_COUNT, questions.length);
-  return questions.filter((q) => getQuestionVolume(q) === 1).length;
+  const n = getCategoryQuestions(category.id).length;
+  return Math.min(PUBLIC_QUESTION_COUNTS[category.id] ?? getFreeQuestionCount(category), n);
 }
 
 export function isQuestionPublic(category: CategoryDef, questionIndex: number): boolean {

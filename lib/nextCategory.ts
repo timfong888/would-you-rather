@@ -27,8 +27,6 @@ export function randomPlayCategories<T extends CategoryLike>(categories: readonl
 export function pickNextCategory<T extends CategoryLike>(
   categories: readonly T[],
   currentId: string,
-  /** @deprecated ignored: every adult category has free questions. Callers drop it in the next step. */
-  _isUnlocked?: (id: string) => boolean,
 ): T | null {
   const start = categories.findIndex((c) => c.id === currentId);
   if (start < 0 || categories[start].audience !== 'adult') return null;

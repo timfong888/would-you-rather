@@ -16,11 +16,18 @@ import {
   getCategoryById,
   getCategoryQuestions,
   getQuestionById,
-  getAccessibleQuestions,
+  openPrefixCount,
+  getNextTranche,
   isKidsCategoryId,
+  SELLABLE_TRANCHE_MAX,
+  trancheSize,
 } from '@/constants/questions';
+import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
-import { useUnlocked } from '@/contexts/UnlockedContext';
+import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
+
+// Inline env test so the minifier drops the marker string when the flag is off (see app/unlock/[id].tsx).
+const WEB_FREE_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' && WEB_FREE_UNLOCK;
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
@@ -35,7 +42,7 @@ import SafeScrollView from '@/components/SafeScrollView';
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
-  const { isUnlocked, openTranches, priceForCategory } = useUnlocked();
+  const { openTranches, priceForCategory } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -142,15 +149,16 @@ export default function CompleteScreen() {
   }
 
   const catColor = category.color;
-  const categoryUnlocked = isUnlocked(id as CategoryId);
-  const isPremium = category.tier === 'premium';
-  // Everything the user could play without paying counts as "completed" here;
-  // what's left is the upsell (premium remainder or the expansion pack).
-  const completedCount = getAccessibleQuestions(category, openTranches(category)).length;
+  const access = openTranches(category);
+  // "Completed" is the open run from question 1 (the free set plus consecutive owned tranches);
+  // what's left is the upsell: the next tranche to open.
+  const completedCount = openPrefixCount(category, access);
   const remaining = questions.length - completedCount;
-  const isExpansionUpsell = !isPremium && remaining > 0;
+  const nextTranche = getNextTranche(category, access);
+  const nextSize = nextTranche ? trancheSize(nextTranche) : 0;
+  const sellable = nextTranche !== undefined && (nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK);
 
-  const nextCategory = pickNextCategory(CATEGORIES, id ?? '', (cid) => isUnlocked(cid as CategoryId));
+  const nextCategory = pickNextCategory(CATEGORIES, id ?? '');
 
   const myChoice = safeVoted;
   const myPct = result.kind === 'percent' ? (myChoice === 'A' ? result.a : result.b) : null;
@@ -244,9 +252,10 @@ export default function CompleteScreen() {
           )}
         </View>
 
-        {/* Upsell Card — premium remainder, or the expansion pack for a free category */}
+        {/* Upsell Card: the next tranche to open */}
         {remaining > 0 && (
           <Pressable
+            disabled={!sellable}
             onPress={() => router.push(`/unlock/${id}`)}
             style={({ pressed }) => [
               styles.upsellCard,
@@ -257,23 +266,19 @@ export default function CompleteScreen() {
               <Text style={styles.upsellIcon}>🔓</Text>
               <View style={styles.upsellTextBlock}>
                 <Text style={styles.upsellTitle}>
-                  {isExpansionUpsell ? 'KEEP THE CONVERSATION GOING' : 'THE DEPTHS AWAIT'}
+                  KEEP THE CONVERSATION GOING
                 </Text>
                 <Text style={styles.upsellHook}>
-                  {isExpansionUpsell
-                    ? `You've played all ${completedCount} free ${category.label} dilemmas. ${remaining} more are waiting in the expansion pack.`
-                    : `Unlock ${remaining} more ${category.label} dilemmas — the ones that spark real debate`}
+                  {`You've played all ${completedCount} ${category.label} dilemmas. ${nextSize} more are waiting.`}
                 </Text>
               </View>
             </View>
             <Text style={styles.upsellDesc}>
-              {isExpansionUpsell
-                ? 'Your favorite topic doesn\'t have to end here. Fresh dilemmas, same category, brand-new debates.'
-                : 'You\'ve only scratched the surface. The questions that reveal who people really are are waiting.'}
+              Your favorite topic doesn't have to end here. Fresh dilemmas, same category, brand-new debates.
             </Text>
             <View style={styles.upsellCta}>
               <Text style={styles.upsellCtaText}>
-                {`UNLOCK EVERYTHING · ${priceForCategory(id as string)}`}
+                {sellable ? `${COPY.openNextShort(nextSize)} · ${priceForCategory(id as string)}${WEB_FREE_UI ? ' · FREE FOR NOW' : ''}` : 'MORE AVAILABLE SOON'}
               </Text>
             </View>
           </Pressable>
