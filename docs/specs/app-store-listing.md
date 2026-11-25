@@ -342,7 +342,7 @@ State: **blank** (empty in Tim's screenshot or nowhere set), **set** (read live)
 | 26 | App Accessibility | Accessibility labels | unverified | Declare nothing until each feature is tested on a device. I have not verified VoiceOver, Dynamic Type or contrast. Believed voluntary for now (unverified). | |
 | 27 | Ratings and Reviews | Any required field | unverified | None expected; age rating is under App Information (verify). | |
 | 28 | Monetization | Price | unverified | Free, base territory USA | |
-| 29 | Monetization | Availability | unverified | **United States only** (Tim, 2026-11-25, relayed by the orchestrator; not read from ASC). Remove every other storefront. | |
+| 29 | Monetization | Availability | unverified | **United States only** (Tim, 2026-11-25, his direct words; not read from ASC). Remove every other storefront. | |
 | 30 | Monetization | Paid Apps agreement, banking, tax | unverified | **Tim** (Account Holder). Needed for in-app purchases. | |
 | 31 | In-App Purchases | 8 products: name, description, price, screenshot | **set** (`READY_TO_SUBMIT`; screenshots COMPLETE) | Keep. Display text "Every question in X" may be wrong after #238; do not edit until Tim answers #238 decision 2. | |
 | 32 | Version | Advertising Identifier (asked at submit) | unverified | No (no ads, no ATT, section 5.3). Tim confirms RevenueCat does not read the IDFA. | |
@@ -455,9 +455,10 @@ All links open App Store Connect for app 6836653723; menu paths move, so each is
 1. **Screenshots: iPhone capture or CI?** Recommend your iPhone (option 1): fastest, real paywall.
 2. **Keyword field:** hold until Search Ads data, and do not repeat "would you rather". Recommend hold.
 3. **Release type:** manual, not automatic. Recommend manual.
-4. **Territories: decided, United States only** (Tim, 2026-11-25, relayed). EU trader status is then expected not to apply (unverified); revisit if more storefronts are added.
+4. **Territories: decided, United States only** (Tim, 2026-11-25). EU trader status is then expected not to apply (unverified); revisit if more storefronts are added.
 5. **Ship before or after #238?** IAP text ("Every question in X") and paywall copy may change. Recommend fix #238 first; screenshots 6 and the IAP review screenshots need re-capture if the paywall changes.
 6. **Accessibility:** skip labels for v1 until tested. Recommend skip.
+7. **Category name mismatch:** the app calls the category "Kids & Family"; the proposed store text (8.4) says "Family category". Do you rename the category in the app, accept the mismatch, or keep "Kids & Family" in the store text? Nothing is renamed in this PR. Recommend accept the mismatch for v1; section 8.6 (review notes) keeps "Kids & Family" on purpose because it describes the app to App Review.
 
 ## 9. Age rating options and Kids Category bands (2026-11-25)
 
