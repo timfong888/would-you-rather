@@ -315,3 +315,21 @@ test('the all-categories wording and the access.ts comment match the behaviour',
   assert.doesNotMatch(access, /keyed by category id \(the old web free unlock\) or by ENTITLEMENT_ALL opens everything/);
   assert.match(access, /ENTITLEMENT_ALL opens everything \(the bare category id of the old web free unlock opens tranche 1 only/);
 });
+
+test('the iOS smoke flow asserts the paywall strings the app actually shows (#238)', () => {
+  const flow = readFileSync('.maestro/adult-paywall-smoke.yaml', 'utf8');
+  const src = code('app/unlock/[id].tsx');
+  // eyebrow
+  assert.match(flow, /visible: "MORE DILEMMAS"/);
+  assert.match(src, /^\s*MORE DILEMMAS$/m);
+  assert.doesNotMatch(flow, /PREMIUM ACCESS|EXPANSION PACK/);
+  // CTA label: the flow's pattern must match what the button announces
+  const cta = flow.match(/element: "(Open the next \[0-9\]\+ questions for\.\*)"/);
+  assert.ok(cta, 'flow scrolls to the tranche CTA');
+  assert.match(`${COPY.openNext(15)} for $1.99`, new RegExp(`^${cta![1]}$`));
+  assert.match(src, /\$\{COPY\.openNext\(nextSize\)\} for \$\{shownPrice\}/);
+  assert.doesNotMatch(flow, /Unlock \[0-9\]\+ more dilemmas/);
+  // restore
+  assert.match(flow, /assertVisible: "Restore previous purchases"/);
+  assert.match(src, /accessibilityLabel="Restore previous purchases"/);
+});

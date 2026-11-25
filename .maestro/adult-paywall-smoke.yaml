@@ -38,13 +38,13 @@ name: Adult paywall smoke
     direction: DOWN
     timeout: 30000
 - tapOn: "🔒.*"
-# Paywall: premium categories show PREMIUM ACCESS; the price block and CTA sit below the fold. Never tapped.
+# Paywall (#238): every category sells its next tranche, eyebrow MORE DILEMMAS; the price block and CTA sit below the fold. Never tapped.
 - extendedWaitUntil:
-    visible: "PREMIUM ACCESS|EXPANSION PACK"
+    visible: "MORE DILEMMAS"
     timeout: 20000
 - takeScreenshot: 11-adult-paywall-top
 - scrollUntilVisible:
-    element: "Unlock [0-9]+ more dilemmas for.*"
+    element: "Open the next [0-9]+ questions for.*"
     direction: DOWN
     timeout: 30000
 - assertVisible: "Restore previous purchases"
