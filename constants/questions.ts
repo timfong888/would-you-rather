@@ -1642,6 +1642,23 @@ export function getAccessibleQuestions(category: CategoryDef, access: Access): Q
  */
 export const SELLABLE_TRANCHE_MAX = 1;
 
+/**
+ * Kids and teen tranches have no store product until step F5 creates them, so a kids or teen paywall sells nothing
+ * (and the web free unlock never opens them). F5 flips this on together with the products.
+ */
+export const SELLABLE_YOUNG_TRANCHES = false;
+
+/** True when the player can actually buy `tranche` of `category` today. The web free unlock counts for grown-ups only. */
+export function isTrancheSellable(category: CategoryDef, tranche: Tranche, webFreeUnlock = false): boolean {
+  if (category.audience !== 'adult') return SELLABLE_YOUNG_TRANCHES && tranche.k <= SELLABLE_TRANCHE_MAX;
+  return tranche.k <= SELLABLE_TRANCHE_MAX || webFreeUnlock;
+}
+
+/** The all-categories pack (`premium_all`) opens grown-up categories only, so only grown-up paywalls may offer it. */
+export function offersAllCategoriesPack(category: CategoryDef): boolean {
+  return category.audience === 'adult';
+}
+
 /** The first paid tranche the player does not own yet, or undefined when nothing locked remains. */
 export function getNextTranche(category: CategoryDef, access: Access): Tranche | undefined {
   if (access === true) return undefined;

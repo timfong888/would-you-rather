@@ -19,7 +19,7 @@ import {
   openPrefixCount,
   getNextTranche,
   isKidsCategoryId,
-  SELLABLE_TRANCHE_MAX,
+  isTrancheSellable,
   trancheSize,
 } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
@@ -156,7 +156,7 @@ export default function CompleteScreen() {
   const remaining = questions.length - completedCount;
   const nextTranche = getNextTranche(category, access);
   const nextSize = nextTranche ? trancheSize(nextTranche) : 0;
-  const sellable = nextTranche !== undefined && (nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK);
+  const sellable = nextTranche !== undefined && !!category && isTrancheSellable(category, nextTranche, WEB_FREE_UNLOCK);
 
   const nextCategory = pickNextCategory(CATEGORIES, id ?? '');
 

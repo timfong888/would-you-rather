@@ -76,7 +76,7 @@ test('no EAS build carries the free test unlock (web-only, decision A 2026-11-20
 test('the simulated checkout is gone; the pack button needs real purchases or the web free unlock', () => {
   const src = readFileSync('app/unlock/[id].tsx', 'utf8');
   assert.doesNotMatch(src, /TEST_UNLOCK|EXPO_PUBLIC_TEST_UNLOCK|TEST MODE|'sheet'/);
-  assert.match(src, /\{\(purchasesAvailable \|\| WEB_FREE_UI\) && \(/);
+  assert.match(src, /\{offersAllCategoriesPack\(category\) && \(purchasesAvailable \|\| WEB_FREE_UI\) && \(/);
   assert.match(
     src,
     /if \(kind === 'all'\) unlockAll\(\);\s*else if \(category\?\.audience === 'adult' && nextTranche\) unlockTranche\(id as CategoryId, nextTranche\.k\);[^\n]*\n\s*else unlock\(id as CategoryId\);/,
