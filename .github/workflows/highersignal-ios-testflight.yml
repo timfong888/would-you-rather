@@ -14,7 +14,8 @@ name: Higher Signal iOS (build and TestFlight)
 # - the app is cloned OUTSIDE this repo's tree ($RUNNER_TEMP), so EAS/Expo never resolves this repo's package.json or metro config;
 # - the secretless check (scripts/highersignal-check.mjs) fails the run before any Apple/Expo secret if the app directory is not
 #   self-contained (own package.json, lockfile, app.json, eas.json, pckg.highersignal bundle id, EAS profile, no workspaces, no parent
-#   dependency, no local-file plugins, registry-only lockfile v3, no .npmrc/.env/app.config.*);
+#   dependency, no local-file plugins, registry-only lockfile v3, store-distribution profile with autoIncrement, no .npmrc/.env/app.config.*, no symlinks, no
+#   config that loads local code). It is a blocklist, not a proof: the sha-must-be-on-main rule is the real control;
 # - eas-cli comes from the committed tools/eas-cli lockfile (whole tree pinned), run by absolute path, never via npx in the app dir;
 # - Apple/Expo secrets reach exactly one step; contents: read; no artifacts; no pull_request_target;
 # - the ASC preflight checks the app id against pckg.highersignal; third-party actions are pinned to commit SHAs;
@@ -71,14 +72,17 @@ jobs:
           set -euo pipefail
           umask 077
           [ -n "$HIGHERSIGNAL_DEPLOY_KEY" ] || { echo "HIGHERSIGNAL_DEPLOY_KEY is missing from the apple-ops environment"; exit 1; }
-          while IFS= read -r l; do [ "${#l}" -ge 4 ] && echo "::add-mask::$l"; done <<< "$HIGHERSIGNAL_DEPLOY_KEY"
           keydir="$(mktemp -d)"
           trap 'rm -rf "$keydir"' EXIT
-          printf '%s\n' "$HIGHERSIGNAL_DEPLOY_KEY" > "$keydir/id"
+          printf '%s\n' "$HIGHERSIGNAL_DEPLOY_KEY" | tr -d '\r' > "$keydir/id"   # LF only: a CRLF-stored secret would break ssh and the masks
+          unset HIGHERSIGNAL_DEPLOY_KEY   # children (git, ssh) never inherit it; they read the 0600 file
+          while IFS= read -r l; do [ "${#l}" -ge 4 ] && echo "::add-mask::$l"; done < "$keydir/id"
           # GitHub's published ed25519 host key (SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU); never ssh-keyscan.
           echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "$keydir/known_hosts"
-          export GIT_SSH_COMMAND="ssh -i $keydir/id -o IdentitiesOnly=yes -o UserKnownHostsFile=$keydir/known_hosts -o StrictHostKeyChecking=yes"
-          git clone --no-tags "git@github.com:${HIGHERSIGNAL_REPO}.git" "$HIGHERSIGNAL_DEST"
+          export GIT_SSH_COMMAND="ssh -F /dev/null -i $keydir/id -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=$keydir/known_hosts -o StrictHostKeyChecking=yes"
+          export GIT_LFS_SKIP_SMUDGE=1
+          # The key can fetch this one repo, read only. The ancestor-of-main check below runs after that fetch; it gates everything that follows.
+          git -c core.hooksPath=/dev/null clone --no-tags "git@github.com:${HIGHERSIGNAL_REPO}.git" "$HIGHERSIGNAL_DEST"
           cd "$HIGHERSIGNAL_DEST"
           git cat-file -e "${HIGHERSIGNAL_SHA}^{commit}" || { echo "sha not found in highersignal"; exit 1; }
           git merge-base --is-ancestor "$HIGHERSIGNAL_SHA" origin/main || { echo "sha is not an ancestor of highersignal main; refusing"; exit 1; }

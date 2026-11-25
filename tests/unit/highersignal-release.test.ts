@@ -30,7 +30,7 @@ test('workflow: one input (a sha), hardcoded repo, dir and ASC app id; inputs on
   assert.equal((wf.match(/^      [a-z_]+:\n        description:/gm) || []).length, 1);
   assert.match(wf, /HIGHERSIGNAL_REPO: timfong888\/highersignal/);
   assert.match(wf, /HIGHERSIGNAL_SUBDIR: \.\n/);
-  assert.match(wf, /HIGHERSIGNAL_APP_ID: ''/); // placeholder: the run stops until Tim fills it in
+  assert.match(wf, /HIGHERSIGNAL_APP_ID: '([0-9]{8,12})?'/); // empty until the app record exists (the run then stops); a numeric id afterwards
   assert.match(wf, /\^\[0-9a-f\]\{40\}\$/);
   assert.match(wf, /\^\[0-9\]\{8,12\}\$/);
   for (const l of wf.split('\n').filter((x: string) => x.includes('inputs.'))) assert.match(l, /^\s+HIGHERSIGNAL_SHA: \$\{\{ inputs\.highersignal_sha \}\}$/, l);
@@ -67,7 +67,15 @@ test('workflow: key is masked, 0600 temp file outside the checkout, removed, hos
   assert.match(s, /trap 'rm -rf "\$keydir"' EXIT/);
   assert.match(s, /IdentitiesOnly=yes/);
   assert.match(s, /StrictHostKeyChecking=yes/);
-  assert.match(s, /git clone --no-tags "git@github\.com:\$\{HIGHERSIGNAL_REPO\}\.git"/);
+  assert.match(s, /git -c core\.hooksPath=\/dev\/null clone --no-tags "git@github\.com:\$\{HIGHERSIGNAL_REPO\}\.git"/);
+  assert.match(s, /ssh -F \/dev\/null /);
+  assert.match(s, /BatchMode=yes/);
+  assert.match(s, /tr -d '\\r'/);
+  assert.match(s, /unset HIGHERSIGNAL_DEPLOY_KEY/);
+  assert.ok(s.indexOf('unset HIGHERSIGNAL_DEPLOY_KEY') < s.indexOf('git -c core.hooksPath'), 'key leaves the environment before any child runs');
+  assert.doesNotMatch(s, /set -x|printenv|\benv\b *(\||$)|echo "?\$HIGHERSIGNAL_DEPLOY_KEY|cat "?\$keydir\/id/m);
+  assert.equal((wf.match(/GIT_SSH_COMMAND/g) || []).length, 1, 'GIT_SSH_COMMAND appears only in the clone step');
+  assert.doesNotMatch(wf, /ACTIONS_STEP_DEBUG|ACTIONS_RUNNER_DEBUG/);
   assert.doesNotMatch(wf, /ssh-keyscan|StrictHostKeyChecking=no|ssh-add|~\/\.ssh/);
   // the pinned host key really is GitHub's published ed25519 key
   const blob = s.match(/github\.com ssh-ed25519 (\S+)/)![1];
@@ -90,8 +98,15 @@ test('workflow: order is validate, clone+pin to main, check, install, then the s
   assert.match(wf, /EAS_PROFILE: production/);
 });
 
-test('workflow: does not mention neville, and the neville workflow is not edited by this change', () => {
+test('workflow: shares nothing with Neville but read-only helper imports that still exist', async () => {
   assert.doesNotMatch(wf, /neville/i);
+  // @ts-ignore plain .mjs module
+  const nev: Record<string, unknown> = await import('../../scripts/lib/nevilleRelease.mjs');
+  for (const n of ['versionAtLeast', 'pollBuild', 'finalOutcome', 'tailLines', 'tailErrors', 'validateSha']) assert.equal(typeof nev[n], 'function', n);
+  // the Neville workflow still has its own repo, folders and app id (this change must not move them)
+  const nw = readFileSync('.github/workflows/neville-ios-testflight.yml', 'utf8');
+  assert.match(nw, /NEVILLE_REPO: timfong888\/neville/);
+  assert.match(nw, /6740147041/);
 });
 
 test('app id and dir are validated; dir is an allowlist, never a path', () => {
@@ -132,10 +147,10 @@ const fixture = (files: Record<string, string>, sub = '.') => {
   return { root, dir };
 };
 const good: Record<string, string> = {
-  'package.json': JSON.stringify({ name: 'hs', dependencies: { expo: '~58.0.0' } }),
+  'package.json': JSON.stringify({ name: 'hs', dependencies: { expo: '~58.0.0', 'expo-router': '~5.0.0' } }),
   'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { '': {}, 'node_modules/expo': { resolved: 'https://registry.npmjs.org/expo/-/expo-58.0.0.tgz' } } }),
   'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, extra: { eas: { projectId: 'x' } } } }),
-  'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { autoIncrement: true } } }),
+  'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store', autoIncrement: true } } }),
 };
 const check = (files: Record<string, string>, sub = '.', opts = {}) => { const { root, dir } = fixture(files, sub); return checkSelfContained(dir, sub, { fs, root, nodeVersion: '22.14.0', ...opts }); };
 
@@ -155,9 +170,26 @@ test('check: not self-contained fails (missing files, wrong bundle id, workspace
   bad({ 'eas.json': null }, /eas\.json is missing/);
   bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.neville' } } }) }, /not pckg\.highersignal/);
   bad({ 'package.json': JSON.stringify({ workspaces: ['a'] }) }, /workspaces/);
-  bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'file:../shared' } }) }, /parent path or workspace/);
-  bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'workspace:*' } }) }, /parent path or workspace/);
-  bad({ 'metro.config.js': "const p = path.resolve(__dirname, '..');" }, /parent directory/);
+  bad({ 'package.json': JSON.stringify({ name: 'hs', imports: { '#p': './p.js' } }) }, /"imports"/);
+  bad({ 'package.json': JSON.stringify({ name: 'hs', exports: './x.js' }) }, /"exports"/);
+  bad({ 'package.json': JSON.stringify({ name: 'hs', dependencies: { expo: '~58.0.0' }, overrides: { x: 'github:a/b' } }) }, /not from the npm registry/);
+  bad({ 'package.json': JSON.stringify({ name: 'hs', dependencies: { x: 'git+ssh://git@github.com/a/b.git' } }) }, /not from the npm registry/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['#p'] } }) }, /local files/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['hs'] } }) }, /named after this package/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['some-undeclared-plugin'] } }) }, /not declared dependencies/);
+  bad({ 'babel.config.js': "const cp = require('child_process');" }, /babel\.config\.js has lines/);
+  bad({ 'metro.config.js': "const x = require('./evil');" }, /metro\.config\.js has lines/);
+  bad({ 'metro.config.js': 'process.env.X;' }, /metro\.config\.js has lines/);
+  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'internal', autoIncrement: true } } }) }, /not a store build/);
+  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store', autoIncrement: true, credentialsSource: 'local' } } }) }, /credentialsSource or extends/);
+  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store', extends: 'base' , autoIncrement: true } } }) }, /credentialsSource or extends/);
+  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'local' }, build: { production: { distribution: 'store', autoIncrement: true } } }) }, /not remote/);
+  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store' } } }) }, /autoIncrement/);
+  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, submit: { production: { ios: { ascAppId: '1111111111' } } }, build: { production: { distribution: 'store', autoIncrement: true } } }) }, /ascAppId/, { appId: '6740147999' });
+  bad({ 'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/x': {} } }) }, /no resolved URL/);
+  bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'file:../shared' } }) }, /not from the npm registry/);
+  bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'workspace:*' } }) }, /not from the npm registry/);
+  bad({ 'metro.config.js': "const p = path.resolve(__dirname, '..');" }, /reach the parent dir/);
   bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['./plugins/x.js'] } }) }, /local files/);
   bad({ '.npmrc': 'x' }, /\.npmrc\* is present/);
   bad({ '.env.local': 'x' }, /\.env\* is present/);
@@ -171,10 +203,15 @@ test('check: not self-contained fails (missing files, wrong bundle id, workspace
   bad({}, /older than 22\.13/, { nodeVersion: '20.11.0' });
 });
 
-test('check: a symlinked file or build dir fails closed', () => {
+test('check: a symlink anywhere in the tree, or a symlinked build dir, fails closed', () => {
   const { root, dir } = fixture(good);
-  fs.rmSync(join(dir, 'eas.json')); writeFileSync(join(root, '..', 'hs-target.json'), '{}'); symlinkSync(join(root, '..', 'hs-target.json'), join(dir, 'eas.json'));
-  assert.ok(checkSelfContained(dir, '.', { fs, root, nodeVersion: '22.14.0' }).errors.some((e: string) => /symlink/.test(e)));
+  mkdirSync(join(dir, 'assets'));
+  symlinkSync('/proc/self/environ', join(dir, 'assets', 'logo.png'));
+  const nested = checkSelfContained(dir, '.', { fs, root, nodeVersion: '22.14.0' });
+  assert.ok(nested.errors.some((e: string) => /symlink/.test(e)), nested.errors.join('|'));
+  assert.ok(!nested.errors.join('|').includes('environ'.repeat(2)));
+  const top = fixture(good); fs.rmSync(join(top.dir, 'eas.json')); symlinkSync(join(top.dir, 'package.json'), join(top.dir, 'eas.json'));
+  assert.ok(checkSelfContained(top.dir, '.', { fs, root: top.root, nodeVersion: '22.14.0' }).errors.some((e: string) => /symlink/.test(e)));
   const r2 = mkdtempSync(join(tmpdir(), 'hs-')); const real = mkdtempSync(join(tmpdir(), 'hs-real-')); symlinkSync(real, join(r2, 'native'));
   assert.ok(checkSelfContained(join(r2, 'native'), 'native', { fs, root: r2, nodeVersion: '22.14.0' }).errors.some((e: string) => /symlink|outside/.test(e)));
 });

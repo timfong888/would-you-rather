@@ -8,7 +8,7 @@ import { resolveDir, checkSelfContained, validateAppId } from './lib/highersigna
 const { HIGHERSIGNAL_ROOT, HIGHERSIGNAL_SUBDIR, HIGHERSIGNAL_APP_ID, EAS_PROFILE } = process.env;
 let dir;
 try { validateAppId(HIGHERSIGNAL_APP_ID); dir = resolveDir(HIGHERSIGNAL_ROOT, HIGHERSIGNAL_SUBDIR); } catch (e) { console.error(e.message); process.exit(2); }
-const r = checkSelfContained(dir, HIGHERSIGNAL_SUBDIR, { fs, root: HIGHERSIGNAL_ROOT, profile: EAS_PROFILE || 'production' });
+const r = checkSelfContained(dir, HIGHERSIGNAL_SUBDIR, { fs, root: HIGHERSIGNAL_ROOT, profile: EAS_PROFILE || 'production', appId: HIGHERSIGNAL_APP_ID });
 for (const l of r.lines) console.log(l);
 for (const w of r.warnings) console.log(`::warning::${w}`);
 for (const e of r.errors) console.log(`::error::${e}`);
