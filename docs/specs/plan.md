@@ -64,7 +64,7 @@ Product ids: tranche 1 `wyr_unlock_<category>` / `cat_<id>`, tranche k >= 2 `wyr
 
 **The 12 tranches (superseded)** (paid questions per category; free 8 first): Tiny Choices 22 (1); Make-Believe 33 (20, 13); Giggle Factory 47
 (20, 27); Road Trip Rally 22 (1); Dinner Table 39 (20, 19); Heart to Heart 22 (1); Future Me 22 (1); Real Talk 22 (1); Holiday Table
-25 (1). Product count after Unit 4 in this superseded version: 8 today, plus 12 tranches, plus the With kids pack = 21; the current design is 14 kids and teen products, 26 in total with the grown-up ones (#252).
+25 (1). Product count after Unit 4 in this superseded version: 8 today, plus 12 tranches, plus the With kids pack = 21; the current design is 26 products in total (#252): the pack, 7 grown-up tranche 1 (8 of the 26 exist today with the pack), 4 grown-up part 2 (Moral Compass, Social Blunders, Career Climber, Tech Dystopia) and 14 kids and teen. 18 are new.
 
 **Rule.** Every payments change is its own PR. They are never batched, none is auto-merged, and each goes to Tim's queue with a link and
 one line on what a user would notice. No App Store Connect product, and no RevenueCat product, is created without asking the orchestrator

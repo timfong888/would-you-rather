@@ -8,7 +8,7 @@
  * Identifiers are identical in RevenueCat (Test Store), App Store Connect and
  * Google Play, so changing one is a catalog migration, not a code tweak.
  */
-import { CATEGORIES, hasPaidContent } from '@/constants/questions';
+import { CATEGORIES, getTranches, hasPaidContent, trancheSize } from '@/constants/questions';
 import { IOS_V1_EXCLUDED_CATEGORIES } from '@/constants/iosV1';
 import type { CategoryDef, CategoryId } from '@/constants/questions';
 
@@ -33,6 +33,18 @@ export function entitlementForCategory(id: CategoryId | string): string {
 
 export function productForCategory(id: CategoryId | string): string {
   return `wyr_unlock_${String(id).replace(/-/g, '_')}`;
+}
+
+/**
+ * Tranche `k` of a category (#238, #252): tranche 1 keeps the id that exists today (`wyr_unlock_<id>`,
+ * `cat_<id>`); tranche k >= 2 adds a suffix (`wyr_unlock_<id>_<k>`, `cat_<id>_<k>`).
+ */
+export function productForTranche(id: CategoryId | string, k: number): string {
+  return k <= 1 ? productForCategory(id) : `${productForCategory(id)}_${k}`;
+}
+
+export function entitlementForTranche(id: CategoryId | string, k: number): string {
+  return k <= 1 ? entitlementForCategory(id) : `${entitlementForCategory(id)}_${k}`;
 }
 
 /**
@@ -61,29 +73,38 @@ export interface CatalogProduct {
   priceMicros: number;
   /** null for the all-categories pack. */
   categoryId: CategoryId | null;
+  /** The tranche this product opens (1 = positions 6-20); null for the pack. */
+  tranche: number | null;
 }
 
-/** Every product to create, derived from the question bank so it cannot drift. */
+/**
+ * Every product to create, derived from the question bank so it cannot drift: the pack plus one product per
+ * paid tranche of each category (grown-up, kids and teen share one rule). The pack opens grown-up categories only.
+ */
 export function buildCatalog(categories: CategoryDef[] = CATEGORIES): CatalogProduct[] {
   const products: CatalogProduct[] = [
     {
       productId: PRODUCT_ALL,
       entitlementId: ENTITLEMENT_ALL,
-      title: 'All Categories',
-      description: 'Every category, including questions added later.',
+      title: 'All Grown-up Categories',
+      description: 'All grown-up categories, plus future ones',
       priceMicros: PRICE_ALL_MICROS,
       categoryId: null,
+      tranche: null,
     },
   ];
   for (const c of paidCategories(categories)) {
-    products.push({
-      productId: productForCategory(c.id),
-      entitlementId: entitlementForCategory(c.id),
-      title: c.label,
-      description: `Every question in ${c.label}, including questions added later.`,
-      priceMicros: PRICE_CATEGORY_MICROS,
-      categoryId: c.id,
-    });
+    for (const t of getTranches(c)) {
+      products.push({
+        productId: productForTranche(c.id, t.k),
+        entitlementId: entitlementForTranche(c.id, t.k),
+        title: t.k === 1 ? c.label : `${c.label} · Part ${t.k}`,
+        description: `Unlock ${trancheSize(t)} more questions in ${c.label}`,
+        priceMicros: PRICE_CATEGORY_MICROS,
+        categoryId: c.id,
+        tranche: t.k,
+      });
+    }
   }
   return products;
 }

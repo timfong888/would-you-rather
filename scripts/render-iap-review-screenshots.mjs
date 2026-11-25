@@ -28,15 +28,21 @@ let DIST = '';
 const OUT = path.join(ROOT, 'store/ios/iap-review');
 const spec = JSON.parse(fs.readFileSync(path.join(ROOT, 'store/ios/iap-products.json'), 'utf8'));
 
+const KIDS_AND_TEEN = ['tiny-choices', 'make-believe', 'giggle-factory', 'road-trip-rally', 'dinner-table', 'heart-to-heart', 'future-me', 'real-talk', 'holiday-table'];
+
 /** Which paywall sells each product, and the text the shot must show. */
 export function shotPlan(products) {
   return products.map((p) => {
     if (p.productId === 'wyr_premium_all') {
       // The pack is sold on every category paywall ("Or unlock every category").
-      return { ...p, route: '/unlock/high-life', mustShow: [`$${p.priceUsd}`, 'unlock every category'] };
+      return { ...p, route: '/unlock/high-life', mustShow: [`$${p.priceUsd}`, 'unlock every category'], renderable: true };
     }
-    const category = p.productId.replace(/^wyr_unlock_/, '').replace(/_/g, '-');
-    return { ...p, route: `/unlock/${category}`, mustShow: [`$${p.priceUsd}`, p.displayName] };
+    // Tranche 1 of a grown-up category has a paywall that shows its own name and price today. Part 2 and later need a
+    // player who owns the part before it, and kids and teen sell nothing until F5b (#252): no shot yet.
+    const m = p.productId.replace(/^wyr_unlock_/, '').match(/^(.*?)(?:_(\d+))?$/);
+    const category = m[1].replace(/_/g, '-');
+    const renderable = !m[2] && !KIDS_AND_TEEN.includes(category);
+    return { ...p, route: `/unlock/${category}`, mustShow: [`$${p.priceUsd}`, p.displayName], renderable };
   });
 }
 
@@ -82,6 +88,7 @@ async function main() {
   const browser = await chromium.launch();
   let failed = 0;
   for (const shot of shotPlan(spec.products)) {
+    if (!shot.renderable) { console.log(`SKIP (no paywall to shoot yet) ${shot.productId}`); continue; }
     // 430x932 CSS px at 3x = 1290x2796, the iPhone 6.7" screenshot size.
     const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, colorScheme: 'light' });
     const page = await ctx.newPage();

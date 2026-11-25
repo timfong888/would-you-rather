@@ -19,7 +19,7 @@ included. `kids-family` is free and has no product.
 **iOS v1 leaves out Midnight Secrets and Deep Desires** (Tim, 2026-11-18: "leave
 them out"). native builds hide them (`constants/iosV1.ts`, `constants/platformFilter.native.ts`)
 and the catalog has no products for them, so iOS v1 sells the pack plus seven
-category unlocks (8 products). They stay on the web. The catalog is derived from
+category unlocks (8 products today; 26 with the tranche products, #252). They stay on the web. The catalog is derived from
 `constants/questions.ts` minus that exclusion list.
 
 One RevenueCat offering, `default`, holds one package per product (package

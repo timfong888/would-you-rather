@@ -38,7 +38,7 @@ import { requiresParentalGate } from '@/lib/parentalGate';
 import { ParentalGate } from '@/components/ParentalGate';
 import {
   PRODUCT_ALL,
-  productForCategory,
+  productForTranche,
 } from '@/lib/catalog';
 import { purchases } from '@/lib/purchases';
 import { purchaseErrorMessage, isPurchasePending } from '@/lib/purchaseErrors';
@@ -249,9 +249,9 @@ export default function UnlockScreen() {
   const teaserQuestions = questions.slice(trancheStart, trancheStart + 3);
   const remainingCount = Math.max(nextSize - teaserQuestions.length, 0);
 
-  const productId = productForCategory(id as string);
+  const productId = productForTranche(id as string, nextTranche?.k ?? 1);
   // Store price when loaded, else the approved price ($1.99 category, $4.99 pack).
-  const shownPrice = priceForCategory(id as string);
+  const shownPrice = priceForCategory(id as string, nextTranche?.k ?? 1);
   const allPrice = priceForAll();
 
   // Temporary web free unlock: no checkout, no charge.

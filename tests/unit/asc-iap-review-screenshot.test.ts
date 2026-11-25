@@ -8,13 +8,25 @@ import { shotPlan, FORBIDDEN } from '../../scripts/render-iap-review-screenshots
 
 const spec = JSON.parse(readFileSync('store/ios/iap-products.json', 'utf8'));
 
-test('every IAP has a committed 1290x2796 PNG review screenshot', () => {
+// The first 8 products have shots. The 18 added by F5a (#252) do not yet: part 2 and later need a player who owns the
+// part before, and kids and teen sell nothing until F5b. A product leaves this rule when its shot is committed.
+const KIDS_IDS = ['tiny_choices', 'make_believe', 'giggle_factory', 'road_trip_rally', 'dinner_table', 'heart_to_heart', 'future_me', 'real_talk', 'holiday_table'].map((c) => `wyr_unlock_${c}`);
+const NO_SHOT_YET = (productId: string) => /_\d+$/.test(productId) || KIDS_IDS.includes(productId);
+
+test('every IAP with a paywall to shoot has a committed 1290x2796 PNG review screenshot; the other 18 are listed', () => {
+  let pending = 0;
   for (const p of spec.products) {
     const f = `store/ios/iap-review/${p.productId}.png`;
+    if (NO_SHOT_YET(p.productId)) {
+      pending++;
+      assert.equal(existsSync(f), false, `${f}: a shot now exists, remove ${p.productId} from the pending rule`);
+      continue;
+    }
     assert.ok(existsSync(f), f);
     assert.deepEqual(shotProblems(p.productId, readFileSync(f)), [], f);
     assert.deepEqual(pngSize(readFileSync(f)), { width: WIDTH, height: HEIGHT });
   }
+  assert.equal(pending, 18, '4 grown-up part 2 + 14 kids and teen');
 });
 
 test('shotProblems rejects missing, non-PNG and wrong-size files', () => {
@@ -36,11 +48,13 @@ test('plan uploads where missing, skips existing, replaces only when asked', () 
 
 test('each shot sells its own product at its approved price, never a free unlock', () => {
   const shots = shotPlan(spec.products);
-  assert.equal(shots.length, 8);
+  assert.equal(shots.length, 26);
   for (const s of shots) {
     assert.ok(s.mustShow.includes(`$${s.priceUsd}`), s.productId);
-    if (s.productId !== 'wyr_premium_all') assert.equal(s.route, `/unlock/${s.productId.replace('wyr_unlock_', '').replace(/_/g, '-')}`);
+    assert.equal(s.renderable, !NO_SHOT_YET(s.productId), s.productId);
+    if (s.renderable && s.productId !== 'wyr_premium_all') assert.equal(s.route, `/unlock/${s.productId.replace('wyr_unlock_', '').replace(/_/g, '-')}`);
   }
+  assert.equal(shots.filter((x: any) => x.renderable).length, 8);
   assert.deepEqual(FORBIDDEN, ['FREE FOR NOW', 'TEST MODE']);
 });
 
