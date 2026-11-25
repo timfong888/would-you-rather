@@ -21,7 +21,7 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
-import { shareInvite } from '@/lib/shareInvite';
+import { SHARE_PROMPT } from '@/lib/shareInvite';
 import { SITE_URL } from '@/constants/config';
 
 export default function ResultsScreen() {
@@ -66,7 +66,7 @@ export default function ResultsScreen() {
 
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
-    const text = shareInvite(question?.category);
+    const text = SHARE_PROMPT;
     const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''));
 
     track('share_clicked', {
@@ -110,7 +110,7 @@ export default function ResultsScreen() {
     if (!safeVoted) return;
     const { url: myTakeUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''), safeVoted);
     const title = 'My Would You Rather Take';
-    const text = shareInvite(question?.category);
+    const text = SHARE_PROMPT;
 
     track('share_clicked', {
       question_id: id,

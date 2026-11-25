@@ -26,7 +26,7 @@ import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
-import { shareInvite } from '@/lib/shareInvite';
+import { SHARE_PROMPT } from '@/lib/shareInvite';
 import { useTally } from '@/lib/useTally';
 import { INVITE_TITLE, INVITE_TEXT } from '@/lib/results';
 import { pickNextCategory } from '@/lib/nextCategory';
@@ -62,7 +62,7 @@ export default function CompleteScreen() {
   const handleShareChallenge = useCallback(async () => {
     if (!lastQuestion) return;
     const title = 'Would You Rather?';
-    const text = shareInvite(lastQuestion.category);
+    const text = SHARE_PROMPT;
     const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration, isKidsCategoryId(id ?? ''));
 
     track('share_clicked', {
@@ -97,7 +97,7 @@ export default function CompleteScreen() {
   const handleShareMyTake = useCallback(async () => {
     if (!lastQuestion || !safeVoted) return;
     const title = 'My Would You Rather Take';
-    const text = shareInvite(lastQuestion.category);
+    const text = SHARE_PROMPT;
     // The pick travels as the `f` code and is shown only inside the app after the recipient answers (#188).
     const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration, isKidsCategoryId(id ?? ''), safeVoted);
 
