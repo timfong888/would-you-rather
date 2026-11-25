@@ -13,7 +13,7 @@ const ACTIONS = ['app', 'builds', 'prerelease', 'uploads', 'bundle-ids', 'iap', 
 function run(action: string) {
   const log = join(mkdtempSync(join(tmpdir(), 'asc-')), 'req.log');
   const r = spawnSync(process.execPath, ['--import', './tests/fixtures/asc-fetch-stub.mjs', 'scripts/asc-api.mjs', action, '--app', '6836653723'], {
-    env: { PATH: process.env.PATH ?? '', ASC_KEY_ID: 'K', ASC_ISSUER_ID: 'I', ASC_PRIVATE_KEY: pem, ASC_STUB_LOG: log } as NodeJS.ProcessEnv,
+    env: { PATH: process.env.PATH ?? '', ASC_KEY_ID: 'K', ASC_ISSUER_ID: 'I', ASC_PRIVATE_KEY: pem, ASC_STUB_LOG: log } as unknown as NodeJS.ProcessEnv,
     encoding: 'utf8',
   });
   let calls: { url: string; method: string; hasBody: boolean }[] = [];
