@@ -321,7 +321,7 @@ State: **blank** (empty in Tim's screenshot or nowhere set), **set** (read live)
 | 5 | Version | Keywords | **pending data** | Leave open. Placeholder only, not for entry: `game,icebreaker,road trip,this or that,date night,dilemma,conversation,parents,teens,couples,party` (98). See 8.5. | 100 |
 | 6 | Version | Support URL | unverified | `https://www.wouldyourather.fyi/support` (page live, 200) | |
 | 7 | Version | Marketing URL | unverified | `https://www.wouldyourather.fyi` | |
-| 8 | Version | What's New | unverified | Not shown for a first version (unverified). If asked: `Welcome to Would You Rather. Pick a side, challenge a friend, and see if they chose the same.` (96) | 4000 |
+| 8 | Version | What's New | unverified | Not shown for a first version (unverified). If asked: `Welcome to Would You Rather. Pick a side, challenge a friend, and see if they chose the same.` (93) | 4000 |
 | 9 | Version | Copyright | unverified | `2026 Tim Fong` (legal name open in #114) | |
 | 10 | Version | Build | **set** | Build 23, already attached. Confirm it is the build Tim wants after #238 code lands; a new build means re-attaching. | |
 | 11 | Version | In-App Purchases | unverified | Attach all 8 products to this version | |
