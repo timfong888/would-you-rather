@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22   # the suite is developed on Node 22; five neville-release tests fail on Node 20
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund

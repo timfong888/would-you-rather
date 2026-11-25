@@ -28,6 +28,7 @@ test('the unit workflow is a pull_request job named unit that runs npm test and 
   assert.doesNotMatch(wf, /pull_request_target/);
   assert.doesNotMatch(wf, /pull_request:\s*\n\s*paths/, 'no path filter, so the check always reports');
   assert.match(wf, /\n  unit:\n    name: unit\n/);
+  assert.match(wf, /node-version: 22/, 'the suite fails on Node 20');
   assert.match(wf, /run: npm ci/);
   assert.match(wf, /run: npm test/);
   assert.match(wf, /run: node scripts\/check-tsc-baseline\.mjs/);
