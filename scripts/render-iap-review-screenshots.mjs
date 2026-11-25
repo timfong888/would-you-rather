@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
+// playwright is loaded in main(), so importing the pure helpers (shotPlan, FORBIDDEN) in unit tests needs no browser package.
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 let DIST = '';
@@ -80,6 +80,7 @@ async function main() {
   const host = `http://127.0.0.1:${server.address().port}`;
 
   fs.mkdirSync(OUT, { recursive: true });
+  const { chromium } = require('playwright');
   const browser = await chromium.launch();
   let failed = 0;
   for (const shot of shotPlan(spec.products)) {
