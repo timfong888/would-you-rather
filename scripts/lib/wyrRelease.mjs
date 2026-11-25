@@ -49,6 +49,10 @@ export const WYR_FORBIDDEN_PATTERNS = [
   [/^\.env($|\.)/, '.env*'],                    // eas-cli loads .env files into its environment (could set NODE_OPTIONS)
   [/^fingerprint\.config\./, 'fingerprint.config.*'],
   [/^credentials\.json$/, 'credentials.json'],  // local credentials source
+  // Babel and Metro load any of these. Only the plain `babel.config.js` and `metro.config.js` are allowed (and scanned below).
+  [/^babel\.config\.(?!js$)/, 'babel.config.* other than babel.config.js'],
+  [/^\.babelrc/, '.babelrc*'],
+  [/^metro\.config\.(?!js$)/, 'metro.config.* other than metro.config.js'],
 ];
 // The exact `preview` build profile that was reviewed. Any change to it must change this constant in the same PR.
 export const WYR_PREVIEW_PROFILE = {
@@ -58,17 +62,18 @@ export const WYR_PREVIEW_PROFILE = {
 const sameJson = (a, b) => JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
 function sortKeys(v) { return Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v; }
 
-// `eas build:version:get` output -> the current remote build number (the last one EAS assigned). Accepts JSON or plain text.
+// `eas build:version:get` output -> the current remote build number (the last one EAS assigned). Fails closed: JSON must carry
+// `buildNumber`, or the text must have a line exactly `iOS buildNumber - <digits>` (eas-cli 27.11.0 prints that). Any other
+// number in the output (a banner like `eas-cli/27.11.0`, a warning, a version) is never taken.
 export function parseBuildVersionGet(stdout) {
-  const text = String(stdout).trim();
+  const text = String(stdout).replace(/\u001b\[[0-9;]*m/g, '').trim(); // strip ANSI colour codes (the number is printed bold)
   try {
     const j = JSON.parse(text);
-    const v = j?.buildNumber ?? j?.version ?? j?.currentBuildNumber;
-    if (/^\d+$/.test(String(v))) return Number(v);
+    if (j && typeof j === 'object' && /^\d+$/.test(String(j.buildNumber))) return Number(j.buildNumber);
   } catch { /* not JSON */ }
-  const m = text.match(/\b(\d{1,6})\b/);
+  const m = text.match(/^iOS buildNumber - (\d+)\s*$/m);
   if (m) return Number(m[1]);
-  throw new Error('could not read the current remote build number from eas build:version:get.');
+  throw new Error('could not read the current remote build number from eas build:version:get (expected JSON buildNumber or an "iOS buildNumber - <digits>" line).');
 }
 // The next build number EAS will assign must not be lower than the floor. Called BEFORE the build is started.
 export function checkNextBuildNumber(current, floor = WYR_MIN_BUILD) {

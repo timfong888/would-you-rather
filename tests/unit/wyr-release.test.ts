@@ -236,9 +236,13 @@ test('check: the preview profile is pinned exactly; credentialsSource, extends, 
 
 test('remote build number: the next number must not be under 23, checked before the build', () => {
   assert.equal(parseBuildVersionGet(JSON.stringify({ buildNumber: '22' })), 22);
-  assert.equal(parseBuildVersionGet('Build number: 22\n'), 22);
-  assert.equal(parseBuildVersionGet('22'), 22);
+  assert.equal(parseBuildVersionGet(JSON.stringify({ buildNumber: 22 })), 22);
+  assert.equal(parseBuildVersionGet('iOS buildNumber - 22\n'), 22);
+  assert.equal(parseBuildVersionGet('iOS buildNumber - \u001b[1m22\u001b[22m\n'), 22); // bold number
   assert.throws(() => parseBuildVersionGet('no number here'), /could not read/);
+  assert.throws(() => parseBuildVersionGet('22'), /could not read/); // a bare number is not taken
+  assert.throws(() => parseBuildVersionGet('Build number: 22'), /could not read/);
+  assert.throws(() => parseBuildVersionGet(JSON.stringify({ version: '22' })), /could not read/);
   assert.equal(checkNextBuildNumber(22), 23);
   assert.equal(checkNextBuildNumber(30), 31);
   assert.throws(() => checkNextBuildNumber(21), /under the floor 23/);
@@ -285,4 +289,24 @@ test('npm config pins: USERCONFIG=/dev/null and the registry only (npm errors if
   assert.ok(!/NPM_CONFIG_GLOBALCONFIG/.test(wf));
   assert.ok(!/NPM_CONFIG_GLOBALCONFIG/.test(script));
   assert.equal((wf.match(/NPM_CONFIG_USERCONFIG: \/dev\/null/g) || []).length, 2);
+});
+
+test('build number parser fails closed: a banner or other number first is never taken (reviewer finding on f6e3bbb: "eas-cli/27.11.0" gave 27 and passed the guard)', () => {
+  const banner = 'eas-cli/27.11.0 linux-x64 node-v20.19.4\n';
+  assert.throws(() => parseBuildVersionGet(banner), /could not read/);
+  assert.throws(() => parseBuildVersionGet(`${banner}Update available 28.0.0\n`), /could not read/);
+  assert.throws(() => parseBuildVersionGet(`${banner}Android versionCode - 99\n`), /could not read/);
+  assert.throws(() => parseBuildVersionGet(`${banner}iOS buildNumber - 22 extra\n`), /could not read/);
+  // the real line is still found behind banner lines, and the number taken is the line's, not the banner's
+  assert.equal(parseBuildVersionGet(`${banner}iOS buildNumber - 22\n`), 22);
+  // and the guard itself refuses a banner-only output end to end (27 + 1 would have passed the floor before)
+  assert.throws(() => checkNextBuildNumber(parseBuildVersionGet(banner)), /could not read/);
+  assert.throws(() => checkNextBuildNumber(parseBuildVersionGet(`${banner}iOS buildNumber - 20\n`)), /under the floor 23/);
+});
+
+test('check: every Babel and Metro config spelling other than the two scanned plain .js files fails (Blocks finding)', () => {
+  for (const f of ['babel.config.cjs', 'babel.config.mjs', 'babel.config.json', 'babel.config.ts', 'babel.config.cts', '.babelrc', '.babelrc.js', '.babelrc.cjs', '.babelrc.json', 'metro.config.cjs', 'metro.config.mjs', 'metro.config.ts', 'metro.config.json']) {
+    assert.match(errs(tree((d) => writeFileSync(join(d, f), "require('node:child_process').execSync('x')"))), /not allowed/, f);
+  }
+  assert.deepEqual(tree().errors, []); // the plain babel.config.js and metro.config.js of the real tree still pass
 });
