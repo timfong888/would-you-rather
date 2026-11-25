@@ -77,16 +77,14 @@ test('the simulated checkout is gone; the pack button needs real purchases or th
   const src = readFileSync('app/unlock/[id].tsx', 'utf8');
   assert.doesNotMatch(src, /TEST_UNLOCK|EXPO_PUBLIC_TEST_UNLOCK|TEST MODE|'sheet'/);
   assert.match(src, /\{offersAllCategoriesPack\(category\) && \(purchasesAvailable \|\| WEB_FREE_UI\) && \(/);
-  assert.match(
-    src,
-    /if \(kind === 'all'\) unlockAll\(\);\s*else if \(category\?\.audience === 'adult' && nextTranche\) unlockTranche\(id as CategoryId, nextTranche\.k\);[^\n]*\n\s*else unlock\(id as CategoryId\);/,
-  );
+  // One tap, one category (D22, #255): the web free unlock opens the whole category, like the $1.99 purchase.
+  assert.match(src, /if \(kind === 'all'\) unlockAll\(\);\s*else unlock\(id as CategoryId\);/);
+  assert.doesNotMatch(src, /unlockTranche/);
   // unlockAll is a no-op without a free unlock (it goes through unlock()).
   const ctx = readFileSync('contexts/UnlockedContext.tsx', 'utf8');
   assert.match(ctx, /const unlockAll = useCallback\(\(\) => unlock\(ENTITLEMENT_ALL as CategoryId\), \[unlock\]\);/);
   assert.match(ctx, /const unlock = useCallback\(\(id: CategoryId\) => \{\s*if \(!FREE_UNLOCK\) return;/);
-  // The per-tranche free unlock is a no-op without a free unlock too.
-  assert.match(ctx, /const unlockTranche = useCallback\(\s*\(id: CategoryId, k: number\) => \{\s*if \(!FREE_UNLOCK\) return;/);
+  assert.doesNotMatch(ctx, /unlockTranche/);
 });
 
 test('a locked question URL never renders blank: it shows a locked card and redirects to the paywall', () => {

@@ -11,10 +11,11 @@ The repo has no `CLAUDE.md`; this spec follows the conventions in `docs/`.
   and "Family & Kids" is an audience, not a topic.
 - Replace it with **8 topic categories plus 1 seasonal category**, named like the adult ones, each labelled with an age
   range. Parents browse them in a separate **"With kids" mode** with an age filter (3–5, 6–9, 10–12, 13–17).
-- Each category: **5 free questions** (Tim, 2026-11-25: same rule as grown-ups), then $1.99 tranches: positions 6-20,
-  then 20 more at a time, and a tail of 10 or fewer joins the tranche before it (14 products for the 9 categories).
-  The $4.99 grown-up pack does **not** open kids or teen tranches. Parental gate before every purchase in "With kids"
-  mode (already built). Supersedes the earlier "8 free" and "12 tranches" wording below.
+- Each category: **5 free questions** (Tim, 2026-11-25: same rule as grown-ups), then one $1.99 product that opens
+  every remaining question (D22, #255, Tim 2026-11-25: "I don't want tranches if it's avoidable"; 9 products for the 9
+  categories). The $4.99 grown-up pack does **not** open kids or teen categories. Parental gate before every purchase
+  in "With kids" mode (already built). Supersedes the earlier "8 free", "12 tranches" and "14 tranche products"
+  wording below and in §3.4.
 - After unlock, **"More like this"** serves new AI-written questions for that category and age range. They are generated
   **server-side in batches into a reviewed pool**, never per child, and served from a cacheable endpoint with no ID. Cost is under
   $1 per 100 accepted questions; human review of under-13 batches is the real cost.

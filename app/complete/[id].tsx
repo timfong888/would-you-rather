@@ -156,7 +156,7 @@ export default function CompleteScreen() {
   const remaining = questions.length - completedCount;
   const nextTranche = getNextTranche(category, access);
   const nextSize = nextTranche ? trancheSize(nextTranche) : 0;
-  const sellable = nextTranche !== undefined && !!category && isTrancheSellable(category, nextTranche, WEB_FREE_UNLOCK);
+  const sellable = nextTranche !== undefined && !!category && isTrancheSellable(category);
 
   const nextCategory = pickNextCategory(CATEGORIES, id ?? '');
 

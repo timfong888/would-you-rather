@@ -19,7 +19,7 @@ included. `kids-family` is free and has no product.
 **iOS v1 leaves out Midnight Secrets and Deep Desires** (Tim, 2026-11-18: "leave
 them out"). native builds hide them (`constants/iosV1.ts`, `constants/platformFilter.native.ts`)
 and the catalog has no products for them, so iOS v1 sells the pack plus seven
-category unlocks (8 products today; 26 with the tranche products, #252). They stay on the web. The catalog is derived from
+category unlocks (8 products today; 17 with the 9 kids and teen category products, D22 #255). They stay on the web. The catalog is derived from
 `constants/questions.ts` minus that exclusion list.
 
 One RevenueCat offering, `default`, holds one package per product (package
@@ -52,7 +52,7 @@ web paywall unlocks for free.
 - **On:** Vercel, project would-you-rather, Settings, Environment Variables:
   `EXPO_PUBLIC_WEB_FREE_UNLOCK` = `1`, scope **Production** (add Preview to try it there), then redeploy.
 - **Off:** delete that variable from Vercel Production and redeploy production (Deployments, latest production, Redeploy). `EXPO_PUBLIC_*` values are compiled into the bundle, so it only changes with a new deploy.
-- What users see: the price reads $1.99 with "FREE FOR NOW · NO PAYMENT NEEDED". One tap on the CTA opens one tranche (the next 15 or 20 questions, as on iPhone). "Or unlock every category · $4.99 · free for now" opens every grown-up tranche. There is no fake checkout. The success screen then appears. Analytics logs `paywall_cta_clicked` with `payment_method: free_unlock`.
+- What users see: the price reads $1.99 with "FREE FOR NOW · NO PAYMENT NEEDED". One tap on the CTA opens every question in the category (as the $1.99 purchase does on iPhone). "Or unlock every category · $4.99 · free for now" opens every grown-up category. There is no fake checkout. The success screen then appears. Analytics logs `paywall_cta_clicked` with `payment_method: free_unlock`.
 - Unlocks are stored in the browser (`wyr_unlocked_categories`), as were unlocks from the old simulated checkout. Both count while the flag is on. **When it is turned off, they stop counting**: those visitors see the paywall again.
 - Web only. iOS/Android never get it (`Platform.OS === 'web'` is checked inline, and `check-rc-keys` fails any EAS build that sets the variable).
 - Guards (`scripts/check-web-build.mjs`): the value must be exactly `1`. A production build fails if it is combined with a live `rcb_` web key, so remove the flag when web payments go live. With the flag off, the production bundle is scanned for "FREE FOR NOW" and fails if it is still there. It never brings back the removed test unlock: `EXPO_PUBLIC_TEST_UNLOCK` fails every build, and "TEST MODE" never ships.

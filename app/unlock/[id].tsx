@@ -38,7 +38,7 @@ import { requiresParentalGate } from '@/lib/parentalGate';
 import { ParentalGate } from '@/components/ParentalGate';
 import {
   PRODUCT_ALL,
-  productForTranche,
+  productForCategory,
 } from '@/lib/catalog';
 import { purchases } from '@/lib/purchases';
 import { purchaseErrorMessage, isPurchasePending } from '@/lib/purchaseErrors';
@@ -84,7 +84,6 @@ export default function UnlockScreen() {
     isUnlocked,
     openTranches,
     unlock,
-    unlockTranche,
     unlockAll,
     ownerAccessAvailable,
     grantOwnerAccess,
@@ -146,7 +145,7 @@ export default function UnlockScreen() {
   const remainingLocked = category ? questions.filter((_, i) => isQuestionLocked(category, i, access)).length : 0;
   const trancheStart = nextTranche ? nextTranche.first - 1 : freeCount;
   // Tranche 2 and every kids or teen tranche have no store product until step F5; the web free unlock is for grown-ups only.
-  const sellable = nextTranche === undefined || (!!category && isTrancheSellable(category, nextTranche, WEB_FREE_UNLOCK));
+  const sellable = nextTranche === undefined || (!!category && isTrancheSellable(category));
   const nothingToSell = category ? !hasLockedRemaining(category, access) : isUnlocked(id as CategoryId);
   const purchasedStartRef = useRef(trancheStart);
   const purchasedSizeRef = useRef(nextSize);
@@ -249,9 +248,9 @@ export default function UnlockScreen() {
   const teaserQuestions = questions.slice(trancheStart, trancheStart + 3);
   const remainingCount = Math.max(nextSize - teaserQuestions.length, 0);
 
-  const productId = productForTranche(id as string, nextTranche?.k ?? 1);
+  const productId = productForCategory(id as string);
   // Store price when loaded, else the approved price ($1.99 category, $4.99 pack).
-  const shownPrice = priceForCategory(id as string, nextTranche?.k ?? 1);
+  const shownPrice = priceForCategory(id as string);
   const allPrice = priceForAll();
 
   // Temporary web free unlock: no checkout, no charge.
@@ -269,7 +268,6 @@ export default function UnlockScreen() {
       payment_method: 'free_unlock',
     });
     if (kind === 'all') unlockAll();
-    else if (category?.audience === 'adult' && nextTranche) unlockTranche(id as CategoryId, nextTranche.k); // one tap, one tranche
     else unlock(id as CategoryId);
     setPaymentState('success');
   };

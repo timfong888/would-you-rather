@@ -8,8 +8,8 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
-import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForTranche } from '@/lib/catalog';
-import { canPlayCategory, openTranchesFor, trancheEntitlementId } from '@/lib/access';
+import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
+import { canPlayCategory, openTranchesFor } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
 import { webFreeUnlockAllowed } from '@/lib/testUnlockPolicy';
 
@@ -34,8 +34,6 @@ interface UnlockedContextValue {
   openTranches: (category: CategoryDef) => Access;
   /** Free unlock for a single category. A no-op unless FREE_UNLOCK (test or temporary web). Kids and teen use it; it opens everything. */
   unlock: (id: CategoryId) => void;
-  /** Free unlock of one tranche (web, while the free unlock is on): the same step the $1.99 purchase takes on iPhone. */
-  unlockTranche: (id: CategoryId, k: number) => void;
   /** Free "unlock every category" (mirrors the $4.99 pack). A no-op unless FREE_UNLOCK. */
   unlockAll: () => void;
   /** Clear free unlocks. Owner access and purchases are left in place. */
@@ -51,7 +49,7 @@ interface UnlockedContextValue {
   /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
   applyEntitlements: (active: string[]) => void;
   /** Price label for a category unlock: the store price when loaded, else the approved $1.99. */
-  priceForCategory: (id: string, k?: number) => string;
+  priceForCategory: (id: string) => string;
   /** Price label for the all-categories pack: the store price when loaded, else the approved $4.99. */
   priceForAll: () => string;
 
@@ -66,7 +64,6 @@ const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
   openTranches: () => false,
   unlock: () => {},
-  unlockTranche: () => {},
   unlockAll: () => {},
   reset: () => {},
   purchasesAvailable: false,
@@ -177,7 +174,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
   const priceForCategory = useCallback(
-    (id: string, k = 1) => prices[productForTranche(id, k)] ?? FALLBACK_PRICE_CATEGORY,
+    (id: string) => prices[productForCategory(id)] ?? FALLBACK_PRICE_CATEGORY,
     [prices],
   );
   const priceForAll = useCallback(() => prices[PRODUCT_ALL] ?? FALLBACK_PRICE_ALL, [prices]);
@@ -209,19 +206,6 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
-
-  const unlockTranche = useCallback(
-    (id: CategoryId, k: number) => {
-      if (!FREE_UNLOCK) return;
-      setUnlocked((prev) => {
-        const next = new Set(prev);
-        next.add(trancheEntitlementId(id, k));
-        saveToStorage(next);
-        return next;
-      });
-    },
-    [],
-  );
 
   const unlockAll = useCallback(() => unlock(ENTITLEMENT_ALL as CategoryId), [unlock]);
 
@@ -258,7 +242,6 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
         isUnlocked,
         openTranches,
         unlock,
-        unlockTranche,
         unlockAll,
         reset,
         purchasesAvailable: purchases.isAvailable(),

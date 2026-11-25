@@ -1539,11 +1539,8 @@ export function getCategoryQuestions(categoryId: CategoryId): Question[] {
 //
 // Every screen must decide "is this question playable?" the same way, so the
 // rule lives here and nowhere else (issue #238, docs/specs/plan.md):
-//   - grown-up category: the first FREE_QUESTION_COUNT (5) questions are free,
-//     the rest are sold in tranches: tranche 1 = positions 6 to 20, tranche k
-//     (k >= 2) = positions 20(k-1)+1 to 20k, capped at the category total
-//   - kids and teen categories: the same rule (5 free, tranches at 20, 40, ...; a
-//     tail of 10 or fewer joins the tranche before it)
+//   - every category (grown-up, kids and teen): the first FREE_QUESTION_COUNT (5)
+//     questions are free; one purchase opens all the rest (D22, #255)
 //   - owner access, premium_all and test unlocks open everything
 // ---------------------------------------------------------------------------
 
@@ -1579,36 +1576,15 @@ export interface Tranche {
   last: number;
 }
 
-/** Grown-up tranches end at multiples of this (20, 40, 60, ...). */
-export const TRANCHE_END_STEP = 20;
-/** A last tranche of this many questions or fewer joins the one before it (Tim, 2026-11-25: 10-question tails fold in). */
-export const MAX_FOLDED_TAIL = 10;
-
 /**
- * Cut points for a grown-up category with `n` questions and `free` free ones:
- * tranche 1 is free+1 to 20, tranche k >= 2 is 20(k-1)+1 to 20k, all capped at n.
- * A final tranche of MAX_FOLDED_TAIL or fewer joins the previous one.
+ * A category sells as one product (D22, #255): after the free questions, one purchase opens every remaining
+ * question. So there is exactly one paid part, `k` 1, from the first locked position to the last question.
+ * It is still called a tranche in the access helpers below, which keeps the screens unchanged.
  */
-export function trancheBounds(n: number, free: number): Tranche[] {
-  const out: Tranche[] = [];
-  let first = free + 1;
-  for (let k = 1; first <= n; k++) {
-    const last = Math.min(TRANCHE_END_STEP * k, n);
-    if (last >= first) out.push({ k, first, last });
-    first = Math.max(last, first - 1) + 1;
-  }
-  const tail = out[out.length - 1];
-  if (out.length > 1 && tail.last - tail.first + 1 <= MAX_FOLDED_TAIL) {
-    out.pop();
-    out[out.length - 1].last = tail.last;
-  }
-  return out;
-}
-
-/** The paid tranches of a category, in order. Grown-ups, kids and teen share one rule. */
 export function getTranches(category: CategoryDef): Tranche[] {
   const n = getCategoryQuestions(category.id).length;
-  return trancheBounds(n, getFreeQuestionCount(category));
+  const first = getFreeQuestionCount(category) + 1;
+  return first <= n ? [{ k: 1, first, last: n }] : [];
 }
 
 /**
@@ -1637,21 +1613,14 @@ export function getAccessibleQuestions(category: CategoryDef, access: Access): Q
 }
 
 /**
- * Highest tranche number that has a store product today. Step F5 creates the `_2` products and raises it.
- * Until then the tranche-2 buttons are disabled (the web free unlock still opens everything).
- */
-export const SELLABLE_TRANCHE_MAX = 1;
-
-/**
- * Kids and teen tranches have no store product until step F5 creates them, so a kids or teen paywall sells nothing
+ * Kids and teen categories have no store product until step F5 creates them, so a kids or teen paywall sells nothing
  * (and the web free unlock never opens them). F5 flips this on together with the products.
  */
 export const SELLABLE_YOUNG_TRANCHES = false;
 
-/** True when the player can actually buy `tranche` of `category` today. The web free unlock counts for grown-ups only. */
-export function isTrancheSellable(category: CategoryDef, tranche: Tranche, webFreeUnlock = false): boolean {
-  if (category.audience !== 'adult') return SELLABLE_YOUNG_TRANCHES && tranche.k <= SELLABLE_TRANCHE_MAX;
-  return tranche.k <= SELLABLE_TRANCHE_MAX || webFreeUnlock;
+/** True when the player can actually buy `category` today. Grown-up categories sell (and the web free unlock opens them); kids and teen wait for F5. */
+export function isTrancheSellable(category: CategoryDef): boolean {
+  return category.audience === 'adult' || SELLABLE_YOUNG_TRANCHES;
 }
 
 /** The all-categories pack (`premium_all`) opens grown-up categories only, so only grown-up paywalls may offer it. */

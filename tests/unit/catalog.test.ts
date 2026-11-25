@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORIES, getTranches, hasPaidContent } from '../../constants/questions';
+import { CATEGORIES, hasPaidContent } from '../../constants/questions';
 import { IOS_V1_EXCLUDED_CATEGORIES } from '../../constants/iosV1';
 import {
   ENTITLEMENT_ALL,
@@ -9,52 +9,60 @@ import {
   PRICE_CATEGORY_MICROS,
   buildCatalog,
   entitlementForCategory,
-  entitlementForTranche,
   isCategoryEntitled,
   productForCategory,
-  productForTranche,
 } from '../../lib/catalog';
+import * as catalogModule from '../../lib/catalog';
 
-test('catalog has the pack plus one product per paid tranche of each category', () => {
+const paid = CATEGORIES.filter((c) => hasPaidContent(c) && !IOS_V1_EXCLUDED_CATEGORIES.includes(c.id));
+const audienceOf = (categoryId: string | null) => CATEGORIES.find((c) => c.id === categoryId)!.audience;
+
+test('D22 (#255): the catalog is the pack plus one product per paid category, no tranches', () => {
   const catalog = buildCatalog();
-  const paid = CATEGORIES.filter((c) => hasPaidContent(c) && !IOS_V1_EXCLUDED_CATEGORIES.includes(c.id));
   assert.equal(catalog[0].productId, PRODUCT_ALL);
   assert.equal(catalog[0].priceMicros, PRICE_ALL_MICROS);
-  let tranches = 0;
   for (const c of paid) {
-    for (const t of getTranches(c)) {
-      tranches++;
-      const p = catalog.find((x) => x.categoryId === c.id && x.tranche === t.k);
-      assert.ok(p, `missing product for ${c.id} tranche ${t.k}`);
-      assert.equal(p.productId, productForTranche(c.id, t.k));
-      assert.equal(p.priceMicros, PRICE_CATEGORY_MICROS);
-      assert.equal(p.entitlementId, entitlementForTranche(c.id, t.k));
-    }
+    const mine = catalog.filter((x) => x.categoryId === c.id);
+    assert.equal(mine.length, 1, `${c.id} has exactly one product`);
+    assert.equal(mine[0].productId, productForCategory(c.id));
+    assert.equal(mine[0].entitlementId, entitlementForCategory(c.id));
+    assert.equal(mine[0].priceMicros, PRICE_CATEGORY_MICROS);
+    assert.equal(mine[0].title, c.label);
   }
-  assert.equal(catalog.length, 1 + tranches);
+  assert.equal(catalog.length, 1 + paid.length);
 });
 
-test('26 products: pack, 7 grown-up (tranche 1), 4 grown-up part 2, 14 kids and teen (#252)', () => {
+test('17 products: pack, 7 grown-up categories, 9 kids and teen categories', () => {
   const catalog = buildCatalog();
-  const young = catalog.filter((p) => p.categoryId && CATEGORIES.find((c) => c.id === p.categoryId)!.audience !== 'adult');
-  const adult1 = catalog.filter((p) => p.categoryId && p.tranche === 1 && CATEGORIES.find((c) => c.id === p.categoryId)!.audience === 'adult');
-  const adult2 = catalog.filter((p) => p.categoryId && (p.tranche ?? 0) >= 2 && CATEGORIES.find((c) => c.id === p.categoryId)!.audience === 'adult');
-  assert.deepEqual([adult1.length, adult2.length, young.length, catalog.length], [7, 4, 14, 26]);
-  assert.deepEqual(adult2.map((p) => p.productId).sort(), ['wyr_unlock_career_climber_2', 'wyr_unlock_moral_compass_2', 'wyr_unlock_social_blunders_2', 'wyr_unlock_tech_dystopia_2']);
-  // Tranche 1 keeps the ids and entitlements that exist today.
-  assert.equal(productForTranche('high-life', 1), 'wyr_unlock_high_life');
-  assert.equal(entitlementForTranche('high-life', 1), 'cat_high-life');
-  assert.equal(productForTranche('tech-dystopia', 2), 'wyr_unlock_tech_dystopia_2');
-  assert.equal(entitlementForTranche('tech-dystopia', 2), 'cat_tech-dystopia_2');
+  const adult = catalog.filter((p) => p.categoryId && audienceOf(p.categoryId) === 'adult');
+  const young = catalog.filter((p) => p.categoryId && audienceOf(p.categoryId) !== 'adult');
+  assert.deepEqual([adult.length, young.length, catalog.length], [7, 9, 17]);
+  // The ids that exist today do not change, and no id carries a tranche suffix.
+  assert.equal(productForCategory('high-life'), 'wyr_unlock_high_life');
+  assert.equal(entitlementForCategory('high-life'), 'cat_high-life');
+  for (const p of catalog) assert.doesNotMatch(p.productId, /_\d+$/, p.productId);
+  for (const p of catalog) assert.doesNotMatch(p.entitlementId, /_\d+$/, p.entitlementId);
+  assert.deepEqual(
+    young.map((p) => p.productId).sort(),
+    ['wyr_unlock_dinner_table', 'wyr_unlock_future_me', 'wyr_unlock_giggle_factory', 'wyr_unlock_heart_to_heart', 'wyr_unlock_holiday_table', 'wyr_unlock_make_believe', 'wyr_unlock_real_talk', 'wyr_unlock_road_trip_rally', 'wyr_unlock_tiny_choices'],
+  );
 });
 
-test('product text fits App Store Connect limits (name 30, description 45) and names the tranche size', () => {
+test('the tranche helpers and the tranche field are gone from the catalog', () => {
+  assert.equal('productForTranche' in catalogModule, false);
+  assert.equal('entitlementForTranche' in catalogModule, false);
+  for (const p of buildCatalog()) assert.equal('tranche' in p, false, p.productId);
+});
+
+test('product text fits App Store Connect limits (name 30, description 45) and says it opens all of the category', () => {
   for (const p of buildCatalog()) {
     assert.ok(p.title.length <= 30, `${p.productId} title`);
     assert.ok(p.description.length <= 45, `${p.productId} description`);
   }
-  const td2 = buildCatalog().find((p) => p.productId === 'wyr_unlock_tech_dystopia_2')!;
-  assert.equal(td2.description, 'Unlock 20 more questions in Tech Dystopia');
+  const byId = Object.fromEntries(buildCatalog().map((p) => [p.productId, p]));
+  assert.equal(byId.wyr_unlock_tech_dystopia.description, 'Unlock all of Tech Dystopia');
+  assert.equal(byId.wyr_unlock_high_life.description, 'Unlock all of The High Life');
+  for (const p of buildCatalog().filter((x) => x.categoryId)) assert.match(p.description, /^Unlock all of /, p.productId);
 });
 
 test('approved prices (Tim, 2026-11-18): $4.99 pack, $1.99 category', () => {
@@ -67,8 +75,6 @@ test('free categories with no paid content are not for sale; the retired Kids & 
 });
 
 test('identifiers are stable and store-safe', () => {
-  assert.equal(productForCategory('high-life'), 'wyr_unlock_high_life');
-  assert.equal(entitlementForCategory('high-life'), 'cat_high-life');
   for (const p of buildCatalog()) assert.match(p.productId, /^[a-z0-9_]+$/);
   assert.equal(new Set(buildCatalog().map((p) => p.productId)).size, buildCatalog().length);
 });
@@ -86,5 +92,4 @@ test('iOS v1 leaves Midnight Secrets and Deep Desires out (Tim, 2026-11-18): no 
   const ids = buildCatalog().map((p) => p.productId);
   assert.equal(ids.includes('wyr_unlock_midnight_secrets'), false);
   assert.equal(ids.includes('wyr_unlock_deep_desires'), false);
-  assert.equal(buildCatalog().filter((p) => p.tranche === 1 && p.categoryId && CATEGORIES.find((c) => c.id === p.categoryId)!.audience === 'adult').length, 7); // 7 grown-up categories ship
 });

@@ -8,10 +8,10 @@ import { shotPlan, FORBIDDEN } from '../../scripts/render-iap-review-screenshots
 
 const spec = JSON.parse(readFileSync('store/ios/iap-products.json', 'utf8'));
 
-// The first 8 products have shots. The 18 added by F5a (#252) are marked reviewShot "device" in the product file.
+// The first 8 products have shots. The 9 kids and teen products (D22, #255) are marked reviewShot "device" in the product file.
 const NO_SHOT_YET = (productId: string) => spec.products.find((p: any) => p.productId === productId).reviewShot === 'device';
 
-test('every IAP with a paywall to shoot has a committed 1290x2796 PNG review screenshot; the other 18 are listed', () => {
+test('every IAP with a paywall to shoot has a committed 1290x2796 PNG review screenshot; the other 9 are listed', () => {
   let pending = 0;
   for (const p of spec.products) {
     const f = `store/ios/iap-review/${p.productId}.png`;
@@ -24,10 +24,10 @@ test('every IAP with a paywall to shoot has a committed 1290x2796 PNG review scr
     assert.deepEqual(shotProblems(p.productId, readFileSync(f)), [], f);
     assert.deepEqual(pngSize(readFileSync(f)), { width: WIDTH, height: HEIGHT });
   }
-  assert.equal(pending, 18, '4 grown-up part 2 + 14 kids and teen');
-  // The marked ones are exactly part 2 and later, plus every kids and teen product.
+  assert.equal(pending, 9, '9 kids and teen');
+  // The marked ones are exactly the kids and teen products.
   const marked = spec.products.filter((p: any) => p.reviewShot === 'device').map((p: any) => p.productId).sort();
-  const expected = spec.products.map((p: any) => p.productId).filter((id: string) => /_\d+$/.test(id) || /^wyr_unlock_(tiny_choices|make_believe|giggle_factory|road_trip_rally|dinner_table|heart_to_heart|future_me|real_talk|holiday_table)$/.test(id)).sort();
+  const expected = spec.products.map((p: any) => p.productId).filter((id: string) => /^wyr_unlock_(tiny_choices|make_believe|giggle_factory|road_trip_rally|dinner_table|heart_to_heart|future_me|real_talk|holiday_table)$/.test(id)).sort();
   assert.deepEqual(marked, expected);
 });
 
@@ -50,7 +50,7 @@ test('plan uploads where missing, skips existing, replaces only when asked', () 
 
 test('each shot sells its own product at its approved price, never a free unlock', () => {
   const shots = shotPlan(spec.products);
-  assert.equal(shots.length, 26);
+  assert.equal(shots.length, 17);
   for (const s of shots) {
     assert.ok(s.mustShow.includes(`$${s.priceUsd}`), s.productId);
     assert.equal(s.renderable, !NO_SHOT_YET(s.productId), s.productId);
