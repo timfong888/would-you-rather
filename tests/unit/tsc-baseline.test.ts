@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 // @ts-ignore plain .mjs module
 import { parseTscErrors, compareToBaseline, judge, isEntryPoint } from '../../scripts/check-tsc-baseline.mjs';
 
-const diag = (file: string, code: string, line = 1) => `${file}(${line},1): error ${code}: something`;
+const diag = (file: string, code: string, line = 1, msg = 'something') => `${file}(${line},1): error ${code}: ${msg}`;
 
 test('parses one "<file> <code>" per diagnostic, not the continuation lines', () => {
   const out = [
@@ -17,8 +17,17 @@ test('parses one "<file> <code>" per diagnostic, not the continuation lines', ()
     "    Type 'string' is not assignable to type 'number'.",
     diag('app/b.tsx', 'TS2322', 9),
   ].join('\n');
-  assert.deepEqual(parseTscErrors(out), ['tests/unit/a.test.ts TS2304', 'app/b.tsx TS2322']);
+  assert.deepEqual(parseTscErrors(out), ['tests/unit/a.test.ts TS2304 something', 'app/b.tsx TS2322 something']);
   assert.deepEqual(parseTscErrors(''), []);
+});
+
+test('replacing an error with a different one of the same code in the same file fails (P1 on #258)', () => {
+  const baseline = parseTscErrors([diag('t.ts', 'TS2345', 3, "Argument of type 'a' is not assignable"), diag('t.ts', 'TS2345', 9, "Argument of type 'b' is not assignable")].join('\n'));
+  const replaced = parseTscErrors([diag('t.ts', 'TS2345', 3, "Argument of type 'a' is not assignable"), diag('t.ts', 'TS2345', 9, "Argument of type 'c' is not assignable")].join('\n'));
+  assert.equal(judge({ status: 2, keys: replaced }, baseline).code, 1);
+  // The same errors on other lines (unrelated edits move them) still pass.
+  const moved = parseTscErrors([diag('t.ts', 'TS2345', 30, "Argument of type 'a' is not assignable"), diag('t.ts', 'TS2345', 90, "Argument of type 'b' is not assignable")].join('\n'));
+  assert.equal(judge({ status: 2, keys: moved }, baseline).code, 0);
 });
 
 test('a new error fails even when another baseline error was fixed (the count stays the same)', () => {
@@ -50,8 +59,8 @@ function runWithFakeNpx(stdout: string, status: number, script = 'scripts/check-
 
 test('global diagnostics with no file location count as errors (P2 on #258)', () => {
   const out = [diag('a.ts', 'TS1'), "error TS2688: Cannot find type definition file for 'node'."].join('\n');
-  assert.deepEqual(parseTscErrors(out), ['a.ts TS1', '<global> TS2688']);
-  assert.equal(judge({ status: 2, keys: parseTscErrors(out) }, ['a.ts TS1']).code, 1);
+  assert.deepEqual(parseTscErrors(out), ['a.ts TS1 something', '<global> TS2688 Cannot find type definition file for \'node\'.']);
+  assert.equal(judge({ status: 2, keys: parseTscErrors(out) }, ['a.ts TS1 something']).code, 1);
   assert.equal(judge({ status: 2, keys: parseTscErrors("error TS2688: x") }, []).code, 1, 'only a global error still fails');
 });
 
@@ -76,7 +85,7 @@ test('--write does not overwrite the baseline when tsc did not really run (P3 on
 test('the script: a crash exits 2, a new error exits 1, the baseline itself exits 0', () => {
   const baseline = readFileSync('scripts/tsc-baseline.txt', 'utf8').split('\n').filter((l) => l && !l.startsWith('#'));
   assert.ok(baseline.length > 0);
-  const asDiagnostics = baseline.map((k) => { const [file, code] = k.split(' '); return diag(file, code); });
+  const asDiagnostics = baseline.map((k) => { const [file, code, ...msg] = k.split(' '); return diag(file, code, 1, msg.join(' ')); });
   assert.equal(runWithFakeNpx('FATAL ERROR: Reached heap limit - JavaScript heap out of memory', 134).status, 2);
   assert.equal(runWithFakeNpx('', 1).status, 2);
   assert.equal(runWithFakeNpx(asDiagnostics.join('\n'), 2).status, 0);

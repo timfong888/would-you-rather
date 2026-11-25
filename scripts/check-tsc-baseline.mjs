@@ -3,10 +3,10 @@
  * Type-check gate for CI (issue #257). Fails on any type error that is not in the checked-in baseline.
  *
  * The repo has 32 known errors, all in test code (30 in tests/unit/neville-release.test.ts, 2 in
- * tests/unit/asc-apps-list.test.ts). The baseline is the list of "<file> <TS code>" pairs in
- * scripts/tsc-baseline.txt, one line per error, so a new error cannot hide behind a fixed one: it fails when
- * a pair appears more often than the baseline allows. Line numbers are left out so unrelated edits do not
- * move it. Fewer errors than the baseline passes and says to refresh the list (`--write`).
+ * tests/unit/asc-apps-list.test.ts). The baseline is the list of "<file> <TS code> <message>" keys in
+ * scripts/tsc-baseline.txt, one line per error, so a new error cannot hide behind a fixed one, even one with the
+ * same code in the same file: it fails when a key appears more often than the baseline allows. Line numbers are
+ * left out so unrelated edits do not move it. Fewer errors than the baseline passes and says to refresh the list (`--write`).
  *
  * The gate fails closed: if tsc cannot start, is killed, or exits non-zero without printing any diagnostic
  * (out of memory, a compiler crash, npx not finding the binary), the script exits 2.
@@ -17,18 +17,18 @@ import { fileURLToPath } from 'node:url';
 
 export const BASELINE_FILE = new URL('./tsc-baseline.txt', import.meta.url);
 
-/** "<file> <TS code>" for each `error TS` diagnostic in tsc output. Continuation lines are not counted. */
+/** "<file> <TS code> <message>" for each `error TS` diagnostic in tsc output. Continuation lines are not counted. */
 export function parseTscErrors(output) {
   const keys = [];
   for (const line of output.split('\n')) {
-    const m = line.match(/^(.+?)\(\d+,\d+\): error (TS\d+):/);
+    const m = line.match(/^(.+?)\(\d+,\d+\): error (TS\d+): (.*)$/);
     if (m) {
-      keys.push(`${m[1]} ${m[2]}`);
+      keys.push(`${m[1]} ${m[2]} ${m[3].trim()}`);
       continue;
     }
     // Global diagnostics have no location (TS2688, TS2318, TS5xxx, TS6053): count them under a placeholder file.
-    const g = line.match(/^error (TS\d+):/);
-    if (g) keys.push(`<global> ${g[1]}`);
+    const g = line.match(/^error (TS\d+): (.*)$/);
+    if (g) keys.push(`<global> ${g[1]} ${g[2].trim()}`);
   }
   return keys;
 }
@@ -78,7 +78,7 @@ function main() {
       console.error(`Baseline not written: ${run.why}.`);
       process.exit(2);
     }
-    writeFileSync(BASELINE_FILE, `# tsc baseline (scripts/check-tsc-baseline.mjs): one "<file> <TS code>" per known error.\n${[...keys].sort().join('\n')}\n`);
+    writeFileSync(BASELINE_FILE, `# tsc baseline (scripts/check-tsc-baseline.mjs): one "<file> <TS code> <message>" per known error.\n${[...keys].sort().join('\n')}\n`);
     console.log(`Wrote ${keys.length} errors to scripts/tsc-baseline.txt.`);
     return;
   }

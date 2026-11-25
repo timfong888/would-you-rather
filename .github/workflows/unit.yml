@@ -1,7 +1,7 @@
 name: Unit tests and type check
 
 # Runs on every pull request, with no path filter, so the `unit` check always reports and can be required on main (#257).
-# `npm test` is the unit and analytics test suites. The type check compares tsc's errors (file and code) with the baseline
+# `npm test` is the unit and analytics test suites. The type check compares tsc's errors (file, code and message) with the baseline
 # (32 known errors in test code, scripts/check-tsc-baseline.mjs): a new error fails, fewer pass, and a tsc that does not run fails.
 # No secrets, read-only token. Runs the PR's own code with a read-only token, so fork PRs are safe too.
 on:
