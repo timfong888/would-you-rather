@@ -1,0 +1,88 @@
+name: WYR iOS (build and TestFlight)
+
+# Manual only. Builds the Would You Rather iOS app (this repo, bundle com.timfong888.wouldyourather) on EAS with the
+# `preview` profile and uploads it to TestFlight against ASC app 6836653723. WRITES to App Store Connect; never submits
+# for App Review. Modelled on neville-ios-testflight.yml, which is the pattern already approved for this repo.
+#
+# Security (public repo, public logs, holds the ASC key and an Expo token):
+# - dispatch only, only by timfong888, only from main (so only merged workflow and script code ever sees the secrets);
+# - wyr_sha must be a full sha that is an ancestor of this repo's main, checked BEFORE any secret is used. The app is built
+#   from a fresh clone of that sha in $RUNNER_TEMP, outside the workspace, so the scripts that hold the secrets always
+#   come from the dispatching main commit, never from the code being built;
+# - the profile is fixed to `preview` (production builds need Tim's explicit go); the sha input only ever reaches the shell through env:;
+# - third-party actions are pinned to commit SHAs; permissions contents: read; no artifacts; no pull_request_target;
+# - secrets reach exactly one step; the .p8 goes to a 0600 temp file outside the checkout and is deleted;
+# - on success the only Apple data printed is build number and processing state. On an `eas build` FAILURE the last 60
+#   lines of EAS output are printed with secrets redacted (can include non-secret Apple-side names; accepted so a failed
+#   run can be debugged from the public log);
+# - the dependency install runs with --ignore-scripts and without secrets.
+# Apple can take 15+ minutes to process a good upload: the uploader waits 20 minutes and the build poll up to 30 more.
+# If Apple is still working when the wait ends the run ends green with a "still processing" notice, not a failure.
+on:
+  workflow_dispatch:
+    inputs:
+      wyr_sha:
+        description: Full 40-char commit sha on this repo's main (merged code only)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wyr-ios-testflight
+  cancel-in-progress: false
+
+env:
+  EAS_PROFILE: preview
+  APPLE_TEAM_ID: VJKU43W3C2
+
+jobs:
+  wyr-ios:
+    if: github.event_name == 'workflow_dispatch' && github.actor == 'timfong888' && github.triggering_actor == 'timfong888' && github.repository == 'timfong888/would-you-rather' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Validate wyr_sha format
+        env:
+          WYR_SHA: ${{ inputs.wyr_sha }}
+        run: |
+          [[ "$WYR_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "wyr_sha must be a full 40-char lowercase hex sha"; exit 1; }
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # The app is built from a clone OUTSIDE the workspace ($RUNNER_TEMP), pinned to the requested sha, which must be merged on main.
+      - name: Clone this repo outside the workspace and pin it to the requested sha (must be merged on main)
+        env:
+          WYR_SHA: ${{ inputs.wyr_sha }}
+          WYR_DEST: ${{ runner.temp }}/wyr
+        run: |
+          git cat-file -e "${WYR_SHA}^{commit}" || { echo "sha not found in this repo"; exit 1; }
+          git merge-base --is-ancestor "$WYR_SHA" origin/main || { echo "sha is not an ancestor of main; refusing"; exit 1; }
+          git clone --no-tags "https://github.com/${GITHUB_REPOSITORY}.git" "$WYR_DEST"
+          cd "$WYR_DEST"
+          git checkout --detach "$WYR_SHA"
+          echo "building wyr at ${WYR_SHA:0:12}"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - name: Install dependencies of the app being built (no scripts, no secrets)
+        env:
+          WYR_ROOT: ${{ runner.temp }}/wyr
+        run: |
+          cd "$WYR_ROOT"
+          npm ci --ignore-scripts
+
+      - name: Build on EAS and upload to TestFlight
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          WYR_ROOT: ${{ runner.temp }}/wyr
+        run: node scripts/wyr-testflight.mjs

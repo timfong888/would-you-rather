@@ -44,6 +44,18 @@ eas submit --profile preview --platform ios         # upload to TestFlight
 `production` builds and `eas submit --profile production` only run on Tim's
 go; submitting for review is separate and also needs his go.
 
+## Cloud build to TestFlight without a Mac (workflow)
+
+`.github/workflows/wyr-ios-testflight.yml` (dispatch only, by timfong888, from main) builds the app on EAS with the
+`preview` profile and uploads it to TestFlight (ASC app 6836653723). One input: `wyr_sha`, a full 40-character commit
+that is an ancestor of main. It uses the Actions secrets `EXPO_TOKEN` (an Expo token for the account that owns
+`@blockstitch/would-you-rather`) and `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY`. One run is one EAS cloud build.
+The build number is whatever EAS assigns (autoIncrement); the last real TestFlight build before this was 22.
+If the first run says the token is not authorized for the project, create an Expo token on the owning account and update
+`EXPO_TOKEN`. Needs `EXPO_PUBLIC_RC_IOS_KEY` in the EAS `preview` environment. Apple can take 15+ minutes to process: the
+run waits, and ends green with a "still processing" notice if Apple is not done; check with Apple ops "builds".
+Production builds are not available from this workflow.
+
 ## Build image (Xcode 26)
 
 Apple rejects uploads built with an SDK older than iOS 26 (App Store Connect error 90725).
