@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../../constants/questions';
-import { SEO_FIRST_BATCH, SEO_BATCH_2, SEO_QUESTION_PAGES, isSeoBatchId, LANDING_FOR_CATEGORY } from '../../lib/seoBatch';
+import { SEO_FIRST_BATCH, SEO_BATCH_2, SEO_BATCH_3, SEO_CATEGORY_CTA_IDS, SEO_QUESTION_PAGES, isSeoBatchId, LANDING_FOR_CATEGORY } from '../../lib/seoBatch';
 import { questionPageHtml, relatedQuestions } from '../../lib/questionPage';
 import { SEO_PAGES, isKidsPage } from '../../constants/seoPages';
 
@@ -40,12 +40,31 @@ test('batch two (a proposal for Tim\'s review): about 60 distinct kids-bank ques
     assert.ok(!SEO_FIRST_BATCH.includes(id), `${id} is already in batch one`);
     assert.equal(catOf(id).audience, 'kids', `${id} must be a kids-bank question`);
   }
-  assert.equal(new Set(SEO_QUESTION_PAGES).size, SEO_FIRST_BATCH.length + SEO_BATCH_2.length);
+  assert.equal(new Set(SEO_QUESTION_PAGES).size, SEO_FIRST_BATCH.length + SEO_BATCH_2.length + SEO_BATCH_3.length);
   assert.ok(SEO_BATCH_2.every((id) => isSeoBatchId(id)));
 });
 
+test('batch three (S3): every question that is free today and had no page, except Midnight Secrets and Deep Desires', () => {
+  assert.equal(new Set(SEO_BATCH_3).size, SEO_BATCH_3.length);
+  for (const id of SEO_BATCH_3) {
+    assert.ok(byId.has(id), `${id} is not a question`);
+    assert.ok(!SEO_FIRST_BATCH.includes(id) && !SEO_BATCH_2.includes(id), `${id} is already in an earlier batch`);
+    assert.ok(!['midnight-secrets', 'deep-desires'].includes(byId.get(id)!.category), id);
+  }
+  // Every question that is free today now has a read-only page (or is one of the two categories left out on purpose), so the
+  // sitemap needs no /game/<id> entries and does not depend on the free count.
+  for (const c of CATEGORIES) {
+    getCategoryQuestions(c.id).forEach((q, i) => {
+      if (isQuestionLocked(c, i, false)) return;
+      if (['midnight-secrets', 'deep-desires'].includes(c.id)) return;
+      assert.ok(isSeoBatchId(q.id), `${q.id} is free today and has no read-only page`);
+    });
+  }
+  assert.deepEqual([...SEO_CATEGORY_CTA_IDS].sort(), [...SEO_BATCH_2, ...SEO_BATCH_3].sort());
+});
+
 test('batch-two pages are for paid questions: their one call to action leads to the category\'s free questions, never to the paywall', () => {
-  for (const id of SEO_BATCH_2) {
+  for (const id of SEO_CATEGORY_CTA_IDS) {
     const q = byId.get(id)!;
     const html2 = questionPageHtml({ question: q, category: catOf(id), related: relatedQuestions(q, QUESTIONS), origin: ORIGIN, paid: true });
     assert.ok(html2.includes(`href="${ORIGIN}/categories/${q.category}"`), id);

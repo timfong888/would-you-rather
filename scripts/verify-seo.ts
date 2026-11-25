@@ -17,7 +17,7 @@ import { CATEGORIES, QUESTIONS, getCategoryAudience, getCategoryQuestions, isKid
 import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
-import { SEO_QUESTION_PAGES, SEO_BATCH_2, isSeoBatchId } from '../lib/seoBatch';
+import { SEO_QUESTION_PAGES, SEO_CATEGORY_CTA_IDS, isSeoBatchId } from '../lib/seoBatch';
 import { GUIDES, guideQuestionIds } from '../lib/guides';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
@@ -152,11 +152,15 @@ for (const cat of CATEGORIES) {
   );
 }
 for (const loc of locs) if (lockedGameUrls.has(loc)) fail(`sitemap: lists locked question URL ${loc}`);
-// A question with a read-only page (SEO_QUESTION_PAGES: batch one and two) is indexed at /q/<id>; its playable /game/<id> is out of the sitemap (it canonicalises to /q/<id>).
+// A question with a read-only page (SEO_QUESTION_PAGES) is indexed at /q/<id>; its playable /game/<id> is out of the sitemap (it
+// canonicalises to /q/<id>). Every question that is free today has such a page, except Midnight Secrets and Deep Desires, which are
+// left out on purpose. No /game/<id> URL is listed at all, so the sitemap does not depend on the free count (S3).
 for (const loc of freeGameUrls) {
   const id = loc.slice(loc.lastIndexOf('/') + 1);
-  if (isSeoBatchId(id)) { if (locSet.has(loc)) fail(`sitemap: lists ${loc}, which canonicalises to /q/${id}`); }
-  else if (!locSet.has(loc)) fail(`sitemap: missing playable question URL ${loc}`);
+  if (locSet.has(loc)) fail(`sitemap: lists ${loc}; playable question URLs are not indexed (read-only pages are)`);
+  if (!isSeoBatchId(id) && !['midnight-secrets', 'deep-desires'].includes(QUESTIONS.find((q) => q.id === id)?.category ?? '')) {
+    fail(`seo batch: ${id} is free today but has no read-only page (lib/seoBatch.js)`);
+  }
 }
 for (const g of GUIDES) {
   if (!locSet.has(url(`/guides/${g.slug}`))) fail(`sitemap: missing guide /guides/${g.slug}`);
@@ -356,7 +360,7 @@ if (withDist) {
     if (tag(html, /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${file}: canonical is not ${url(`/q/${id}`)}`);
     if (/<script(?![^>]*application\/ld\+json)/i.test(html)) fail(`${file}: has a script other than JSON-LD (the page is read-only)`);
     if (/<(button|form|input|select|textarea)\b/i.test(html)) fail(`${file}: has a form or vote control (the page is read-only)`);
-    if (SEO_BATCH_2.includes(id)) {
+    if (SEO_CATEGORY_CTA_IDS.includes(id)) {
       // Paid-tier question: the page leads to the category's free questions, never straight to a paywall.
       const catId = QUESTIONS.find((x) => x.id === id)?.category;
       // The breadcrumb also links the category, so match the call-to-action element itself.
