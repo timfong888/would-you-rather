@@ -8,7 +8,7 @@ import {
   isOwnerAccessConfigured,
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
-import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
+import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForTranche } from '@/lib/catalog';
 import { canPlayCategory, openTranchesFor, trancheEntitlementId } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
 import { webFreeUnlockAllowed } from '@/lib/testUnlockPolicy';
@@ -51,7 +51,7 @@ interface UnlockedContextValue {
   /** Replace the active RevenueCat entitlement ids (after a purchase or restore). */
   applyEntitlements: (active: string[]) => void;
   /** Price label for a category unlock: the store price when loaded, else the approved $1.99. */
-  priceForCategory: (id: string) => string;
+  priceForCategory: (id: string, k?: number) => string;
   /** Price label for the all-categories pack: the store price when loaded, else the approved $4.99. */
   priceForAll: () => string;
 
@@ -177,7 +177,7 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
   const priceForCategory = useCallback(
-    (id: string) => prices[productForCategory(id)] ?? FALLBACK_PRICE_CATEGORY,
+    (id: string, k = 1) => prices[productForTranche(id, k)] ?? FALLBACK_PRICE_CATEGORY,
     [prices],
   );
   const priceForAll = useCallback(() => prices[PRODUCT_ALL] ?? FALLBACK_PRICE_ALL, [prices]);

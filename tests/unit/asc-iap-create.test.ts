@@ -16,9 +16,17 @@ test('IAP product file matches the catalog: same ids, approved prices', () => {
   }
 });
 
+test('IAP product text is the catalog text, so a purchase sheet says what the tranche opens', () => {
+  for (const c of buildCatalog()) {
+    const p = spec.products.find((x: any) => x.productId === c.productId);
+    assert.equal(p.displayName, c.title, c.productId);
+    assert.equal(p.description, c.description, c.productId);
+  }
+});
+
 test('IAP product file passes App Store Connect field limits', () => {
   assert.deepEqual(validateProducts(spec), []);
-  assert.equal(spec.products.length, 8);
+  assert.equal(spec.products.length, 26, 'pack + 7 grown-up + 4 grown-up part 2 + 14 kids and teen (#252)');
 });
 
 test('validation catches bad entries', () => {
@@ -38,5 +46,5 @@ test('the workflow defaults to a dry run and needs a typed confirmation to write
   assert.match(wf, /workflow_dispatch:/);
   assert.doesNotMatch(wf, /\n  (push|pull_request|schedule):/);
   assert.match(wf, /default: false/);
-  assert.match(wf, /inputs\.apply && inputs\.confirm != 'CREATE-8-IAPS'/);
+  assert.match(wf, /inputs\.apply && inputs\.confirm != 'CREATE-18-IAPS'/);
 });

@@ -33,10 +33,11 @@ export function shotPlan(products) {
   return products.map((p) => {
     if (p.productId === 'wyr_premium_all') {
       // The pack is sold on every category paywall ("Or unlock every category").
-      return { ...p, route: '/unlock/high-life', mustShow: [`$${p.priceUsd}`, 'unlock every category'] };
+      return { ...p, route: '/unlock/high-life', mustShow: [`$${p.priceUsd}`, 'unlock every category'], renderable: true };
     }
+    // Products marked reviewShot "device" (part 2 and later, kids and teen) are shot on a device after F5b (#252).
     const category = p.productId.replace(/^wyr_unlock_/, '').replace(/_/g, '-');
-    return { ...p, route: `/unlock/${category}`, mustShow: [`$${p.priceUsd}`, p.displayName] };
+    return { ...p, route: `/unlock/${category}`, mustShow: [`$${p.priceUsd}`, p.displayName], renderable: p.reviewShot !== 'device' };
   });
 }
 
@@ -82,6 +83,7 @@ async function main() {
   const browser = await chromium.launch();
   let failed = 0;
   for (const shot of shotPlan(spec.products)) {
+    if (!shot.renderable) { console.log(`SKIP (no paywall to shoot yet) ${shot.productId}`); continue; }
     // 430x932 CSS px at 3x = 1290x2796, the iPhone 6.7" screenshot size.
     const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, colorScheme: 'light' });
     const page = await ctx.newPage();

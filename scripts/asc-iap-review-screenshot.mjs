@@ -108,7 +108,12 @@ async function main() {
     const f = new URL(`${p.productId}.png`, SHOT_DIR);
     return [p.productId, existsSync(f) ? readFileSync(f) : null];
   }));
-  const problems = spec.products.flatMap((p) => shotProblems(p.productId, files.get(p.productId)));
+  // Products marked reviewShot "device" get their shot from a device after F5b (#252): listed, not uploaded.
+  // Any other product must have a valid file, so a lost shot fails the run instead of passing quietly.
+  const later = spec.products.filter((p) => p.reviewShot === 'device');
+  for (const p of later) console.log(`NO SCREENSHOT YET (device shot after F5b, skipped)  ${p.productId}`);
+  const shot = spec.products.filter((p) => p.reviewShot !== 'device');
+  const problems = shot.flatMap((p) => shotProblems(p.productId, files.get(p.productId)));
   if (problems.length) { console.error(`Screenshots invalid:\n- ${problems.join('\n- ')}`); process.exit(2); }
 
   const rows = await getAll(`/v1/apps/${appId}/inAppPurchasesV2?limit=200&fields[inAppPurchases]=productId,state`);
@@ -116,7 +121,7 @@ async function main() {
   const existing = new Map();
   for (const iap of iaps.values()) existing.set(iap.id, await existingShot(iap.id));
 
-  const steps = plan(spec.products, iaps, existing, { replace });
+  const steps = plan(shot, iaps, existing, { replace });
   let failed = 0;
   for (const s of steps) {
     if (s.action === 'missing-iap') { failed++; console.log(`MISSING IAP  ${s.productId} (run apple-iap-create first)`); continue; }

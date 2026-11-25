@@ -3,7 +3,7 @@
  * contexts/UnlockedContext.tsx feeds it live state, so a purchase that adds an
  * entitlement opens the questions on the next render, without a reload.
  */
-import { ENTITLEMENT_ALL, entitlementForCategory, isCategoryEntitled } from './catalog';
+import { ENTITLEMENT_ALL, entitlementForCategory, entitlementForTranche, isCategoryEntitled } from './catalog';
 import { getTranches, type Access, type CategoryDef } from '../constants/questions';
 
 export interface AccessState {
@@ -51,7 +51,7 @@ export function openTranchesFor(state: AccessState, category: CategoryDef): Acce
 
 /** Entitlement id of tranche `k` of a category: `cat_<id>` for tranche 1 (the id that exists today), `cat_<id>_<k>` after. */
 export function trancheEntitlementId(categoryId: string, k: number): string {
-  return k === 1 ? entitlementForCategory(categoryId) : `${entitlementForCategory(categoryId)}_${k}`;
+  return entitlementForTranche(categoryId, k);
 }
 
 /** True when the entitlements include `premium_all` or any tranche of this category (used to word a restore). */
