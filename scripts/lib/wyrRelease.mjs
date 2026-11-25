@@ -41,7 +41,41 @@ export function wyrSummaryMarkdown(build, state, version) {
 // Prints fixed text and line numbers only (never file content). Returns { lines, warnings, errors }. `fs` is injected for tests.
 export const WYR_MAX_FILES = 20000;
 export const WYR_MAX_JSON_BYTES = 20 * 1024 * 1024;
-export const WYR_FORBIDDEN_FILES = ['.npmrc', 'app.config.js', 'app.config.ts', 'app.config.mjs', 'app.config.cjs', 'app.config.json'];
+// Top-level names that change what npm or eas-cli resolve, load or run. Matched by pattern, not by a fixed extension list.
+export const WYR_FORBIDDEN_PATTERNS = [
+  [/^app\.config\./, 'app.config.*'],          // dynamic Expo config (any extension: js, ts, mjs, cjs, mts, cts, json)
+  [/^\.npmrc/, '.npmrc*'],                       // npm registry, scripts and auth settings
+  [/^\.yarnrc/, '.yarnrc*'],
+  [/^\.env($|\.)/, '.env*'],                    // eas-cli loads .env files into its environment (could set NODE_OPTIONS)
+  [/^fingerprint\.config\./, 'fingerprint.config.*'],
+  [/^credentials\.json$/, 'credentials.json'],  // local credentials source
+];
+// The exact `preview` build profile that was reviewed. Any change to it must change this constant in the same PR.
+export const WYR_PREVIEW_PROFILE = {
+  distribution: 'store', environment: 'preview', autoIncrement: true, node: '20.19.4',
+  ios: { image: 'macos-sequoia-15.6-xcode-26.2' }, env: { EXPO_PUBLIC_DEPLOY_ENV: 'preview' },
+};
+const sameJson = (a, b) => JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
+function sortKeys(v) { return Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v; }
+
+// `eas build:version:get` output -> the current remote build number (the last one EAS assigned). Accepts JSON or plain text.
+export function parseBuildVersionGet(stdout) {
+  const text = String(stdout).trim();
+  try {
+    const j = JSON.parse(text);
+    const v = j?.buildNumber ?? j?.version ?? j?.currentBuildNumber;
+    if (/^\d+$/.test(String(v))) return Number(v);
+  } catch { /* not JSON */ }
+  const m = text.match(/\b(\d{1,6})\b/);
+  if (m) return Number(m[1]);
+  throw new Error('could not read the current remote build number from eas build:version:get.');
+}
+// The next build number EAS will assign must not be lower than the floor. Called BEFORE the build is started.
+export function checkNextBuildNumber(current, floor = WYR_MIN_BUILD) {
+  if (!Number.isInteger(current) || current < 0) throw new Error('the current remote build number is not a usable number.');
+  if (current + 1 < floor) throw new Error(`the next build number would be ${current + 1}, under the floor ${floor}; refusing before the build.`);
+  return current + 1;
+}
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 
 // A plugin must be a package NAME: a string with no path syntax. Anything else (a function, a path, ../x, file:, an absolute path) runs local code.
@@ -81,12 +115,12 @@ export function checkWyrSelfContained(dir, { fs, profile = WYR_PROFILE }) {
   if (links.length) errors.push(`the checkout contains ${links.length} symlink(s) (first: ${links.slice(0, 3).map((x) => x.replace(/[^A-Za-z0-9_./@-]/g, '?').slice(0, 80)).join(', ')})`);
   else lines.push('no symlinks in the checkout');
 
-  // 2. Files that change what npm or eas-cli resolve or run.
+  // 2. Files that change what npm or eas-cli resolve, load or run (matched by pattern).
   let top = []; try { top = fs.readdirSync(dir); } catch { /* reported below */ }
-  const bad = top.filter((n) => WYR_FORBIDDEN_FILES.includes(n) || n.startsWith('.yarnrc'));
-  for (const n of bad) errors.push(`${n.startsWith('.yarnrc') ? '.yarnrc*' : n} is present and not allowed (changes npm or Expo config resolution)`);
-  if (!bad.length) lines.push('no .npmrc, .yarnrc* or app.config.* files');
-  for (const n of top.filter((x) => /^\.npmrc/.test(x) && x !== '.npmrc')) errors.push(`${n.replace(/[^A-Za-z0-9_.-]/g, '?')} is present and not allowed`);
+  const seen = new Set();
+  for (const n of top) for (const [re, label] of WYR_FORBIDDEN_PATTERNS) if (re.test(n)) seen.add(label);
+  for (const label of seen) errors.push(`${label} is present and not allowed (changes npm, Expo config or environment resolution)`);
+  if (!seen.size) lines.push('no .npmrc*, .yarnrc*, .env*, app.config.*, fingerprint.config.* or credentials.json');
 
   const has = (f) => fs.existsSync(join(dir, f));
   const readJson = (f) => {
@@ -108,12 +142,16 @@ export function checkWyrSelfContained(dir, { fs, profile = WYR_PROFILE }) {
     if (nonReg.length) errors.push(`package.json has ${nonReg.length} dependency spec(s) that are not from the npm registry (path, workspace, git or URL)`);
     else lines.push('all package.json dependencies come from the npm registry');
     if (pkg.bundledDependencies || pkg.bundleDependencies) errors.push('package.json lists bundled dependencies');
+    if ('exports' in pkg) errors.push('package.json has an exports field (a plugin named after this package would resolve to local files)');
   }
 
   // 4. package-lock.json: every resolved URL is the npm registry over https; no link or file entries.
   const lock = has('package-lock.json') ? readJson('package-lock.json') : undefined;
   if (has('package-lock.json') && !lock) errors.push('package-lock.json is not valid JSON');
   if (lock) {
+    // Only lockfileVersion 3 (the `packages` map). Older versions carry a legacy `dependencies` tree that npm ci still honors.
+    if (lock.lockfileVersion !== 3) errors.push('package-lock.json is not lockfileVersion 3');
+    if (lock.dependencies) errors.push('package-lock.json has a legacy dependencies tree');
     let badRes = 0, links2 = 0, local = 0;
     for (const [k, v] of Object.entries(lock.packages || {})) {
       if (!v || typeof v !== 'object') continue;
@@ -134,6 +172,8 @@ export function checkWyrSelfContained(dir, { fs, profile = WYR_PROFILE }) {
     const exp = app.expo ?? app;
     const plugins = Array.isArray(exp.plugins) ? exp.plugins : [];
     const local = plugins.filter(isLocalPlugin);
+    const selfRef = pkg && typeof pkg.name === 'string' ? plugins.filter((p) => (Array.isArray(p) ? p[0] : p) === pkg.name || String(Array.isArray(p) ? p[0] : p).startsWith(`${pkg.name}/`)) : [];
+    if (selfRef.length) errors.push('app.json lists a plugin named after this package itself (resolves to local files)');
     if (local.length) errors.push(`app.json lists ${local.length} plugin(s) that are local files, paths or not plain names; only package-name plugins are allowed`);
     else lines.push('app.json plugins: package names only');
     if (exp.ios?.bundleIdentifier !== WYR_BUNDLE_ID) errors.push(`app.json ios.bundleIdentifier is not ${WYR_BUNDLE_ID}`); else lines.push(`app.json ios bundle id: ${WYR_BUNDLE_ID}`);
@@ -147,6 +187,10 @@ export function checkWyrSelfContained(dir, { fs, profile = WYR_PROFILE }) {
     if (!prof) errors.push(`eas.json has no build profile "${profile}"`);
     else if (prof.distribution !== 'store') errors.push(`eas.json profile "${profile}" is not a store build`);
     else lines.push(`eas profile "${profile}": present, store distribution`);
+    if (prof && profile === WYR_PROFILE && !sameJson(prof, WYR_PREVIEW_PROFILE)) errors.push(`eas.json profile "${profile}" differs from the reviewed profile (update WYR_PREVIEW_PROFILE in the same PR)`);
+    const hasKey = (o, keys) => o && typeof o === 'object' && (Object.keys(o).some((k) => keys.includes(k)) || Object.values(o).some((v) => hasKey(v, keys)));
+    if (hasKey(prof, ['credentialsSource', 'extends'])) errors.push(`eas.json profile "${profile}" uses credentialsSource or extends`);
+    if (eas.cli?.appVersionSource !== 'remote') errors.push('eas.json cli.appVersionSource is not remote (the build number would not come from EAS)');
     if (eas.submit?.[profile]?.ios?.ascAppId !== WYR_APP_ID) errors.push('eas.json submit ascAppId is not the Would You Rather app');
     lines.push(`eas appVersionSource: ${String(eas.cli?.appVersionSource ?? 'unset').slice(0, 20).replace(/[^A-Za-z]/g, '')}`);
   }

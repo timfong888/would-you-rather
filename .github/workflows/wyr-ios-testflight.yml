@@ -10,8 +10,10 @@ name: WYR iOS (build and TestFlight)
 #   from a fresh clone of that sha in $RUNNER_TEMP, outside the workspace. NOTE: the built sha's Expo config and plugins DO run
 #   inside eas-cli with the Expo token and the ASC key in the environment (the plugins load from the clone's node_modules). The
 #   controls are: the sha must be merged on main (ancestor check), and a secretless check (scripts/wyr-check.mjs, run before
-#   npm ci and before the secret step) refuses anything that could pull in other code: .npmrc/.yarnrc*, app.config.*, non-name
-#   plugins, symlinks, workspaces, non-registry or local-path dependencies, non-registry lockfile URLs. wyr_sha may be ANY
+#   npm ci and before the secret step) refuses the KNOWN ways a tree can pull in or run other code: .npmrc*/.yarnrc*/.env*/
+#   app.config.*/fingerprint.config.*/credentials.json, non-name or self-referencing plugins, symlinks, workspaces,
+#   non-registry or local-path dependencies, lockfiles that are not version 3 or resolve outside the npm registry, and any
+#   change to the reviewed preview profile. It is a blocklist, not a proof: the ancestor-of-main rule is the real control. wyr_sha may be ANY
 #   ancestor of main, so the check runs on whatever tree it is. Never loosen the ancestor check (for example to build PR heads);
 #   the script and the workflow always come from the dispatching main commit;
 # - eas-cli is installed (pinned version, --ignore-scripts, clean npm config) into a neutral directory by a secretless step and

@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
 import { finalOutcome, preflightApp, pollBuild, tailErrors, tailLines } from './lib/nevilleRelease.mjs';
-import { WYR_APP_ID, WYR_BUNDLE_ID, WYR_PROFILE, parseWyrEasBuild, wyrSummaryMarkdown } from './lib/wyrRelease.mjs';
+import { WYR_APP_ID, WYR_BUNDLE_ID, WYR_PROFILE, parseWyrEasBuild, wyrSummaryMarkdown, parseBuildVersionGet, checkNextBuildNumber } from './lib/wyrRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -84,6 +84,16 @@ try {
     // Keep npm out of the clone's and the runner's config: no user/global .npmrc, registry pinned.
     NPM_CONFIG_USERCONFIG: '/dev/null', NPM_CONFIG_GLOBALCONFIG: '/dev/null', NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org/',
   };
+  // 3a. Read-only: what is EAS's current remote build number? Refuse BEFORE spending a build if the next one would be under the floor.
+  {
+    const run = (extra) => spawnSync(easBin, ['build:version:get', '--platform', 'ios', '--profile', profile, '--non-interactive', ...extra], { cwd: wyrDir, env: childEnv, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    let v = run(['--json']);
+    if (v.status !== 0) v = run([]); // older eas-cli output without --json
+    if (v.status !== 0) die(`eas build:version:get failed (exit ${v.status}); not starting a build.\n${tailLines(v.stderr, redact, 20) || '| (no stderr output)'}`);
+    let next;
+    try { next = checkNextBuildNumber(parseBuildVersionGet(v.stdout)); } catch (e) { die(`${e.message} Not starting a build.`); }
+    say(`remote build number check ok: the next build will be ${next} (floor 23)`);
+  }
   say(`eas build: starting (profile ${profile}); output is captured, waiting for EAS`);
   const eas = spawnSync(easBin, ['build', '--platform', 'ios', '--profile', profile,
     '--non-interactive', '--wait', '--json'], { cwd: wyrDir, env: childEnv, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

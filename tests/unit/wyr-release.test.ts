@@ -7,7 +7,7 @@ import { readFileSync, mkdtempSync, writeFileSync, symlinkSync, rmSync, mkdirSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // @ts-ignore plain .mjs module
-import { parseWyrEasBuild, wyrSummaryMarkdown, checkWyrSelfContained, isLocalPlugin, isNonRegistrySpec, WYR_APP_ID, WYR_BUNDLE_ID, WYR_PROFILE, WYR_MIN_BUILD } from '../../scripts/lib/wyrRelease.mjs';
+import { parseWyrEasBuild, wyrSummaryMarkdown, checkWyrSelfContained, isLocalPlugin, isNonRegistrySpec, parseBuildVersionGet, checkNextBuildNumber, WYR_PREVIEW_PROFILE, WYR_APP_ID, WYR_BUNDLE_ID, WYR_PROFILE, WYR_MIN_BUILD } from '../../scripts/lib/wyrRelease.mjs';
 // @ts-ignore plain .mjs module
 import { makeRedactor } from '../../scripts/lib/ascAppsList.mjs';
 // @ts-ignore plain .mjs module
@@ -119,8 +119,8 @@ test('check: the real repo tree passes (so the workflow does not block today)', 
   assert.ok(r.lines.some((l: string) => /registry URLs only/.test(l)));
 });
 
-test('check: .npmrc, .yarnrc*, app.config.* each fail', () => {
-  for (const f of ['.npmrc', '.yarnrc', '.yarnrc.yml', 'app.config.js', 'app.config.ts', 'app.config.json']) {
+test('check: .npmrc*, .yarnrc*, .env*, app.config.* (any extension), fingerprint.config.*, credentials.json each fail', () => {
+  for (const f of ['.npmrc', '.npmrc.local', '.yarnrc', '.yarnrc.yml', 'app.config.js', 'app.config.ts', 'app.config.json', 'app.config.mts', 'app.config.cts', 'app.config.mjs', 'app.config.cjs', 'app.config.foo', '.env', '.env.local', '.env.production', '.env.preview', 'fingerprint.config.js', 'fingerprint.config.ts', 'credentials.json']) {
     assert.match(errs(tree((d) => writeFileSync(join(d, f), 'x'))), /not allowed/, f);
   }
 });
@@ -206,4 +206,53 @@ test('failure tails redact the whole text first (a multi-line PEM, the token, th
     for (const secret of ['expo_tok_SECRET123', 'KEYID12345', 'ISSUER-uuid-1', 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49', 'AwEHBG0wawIBAQQg', 'VJKU43W3C2', 'token=abc']) assert.ok(!out.includes(secret), `leaked ${secret}`);
     for (const l of out.split('\n')) assert.ok(l === '' || l.startsWith('| '), `line can start a command: ${l}`);
   }
+});
+
+test('check: lockfile must be version 3 with no legacy dependencies tree (v1/v2 trees are honored by npm ci)', () => {
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { j.lockfileVersion = 2; }))), /not lockfileVersion 3/);
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { j.lockfileVersion = 1; }))), /not lockfileVersion 3/);
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { j.dependencies = { evil: { version: 'git+https://evil.example/e.git' } }; }))), /legacy dependencies tree/);
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { delete j.lockfileVersion; }))), /not lockfileVersion 3/);
+});
+
+test('check: a plugin named after the package itself, or a package.json exports field, fails', () => {
+  const name = JSON.parse(real('package.json')).name;
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push(name); }))), /named after this package/);
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push([name, {}]); }))), /named after this package/);
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push(`${name}/plugin`); }))), /named after this package/);
+  assert.match(errs(tree((d) => edit(d, 'package.json', (j) => { j.exports = { './plugin': './x.js' }; }))), /exports field/);
+});
+
+test('check: the preview profile is pinned exactly; credentialsSource, extends, resourceClass, other keys fail', () => {
+  assert.deepEqual(JSON.parse(real('eas.json')).build.preview, WYR_PREVIEW_PROFILE); // the pin matches what is committed today
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.build.preview.credentialsSource = 'local'; }))), /credentialsSource|differs/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.build.preview.extends = 'development'; }))), /extends|differs/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.build.preview.ios.resourceClass = 'm-large'; }))), /differs/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.build.preview.env.NODE_OPTIONS = '--require x'; }))), /differs/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.build.preview.prebuildCommand = 'x'; }))), /differs/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.cli.appVersionSource = 'local'; }))), /appVersionSource/);
+  assert.deepEqual(tree((d) => edit(d, 'eas.json', (j) => { j.build.development.extends = 'x'; })).errors, []); // other profiles are not the build's concern
+});
+
+test('remote build number: the next number must not be under 23, checked before the build', () => {
+  assert.equal(parseBuildVersionGet(JSON.stringify({ buildNumber: '22' })), 22);
+  assert.equal(parseBuildVersionGet('Build number: 22\n'), 22);
+  assert.equal(parseBuildVersionGet('22'), 22);
+  assert.throws(() => parseBuildVersionGet('no number here'), /could not read/);
+  assert.equal(checkNextBuildNumber(22), 23);
+  assert.equal(checkNextBuildNumber(30), 31);
+  assert.throws(() => checkNextBuildNumber(21), /under the floor 23/);
+  assert.throws(() => checkNextBuildNumber(0), /under the floor/);
+  assert.throws(() => checkNextBuildNumber(NaN), /usable number/);
+  // the script runs the read-only command before `eas build`, and refuses (die) on failure or a low number
+  const iv = script.indexOf("'build:version:get'");
+  const ib = script.indexOf("'build', '--platform'");
+  assert.ok(iv > 0 && ib > iv, 'build:version:get runs before eas build');
+  assert.match(script, /not starting a build/i);
+  assert.match(script, /checkNextBuildNumber\(parseBuildVersionGet/);
+});
+
+test('workflow comments do not claim the check proves anything', () => {
+  assert.ok(!/refuses anything that could/i.test(wf));
+  assert.match(wf, /blocklist, not a proof/);
 });
