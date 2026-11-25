@@ -1,0 +1,58 @@
+name: Apple IAP text update (writes to App Store Connect)
+
+# Manual only, and only with Tim's explicit go (#252). Updates the en-US display name and description of in-app
+# purchases that already exist in App Store Connect so they match store/ios/iap-products.json. Changes nothing else
+# (not price, availability or review state) and skips products Apple no longer lets you edit.
+# Default is a dry run (GET only) that prints each product's text before and after.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Write to App Store Connect (false = dry run)
+        type: boolean
+        required: true
+        default: false
+      confirm:
+        description: Type UPDATE-IAP-TEXT to allow apply=true
+        type: string
+        required: false
+        default: ''
+      app_id:
+        description: ASC app id (Apple ID of the app)
+        type: string
+        required: true
+        default: '6836653723'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-iap-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Refuse apply without confirmation
+        if: ${{ inputs.apply && inputs.confirm != 'UPDATE-IAP-TEXT' }}
+        run: |
+          echo "apply=true needs confirm=UPDATE-IAP-TEXT."
+          exit 1
+      - name: Update in-app purchase text
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APP_ID: ${{ inputs.app_id }}
+          APPLY: ${{ inputs.apply && '--apply' || '' }}
+        run: node scripts/asc-iap-update.mjs --app "$APP_ID" $APPLY

@@ -10,11 +10,12 @@ const keyHolders = readdirSync(dir)
   .filter((f) => f.endsWith('.yml'))
   .filter((f) => /secrets\.ASC_PRIVATE_KEY/.test(readFileSync(`${dir}/${f}`, 'utf8')));
 
-test('the nine known key-holding workflows are found', () => {
+test('the ten known key-holding workflows are found', () => {
   assert.deepEqual(keyHolders, [
     'apple-apps-list.yml',
     'apple-iap-create.yml',
     'apple-iap-review-screenshot.yml',
+    'apple-iap-update.yml',
     'apple-metadata.yml',
     'apple-ops.yml',
     'apple-testflight-group.yml',

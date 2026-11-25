@@ -108,9 +108,11 @@ async function main() {
     const f = new URL(`${p.productId}.png`, SHOT_DIR);
     return [p.productId, existsSync(f) ? readFileSync(f) : null];
   }));
-  // Products whose paywall cannot be shot yet (part 2 and later, kids and teen: #252) have no file; they are listed, not uploaded.
-  const shot = spec.products.filter((p) => files.get(p.productId));
-  for (const p of spec.products.filter((q) => !files.get(q.productId))) console.log(`NO SCREENSHOT YET (skipped)  ${p.productId}`);
+  // Products marked reviewShot "device" get their shot from a device after F5b (#252): listed, not uploaded.
+  // Any other product must have a valid file, so a lost shot fails the run instead of passing quietly.
+  const later = spec.products.filter((p) => p.reviewShot === 'device');
+  for (const p of later) console.log(`NO SCREENSHOT YET (device shot after F5b, skipped)  ${p.productId}`);
+  const shot = spec.products.filter((p) => p.reviewShot !== 'device');
   const problems = shot.flatMap((p) => shotProblems(p.productId, files.get(p.productId)));
   if (problems.length) { console.error(`Screenshots invalid:\n- ${problems.join('\n- ')}`); process.exit(2); }
 

@@ -8,10 +8,8 @@ import { shotPlan, FORBIDDEN } from '../../scripts/render-iap-review-screenshots
 
 const spec = JSON.parse(readFileSync('store/ios/iap-products.json', 'utf8'));
 
-// The first 8 products have shots. The 18 added by F5a (#252) do not yet: part 2 and later need a player who owns the
-// part before, and kids and teen sell nothing until F5b. A product leaves this rule when its shot is committed.
-const KIDS_IDS = ['tiny_choices', 'make_believe', 'giggle_factory', 'road_trip_rally', 'dinner_table', 'heart_to_heart', 'future_me', 'real_talk', 'holiday_table'].map((c) => `wyr_unlock_${c}`);
-const NO_SHOT_YET = (productId: string) => /_\d+$/.test(productId) || KIDS_IDS.includes(productId);
+// The first 8 products have shots. The 18 added by F5a (#252) are marked reviewShot "device" in the product file.
+const NO_SHOT_YET = (productId: string) => spec.products.find((p: any) => p.productId === productId).reviewShot === 'device';
 
 test('every IAP with a paywall to shoot has a committed 1290x2796 PNG review screenshot; the other 18 are listed', () => {
   let pending = 0;
@@ -27,6 +25,10 @@ test('every IAP with a paywall to shoot has a committed 1290x2796 PNG review scr
     assert.deepEqual(pngSize(readFileSync(f)), { width: WIDTH, height: HEIGHT });
   }
   assert.equal(pending, 18, '4 grown-up part 2 + 14 kids and teen');
+  // The marked ones are exactly part 2 and later, plus every kids and teen product.
+  const marked = spec.products.filter((p: any) => p.reviewShot === 'device').map((p: any) => p.productId).sort();
+  const expected = spec.products.map((p: any) => p.productId).filter((id: string) => /_\d+$/.test(id) || /^wyr_unlock_(tiny_choices|make_believe|giggle_factory|road_trip_rally|dinner_table|heart_to_heart|future_me|real_talk|holiday_table)$/.test(id)).sort();
+  assert.deepEqual(marked, expected);
 });
 
 test('shotProblems rejects missing, non-PNG and wrong-size files', () => {
@@ -65,4 +67,12 @@ test('the upload workflow is manual, dry run by default, and needs a typed confi
   assert.match(wf, /inputs\.confirm != 'UPLOAD-IAP-SCREENSHOTS'/);
   const src = readFileSync('scripts/asc-iap-review-screenshot.mjs', 'utf8');
   assert.doesNotMatch(src, /appStoreVersionSubmissions|reviewSubmissions|inAppPurchaseSubmissions/);
+});
+
+test('the upload script fails for a product without a shot unless it is marked for a device shot (P3 on #254)', () => {
+  const src = readFileSync('scripts/asc-iap-review-screenshot.mjs', 'utf8');
+  assert.match(src, /spec\.products\.filter\(\(p\) => p\.reviewShot !== 'device'\)/);
+  assert.match(src, /shot\.flatMap\(\(p\) => shotProblems\(p\.productId, files\.get\(p\.productId\)\)\)/);
+  // An unmarked product with a missing file is a problem, a marked one is not part of the check.
+  assert.match(shotProblems('wyr_unlock_high_life', null)[0], /no screenshot/);
 });
