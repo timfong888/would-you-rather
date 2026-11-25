@@ -52,3 +52,11 @@ test('results screen: the kids flag comes from the question first, so a kf-* que
   const src = readFileSync(join(__dirname, '../..', 'app/results/[id].tsx'), 'utf8');
   assert.ok(src.includes("isKidsCategoryId(question?.category ?? cat ?? '')"), 'derive the kids flag from question?.category before the cat param');
 });
+
+test('every share handler on the results and complete screens passes the kids flag to buildShareUrl (no link_id on kids links)', () => {
+  for (const f of ['app/results/[id].tsx', 'app/complete/[id].tsx']) {
+    const calls = read(f).match(/buildShareUrl\([^;]*\);/g) ?? [];
+    assert.ok(calls.length >= 2, `${f}: expected several buildShareUrl calls`);
+    for (const c of calls) assert.ok(c.includes('isKidsCategoryId('), `${f}: ${c} has no kids flag`);
+  }
+});

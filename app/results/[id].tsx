@@ -67,7 +67,7 @@ export default function ResultsScreen() {
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
     const text = shareInvite(question?.category);
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''));
 
     track('share_clicked', {
       question_id: id,
@@ -101,7 +101,7 @@ export default function ResultsScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId]);
+  }, [question, cat, id, incomingGeneration, incomingLinkId, visitorId]);
 
   // "Share my take": the same link as a challenge, plus the pick as the `f` code so the
   // recipient sees it only inside the app, after they answer (#188). The preview card
@@ -184,7 +184,7 @@ export default function ResultsScreen() {
     const title = 'Would You Rather?';
     // TikTok captions don't unfurl a link card, so this one keeps the question (#186).
     const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''));
 
     track('share_clicked', {
       question_id: id,
@@ -216,7 +216,7 @@ export default function ResultsScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId, hashtags]);
+  }, [question, cat, id, incomingGeneration, incomingLinkId, visitorId, hashtags]);
 
   const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
   const currentIdx = categoryQuestions.findIndex((q) => q.id === id);

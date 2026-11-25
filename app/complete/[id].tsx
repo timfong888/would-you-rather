@@ -63,7 +63,7 @@ export default function CompleteScreen() {
     if (!lastQuestion) return;
     const title = 'Would You Rather?';
     const text = shareInvite(lastQuestion.category);
-    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
+    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration, isKidsCategoryId(id ?? ''));
 
     track('share_clicked', {
       question_id: lastQuestion.id,
@@ -92,7 +92,7 @@ export default function CompleteScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
-  }, [lastQuestion, incomingGeneration, incomingLinkId, visitorId]);
+  }, [lastQuestion, id, incomingGeneration, incomingLinkId, visitorId]);
 
   const handleShareMyTake = useCallback(async () => {
     if (!lastQuestion || !safeVoted) return;
