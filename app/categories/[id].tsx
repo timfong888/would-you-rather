@@ -34,6 +34,9 @@ import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 
+// Inline env test so the minifier drops the copy when the flag is off (see app/unlock/[id].tsx).
+const WEB_FREE_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' && WEB_FREE_UNLOCK;
+
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -265,7 +268,7 @@ export default function CategoryScreen() {
               {COPY.openNext(trancheSize(nextTranche))}
             </Text>
             <Text style={styles.unlockCtaSub}>
-              {!sellable ? 'Available soon' : `One-time unlock · ${priceForCategory(category.id)}${WEB_FREE_UNLOCK ? ' · free for now' : ''}`}
+              {!sellable ? 'Available soon' : `One-time unlock · ${priceForCategory(category.id)}${WEB_FREE_UI ? ' · free for now' : ''}`}
             </Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>

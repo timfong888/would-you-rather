@@ -23,6 +23,7 @@ import {
   getLockedQuestionCount,
   getNextTranche,
   hasLockedRemaining,
+  isQuestionLocked,
   SELLABLE_TRANCHE_MAX,
   trancheSize,
 } from '@/constants/questions';
@@ -137,6 +138,8 @@ export default function UnlockScreen() {
   const access = category ? openTranches(category) : false;
   const nextTranche = category ? getNextTranche(category, access) : undefined;
   const nextSize = nextTranche ? trancheSize(nextTranche) : lockedCount;
+  // What the all-categories unlock opens in this category: everything still locked for this player.
+  const remainingLocked = category ? questions.filter((_, i) => isQuestionLocked(category, i, access)).length : 0;
   const trancheStart = nextTranche ? nextTranche.first - 1 : freeCount;
   // Tranche 2 has no store product until step F5; the web free unlock opens everything.
   const sellable = nextTranche === undefined || nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK;
@@ -246,7 +249,7 @@ export default function UnlockScreen() {
   const handleFreeUnlock = (kind: 'category' | 'all') => {
     if (!WEB_FREE_UI || paymentState !== 'idle') return;
     purchasedStartRef.current = trancheStart;
-    purchasedSizeRef.current = nextSize;
+    purchasedSizeRef.current = kind === 'all' ? remainingLocked : nextSize;
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
@@ -264,7 +267,7 @@ export default function UnlockScreen() {
   const handleBuy = async (kind: 'category' | 'all') => {
     if (paymentState !== 'idle') return;
     purchasedStartRef.current = trancheStart;
-    purchasedSizeRef.current = nextSize;
+    purchasedSizeRef.current = kind === 'all' ? remainingLocked : nextSize;
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
@@ -309,7 +312,7 @@ export default function UnlockScreen() {
     {
       try {
         purchasedStartRef.current = trancheStart;
-    purchasedSizeRef.current = nextSize;
+        purchasedSizeRef.current = nextSize;
         const active = await purchases.restore();
         applyEntitlements(active);
         // Success only when the restore opens the tranche this paywall offers; otherwise the paywall stays.

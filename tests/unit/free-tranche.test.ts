@@ -258,7 +258,14 @@ function appFiles(dir: string): string[] {
 test('every app file that carries the FREE FOR NOW marker tests the env flag inline', () => {
   const offenders = appFiles('app').filter((p) => {
     const src = code(p);
-    return src.includes('FREE FOR NOW') && !/process\.env\.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1'/.test(src);
+    return /free for now/i.test(src) && !/process\.env\.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1'/.test(src);
   });
   assert.deepEqual(offenders, []);
+});
+
+test('the all-categories unlock reports what it opens, not one tranche', () => {
+  const src = code('app/unlock/[id].tsx');
+  assert.match(src, /purchasedSizeRef\.current = kind === 'all' \? remainingLocked : nextSize;/);
+  assert.equal((src.match(/purchasedSizeRef\.current = /g) ?? []).length, 3);
+  assert.match(src, /^        purchasedSizeRef\.current = nextSize;$/m); // restore branch, indented with its block
 });
