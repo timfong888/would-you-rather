@@ -27,14 +27,17 @@ export function canPlayCategory(state: AccessState, id: string): boolean {
  * What the player may open in a category (issue #238). Owner access, a test unlock
  * and `premium_all` open every tranche. Otherwise a grown-up category opens the
  * tranches whose entitlement is held: tranche 1 is `cat_<id>` (the id that exists
- * today), tranche k >= 2 is `cat_<id>_<k>`. Kids and teen keep the all-or-nothing
- * rule until their own tranches (Unit 4 of #124).
+ * today), tranche k >= 2 is `cat_<id>_<k>`. Kids and teen follow the same rule, but
+ * `premium_all` and the all-categories test unlock never open them.
  */
 export function openTranchesFor(state: AccessState, category: CategoryDef): Access {
-  if (category.audience !== 'adult') return canPlayCategory(state, category.id);
-  if (state.ownerAccess || state.entitlements.has(ENTITLEMENT_ALL)) return true;
-  // A free test unlock keyed by ENTITLEMENT_ALL opens everything (the bare category id of the old web free unlock opens tranche 1 only, below).
-  if (state.testUnlockEnabled && state.testUnlocks.has(ENTITLEMENT_ALL)) return true;
+  if (state.ownerAccess) return true;
+  // premium_all and the all-categories test unlock open grown-up categories only (kids spec 3.4, 3.1).
+  if (category.audience === 'adult') {
+    if (state.entitlements.has(ENTITLEMENT_ALL)) return true;
+    // A free test unlock keyed by ENTITLEMENT_ALL opens everything (the bare category id of the old web free unlock opens tranche 1 only, below).
+    if (state.testUnlockEnabled && state.testUnlocks.has(ENTITLEMENT_ALL)) return true;
+  }
   const owned = new Set<number>();
   for (const t of getTranches(category)) {
     const key = trancheEntitlementId(category.id, t.k);
@@ -63,13 +66,12 @@ export function holdsAnyTranche(entitlements: Iterable<string>, categoryId: stri
 
 /**
  * A restore counts as success only when the restored entitlements open the tranche the paywall
- * offers. Adult categories: `premium_all` or that tranche's own entitlement. Kids and teen keep the
- * all-or-nothing rule (their tranches come in a later step).
+ * offers: that tranche's own entitlement, or `premium_all` for a grown-up category (never for kids or teen).
  */
 export function restoreOpensTranche(entitlements: Iterable<string>, category: CategoryDef, k: number): boolean {
   const list = [...entitlements];
-  if (category.audience !== 'adult') return holdsAnyTranche(list, category.id);
-  return list.includes(ENTITLEMENT_ALL) || list.includes(trancheEntitlementId(category.id, k));
+  if (category.audience === 'adult' && list.includes(ENTITLEMENT_ALL)) return true;
+  return list.includes(trancheEntitlementId(category.id, k));
 }
 
 /**

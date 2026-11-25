@@ -74,11 +74,11 @@ test('age labels: kids and teen categories have one, adult categories do not', (
 });
 
 test('the card hint says free and more, with no price and no pack wording, and matches the data', () => {
-  assert.equal(freeMoreHint(8, 22), '8 free · 22 more');
-  assert.equal(freeMoreHint(8, 0), '8 free');
+  assert.equal(freeMoreHint(5, 25), '5 free · 25 more');
+  assert.equal(freeMoreHint(5, 0), '5 free');
   for (const c of CATEGORIES.filter((x) => x.audience !== 'adult')) {
     const hint = freeMoreHint(getFreeQuestionCount(c), getLockedQuestionCount(c));
-    assert.match(hint, /^8 free · \d+ more$/);
+    assert.match(hint, /^5 free · \d+ more$/);
     assert.doesNotMatch(hint, /\$|pack|unlock/i);
   }
 });

@@ -4,7 +4,7 @@
  *
  * - every question id is unique and uses its prefix: `kf-` in a kids category, `tn-` in a teen category, the category's
  *   initials in an adult one; every question belongs to exactly one existing category
- * - every kids and teen category has exactly 8 free (volume 1) questions, listed first, and the rest are paid
+ * - every kids and teen category has exactly 5 free questions by rule (its first 8 are volume 1 starters, listed first, so index gating holds)
  * - no kids or teen question matches the tone blocklist (violence, romance, brands, ...), and no two repeat
  * - every category has free content (volume 1)
  * - every category has an `audience` and `ages`, and they agree: audience is kids iff the youngest age is under 13
@@ -26,7 +26,7 @@ type PlainQuestion = {
 };
 
 /** Free questions per kids and teen category (decision D2; spec §2.2). */
-const KIDS_FREE_COUNT = 8;
+const KIDS_FREE_COUNT = 5;
 
 /**
  * Tone blocklist for kids and teen questions (spec §4.3 list, applied to the written bank).

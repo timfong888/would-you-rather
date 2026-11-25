@@ -54,7 +54,6 @@ export const FREE_QUESTION_COUNT = 5;
 /** @deprecated use FREE_QUESTION_COUNT. Kept so older imports compile. */
 export const FREE_TRIAL_COUNT = FREE_QUESTION_COUNT;
 /** The free count grown-up premium categories had before #238. Only the frozen public (SEO) rule still uses it. */
-const LEGACY_PREMIUM_PUBLIC_COUNT = 3;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -1543,8 +1542,8 @@ export function getCategoryQuestions(categoryId: CategoryId): Question[] {
 //   - grown-up category: the first FREE_QUESTION_COUNT (5) questions are free,
 //     the rest are sold in tranches: tranche 1 = positions 6 to 20, tranche k
 //     (k >= 2) = positions 20(k-1)+1 to 20k, capped at the category total
-//   - kids and teen categories: unchanged (8 free, one paid tranche; their own
-//     20-question tranches are Unit 4 of #124)
+//   - kids and teen categories: the same rule (5 free, tranches at 20, 40, ...; a
+//     tail of 10 or fewer joins the tranche before it)
 //   - owner access, premium_all and test unlocks open everything
 // ---------------------------------------------------------------------------
 
@@ -1555,10 +1554,7 @@ export function getQuestionVolume(q: Question): number {
 /** Number of questions at the start of the category that are free to play. */
 export function getFreeQuestionCount(category: CategoryDef): number {
   const questions = getCategoryQuestions(category.id);
-  if (category.audience === 'adult') return Math.min(FREE_QUESTION_COUNT, questions.length);
-  // Kids and teen keep their rule until Unit 4: premium trial, else all of volume 1 (8 today).
-  if (category.tier === 'premium') return Math.min(LEGACY_PREMIUM_PUBLIC_COUNT, questions.length);
-  return questions.filter((q) => getQuestionVolume(q) === 1).length;
+  return Math.min(FREE_QUESTION_COUNT, questions.length);
 }
 
 /** Number of questions in the category that sit behind an unlock. */
@@ -1585,13 +1581,13 @@ export interface Tranche {
 
 /** Grown-up tranches end at multiples of this (20, 40, 60, ...). */
 export const TRANCHE_END_STEP = 20;
-/** A last tranche smaller than this joins the one before it. */
-export const MIN_TRANCHE_SIZE = 10;
+/** A last tranche of this many questions or fewer joins the one before it (Tim, 2026-11-25: 10-question tails fold in). */
+export const MAX_FOLDED_TAIL = 10;
 
 /**
  * Cut points for a grown-up category with `n` questions and `free` free ones:
  * tranche 1 is free+1 to 20, tranche k >= 2 is 20(k-1)+1 to 20k, all capped at n.
- * A final tranche under MIN_TRANCHE_SIZE joins the previous one.
+ * A final tranche of MAX_FOLDED_TAIL or fewer joins the previous one.
  */
 export function trancheBounds(n: number, free: number): Tranche[] {
   const out: Tranche[] = [];
@@ -1602,19 +1598,17 @@ export function trancheBounds(n: number, free: number): Tranche[] {
     first = Math.max(last, first - 1) + 1;
   }
   const tail = out[out.length - 1];
-  if (out.length > 1 && tail.last - tail.first + 1 < MIN_TRANCHE_SIZE) {
+  if (out.length > 1 && tail.last - tail.first + 1 <= MAX_FOLDED_TAIL) {
     out.pop();
     out[out.length - 1].last = tail.last;
   }
   return out;
 }
 
-/** The paid tranches of a category, in order. Kids and teen have one paid tranche for now. */
+/** The paid tranches of a category, in order. Grown-ups, kids and teen share one rule. */
 export function getTranches(category: CategoryDef): Tranche[] {
   const n = getCategoryQuestions(category.id).length;
-  const free = getFreeQuestionCount(category);
-  if (category.audience !== 'adult') return n > free ? [{ k: 1, first: free + 1, last: n }] : [];
-  return trancheBounds(n, free);
+  return trancheBounds(n, getFreeQuestionCount(category));
 }
 
 /**

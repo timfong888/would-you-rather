@@ -70,7 +70,7 @@ test('the complete-screen step happens at every tranche start, for every grown-u
   assert.equal(isTrancheStart(td, 5), true);
   assert.equal(isTrancheStart(td, 20), true);
   const kids = CATEGORIES.find((c) => c.audience === 'kids')!;
-  assert.equal(isTrancheStart(kids, 8), true, 'kids keep their single step at the end of the free 8');
+  assert.equal(isTrancheStart(kids, 5), true, 'kids use the same tranche start as grown-ups');
 });
 
 test('tranche 2 has no store product yet: only tranche 1 is sellable until step F5', () => {
