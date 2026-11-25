@@ -487,7 +487,7 @@ The two are separate. The band is an extra choice on top of the rating, and it i
 | **5. Made for Kids, 9-11** | 9-11 | as 3 | as 3 | as 3 | same |
 
 Notes that apply to every option:
-- Apple's definition of "Made for Kids" selection cannot be changed once App Review approves it, and the app and all later updates must follow the Kids category guidelines [B].
+- The "Made for Kids" selection cannot be changed once App Review approves it, and the app and all later updates must follow the Kids category guidelines [B].
 - Metadata rule (5.1.4, which points to 2.3.8): apps not in the Kids category "cannot include any terms in app name, subtitle, icon, screenshots or description that imply the main audience for the app is children" [D]. This listing says "Family Fun", "Questions for the whole family" and "Kids & Family". I read "family" as not implying children as the main audience, but this is my judgment, not Apple's; App Review decides. Risk is highest for the "Kids & Family" wording in the description and screenshot 5.
 - Kids category purchase rule: no purchasing opportunities except behind a parental gate [D] 1.3.
 
