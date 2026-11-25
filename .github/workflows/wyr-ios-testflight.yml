@@ -51,6 +51,8 @@ jobs:
   wyr-ios:
     if: github.event_name == 'workflow_dispatch' && github.actor == 'timfong888' && github.triggering_actor == 'timfong888' && github.repository == 'timfong888/would-you-rather' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
     timeout-minutes: 120
     steps:
       - name: Validate wyr_sha format
