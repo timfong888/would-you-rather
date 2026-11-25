@@ -108,7 +108,7 @@ export default function ResultsScreen() {
   // and the share text never show the pick.
   const handleShareMyTake = useCallback(async () => {
     if (!safeVoted) return;
-    const { url: myTakeUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(cat ?? ''), safeVoted);
+    const { url: myTakeUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''), safeVoted);
     const title = 'My Would You Rather Take';
     const text = shareInvite(question?.category);
 

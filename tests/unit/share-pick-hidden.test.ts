@@ -47,3 +47,8 @@ test('"Share my take" on the results and complete screens derives the kids flag 
     assert.ok(/buildShareUrl\([^)]*isKidsCategoryId\([^)]*\)[^)]*safeVoted\)/.test(src), `${f}: the my-take link must use isKidsCategoryId`);
   }
 });
+
+test('results screen: the kids flag comes from the question first, so a kf-* question without a kids cat param still gets the bare link', () => {
+  const src = readFileSync(join(__dirname, '../..', 'app/results/[id].tsx'), 'utf8');
+  assert.ok(src.includes("isKidsCategoryId(question?.category ?? cat ?? '')"), 'derive the kids flag from question?.category before the cat param');
+});
