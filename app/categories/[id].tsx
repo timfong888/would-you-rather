@@ -7,7 +7,7 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { Redirect, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { Link, Redirect, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import {
   CATEGORIES,
@@ -25,6 +25,7 @@ import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { categoryJsonLd } from '@/lib/seo';
+import { questionPageUrl } from '@/lib/seoLinks';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -164,6 +165,10 @@ export default function CategoryScreen() {
           // Header above the first question beyond the free set — only while locked,
           // so paying / owner-access users never see an upsell divider.
           const showPackHeader = idx === freeCount && idx > 0 && idx < total && !categoryUnlocked;
+          // Web only: a question with a read-only page shows its text, even before the unlock, and links to
+          // that page (S3). The question text is public there already. The app keeps the blurred rows.
+          const pageUrl = Platform.OS === 'web' ? questionPageUrl(q.id) : null;
+          const showText = !isLocked || pageUrl !== null;
 
           return (
             <React.Fragment key={q.id}>
@@ -181,6 +186,8 @@ export default function CategoryScreen() {
                 )}
               </View>
             )}
+            {(() => {
+            const row = (
             <Pressable
               onPress={() => {
                 if (isLocked) {
@@ -194,6 +201,7 @@ export default function CategoryScreen() {
                 isLocked && styles.questionRowLocked,
                 isAnswered && styles.questionRowAnswered,
                 pressed && { opacity: 0.8 },
+                pageUrl !== null && styles.questionRowFlex,
               ]}
             >
               <View style={styles.questionRowLeft}>
@@ -208,12 +216,12 @@ export default function CategoryScreen() {
                 )}
               </View>
               <View style={styles.questionRowContent}>
-                <Text style={[styles.questionOptionA, isLocked && styles.textLockedBlur]} numberOfLines={1}>
-                  {isLocked ? '••••••••••••••••' : q.optionA}
+                <Text style={[styles.questionOptionA, !showText && styles.textLockedBlur]} numberOfLines={1}>
+                  {!showText ? '••••••••••••••••' : q.optionA}
                 </Text>
                 <Text style={styles.questionOr}>or</Text>
-                <Text style={[styles.questionOptionB, isLocked && styles.textLockedBlur]} numberOfLines={1}>
-                  {isLocked ? '••••••••••••••••' : q.optionB}
+                <Text style={[styles.questionOptionB, !showText && styles.textLockedBlur]} numberOfLines={1}>
+                  {!showText ? '••••••••••••••••' : q.optionB}
                 </Text>
               </View>
               {!isLocked && !isAnswered && (
@@ -232,6 +240,16 @@ export default function CategoryScreen() {
                 </View>
               )}
             </Pressable>
+            );
+            return pageUrl === null ? row : (
+              <View style={styles.questionRowWithLink}>
+                {row}
+                <Link href={pageUrl as never} style={styles.questionPageLink} accessibilityLabel="Read this question on its own page">
+                  Read ↗
+                </Link>
+              </View>
+            );
+            })()}
             </React.Fragment>
           );
         })}
@@ -399,6 +417,17 @@ function makeStyles(colors: ThemeColors) {
     packHeaderSub: {
       color: colors.textMuted,
       fontSize: FONTS.sizes.xs,
+    },
+    questionRowWithLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    questionRowFlex: { flex: 1 },
+    questionPageLink: {
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+      color: colors.textMuted,
     },
     questionRow: {
       flexDirection: 'row',
