@@ -84,26 +84,49 @@ function clean(v, key) {
   return v;
 }
 
+// Apple's error text can echo request URLs; hide them like everything else.
+const scrub = (text) => String(text).replace(/https?:\/\/\S+/gi, '(url hidden)');
+
 function show({ status, body }, { okStatuses = [] } = {}) {
   console.log(`HTTP ${status}`);
   if (body.errors) {
-    for (const e of body.errors) console.log(`ERROR ${e.status} ${e.code}: ${e.title} - ${e.detail}`);
+    for (const e of body.errors) console.log(scrub(`ERROR ${e.status} ${e.code}: ${e.title} - ${e.detail}`));
   }
   const rows = Array.isArray(body.data) ? body.data : body.data ? [body.data] : [];
   // JSON:API puts include=... records (e.g. builds of a pre-release version) in `included`.
   const included = Array.isArray(body.included) ? body.included : [];
   for (const r of [...rows, ...included]) {
-    console.log(JSON.stringify(clean({ id: r.id, type: r.type, ...r.attributes }), null, 2));
+    // Show which build a version selected, so its icon can be matched to the version.
+    const buildId = r.relationships?.build?.data?.id;
+    console.log(JSON.stringify(clean({ id: r.id, type: r.type, ...r.attributes, ...(buildId ? { buildId } : {}) }), null, 2));
   }
   if (!rows.length && !body.errors) console.log(body.nonJson ? '(non-JSON response, see HTTP status)' : '(no data returned)');
   return status < 400 || okStatuses.includes(status);
 }
 
+// Follow links.next (same host only), at most MAX_PAGES pages.
+const MAX_PAGES = 20;
+async function getAll(firstPath) {
+  const all = [];
+  let res = await get(firstPath);
+  const first = res;
+  for (let page = 1; ; page++) {
+    if (res.status >= 400 || !Array.isArray(res.body.data)) return { first, rows: all, failed: res };
+    all.push(...res.body.data);
+    const next = res.body.links?.next;
+    if (!next) return { first, rows: all, failed: null };
+    if (page >= MAX_PAGES) { console.log(`WARNING: stopped after ${MAX_PAGES} pages; later items were not read.`); return { first, rows: all, failed: null }; }
+    const u = new URL(next);
+    if (u.origin !== 'https://api.appstoreconnect.apple.com') { console.log('WARNING: next page is on another host; not followed.'); return { first, rows: all, failed: null }; }
+    res = await get(u.pathname + u.search);
+  }
+}
+
 if (perIap[cmd]) {
-  const list = await get(paths.iap);
-  console.log(`IAP list: HTTP ${list.status}`);
-  const iaps = Array.isArray(list.body.data) ? list.body.data : [];
-  let ok = list.status < 400;
+  const { rows: iaps, failed } = await getAll(paths.iap);
+  if (failed) { console.log('IAP list failed:'); show(failed); process.exit(1); }
+  console.log(`IAP list: ${iaps.length} products`);
+  let ok = true;
   for (const iap of iaps) {
     console.log(`--- ${iap.attributes?.productId ?? iap.id} (${iap.attributes?.state ?? 'state unknown'})`);
     ok = show(await get(perIap[cmd](iap.id)), { okStatuses: [404] }) && ok;
