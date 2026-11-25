@@ -335,7 +335,7 @@ State: **blank** (empty in Tim's screenshot or nowhere set), **set** (read live)
 | 19 | App Information | Privacy Policy URL | unverified | `https://www.wouldyourather.fyi/privacy` (live, 200). Needs Tim's legal read first (#114). | |
 | 20 | App Information | Primary category | unverified | Entertainment (listing.md). Secondary: none, or Games > Family. Tim decides. | |
 | 21 | App Information | Content rights | unverified | "No, it does not contain, show or access third-party content." Questions are written with AI help and reviewed (PRD). Tim confirms. | |
-| 22 | App Information | Age rating questionnaire | unverified | Answers in section 5.1; expected 13+ (Apple computes) | |
+| 22 | App Information | Age rating questionnaire | unverified (not read from ASC) | **Decided: keep 13+, not Made for Kids** (Tim, 2026-11-25: "D3: keep 13+"). Answers in section 5.1; Apple computes the final rating. | |
 | 23 | App Compliance (new) | Contents of this section | **unverified** | Not readable via API; I do not know what it asks. Likely items: export compliance (already `ITSAppUsesNonExemptEncryption: false` in `app.json`) and, if sold in the EU, Digital Services Act trader status. Tim opens it and reports each question. | |
 | 24 | App Compliance | EU trader status | unverified | Likely not needed with US-only availability (row 29); confirm in the section. If EU storefronts are added later, Tim decides then; a trader status makes a contact address and phone public on the EU listing (unverified how ASC shows it). | |
 | 25 | App Privacy | Data types collected | unverified | Section 5.3 table (purchase history, device ID, product interaction, coarse location; none used for tracking) | |
@@ -505,4 +505,5 @@ The tradeoff is real: a 13+ app is not shown in the Kids category and is not ins
 
 ### 9.4 Open items
 - The final rating comes from Apple's questionnaire in the App Information page; Tim enters the answers (row 22).
-- The description now proposes "Family" wording instead of "Kids & Family" (8.4, proposed for Tim). Screenshot 5 (8.3) still says Kids & Family and is unchanged; Tim decides whether to change it. Option 1 stays the recommendation; Tim decides after reading the table.
+- **Decided: option 1, calculated rating, not Made for Kids** (Tim, 2026-11-25: "D3: keep 13+"). The age rating stays 13+. No Kids category band is selected.
+- The Family wording in the description (8.4) was accepted by Tim on 2026-11-25 ("D4: yes"). Screenshot 5 (8.3) still says Kids & Family and is unchanged.
