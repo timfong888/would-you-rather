@@ -337,12 +337,12 @@ State: **blank** (empty in Tim's screenshot or nowhere set), **set** (read live)
 | 21 | App Information | Content rights | unverified | "No, it does not contain, show or access third-party content." Questions are written with AI help and reviewed (PRD). Tim confirms. | |
 | 22 | App Information | Age rating questionnaire | unverified | Answers in section 5.1; expected 13+ (Apple computes) | |
 | 23 | App Compliance (new) | Contents of this section | **unverified** | Not readable via API; I do not know what it asks. Likely items: export compliance (already `ITSAppUsesNonExemptEncryption: false` in `app.json`) and, if sold in the EU, Digital Services Act trader status. Tim opens it and reports each question. | |
-| 24 | App Compliance | EU trader status | unverified | Tim decides. A trader status makes a contact address and phone public on the EU listing. If Tim does not want that, remove EU storefronts in row 28. | |
+| 24 | App Compliance | EU trader status | unverified | Likely not needed with US-only availability (row 29); confirm in the section. If EU storefronts are added later, Tim decides then; a trader status makes a contact address and phone public on the EU listing (unverified how ASC shows it). | |
 | 25 | App Privacy | Data types collected | unverified | Section 5.3 table (purchase history, device ID, product interaction, coarse location; none used for tracking) | |
 | 26 | App Accessibility | Accessibility labels | unverified | Declare nothing until each feature is tested on a device. I have not verified VoiceOver, Dynamic Type or contrast. Believed voluntary for now (unverified). | |
 | 27 | Ratings and Reviews | Any required field | unverified | None expected; age rating is under App Information (verify). | |
 | 28 | Monetization | Price | unverified | Free, base territory USA | |
-| 29 | Monetization | Availability | unverified | All territories by default; trim per row 24 | |
+| 29 | Monetization | Availability | unverified | **United States only** (Tim, 2026-11-25, relayed by the orchestrator; not read from ASC). Remove every other storefront. | |
 | 30 | Monetization | Paid Apps agreement, banking, tax | unverified | **Tim** (Account Holder). Needed for in-app purchases. | |
 | 31 | In-App Purchases | 8 products: name, description, price, screenshot | **set** (`READY_TO_SUBMIT`; screenshots COMPLETE) | Keep. Display text "Every question in X" may be wrong after #238; do not edit until Tim answers #238 decision 2. | |
 | 32 | Version | Advertising Identifier (asked at submit) | unverified | No (no ads, no ATT, section 5.3). Tim confirms RevenueCat does not read the IDFA. | |
@@ -443,7 +443,7 @@ All links open App Store Connect for app 6836653723; menu paths move, so each is
 | 12 | Age rating questionnaire | same page | section 5.1 answers |
 | 13 | App Compliance (new) | left menu, App Compliance | read each question to me, then answer; trader status is Tim's call (row 24) |
 | 14 | App Privacy | https://appstoreconnect.apple.com/apps/6836653723/distribution/privacy (verify) | section 5.3 table |
-| 15 | Price and availability | left menu, Monetization / Pricing and Availability | Free; USA base; territories per row 24 |
+| 15 | Price and availability | left menu, Monetization / Pricing and Availability | Free; USA base; availability: United States only |
 | 16 | Paid Apps agreement, banking, tax | https://appstoreconnect.apple.com/business | Account Holder only |
 | 17 | Keywords | version page | **wait** for Search Ads data (8.5) |
 | 18 | Add for Review | version page | **only after Tim's explicit go** |
@@ -453,6 +453,53 @@ All links open App Store Connect for app 6836653723; menu paths move, so each is
 1. **Screenshots: iPhone capture or CI?** Recommend your iPhone (option 1): fastest, real paywall.
 2. **Keyword field:** hold until Search Ads data, and do not repeat "would you rather". Recommend hold.
 3. **Release type:** manual, not automatic. Recommend manual.
-4. **EU trader status and territories:** declare, or leave the EU out of v1. Recommend US-only availability if you do not want your contact public (unverified how ASC shows it).
+4. **Territories: decided, United States only** (Tim, 2026-11-25, relayed). EU trader status is then expected not to apply (unverified); revisit if more storefronts are added.
 5. **Ship before or after #238?** IAP text ("Every question in X") and paywall copy may change. Recommend fix #238 first; screenshots 6 and the IAP review screenshots need re-capture if the paywall changes.
 6. **Accessibility:** skip labels for v1 until tested. Recommend skip.
+
+## 9. Age rating options and Kids Category bands (2026-11-25)
+
+Answers Tim's question of 2026-11-25 ("what are the other child ranges, and tradeoffs"). Sources were read on 2026-11-25; each claim names its page. Apple computes the final rating from the questionnaire, so the "this app" column is an expectation, not a result.
+
+Sources:
+- [A] Age rating values: https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/
+- [B] Set an app age rating: https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating/
+- [C] Kids category (design safe and age-appropriate experiences): https://developer.apple.com/app-store/kids-apps/
+- [D] App Review Guidelines 1.3 and 5.1.4: https://developer.apple.com/app-store/review/guidelines/
+
+### 9.1 The two scales
+
+| Scale | Values | Source |
+|---|---|---|
+| App Store age rating | 4+, 9+, 13+, 16+, 18+ | [A] |
+| Kids category age band ("Made for Kids") | 5 and under, 6-8, 9-11 | [C] |
+
+The two are separate. The band is an extra choice on top of the rating, and it is only offered when the calculated rating is 4+ or 9+ [B]. Apple's definition of 13+ includes "Infrequent alcohol, tobacco, or drug use or references" [A]. The #87 audit found 2 of 443 questions with wine references (`hl-16`, `hl-17`), which is why 13+ is expected. Whether removing them would give 9+ is unverified; Apple computes it.
+
+### 9.2 Options and the rules that apply to this app
+
+| Option in App Store Connect | Age bands | Third-party analytics (PostHog on adult screens) | In-app purchases | Adult categories | Source |
+|---|---|---|---|---|---|
+| **1. Calculated rating, "Not Applicable"** (expected 13+) | none | Allowed; disclose in App Privacy and the privacy policy. Kids content must still follow 5.1.4. | Allowed. A parental gate on kids purchase screens is good practice here, not required for this option. | Allowed | [B], [D] 5.1.4 |
+| **2. Override to a higher rating** (16+ or 18+) | none | same as 1 | same as 1 | Allowed | [B] |
+| **3. Made for Kids, 5 and under** | 5 and under | Apple says kids apps should not send personally identifiable or device information to third parties, "even in sections intended for adults", unless a parent consents. Third-party analytics are allowed only in limited cases (no IDFA, nothing identifiable). | Only behind a parental gate | Not workable: the rating must calculate to 4+ or 9+ [B], and the whole app must follow Kids category rules [C] | [B], [C], [D] 1.3 |
+| **4. Made for Kids, 6-8** | 6-8 | as 3 | as 3 | as 3 | same |
+| **5. Made for Kids, 9-11** | 9-11 | as 3 | as 3 | as 3 | same |
+
+Notes that apply to every option:
+- Apple's definition of "Made for Kids" selection cannot be changed once App Review approves it, and the app and all later updates must follow the Kids category guidelines [B].
+- Metadata rule (5.1.4, which points to 2.3.8): apps not in the Kids category "cannot include any terms in app name, subtitle, icon, screenshots or description that imply the main audience for the app is children" [D]. This listing says "Family Fun", "Questions for the whole family" and "Kids & Family". I read "family" as not implying children as the main audience, but this is my judgment, not Apple's; App Review decides. Risk is highest for the "Kids & Family" wording in the description and screenshot 5.
+- Kids category purchase rule: no purchasing opportunities except behind a parental gate [D] 1.3.
+
+### 9.3 Which option fits this app
+
+**Option 1 (calculated rating, not Made for Kids).** Reasons, each from the sources above:
+1. The app has seven teen and adult categories. A Made for Kids selection needs a calculated 4+ or 9+ rating [B], and the adult content (and wine references) points to 13+ [A].
+2. PostHog runs on adult screens. For the Kids category Apple says kids apps should not send identifiable or device information to third parties even in adult sections [C]. Removing PostHog from the whole iOS app would be needed.
+3. This matches the decision already recorded in section 5.2 (Tim, 2026-11-19: general listing, rated 13+).
+
+The tradeoff is real: a 13+ app is not shown in the Kids category and is not installable on a child's device with age limits under 13. A later separate kids-only app (section 5.2, path B) is the way into the Kids category.
+
+### 9.4 Open items
+- The final rating comes from Apple's questionnaire in the App Information page; Tim enters the answers (row 22).
+- Re-read the "Kids & Family" wording in the description (8.4) and screenshot 5 (8.3) against the 5.1.4 metadata rule before submission. Tim decides whether to soften them.
