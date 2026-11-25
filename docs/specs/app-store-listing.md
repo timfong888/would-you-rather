@@ -376,9 +376,9 @@ Dropped from section 2: "Dark mode, too" (padding). The real vote-split shot sta
 
 Upload: Tim drags the files into the 6.3" slot (human step below), or an ASC API workflow after his approval of the set.
 
-### 8.4 Description (1,259 characters) — wording **proposed, for Tim**
+### 8.4 Description (1,259 characters) — Family wording **accepted by Tim, 2026-11-25**
 
-The Family-category wording below is a proposal (2026-11-25): it replaces "Kids & Family" to lower the risk under guideline 5.1.4 (section 9.2). Tim decides. Screenshots are unchanged; screenshot 5 still says Kids & Family and keeps that risk.
+The Family-category wording below was accepted by Tim on 2026-11-25 ("D4: yes", decision 7 in 8.8): it replaces "Kids & Family" to lower the risk under guideline 5.1.4 (section 9.2). Tim decides. Screenshots are unchanged; screenshot 5 still says Kids & Family and keeps that risk.
 
 ```
 One question, two choices, a table full of opinions. Would You Rather turns dinner, car rides and waiting rooms into real conversation. Pick A or B, send the question to someone, and see if they chose the same.
@@ -458,7 +458,7 @@ All links open App Store Connect for app 6836653723; menu paths move, so each is
 4. **Territories: decided, United States only** (Tim, 2026-11-25). EU trader status is then expected not to apply (unverified); revisit if more storefronts are added.
 5. **Ship before or after #238?** IAP text ("Every question in X") and paywall copy may change. Recommend fix #238 first; screenshots 6 and the IAP review screenshots need re-capture if the paywall changes.
 6. **Accessibility:** skip labels for v1 until tested. Recommend skip.
-7. **Category name mismatch:** the app calls the category "Kids & Family"; the proposed store text (8.4) says "Family category". Do you rename the category in the app, accept the mismatch, or keep "Kids & Family" in the store text? Nothing is renamed in this PR. Recommend accept the mismatch for v1; section 8.6 (review notes) keeps "Kids & Family" on purpose because it describes the app to App Review.
+7. **Category name mismatch: decided** (Tim, 2026-11-25: "D4: yes"). The store text says "Family" and the app keeps "Kids & Family". Nothing is renamed in the app. Section 8.6 (review notes) keeps "Kids & Family" on purpose because it describes the app to App Review. Screenshot 5 is unchanged.
 
 ## 9. Age rating options and Kids Category bands (2026-11-25)
 
