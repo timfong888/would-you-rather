@@ -63,13 +63,24 @@ test('batch three (S3): every question that is free today and had no page, excep
   assert.deepEqual([...SEO_CATEGORY_CTA_IDS].sort(), [...SEO_BATCH_2, ...SEO_BATCH_3].sort());
 });
 
+test('batch-three pages are free questions: the category call to action, but no "extra question in this pack" copy', () => {
+  for (const id of SEO_BATCH_3) {
+    const q = byId.get(id)!;
+    const html3 = questionPageHtml({ question: q, category: catOf(id), related: relatedQuestions(q, QUESTIONS), origin: ORIGIN, categoryCta: true });
+    assert.ok(html3.includes(`<a class="cta" href="${ORIGIN}/categories/${q.category}"`), id);
+    assert.ok(!html3.includes(`${ORIGIN}/game/${id}`), `${id} must not link straight to its playable screen`);
+    assert.ok(!html3.includes('extra questions in this pack'), `${id} is free and must not say it is a paid extra`);
+  }
+});
+
 test('batch-two pages are for paid questions: their one call to action leads to the category\'s free questions, never to the paywall', () => {
-  for (const id of SEO_CATEGORY_CTA_IDS) {
+  for (const id of SEO_BATCH_2) {
     const q = byId.get(id)!;
     const html2 = questionPageHtml({ question: q, category: catOf(id), related: relatedQuestions(q, QUESTIONS), origin: ORIGIN, paid: true });
     assert.ok(html2.includes(`href="${ORIGIN}/categories/${q.category}"`), id);
     assert.ok(!html2.includes(`${ORIGIN}/game/${id}`), `${id} must not link straight to its playable screen`);
     assert.ok(/Play the free .* questions/.test(html2), id);
+    assert.ok(html2.includes('extra questions in this pack'), `${id} is a paid extra`);
   }
   // Batch one is free-tier: its call to action still plays the question.
   assert.ok(page(SEO_FIRST_BATCH[0]).includes(`${ORIGIN}/game/${SEO_FIRST_BATCH[0]}`));
