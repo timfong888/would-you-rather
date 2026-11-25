@@ -484,7 +484,7 @@ function makeCardStyles(colors: ThemeColors) {
 export default function FeedScreen() {
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked } = useUnlocked();
+  const { openTranches } = useUnlocked();
   const [activeTab, setActiveTab] = useState<FeedTab>('for-you');
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
 
@@ -521,7 +521,7 @@ export default function FeedScreen() {
     const catQuestions = QUESTIONS.filter((x) => x.category === q.category);
     const idx = Math.max(0, catQuestions.findIndex((x) => x.id === q.id));
     const cat = getCategoryById(q.category);
-    if (cat && isQuestionLocked(cat, idx, isUnlocked(cat.id))) {
+    if (cat && isQuestionLocked(cat, idx, openTranches(cat))) {
       router.push(`/unlock/${q.category}`);
       return;
     }

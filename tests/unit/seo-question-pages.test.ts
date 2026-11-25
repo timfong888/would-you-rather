@@ -1,7 +1,7 @@
 // S2 of #206 (docs/specs/seo-question-pages.md): the first batch of indexed, read-only question pages.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../../constants/questions';
+import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionPublic } from '../../constants/questions';
 import { SEO_FIRST_BATCH, SEO_BATCH_2, SEO_BATCH_3, SEO_CATEGORY_CTA_IDS, SEO_QUESTION_PAGES, isSeoBatchId, LANDING_FOR_CATEGORY } from '../../lib/seoBatch';
 import { questionPageHtml, relatedQuestions } from '../../lib/questionPage';
 import { SEO_PAGES, isKidsPage } from '../../constants/seoPages';
@@ -24,7 +24,7 @@ test('the first batch: about 100 real, distinct, free-tier questions, at most 12
     perCat[q.category] = (perCat[q.category] ?? 0) + 1;
     const c = catOf(id);
     const i = getCategoryQuestions(c.id).findIndex((x) => x.id === id);
-    assert.equal(isQuestionLocked(c, i, false), false, `${id} must be a free question today`);
+    assert.equal(isQuestionPublic(c, i), true, `${id} must be a public question today`);
     assert.ok(!['midnight-secrets', 'deep-desires'].includes(q.category), id);
   }
   for (const [c, n] of Object.entries(perCat)) assert.ok(n <= 12, `${c} has ${n}`);
@@ -55,7 +55,7 @@ test('batch three (S3): every question that is free today and had no page, excep
   // sitemap needs no /game/<id> entries and does not depend on the free count.
   for (const c of CATEGORIES) {
     getCategoryQuestions(c.id).forEach((q, i) => {
-      if (isQuestionLocked(c, i, false)) return;
+      if (!isQuestionPublic(c, i)) return;
       if (['midnight-secrets', 'deep-desires'].includes(c.id)) return;
       assert.ok(isSeoBatchId(q.id), `${q.id} is free today and has no read-only page`);
     });

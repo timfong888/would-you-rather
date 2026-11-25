@@ -35,7 +35,7 @@ import SafeScrollView from '@/components/SafeScrollView';
 export default function CompleteScreen() {
   const { id, voted, q } = useLocalSearchParams<{ id: string; voted: 'A' | 'B'; q: string }>();
   const router = useRouter();
-  const { isUnlocked, priceForCategory } = useUnlocked();
+  const { isUnlocked, openTranches, priceForCategory } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -146,7 +146,7 @@ export default function CompleteScreen() {
   const isPremium = category.tier === 'premium';
   // Everything the user could play without paying counts as "completed" here;
   // what's left is the upsell (premium remainder or the expansion pack).
-  const completedCount = getAccessibleQuestions(category, categoryUnlocked).length;
+  const completedCount = getAccessibleQuestions(category, openTranches(category)).length;
   const remaining = questions.length - completedCount;
   const isExpansionUpsell = !isPremium && remaining > 0;
 

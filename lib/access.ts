@@ -3,7 +3,8 @@
  * contexts/UnlockedContext.tsx feeds it live state, so a purchase that adds an
  * entitlement opens the questions on the next render, without a reload.
  */
-import { ENTITLEMENT_ALL, isCategoryEntitled } from './catalog';
+import { ENTITLEMENT_ALL, entitlementForCategory, isCategoryEntitled } from './catalog';
+import { getTranches, type Access, type CategoryDef } from '../constants/questions';
 
 export interface AccessState {
   /** Owner code redeemed (web and native dev builds only, lib/ownerAccessPolicy.ts). */
@@ -20,6 +21,25 @@ export function canPlayCategory(state: AccessState, id: string): boolean {
   if (state.ownerAccess) return true;
   if (isCategoryEntitled(state.entitlements, id)) return true;
   return state.testUnlockEnabled && (state.testUnlocks.has(id) || state.testUnlocks.has(ENTITLEMENT_ALL));
+}
+
+/**
+ * What the player may open in a category (issue #238). Owner access, a test unlock
+ * and `premium_all` open every tranche. Otherwise a grown-up category opens the
+ * tranches whose entitlement is held: tranche 1 is `cat_<id>` (the id that exists
+ * today), tranche k >= 2 is `cat_<id>_<k>`. Kids and teen keep the all-or-nothing
+ * rule until their own tranches (Unit 4 of #124).
+ */
+export function openTranchesFor(state: AccessState, category: CategoryDef): Access {
+  if (category.audience !== 'adult') return canPlayCategory(state, category.id);
+  if (state.ownerAccess || state.entitlements.has(ENTITLEMENT_ALL)) return true;
+  if (state.testUnlockEnabled && (state.testUnlocks.has(category.id) || state.testUnlocks.has(ENTITLEMENT_ALL))) return true;
+  const owned = new Set<number>();
+  for (const t of getTranches(category)) {
+    const entitlement = t.k === 1 ? entitlementForCategory(category.id) : `${entitlementForCategory(category.id)}_${t.k}`;
+    if (state.entitlements.has(entitlement)) owned.add(t.k);
+  }
+  return owned;
 }
 
 /**

@@ -13,7 +13,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { isDeepStrictEqual } from 'util';
 import { resolve } from 'path';
-import { CATEGORIES, QUESTIONS, getCategoryAudience, getCategoryQuestions, isKidsCategoryId, isQuestionLocked } from '../constants/questions';
+import { CATEGORIES, QUESTIONS, getCategoryAudience, getCategoryQuestions, isKidsCategoryId, isQuestionPublic } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
 import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
@@ -79,7 +79,7 @@ for (const page of SEO_PAGES) {
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
     // D4: kids pages list their full written set, locked or not (constants/seoPages.ts).
-    if (!listsFullWrittenSet(page) && isQuestionLocked(cat, idx, false)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
+    if (!listsFullWrittenSet(page) && !isQuestionPublic(cat, idx)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
   }
 
   // Child safety: a kids page lists only Kids & Family questions, its play flow stays in that
@@ -148,7 +148,7 @@ const lockedGameUrls = new Set<string>();
 const freeGameUrls = new Set<string>();
 for (const cat of CATEGORIES) {
   getCategoryQuestions(cat.id).forEach((q, i) =>
-    (isQuestionLocked(cat, i, false) ? lockedGameUrls : freeGameUrls).add(url(`/game/${q.id}`)),
+    (!isQuestionPublic(cat, i) ? lockedGameUrls : freeGameUrls).add(url(`/game/${q.id}`)),
   );
 }
 for (const loc of locs) if (lockedGameUrls.has(loc)) fail(`sitemap: lists locked question URL ${loc}`);
@@ -224,7 +224,7 @@ if (withDist) {
     if (publicByDesign.has(q.id)) return [];
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
-    return isQuestionLocked(cat, idx, false) ? [q.optionA, q.optionB] : [];
+    return !isQuestionPublic(cat, idx) ? [q.optionA, q.optionB] : [];
   });
 
   const pages = [
@@ -319,7 +319,7 @@ if (withDist) {
   // Category pages are rendered client-side from one template; check the builder
   // still produces valid, locked-text-free markup for every category.
   for (const cat of CATEGORIES) {
-    const free = getCategoryQuestions(cat.id).filter((_, i) => !isQuestionLocked(cat, i, false));
+    const free = getCategoryQuestions(cat.id).filter((_, i) => isQuestionPublic(cat, i));
     const ld = JSON.stringify(categoryJsonLd(cat, free));
     for (const text of lockedTexts) if (ld.includes(text)) { fail(`categoryJsonLd(${cat.id}) contains locked text`); break; }
   }

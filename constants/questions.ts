@@ -49,7 +49,12 @@ export function audienceForAges(ages: AgeRange): Audience {
   return 'adult';
 }
 
-export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
+/** Free questions at the start of every grown-up category (Tim, 2026-11-25, issue #238). */
+export const FREE_QUESTION_COUNT = 5;
+/** @deprecated use FREE_QUESTION_COUNT. Kept so older imports compile. */
+export const FREE_TRIAL_COUNT = FREE_QUESTION_COUNT;
+/** The free count grown-up premium categories had before #238. Only the frozen public (SEO) rule still uses it. */
+const LEGACY_PREMIUM_PUBLIC_COUNT = 3;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -1534,10 +1539,13 @@ export function getCategoryQuestions(categoryId: CategoryId): Question[] {
 // Access / gating helpers
 //
 // Every screen must decide "is this question playable?" the same way, so the
-// rule lives here and nowhere else:
-//   - premium category: first FREE_TRIAL_COUNT questions are free
-//   - free category:    all of volume 1 is free; expansion volumes are paid
-//   - unlocking a category (purchase or owner access) opens everything in it
+// rule lives here and nowhere else (issue #238, docs/specs/plan.md):
+//   - grown-up category: the first FREE_QUESTION_COUNT (5) questions are free,
+//     the rest are sold in tranches: tranche 1 = positions 6 to 20, tranche k
+//     (k >= 2) = positions 20(k-1)+1 to 20k, capped at the category total
+//   - kids and teen categories: unchanged (8 free, one paid tranche; their own
+//     20-question tranches are Unit 4 of #124)
+//   - owner access, premium_all and test unlocks open everything
 // ---------------------------------------------------------------------------
 
 export function getQuestionVolume(q: Question): number {
@@ -1547,18 +1555,18 @@ export function getQuestionVolume(q: Question): number {
 /** Number of questions at the start of the category that are free to play. */
 export function getFreeQuestionCount(category: CategoryDef): number {
   const questions = getCategoryQuestions(category.id);
-  if (category.tier === 'premium') {
-    return Math.min(FREE_TRIAL_COUNT, questions.length);
-  }
+  if (category.audience === 'adult') return Math.min(FREE_QUESTION_COUNT, questions.length);
+  // Kids and teen keep their rule until Unit 4: premium trial, else all of volume 1 (8 today).
+  if (category.tier === 'premium') return Math.min(LEGACY_PREMIUM_PUBLIC_COUNT, questions.length);
   return questions.filter((q) => getQuestionVolume(q) === 1).length;
 }
 
-/** Number of questions in the category that sit behind the unlock. */
+/** Number of questions in the category that sit behind an unlock. */
 export function getLockedQuestionCount(category: CategoryDef): number {
   return getCategoryQuestions(category.id).length - getFreeQuestionCount(category);
 }
 
-/** True when the category has anything to sell (premium, or has an expansion pack). */
+/** True when the category has anything to sell. */
 export function hasPaidContent(category: CategoryDef): boolean {
   return getLockedQuestionCount(category) > 0;
 }
@@ -1568,24 +1576,90 @@ export function getExpansionQuestions(categoryId: CategoryId): Question[] {
   return getCategoryQuestions(categoryId).filter((q) => getQuestionVolume(q) >= 2);
 }
 
+/** One paid slice of a category: positions are 1-based, inclusive. */
+export interface Tranche {
+  k: number;
+  first: number;
+  last: number;
+}
+
+/** Grown-up tranches end at multiples of this (20, 40, 60, ...). */
+export const TRANCHE_END_STEP = 20;
+/** A last tranche smaller than this joins the one before it. */
+export const MIN_TRANCHE_SIZE = 10;
+
 /**
- * Whether the question at `questionIndex` (position within the category's
- * ordered question list) is locked for a user who has / has not unlocked it.
+ * Cut points for a grown-up category with `n` questions and `free` free ones:
+ * tranche 1 is free+1 to 20, tranche k >= 2 is 20(k-1)+1 to 20k, all capped at n.
+ * A final tranche under MIN_TRANCHE_SIZE joins the previous one.
  */
-export function isQuestionLocked(
-  category: CategoryDef,
-  questionIndex: number,
-  categoryUnlocked: boolean,
-): boolean {
-  if (categoryUnlocked) return false;
-  return questionIndex >= getFreeQuestionCount(category);
+export function trancheBounds(n: number, free: number): Tranche[] {
+  const out: Tranche[] = [];
+  let first = free + 1;
+  for (let k = 1; first <= n; k++) {
+    const last = Math.min(TRANCHE_END_STEP * k, n);
+    if (last >= first) out.push({ k, first, last });
+    first = Math.max(last, first - 1) + 1;
+  }
+  const tail = out[out.length - 1];
+  if (out.length > 1 && tail.last - tail.first + 1 < MIN_TRANCHE_SIZE) {
+    out.pop();
+    out[out.length - 1].last = tail.last;
+  }
+  return out;
+}
+
+/** The paid tranches of a category, in order. Kids and teen have one paid tranche for now. */
+export function getTranches(category: CategoryDef): Tranche[] {
+  const n = getCategoryQuestions(category.id).length;
+  const free = getFreeQuestionCount(category);
+  if (category.audience !== 'adult') return n > free ? [{ k: 1, first: free + 1, last: n }] : [];
+  return trancheBounds(n, free);
+}
+
+/**
+ * What a player may open: `true` = everything (owner access, premium_all, a test
+ * unlock), `false` = only the free questions, or the set of owned tranche numbers.
+ */
+export type Access = boolean | ReadonlySet<number>;
+
+/**
+ * Whether the question at `questionIndex` (0-based position within the category's
+ * ordered list) is locked. Access is decided per tranche from the set of owned
+ * tranche numbers, never from a prefix or a count.
+ */
+export function isQuestionLocked(category: CategoryDef, questionIndex: number, access: Access): boolean {
+  if (access === true) return false;
+  if (questionIndex < getFreeQuestionCount(category)) return false;
+  if (access === false) return true;
+  const position = questionIndex + 1;
+  const tranche = getTranches(category).find((t) => position >= t.first && position <= t.last);
+  return !tranche || !access.has(tranche.k);
 }
 
 /** Questions the user can play right now, in category order. */
-export function getAccessibleQuestions(category: CategoryDef, categoryUnlocked: boolean): Question[] {
+export function getAccessibleQuestions(category: CategoryDef, access: Access): Question[] {
+  return getCategoryQuestions(category.id).filter((_, i) => !isQuestionLocked(category, i, access));
+}
+
+/**
+ * Questions published to search engines and shown in category JSON-LD. Frozen at the
+ * rule before #238 (grown-up premium: 3, former-free: all of volume 1, kids and teen:
+ * their free count) until step F3 decides what SEO should publish (#238, Decision 4).
+ */
+export function getPublicQuestionCount(category: CategoryDef): number {
+  if (category.audience !== 'adult') return getFreeQuestionCount(category);
   const questions = getCategoryQuestions(category.id);
-  if (categoryUnlocked) return questions;
-  return questions.slice(0, getFreeQuestionCount(category));
+  if (category.tier === 'premium') return Math.min(LEGACY_PREMIUM_PUBLIC_COUNT, questions.length);
+  return questions.filter((q) => getQuestionVolume(q) === 1).length;
+}
+
+export function isQuestionPublic(category: CategoryDef, questionIndex: number): boolean {
+  return questionIndex < getPublicQuestionCount(category);
+}
+
+export function getPublicQuestions(category: CategoryDef): Question[] {
+  return getCategoryQuestions(category.id).slice(0, getPublicQuestionCount(category));
 }
 
 /** @deprecated use isQuestionLocked — kept for callers on older branches. */
