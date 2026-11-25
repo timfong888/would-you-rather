@@ -37,8 +37,8 @@ concurrency:
 
 env:
   HIGHERSIGNAL_REPO: timfong888/highersignal
-  # Where the Expo app lives in that repo: '.' (repo root) or 'native'. Allowlisted in scripts/lib/highersignalRelease.mjs.
-  HIGHERSIGNAL_SUBDIR: .
+  # Where the Expo app lives in that repo. The only value allowlisted in scripts/lib/highersignalRelease.mjs.
+  HIGHERSIGNAL_SUBDIR: app
   # Not a secret. Fill in with the numeric App Store Connect app id once the app record exists.
   HIGHERSIGNAL_APP_ID: ''
   EAS_PROFILE: production

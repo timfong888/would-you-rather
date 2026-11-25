@@ -9,8 +9,8 @@ export { validateSha, pollBuild, finalOutcome, tailLines, tailErrors } from './n
 export const HIGHERSIGNAL_REPO = 'timfong888/highersignal';
 export const HIGHERSIGNAL_BUNDLE_ID = 'pckg.highersignal';
 export const APP_ID_RE = /^[0-9]{8,12}$/;
-// Where the Expo app lives in the repo. Never an input; the workflow hardcodes one of these. '.' is the repo root.
-export const HIGHERSIGNAL_DIRS = ['.', 'native'];
+// Where the Expo app lives in the repo (app/, with its own package.json, app.json, eas.json). Never an input; the only allowed value.
+export const HIGHERSIGNAL_DIRS = ['app'];
 export const MIN_NODE = [22, 13, 0];
 
 export function validateAppId(id) {
@@ -25,7 +25,7 @@ export function validateDir(name) {
 }
 export function resolveDir(root, name) {
   if (typeof root !== 'string' || !root) throw new Error('HIGHERSIGNAL_ROOT is not set.');
-  return validateDir(name) === '.' ? root : join(root, name);
+  return join(root, validateDir(name));
 }
 
 // The build dir must be a real directory (not a symlink) whose realpath stays inside the checkout. Fixed-text errors only.
@@ -37,7 +37,7 @@ export function checkDirSafety(root, name, fs) {
     if (st.isSymbolicLink()) errors.push(`${name} is a symlink`);
     else if (!st.isDirectory()) errors.push(`${name} is not a directory`);
     const real = fs.realpathSync(dir), realRoot = fs.realpathSync(root);
-    if (real !== realRoot && !real.startsWith(realRoot + sep)) errors.push(`${name} resolves outside the checkout`);
+    if (!real.startsWith(realRoot + sep)) errors.push(`${name} resolves outside the checkout`);
   } catch (e) {
     errors.push(/HIGHERSIGNAL_SUBDIR/.test(e.message) ? e.message : `${name} is missing or unreadable`);
   }
@@ -90,7 +90,7 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
   validateDir(name);
   const lines = [], warnings = [], errors = [];
   if (root) errors.push(...checkDirSafety(root, name, fs));
-  const label = name === '.' ? 'repo root' : name;
+  const label = name;
   lines.push(`directory: ${label}`);
 
   // 1. No symlink anywhere in the tree (it could point a config file, plugin or packed asset outside the clone). Bounded walk.

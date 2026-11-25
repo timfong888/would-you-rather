@@ -29,7 +29,7 @@ test('workflow: dispatch only, read-only token, only timfong888 from main, apple
 test('workflow: one input (a sha), hardcoded repo, dir and ASC app id; inputs only reach env:', () => {
   assert.equal((wf.match(/^      [a-z_]+:\n        description:/gm) || []).length, 1);
   assert.match(wf, /HIGHERSIGNAL_REPO: timfong888\/highersignal/);
-  assert.match(wf, /HIGHERSIGNAL_SUBDIR: \.\n/);
+  assert.match(wf, /HIGHERSIGNAL_SUBDIR: app\n/);
   assert.match(wf, /HIGHERSIGNAL_APP_ID: '([0-9]{8,12})?'/); // empty until the app record exists (the run then stops); a numeric id afterwards
   assert.match(wf, /\^\[0-9a-f\]\{40\}\$/);
   assert.match(wf, /\^\[0-9\]\{8,12\}\$/);
@@ -112,10 +112,9 @@ test('workflow: shares nothing with Neville but read-only helper imports that st
 test('app id and dir are validated; dir is an allowlist, never a path', () => {
   assert.equal(validateAppId('6740147999'), '6740147999');
   for (const bad of ['', undefined, 'abc', '12', '1234567890123', '6740147041; rm']) assert.throws(() => validateAppId(bad as string), /numeric ASC app id/);
-  assert.deepEqual(HIGHERSIGNAL_DIRS, ['.', 'native']);
-  for (const bad of ['..', '../x', '/etc', 'native/..', 'other', '']) assert.throws(() => validateDir(bad), /HIGHERSIGNAL_SUBDIR/);
-  assert.equal(resolveDir('/r', '.'), '/r');
-  assert.equal(resolveDir('/r', 'native'), '/r/native');
+  assert.deepEqual(HIGHERSIGNAL_DIRS, ['app']);
+  for (const bad of ['..', '.', '../x', '/etc', 'app/..', 'native', 'other', '']) assert.throws(() => validateDir(bad), /HIGHERSIGNAL_SUBDIR/);
+  assert.equal(resolveDir('/r', 'app'), '/r/app');
 });
 
 test('parseEasBuild accepts a first build (1.0.0 / 1) and refuses foreign artifact hosts', () => {
@@ -139,9 +138,9 @@ test('summaryMarkdown holds version, build number and state only', () => {
   assert.match(md, /Version 1\.0\.0, build 3: processed by Apple/);
 });
 
-const fixture = (files: Record<string, string>, sub = '.') => {
+const fixture = (files: Record<string, string>, sub = 'app') => {
   const root = mkdtempSync(join(tmpdir(), 'hs-'));
-  const dir = sub === '.' ? root : join(root, sub);
+  const dir = join(root, sub);
   mkdirSync(dir, { recursive: true });
   for (const [f, c] of Object.entries(files)) writeFileSync(join(dir, f), c);
   return { root, dir };
@@ -152,16 +151,16 @@ const good: Record<string, string> = {
   'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, extra: { eas: { projectId: 'x' } } } }),
   'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store', autoIncrement: true } } }),
 };
-const check = (files: Record<string, string>, sub = '.', opts = {}) => { const { root, dir } = fixture(files, sub); return checkSelfContained(dir, sub, { fs, root, nodeVersion: '22.14.0', ...opts }); };
+const check = (files: Record<string, string>, sub = 'app', opts = {}) => { const { root, dir } = fixture(files, sub); return checkSelfContained(dir, sub, { fs, root, nodeVersion: '22.14.0', ...opts }); };
 
-test('check: a self-contained root and a self-contained native dir pass', () => {
-  for (const sub of ['.', 'native']) { const r = check(good, sub); assert.deepEqual(r.errors, [], sub); assert.deepEqual(r.warnings, [], sub); }
+test('check: a self-contained app dir passes', () => {
+  { const r = check(good); assert.deepEqual(r.errors, []); assert.deepEqual(r.warnings, []); }
 });
 
 test('check: not self-contained fails (missing files, wrong bundle id, workspaces, parent deps, parent metro, local plugin, forbidden files, old node, no profile)', () => {
   const bad = (patch: Record<string, string | null>, re: RegExp, opts = {}) => {
     const files = { ...good }; for (const [k, v] of Object.entries(patch)) { if (v === null) delete files[k]; else files[k] = v; }
-    const r = check(files, '.', opts);
+    const r = check(files, 'app', opts);
     assert.ok(r.errors.some((e: string) => re.test(e)), `${re}: ${r.errors.join('|')}`);
   };
   bad({ 'package.json': null }, /package\.json is missing/);
@@ -207,22 +206,22 @@ test('check: a symlink anywhere in the tree, or a symlinked build dir, fails clo
   const { root, dir } = fixture(good);
   mkdirSync(join(dir, 'assets'));
   symlinkSync('/proc/self/environ', join(dir, 'assets', 'logo.png'));
-  const nested = checkSelfContained(dir, '.', { fs, root, nodeVersion: '22.14.0' });
+  const nested = checkSelfContained(dir, 'app', { fs, root, nodeVersion: '22.14.0' });
   assert.ok(nested.errors.some((e: string) => /symlink/.test(e)), nested.errors.join('|'));
   assert.ok(!nested.errors.join('|').includes('environ'.repeat(2)));
   const top = fixture(good); fs.rmSync(join(top.dir, 'eas.json')); symlinkSync(join(top.dir, 'package.json'), join(top.dir, 'eas.json'));
-  assert.ok(checkSelfContained(top.dir, '.', { fs, root: top.root, nodeVersion: '22.14.0' }).errors.some((e: string) => /symlink/.test(e)));
-  const r2 = mkdtempSync(join(tmpdir(), 'hs-')); const real = mkdtempSync(join(tmpdir(), 'hs-real-')); symlinkSync(real, join(r2, 'native'));
-  assert.ok(checkSelfContained(join(r2, 'native'), 'native', { fs, root: r2, nodeVersion: '22.14.0' }).errors.some((e: string) => /symlink|outside/.test(e)));
+  assert.ok(checkSelfContained(top.dir, 'app', { fs, root: top.root, nodeVersion: '22.14.0' }).errors.some((e: string) => /symlink/.test(e)));
+  const r2 = mkdtempSync(join(tmpdir(), 'hs-')); const real = mkdtempSync(join(tmpdir(), 'hs-real-')); symlinkSync(real, join(r2, 'app'));
+  assert.ok(checkSelfContained(join(r2, 'app'), 'app', { fs, root: r2, nodeVersion: '22.14.0' }).errors.some((e: string) => /symlink|outside/.test(e)));
 });
 
 test('check script: passes a good dir, rejects a non-self-contained one, refuses an empty app id, prints no secrets or file content', () => {
   const secrets = { EXPO_TOKEN: 'tok-EXPO-123456', ASC_KEY_ID: 'KEYID12345', ASC_PRIVATE_KEY: 'PEM-BODY-xyz', HIGHERSIGNAL_DEPLOY_KEY: 'DEPLOYKEY-abcdef' };
   const run = (root: string, extra: Record<string, string> = {}) => spawnSync('node', [new URL('../../scripts/highersignal-check.mjs', import.meta.url).pathname],
-    { env: { ...process.env, HIGHERSIGNAL_ROOT: root, HIGHERSIGNAL_SUBDIR: '.', HIGHERSIGNAL_APP_ID: '6740147999', EAS_PROFILE: 'production', ...secrets, ...extra }, encoding: 'utf8' });
+    { env: { ...process.env, HIGHERSIGNAL_ROOT: root, HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6740147999', EAS_PROFILE: 'production', ...secrets, ...extra }, encoding: 'utf8' });
   const ok = run(fixture(good).root);
   assert.equal(ok.status, 0, ok.stdout + ok.stderr);
-  assert.match(ok.stdout, /directory: repo root/);
+  assert.match(ok.stdout, /directory: app/);
   for (const v of Object.values(secrets)) assert.ok(!(ok.stdout + ok.stderr).includes(v));
   const notSelf = run(fixture({ ...good, 'package.json': JSON.stringify({ dependencies: { shared: 'file:../../shared' } }), 'metro.config.js': "SECRETISH('../')" }).root);
   assert.equal(notSelf.status, 1);
@@ -237,7 +236,7 @@ test('check script: passes a good dir, rejects a non-self-contained one, refuses
 });
 
 test('highersignal-testflight.mjs refuses an empty app id or a bad dir before any spawn or network call', () => {
-  const env = (o: Record<string, string>) => ({ ...process.env, EAS_BIN: process.execPath, EXPO_TOKEN: 't', ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'issuer-9', ASC_PRIVATE_KEY: 'k', APPLE_TEAM_ID: 'VJKU43W3C2', HIGHERSIGNAL_ROOT: tmpdir(), HIGHERSIGNAL_SUBDIR: '.', HIGHERSIGNAL_APP_ID: '6740147999', ...o });
+  const env = (o: Record<string, string>) => ({ ...process.env, EAS_BIN: process.execPath, EXPO_TOKEN: 't', ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'issuer-9', ASC_PRIVATE_KEY: 'k', APPLE_TEAM_ID: 'VJKU43W3C2', HIGHERSIGNAL_ROOT: tmpdir(), HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6740147999', ...o });
   const run = (o: Record<string, string>) => spawnSync('node', [new URL('../../scripts/highersignal-testflight.mjs', import.meta.url).pathname], { env: env(o), encoding: 'utf8', timeout: 20000 });
   const a = run({ HIGHERSIGNAL_APP_ID: '' }); assert.equal(a.status, 2); assert.match(a.stderr, /numeric ASC app id/);
   const b = run({ HIGHERSIGNAL_SUBDIR: '../etc' }); assert.equal(b.status, 2); assert.ok(!(b.stdout + b.stderr).includes('../etc'));
