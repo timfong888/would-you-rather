@@ -12,7 +12,8 @@
  * (out of memory, a compiler crash, npx not finding the binary), the script exits 2.
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 export const BASELINE_FILE = new URL('./tsc-baseline.txt', import.meta.url);
 
@@ -21,7 +22,13 @@ export function parseTscErrors(output) {
   const keys = [];
   for (const line of output.split('\n')) {
     const m = line.match(/^(.+?)\(\d+,\d+\): error (TS\d+):/);
-    if (m) keys.push(`${m[1]} ${m[2]}`);
+    if (m) {
+      keys.push(`${m[1]} ${m[2]}`);
+      continue;
+    }
+    // Global diagnostics have no location (TS2688, TS2318, TS5xxx, TS6053): count them under a placeholder file.
+    const g = line.match(/^error (TS\d+):/);
+    if (g) keys.push(`<global> ${g[1]}`);
   }
   return keys;
 }
@@ -65,8 +72,10 @@ function main() {
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
   const keys = parseTscErrors(out);
   if (process.argv.includes('--write')) {
-    if (r.error || r.signal || r.status === null) {
-      console.error('tsc did not finish; baseline not written.');
+    // Same condition as the gate: never overwrite the baseline when tsc did not really run.
+    const run = judge({ status: r.status, signal: r.signal, error: r.error, keys }, []);
+    if (run.code === 2) {
+      console.error(`Baseline not written: ${run.why}.`);
       process.exit(2);
     }
     writeFileSync(BASELINE_FILE, `# tsc baseline (scripts/check-tsc-baseline.mjs): one "<file> <TS code>" per known error.\n${[...keys].sort().join('\n')}\n`);
@@ -87,4 +96,14 @@ function main() {
   if (verdict.removed.length) console.log(`Refresh the list with: node scripts/check-tsc-baseline.mjs --write (${verdict.removed.length} fewer).`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+/** True when this file is the script node was started with: compares real paths, so spaces, symlinks and Windows paths still match. */
+export function isEntryPoint(metaUrl, argv1) {
+  if (!argv1) return false;
+  try {
+    return realpathSync(fileURLToPath(metaUrl)) === realpathSync(argv1);
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint(import.meta.url, process.argv[1])) main();
