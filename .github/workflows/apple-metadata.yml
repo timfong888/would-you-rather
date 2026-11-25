@@ -24,6 +24,8 @@ permissions:
 jobs:
   metadata:
     runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

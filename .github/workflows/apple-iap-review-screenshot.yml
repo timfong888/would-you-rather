@@ -37,6 +37,8 @@ concurrency:
 jobs:
   upload:
     runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
