@@ -1,0 +1,10 @@
+{
+  "name": "wyr-eas-cli-pin",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pins eas-cli and its whole dependency tree for .github/workflows/wyr-ios-testflight.yml (npm ci --ignore-scripts). typescript is pinned only so the lockfile is self-consistent. Update: in this directory run npm install --ignore-scripts --save-exact eas-cli@<version> typescript@5.9.3, then confirm npm ci works.",
+  "dependencies": {
+    "eas-cli": "27.11.0",
+    "typescript": "5.9.3"
+  }
+}
