@@ -2,10 +2,16 @@
 // rails are pinned here: dispatch gate, merged-sha check, fixed profile, secrets in one step, pinned actions.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import * as fs from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, symlinkSync, rmSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // @ts-ignore plain .mjs module
-import { parseWyrEasBuild, wyrSummaryMarkdown, WYR_APP_ID, WYR_BUNDLE_ID, WYR_PROFILE, WYR_MIN_BUILD } from '../../scripts/lib/wyrRelease.mjs';
+import { parseWyrEasBuild, wyrSummaryMarkdown, checkWyrSelfContained, isLocalPlugin, isNonRegistrySpec, WYR_APP_ID, WYR_BUNDLE_ID, WYR_PROFILE, WYR_MIN_BUILD } from '../../scripts/lib/wyrRelease.mjs';
+// @ts-ignore plain .mjs module
+import { makeRedactor } from '../../scripts/lib/ascAppsList.mjs';
+// @ts-ignore plain .mjs module
+import { tailLines, tailErrors } from '../../scripts/lib/nevilleRelease.mjs';
 
 const root = join(__dirname, '../..');
 const wf = readFileSync(join(root, '.github/workflows/wyr-ios-testflight.yml'), 'utf8');
@@ -91,4 +97,113 @@ test('script: never prints secrets, hands the child an env allowlist, uses the s
   assert.match(script, /tailLines\(eas\.stderr, redact, 60\)/);
   assert.ok(!/console\.log\([^)]*(EXPO_TOKEN|ASC_PRIVATE_KEY)/.test(script));
   assert.match(script, /still-processing/);
+});
+
+// ---- the secretless self-containment check (#233 review): the clone runs with EXPO_TOKEN and the ASC key in eas-cli ----
+const real = (f: string) => readFileSync(join(root, f), 'utf8');
+function tree(mutate: (dir: string) => void = () => {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'wyr-check-'));
+  for (const f of ['package.json', 'package-lock.json', 'app.json', 'eas.json', 'metro.config.js', 'babel.config.js']) writeFileSync(join(dir, f), real(f));
+  mutate(dir);
+  const r = checkWyrSelfContained(dir, { fs });
+  rmSync(dir, { recursive: true, force: true });
+  return r;
+}
+const edit = (dir: string, f: string, fn: (j: any) => void) => { const j = JSON.parse(readFileSync(join(dir, f), 'utf8')); fn(j); writeFileSync(join(dir, f), JSON.stringify(j)); };
+const errs = (r: { errors: string[] }) => r.errors.join(' | ');
+
+test('check: the real repo tree passes (so the workflow does not block today)', () => {
+  const r = tree();
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.lines.some((l: string) => /plugins: package names only/.test(l)));
+  assert.ok(r.lines.some((l: string) => /registry URLs only/.test(l)));
+});
+
+test('check: .npmrc, .yarnrc*, app.config.* each fail', () => {
+  for (const f of ['.npmrc', '.yarnrc', '.yarnrc.yml', 'app.config.js', 'app.config.ts', 'app.config.json']) {
+    assert.match(errs(tree((d) => writeFileSync(join(d, f), 'x'))), /not allowed/, f);
+  }
+});
+
+test('check: a symlink anywhere fails (top level and nested)', () => {
+  assert.match(errs(tree((d) => symlinkSync('/etc/passwd', join(d, 'link')))), /symlink/);
+  assert.match(errs(tree((d) => { mkdirSync(join(d, 'sub')); symlinkSync('/tmp', join(d, 'sub', 'x')); })), /symlink/);
+  assert.match(errs(tree((d) => { rmSync(join(d, 'app.json')); symlinkSync(join(root, 'app.json'), join(d, 'app.json')); })), /symlink/);
+});
+
+test('check: plugins must be plain package names', () => {
+  for (const bad of ['./plugins/x', '../x', '/abs/x', 'file:./x', 'C:\\x', '~/x']) {
+    assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push(bad); }))), /plugin/, bad);
+  }
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push(['./local', {}]); }))), /plugin/);
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push({ not: 'a name' }); }))), /plugin/);
+  assert.equal(isLocalPlugin('expo-font'), false);
+  assert.equal(isLocalPlugin(['expo-router', { origin: 'https://x' }]), false);
+  assert.equal(isLocalPlugin('@scope/pkg'), false);
+});
+
+test('check: workspaces and non-registry dependencies fail (path, workspace, git, github shorthand, URL, in overrides too)', () => {
+  assert.match(errs(tree((d) => edit(d, 'package.json', (j) => { j.workspaces = ['a']; }))), /workspaces/);
+  for (const spec of ['file:../x', 'file:./vendor/x', 'link:../x', 'workspace:*', 'git+https://github.com/a/b.git', 'github:a/b', 'a/b', 'https://x.example/p.tgz', '/abs/x', '../x']) {
+    assert.match(errs(tree((d) => edit(d, 'package.json', (j) => { j.dependencies.evil = spec; }))), /not from the npm registry/, spec);
+    assert.match(errs(tree((d) => edit(d, 'package.json', (j) => { j.overrides = { ...(j.overrides || {}), evil: spec }; }))), /not from the npm registry/, `override ${spec}`);
+  }
+  assert.equal(isNonRegistrySpec('~54.0.12'), false);
+  assert.equal(isNonRegistrySpec('^1.2.3'), false);
+  assert.equal(isNonRegistrySpec('npm:left-pad@1.3.0'), false);
+});
+
+test('check: lockfile entries outside the npm registry, links and local installs fail', () => {
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { j.packages['node_modules/evil'] = { version: '1.0.0', resolved: 'https://evil.example/e.tgz' }; }))), /outside https:\/\/registry\.npmjs\.org/);
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { j.packages['node_modules/evil'] = { resolved: 'http://registry.npmjs.org/e.tgz' }; }))), /outside/);
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { j.packages['node_modules/evil'] = { resolved: '../x', link: true }; }))), /link/);
+  assert.match(errs(tree((d) => edit(d, 'package-lock.json', (j) => { j.packages.vendor = { version: '1.0.0' }; }))), /local path/);
+});
+
+test('check: metro/babel config that loads local files, spawns, reads env or uses the network fails', () => {
+  for (const line of ["require('./x')", "require('/abs')", "require('child_process').execSync('x')", 'fetch("x")', "process.env.EXPO_TOKEN", "import('x')", 'eval("1")']) {
+    assert.match(errs(tree((d) => writeFileSync(join(d, 'metro.config.js'), `${line};\n`))), /metro\.config\.js has lines/, line);
+  }
+});
+
+test('check: wrong bundle id, missing or non-store preview profile, wrong ascAppId fail', () => {
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.ios.bundleIdentifier = 'pckg.neville'; }))), /bundleIdentifier/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { delete j.build.preview; }))), /no build profile/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.build.preview.distribution = 'internal'; }))), /not a store build/);
+  assert.match(errs(tree((d) => edit(d, 'eas.json', (j) => { j.submit.preview.ios.ascAppId = '1'; }))), /ascAppId/);
+});
+
+test('check: a missing checkout or a symlinked root fails closed', () => {
+  assert.match(errs(checkWyrSelfContained('/nonexistent/wyr-check', { fs })), /does not exist/);
+  const d = mkdtempSync(join(tmpdir(), 'wyr-root-'));
+  const l = join(tmpdir(), `wyr-link-${process.pid}`);
+  symlinkSync(d, l);
+  assert.match(errs(checkWyrSelfContained(l, { fs })), /not a real directory/);
+  rmSync(l); rmSync(d, { recursive: true, force: true });
+});
+
+test('workflow order: self-contained check, then eas-cli install, then npm ci, all before the only secret step', () => {
+  const i = (needle: string) => wf.indexOf(needle);
+  assert.ok(i('node scripts/wyr-check.mjs') > i('merge-base --is-ancestor'));
+  assert.ok(i('node scripts/wyr-check.mjs') < i('npm install --ignore-scripts'));
+  assert.ok(i('npm install --ignore-scripts') < i('npm ci --ignore-scripts'));
+  assert.ok(i('npm ci --ignore-scripts') < i('secrets.EXPO_TOKEN'));
+  assert.match(wf, /eas-cli@27\.11\.0/);
+  assert.match(wf, /EAS_BIN: \$\{\{ runner\.temp \}\}\/eas\/node_modules\/\.bin\/eas/);
+  assert.ok(!/npx/.test(script.replace(/\/\/.*$/gm, '')), 'the secret step never runs npx');
+  const npmSteps = wf.split('\n      - ').slice(1).filter((x) => /npm (ci|install)/.test(x));
+  assert.equal(npmSteps.length, 2);
+  for (const st of npmSteps) { assert.match(st, /NPM_CONFIG_USERCONFIG: \/dev\/null/); assert.match(st, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org\//); assert.match(st, /--ignore-scripts/); }
+  assert.match(script, /NPM_CONFIG_USERCONFIG: '\/dev\/null'/);
+  assert.match(script, /spawnSync\(easBin,/);
+});
+
+test('failure tails redact the whole text first (a multi-line PEM, the token, the key id) and cannot start a workflow command', () => {
+  const pem = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49\nAwEHBG0wawIBAQQg\n-----END PRIVATE KEY-----';
+  const redact = makeRedactor(['expo_tok_SECRET123', 'KEYID12345', 'ISSUER-uuid-1', pem, 'VJKU43W3C2']);
+  const text = `boom ${pem}\nusing expo_tok_SECRET123 and KEYID12345 and ISSUER-uuid-1 team VJKU43W3C2\nsee https://expo.dev/x?token=abc\n::error::injected\n   ::set-env name=A::b`;
+  for (const out of [tailLines(text, redact, 60), tailErrors(text, redact)]) {
+    for (const secret of ['expo_tok_SECRET123', 'KEYID12345', 'ISSUER-uuid-1', 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49', 'AwEHBG0wawIBAQQg', 'VJKU43W3C2', 'token=abc']) assert.ok(!out.includes(secret), `leaked ${secret}`);
+    for (const l of out.split('\n')) assert.ok(l === '' || l.startsWith('| '), `line can start a command: ${l}`);
+  }
 });

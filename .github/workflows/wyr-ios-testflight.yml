@@ -7,8 +7,15 @@ name: WYR iOS (build and TestFlight)
 # Security (public repo, public logs, holds the ASC key and an Expo token):
 # - dispatch only, only by timfong888, only from main (so only merged workflow and script code ever sees the secrets);
 # - wyr_sha must be a full sha that is an ancestor of this repo's main, checked BEFORE any secret is used. The app is built
-#   from a fresh clone of that sha in $RUNNER_TEMP, outside the workspace, so the scripts that hold the secrets always
-#   come from the dispatching main commit, never from the code being built;
+#   from a fresh clone of that sha in $RUNNER_TEMP, outside the workspace. NOTE: the built sha's Expo config and plugins DO run
+#   inside eas-cli with the Expo token and the ASC key in the environment (the plugins load from the clone's node_modules). The
+#   controls are: the sha must be merged on main (ancestor check), and a secretless check (scripts/wyr-check.mjs, run before
+#   npm ci and before the secret step) refuses anything that could pull in other code: .npmrc/.yarnrc*, app.config.*, non-name
+#   plugins, symlinks, workspaces, non-registry or local-path dependencies, non-registry lockfile URLs. wyr_sha may be ANY
+#   ancestor of main, so the check runs on whatever tree it is. Never loosen the ancestor check (for example to build PR heads);
+#   the script and the workflow always come from the dispatching main commit;
+# - eas-cli is installed (pinned version, --ignore-scripts, clean npm config) into a neutral directory by a secretless step and
+#   run from there against the clone, so npx never resolves anything through the clone's npm config;
 # - the profile is fixed to `preview` (production builds need Tim's explicit go); the sha input only ever reaches the shell through env:;
 # - third-party actions are pinned to commit SHAs; permissions contents: read; no artifacts; no pull_request_target;
 # - secrets reach exactly one step; the .p8 goes to a 0600 temp file outside the checkout and is deleted;
@@ -71,12 +78,31 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies of the app being built (no scripts, no secrets)
+      - name: Check the clone is self-contained (no secrets)
         env:
           WYR_ROOT: ${{ runner.temp }}/wyr
+        run: node scripts/wyr-check.mjs
+
+      - name: Install eas-cli into a neutral directory (pinned, no scripts, no secrets)
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_GLOBALCONFIG: /dev/null
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+        run: |
+          mkdir -p "$RUNNER_TEMP/eas"
+          cd "$RUNNER_TEMP/eas"
+          npm install --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/eas" eas-cli@27.11.0
+          test -x "$RUNNER_TEMP/eas/node_modules/.bin/eas"
+
+      - name: Install dependencies of the app being built (no scripts, no secrets, clean npm config)
+        env:
+          WYR_ROOT: ${{ runner.temp }}/wyr
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_GLOBALCONFIG: /dev/null
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
         run: |
           cd "$WYR_ROOT"
-          npm ci --ignore-scripts
+          npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Build on EAS and upload to TestFlight
         env:
@@ -85,4 +111,5 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           WYR_ROOT: ${{ runner.temp }}/wyr
+          EAS_BIN: ${{ runner.temp }}/eas/node_modules/.bin/eas
         run: node scripts/wyr-testflight.mjs

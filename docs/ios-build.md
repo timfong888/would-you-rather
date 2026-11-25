@@ -54,7 +54,7 @@ The build number is whatever EAS assigns (autoIncrement); the last real TestFlig
 If the first run says the token is not authorized for the project, create an Expo token on the owning account and update
 `EXPO_TOKEN`. Needs `EXPO_PUBLIC_RC_IOS_KEY` in the EAS `preview` environment. Apple can take 15+ minutes to process: the
 run waits, and ends green with a "still processing" notice if Apple is not done; check with Apple ops "builds".
-Production builds are not available from this workflow.
+A secretless check (`scripts/wyr-check.mjs`) runs on the cloned sha before anything is installed and before the secret step; it refuses `.npmrc`, `.yarnrc*`, `app.config.*`, non-package plugins, symlinks, workspaces and non-registry dependencies or lockfile URLs, because the built sha's Expo config and plugins run with the Expo token and ASC key. eas-cli itself is installed in a neutral directory with a pinned version. Production builds are not available from this workflow.
 
 ## Build image (Xcode 26)
 
