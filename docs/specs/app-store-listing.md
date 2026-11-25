@@ -317,7 +317,7 @@ State: **blank** (empty in Tim's screenshot or nowhere set), **set** (read live)
 | 1 | Version | App Previews | blank (0 of 3) | None for v1. Optional; skip until screenshots are done. | 886x1920 |
 | 2 | Version | Screenshots | blank (0 of 10) | 6 screenshots, section 8.3 | 1206x2622 |
 | 3 | Version | Promotional Text | blank | `Pick a side, then see if your family or friends picked the same. Free questions in every category, optional upgrades, no account needed.` (136) | 170 |
-| 4 | Version | Description | unverified (draft in `listing-final.json`) | Section 8.4 (1,247 chars). Replaces the "Free to start" paragraph so it states no count (#238). | 4000 |
+| 4 | Version | Description | unverified (draft in `listing-final.json`) | Section 8.4 (1,259 chars, Family wording proposed for Tim). Replaces the "Free to start" paragraph so it states no count (#238). | 4000 |
 | 5 | Version | Keywords | **pending data** | Leave open. Placeholder only, not for entry: `game,icebreaker,road trip,this or that,date night,dilemma,conversation,parents,teens,couples,party` (98). See 8.5. | 100 |
 | 6 | Version | Support URL | unverified | `https://www.wouldyourather.fyi/support` (page live, 200) | |
 | 7 | Version | Marketing URL | unverified | `https://www.wouldyourather.fyi` | |
@@ -376,7 +376,9 @@ Dropped from section 2: "Dark mode, too" (padding). The real vote-split shot sta
 
 Upload: Tim drags the files into the 6.3" slot (human step below), or an ASC API workflow after his approval of the set.
 
-### 8.4 Description (1,247 characters)
+### 8.4 Description (1,259 characters) — wording **proposed, for Tim**
+
+The Family-category wording below is a proposal (2026-11-25): it replaces "Kids & Family" to lower the risk under guideline 5.1.4 (section 9.2). Tim decides. Screenshots are unchanged; screenshot 5 still says Kids & Family and keeps that risk.
 
 ```
 One question, two choices, a table full of opinions. Would You Rather turns dinner, car rides and waiting rooms into real conversation. Pick A or B, send the question to someone, and see if they chose the same.
@@ -387,7 +389,7 @@ HOW IT WORKS
 - As more people answer a question, you see how everyone voted.
 
 EIGHT CATEGORIES
-The High Life, Moral Compass, Social Blunders, Time Traveler, Career Climber, Tech Dystopia and Wildest Dreams for teens and adults, plus Kids & Family for the whole table. New questions are added over time.
+The High Life, Moral Compass, Social Blunders, Time Traveler, Career Climber, Tech Dystopia and Wildest Dreams for teens and adults, plus a Family category for the whole table. New questions are added over time.
 
 FREE TO START
 Every category has free questions to try. Want more? Unlock a category with an optional upgrade.
@@ -398,9 +400,9 @@ UNLOCK WHAT YOU LIKE
 - No subscription. Restore Purchases is always available.
 
 PRIVATE BY DEFAULT
-No account and no sign-up. Your answers are stored anonymously to build vote totals. Kids & Family answers are stored with no device ID and no location.
+No account and no sign-up. Your answers are stored anonymously to build vote totals. Family category answers are stored with no device ID and no location.
 
-Some categories contain mature themes and are meant for teens and adults. Kids & Family is designed for families to play together.
+Some categories contain mature themes and are meant for teens and adults. The Family category is designed for families to play together.
 ```
 
 Changed from `listing-final.json`: the "Free to start" paragraph no longer names categories as free or says "free to play with an optional expansion" (removed by #238). Re-check once #238 settles whether Kids & Family stays free.
@@ -502,4 +504,4 @@ The tradeoff is real: a 13+ app is not shown in the Kids category and is not ins
 
 ### 9.4 Open items
 - The final rating comes from Apple's questionnaire in the App Information page; Tim enters the answers (row 22).
-- Re-read the "Kids & Family" wording in the description (8.4) and screenshot 5 (8.3) against the 5.1.4 metadata rule before submission. Tim decides whether to soften them.
+- The description now proposes "Family" wording instead of "Kids & Family" (8.4, proposed for Tim). Screenshot 5 (8.3) still says Kids & Family and is unchanged; Tim decides whether to change it. Option 1 stays the recommendation; Tim decides after reading the table.
