@@ -130,9 +130,24 @@ jobs:
       - name: Run Maestro flows
         run: |
           mkdir -p maestro-out
-          maestro --device "$UDID" test .maestro/ \
-            --format junit --output maestro-out/report.xml \
-            --test-output-dir maestro-out/artifacts
+          run_maestro() {
+            maestro --device "$UDID" test .maestro/ \
+              --format junit --output maestro-out/report.xml \
+              --test-output-dir maestro-out/artifacts 2>&1 | tee "$1"
+            return "${PIPESTATUS[0]}"
+          }
+          rc=0
+          run_maestro maestro-out/run-1.log || rc=$?
+          # Retry ONCE, and only when the XCTest driver never started (runner flake, issue #220: nothing ran against
+          # the app). Any other failure, including a real flow failure, fails the job on the first run.
+          if [ "$rc" -ne 0 ] && grep -q 'iOS driver not ready in time' maestro-out/run-1.log; then
+            echo "::warning::Maestro iOS driver did not start in time (issue #220); retrying the flows once"
+            pkill -f xcodebuild || true
+            sleep 5
+            rc=0
+            run_maestro maestro-out/run-2.log || rc=$?
+          fi
+          exit "$rc"
 
       - name: Screenshot and UI hierarchy of the simulator at the end
         if: always()
