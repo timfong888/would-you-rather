@@ -15,6 +15,8 @@ import { SITE_URL } from '@/constants/config';
 import { ORGANIZATION_DESCRIPTION, landingPageJsonLd } from '@/lib/seo';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
+import { SHARE_PROMPT } from '@/lib/shareInvite';
+import { questionPageUrl } from '@/lib/seoLinks';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { useThemedStyles } from '@/contexts/ThemeContext';
@@ -75,7 +77,7 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
   const handleShare = async (q: Question) => {
     const { url, linkId } = buildShareUrl(q.id, 0);
     track('share_clicked', { question_id: q.id, surface: 'seo_landing', slug: page.slug, link_id: linkId });
-    const text = `Would you rather ${q.optionA.toLowerCase()} or ${q.optionB.toLowerCase()}?`;
+    const text = SHARE_PROMPT;
     if (Platform.OS !== 'web') {
       // Native app routes: the OS share sheet.
       try {
@@ -182,13 +184,24 @@ export default function SeoLandingPage({ slug }: SeoLandingPageProps) {
                   <Text style={styles.optionB}>{q.optionB}</Text>
                 </Text>
                 <View style={styles.cardActions}>
-                  <Link
-                    href={gameHref(q) as never}
-                    style={styles.cardCta}
-                    onPress={() => track('seo_question_clicked', { slug: page.slug, question_id: q.id })}
-                  >
-                    Play this one →
-                  </Link>
+                  {/* Web: a question with a read-only page links to it. The app (and any question without a page) keeps the playable screen (S3). */}
+                  {Platform.OS === 'web' && questionPageUrl(q.id) ? (
+                    <Link
+                      href={questionPageUrl(q.id) as never}
+                      style={styles.cardCta}
+                      onPress={() => track('seo_question_clicked', { slug: page.slug, question_id: q.id, target: 'q' })}
+                    >
+                      See this question →
+                    </Link>
+                  ) : (
+                    <Link
+                      href={gameHref(q) as never}
+                      style={styles.cardCta}
+                      onPress={() => track('seo_question_clicked', { slug: page.slug, question_id: q.id, target: 'game' })}
+                    >
+                      Play this one →
+                    </Link>
+                  )}
                   <Pressable
                     onPress={() => handleShare(q)}
                     accessibilityRole="button"

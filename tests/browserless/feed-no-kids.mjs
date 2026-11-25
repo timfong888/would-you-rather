@@ -10,8 +10,13 @@ import fs from 'node:fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const HOST = process.env.APP_HOST || 'http://localhost:4175';
-const src = fs.readFileSync(new URL('../../constants/kidsQuestions.ts', import.meta.url), 'utf8');
-const kidsTexts = [...src.matchAll(/^\s*q\(\d+,\s*'[^']*',\s*'([^'\\]{8,})'/gm)].map((m) => m[1]);
+// Option A of every kids (kf-) and teen (tn-) question: free(n, category, tag, 'A', 'B') / paid(...) and the teen free(n, 'A', 'B').
+import { CATEGORIES } from '../../api/_lib/data.js';
+const read = (f) => fs.readFileSync(new URL(`../../constants/${f}`, import.meta.url), 'utf8');
+const kidsTexts = [
+  ...[...read('kidsQuestions.ts').matchAll(/^\s*(?:free|paid)\(\d+,\s*'[^']*',\s*(?:'[^']*'|null),\s*'((?:[^'\\]|\\.){8,}?)',/gm)].map((m) => m[1].replace(/\\'/g, "'")),
+  ...[...read('teenQuestions.ts').matchAll(/^\s*(?:free|paid)\(\d+,\s*'((?:[^'\\]|\\.){8,}?)',/gm)].map((m) => m[1].replace(/\\'/g, "'")),
+];
 const results = [];
 const check = (ok, label, extra = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); };
 
@@ -31,7 +36,11 @@ for (const tab of ['FOR YOU', 'TRENDING', 'NEW']) {
   check(hits.length === 0, `tab ${tab}: no kids question text on screen`, hits.slice(0, 2).join(' | '));
 }
 const chips = await page.evaluate(() => document.body.innerText);
-check(!/Kids & Family/.test(chips), 'category chips: no "Kids & Family"');
+const youngLabels = CATEGORIES.filter((c) => c.audience !== 'adult').map((c) => c.label);
+// A chip is a whole line (optionally led by its emoji); a label inside a question or other copy is not a chip.
+const chipLines = chips.split('\n').map((l) => l.replace(/^[\p{Extended_Pictographic}\uFE0F\s]+/u, '').trim());
+const chipHits = youngLabels.filter((l) => chipLines.includes(l));
+check(chipHits.length === 0, 'category chips: no kids or teen category', chipHits.join(', '));
 const keys = await page.evaluate(() => Object.keys(localStorage));
 check(keys.includes('wyr_visitor_id'), 'adult /feed still persists wyr_visitor_id (analytics unchanged)');
 await b.close();

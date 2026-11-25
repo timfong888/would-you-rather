@@ -7,16 +7,21 @@ import {
   Pressable,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { Link, Redirect, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import {
   CATEGORIES,
   getCategoryQuestions,
   getFreeQuestionCount,
   getLockedQuestionCount,
+  SELLABLE_TRANCHE_MAX,
+  getNextTranche,
+  getTranches,
   hasPaidContent,
   isQuestionLocked,
-  getAccessibleQuestions,
+  trancheSize,
+  getPublicQuestions,
+  RETIRED_KIDS_CATEGORY_IDS,
 } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
@@ -24,20 +29,30 @@ import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { categoryJsonLd } from '@/lib/seo';
+import { questionPageUrl } from '@/lib/seoLinks';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
-import { useUnlocked } from '@/contexts/UnlockedContext';
+import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
 import { useThemedStyles } from '@/contexts/ThemeContext';
+
+// Inline env test so the minifier drops the copy when the flag is off (see app/unlock/[id].tsx).
+const WEB_FREE_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' && WEB_FREE_UNLOCK;
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { answered, refresh } = useAnsweredQuestions();
-  const { isUnlocked, priceForCategory } = useUnlocked();
+  const { openTranches, priceForCategory } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const category = CATEGORIES.find((c) => c.id === id);
+
+  // The single Kids & Family category was replaced by topic categories (#124). Old links go to the
+  // With kids screen (/kids); the web build also redirects before the app loads (vercel.json). The unit tests pin both.
+  if (!category && id && RETIRED_KIDS_CATEGORY_IDS.includes(id)) {
+    return <Redirect href="/kids" />;
+  }
 
   if (!category) {
     return (
@@ -52,9 +67,12 @@ export default function CategoryScreen() {
 
   const questions = getCategoryQuestions(category.id);
 
-  const isPremium = category.tier === 'premium';
-  const categoryUnlocked = isUnlocked(category.id);
+  const access = openTranches(category);
   const paid = hasPaidContent(category);
+  // What is still locked for this player: banners, headers and the button follow it, not a yes/no unlock.
+  const nextTranche = getNextTranche(category, access);
+  const stillLocked = questions.filter((_, i) => isQuestionLocked(category, i, access)).length;
+  const sellable = nextTranche !== undefined && (nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK);
   const freeCount = getFreeQuestionCount(category);
   const lockedCount = getLockedQuestionCount(category);
   const total = questions.length;
@@ -69,13 +87,7 @@ export default function CategoryScreen() {
   };
 
   const pageTitle = `${category.label} — Would You Rather? ${category.emoji}`;
-  const pageDescription = `${total} Would You Rather dilemmas in the ${category.label} category. ${
-    isPremium
-      ? `First ${freeCount} questions free.`
-      : lockedCount > 0
-        ? `${freeCount} free to play, plus a ${lockedCount}-question expansion pack.`
-        : 'Free to play.'
-  } See how your answers compare.`;
+  const pageDescription = `${total} Would You Rather dilemmas in the ${category.label} category. ${freeCount} free to play, ${lockedCount} more to unlock. See how your answers compare.`;
 
   return (
     <ScrollView
@@ -89,7 +101,7 @@ export default function CategoryScreen() {
         canonicalUrl={`${SITE_URL}/categories/${category.id}`}
       />
       {/* Schema lists only the free questions, never locked text. */}
-      <JsonLd data={categoryJsonLd(category, getAccessibleQuestions(category, false))} />
+      <JsonLd data={categoryJsonLd(category, getPublicQuestions(category))} />
       {/* Category Hero */}
       <View style={[styles.hero, { borderColor: `${category.color}30`, backgroundColor: `${category.color}10` }]}>
         <Text style={styles.heroEmoji}>{category.emoji}</Text>
@@ -119,16 +131,12 @@ export default function CategoryScreen() {
           </>
         )}
 
-        {paid && !categoryUnlocked && (
+        {nextTranche && (
           <View style={styles.trialBanner}>
-            <Text style={styles.trialBannerText}>
-              {isPremium
-                ? `👑 Premium — first ${freeCount} questions are free`
-                : COPY.expansionBanner(freeCount, lockedCount)}
-            </Text>
+            <Text style={styles.trialBannerText}>{COPY.lockedBanner(freeCount, stillLocked)}</Text>
           </View>
         )}
-        {paid && categoryUnlocked && (
+        {paid && !nextTranche && (
           <View style={[styles.trialBanner, styles.unlockedBanner]}>
             <Text style={[styles.trialBannerText, styles.unlockedBannerText]}>
               🔓 Unlocked — all {total} questions available
@@ -151,29 +159,32 @@ export default function CategoryScreen() {
       {/* Questions List */}
       <View style={styles.list}>
         {questions.map((q, idx) => {
-          const isLocked = isQuestionLocked(category, idx, categoryUnlocked);
+          const isLocked = isQuestionLocked(category, idx, openTranches(category));
           const answeredChoice = answered[q.id];
           const isAnswered = answeredChoice !== undefined;
           // Header above the first question beyond the free set — only while locked,
           // so paying / owner-access users never see an upsell divider.
-          const showPackHeader = idx === freeCount && idx > 0 && idx < total && !categoryUnlocked;
+          const trancheHere = getTranches(category).find((t) => t.first - 1 === idx);
+          const showPackHeader = trancheHere !== undefined && isLocked;
+          // Web only: a question with a read-only page shows its text, even before the unlock, and links to
+          // that page (S3). The question text is public there already. The app keeps the blurred rows.
+          const pageUrl = Platform.OS === 'web' ? questionPageUrl(q.id) : null;
+          const showText = !isLocked || pageUrl !== null;
 
           return (
             <React.Fragment key={q.id}>
             {showPackHeader && (
               <View style={styles.packHeader}>
                 <Text style={[styles.packHeaderText, { color: category.color }]}>
-                  {isPremium ? '👑 PREMIUM' : '👑 EXPANSION PACK'} · {lockedCount} MORE DILEMMAS
+                  {COPY.moreDilemmas(trancheSize(trancheHere!))}
                 </Text>
-                {!categoryUnlocked && (
-                  <Text style={styles.packHeaderSub}>
-                    {isPremium
-                      ? 'Unlock the category to keep playing'
-                      : `You've played the ${freeCount} free ones — unlock to keep the conversation going`}
-                  </Text>
-                )}
+                <Text style={styles.packHeaderSub}>
+                  {`${COPY.openNext(trancheSize(trancheHere!))} to keep the conversation going`}
+                </Text>
               </View>
             )}
+            {(() => {
+            const row = (
             <Pressable
               onPress={() => {
                 if (isLocked) {
@@ -187,6 +198,7 @@ export default function CategoryScreen() {
                 isLocked && styles.questionRowLocked,
                 isAnswered && styles.questionRowAnswered,
                 pressed && { opacity: 0.8 },
+                pageUrl !== null && styles.questionRowFlex,
               ]}
             >
               <View style={styles.questionRowLeft}>
@@ -201,12 +213,12 @@ export default function CategoryScreen() {
                 )}
               </View>
               <View style={styles.questionRowContent}>
-                <Text style={[styles.questionOptionA, isLocked && styles.textLockedBlur]} numberOfLines={1}>
-                  {isLocked ? '••••••••••••••••' : q.optionA}
+                <Text style={[styles.questionOptionA, !showText && styles.textLockedBlur]} numberOfLines={1}>
+                  {!showText ? '••••••••••••••••' : q.optionA}
                 </Text>
                 <Text style={styles.questionOr}>or</Text>
-                <Text style={[styles.questionOptionB, isLocked && styles.textLockedBlur]} numberOfLines={1}>
-                  {isLocked ? '••••••••••••••••' : q.optionB}
+                <Text style={[styles.questionOptionB, !showText && styles.textLockedBlur]} numberOfLines={1}>
+                  {!showText ? '••••••••••••••••' : q.optionB}
                 </Text>
               </View>
               {!isLocked && !isAnswered && (
@@ -225,25 +237,39 @@ export default function CategoryScreen() {
                 </View>
               )}
             </Pressable>
+            );
+            return pageUrl === null ? row : (
+              <View style={styles.questionRowWithLink}>
+                {row}
+                <Link href={pageUrl as never} style={styles.questionPageLink} accessibilityLabel="Read this question on its own page">
+                  Read ↗
+                </Link>
+              </View>
+            );
+            })()}
             </React.Fragment>
           );
         })}
       </View>
 
-      {paid && !categoryUnlocked && (
+      {nextTranche && (
         <Pressable
+          disabled={!sellable}
           onPress={() => router.push(`/unlock/${category.id}`)}
           style={({ pressed }) => [
             styles.unlockCta,
             pressed && styles.buttonPressed,
+            !sellable && { opacity: 0.5 },
           ]}
         >
           <Text style={styles.unlockCtaEmoji}>👑</Text>
           <View style={styles.unlockCtaText}>
             <Text style={styles.unlockCtaTitle}>
-              {isPremium ? `Unlock All ${total} Dilemmas` : `Unlock ${lockedCount} More Dilemmas`}
+              {COPY.openNext(trancheSize(nextTranche))}
             </Text>
-            <Text style={styles.unlockCtaSub}>One-time category unlock · {priceForCategory(category.id)}</Text>
+            <Text style={styles.unlockCtaSub}>
+              {!sellable ? 'Available soon' : `One-time unlock · ${priceForCategory(category.id)}${WEB_FREE_UI ? ' · free for now' : ''}`}
+            </Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>
         </Pressable>
@@ -392,6 +418,17 @@ function makeStyles(colors: ThemeColors) {
     packHeaderSub: {
       color: colors.textMuted,
       fontSize: FONTS.sizes.xs,
+    },
+    questionRowWithLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+    },
+    questionRowFlex: { flex: 1 },
+    questionPageLink: {
+      fontSize: FONTS.sizes.sm,
+      fontWeight: FONTS.weights.medium,
+      color: colors.textMuted,
     },
     questionRow: {
       flexDirection: 'row',

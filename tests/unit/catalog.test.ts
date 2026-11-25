@@ -32,8 +32,8 @@ test('approved prices (Tim, 2026-11-18): $4.99 pack, $1.99 category', () => {
   assert.equal(PRICE_CATEGORY_MICROS, 1_990_000);
 });
 
-test('free categories with no paid content are not for sale', () => {
-  assert.equal(buildCatalog().some((p) => p.categoryId === 'kids-family'), false);
+test('free categories with no paid content are not for sale; the retired Kids & Family category has no product', () => {
+  assert.equal(buildCatalog().some((p) => (p.categoryId as string) === 'kids-family'), false);
 });
 
 test('identifiers are stable and store-safe', () => {

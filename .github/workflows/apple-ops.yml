@@ -1,7 +1,7 @@
 name: Apple ops (read-only)
 
 # Manual only. Calls the App Store Connect API with the ASC_* Actions secrets.
-# Read-only: builds, processing state/errors, app and bundle ID lookup, in-app purchases.
+# Read-only: builds, processing state/errors, app and bundle ID lookup, in-app purchases, build icon asset, App Store versions, IAP images and review screenshots. GET only.
 on:
   workflow_dispatch:
     inputs:
@@ -16,6 +16,10 @@ on:
           - app
           - bundle-ids
           - iap
+          - build-icon
+          - versions
+          - iap-images
+          - iap-screenshots
       app_id:
         description: ASC app id (Apple ID of the app)
         type: string
@@ -28,10 +32,14 @@ permissions:
 jobs:
   asc:
     runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
       - name: Query App Store Connect

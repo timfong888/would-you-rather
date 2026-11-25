@@ -1,0 +1,51 @@
+# Smoke flow v1 (adult): home -> category -> tap a locked question -> paywall UI. Never taps the buy button.
+appId: com.timfong888.wouldyourather
+name: Adult paywall smoke
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+# Grown-ups is the home screen; With kids and back
+- waitForAnimationToEnd
+- tapOn: "With kids"
+# A tap can land while the first screen is still settling; one retry keeps the flow honest without hiding a broken switch.
+- runFlow:
+    when:
+      notVisible: "Pick a topic for the age you are playing with."
+    commands:
+      - waitForAnimationToEnd
+      - tapOn: "With kids"
+- extendedWaitUntil:
+    visible: "Pick a topic for the age you are playing with."
+    timeout: 20000
+- tapOn: "Grown-ups"
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 20000
+- scrollUntilVisible:
+    element: ".*TIME TRAVELER.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: ".*TIME TRAVELER.*"
+- extendedWaitUntil:
+    visible: "PLAY ALL.*"
+    timeout: 20000
+- takeScreenshot: 10-adult-category
+- scrollUntilVisible:
+    element: "🔒.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "🔒.*"
+# Paywall (#238): every category sells its next tranche, eyebrow MORE DILEMMAS; the price block and CTA sit below the fold. Never tapped.
+- extendedWaitUntil:
+    visible: "MORE DILEMMAS"
+    timeout: 20000
+- takeScreenshot: 11-adult-paywall-top
+- scrollUntilVisible:
+    element: "Open the next [0-9]+ questions for.*"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "Restore previous purchases"
+- takeScreenshot: 11-adult-paywall

@@ -5,13 +5,13 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { shareLink, buildShareLink } from '../../lib/shareQuestion';
-import { shareText } from '../../lib/matchShare';
+import { SHARE_PROMPT } from '../../lib/shareInvite';
 import { CANONICAL_ORIGIN } from '../../lib/site';
 import { SITE_URL } from '../../constants/config';
 
 const count = (hay: string, needle: string) => hay.split(needle).length - 1;
 const LINK_ID = '22d44622-885e-4a9e-ab74-0346c9bac448';
-const text = `${shareText(false, 'first_after')}\nWould you rather A — OR — B`;
+const text = SHARE_PROMPT;
 const link = buildShareLink({ origin: SITE_URL, questionId: 'hl-5', linkId: LINK_ID, generation: 1, kids: false, friendPick: 'A' });
 
 test('share link for hl-5 is on the canonical host', () => {

@@ -1,0 +1,61 @@
+name: Apple IAP review screenshots (writes to App Store Connect)
+
+# Manual only. Uploads store/ios/iap-review/<productId>.png as each in-app
+# purchase's App Review screenshot. Default is a dry run (GET only). Skips IAPs
+# that already have a screenshot unless replace=true. Never submits for review.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Write to App Store Connect (false = dry run)
+        type: boolean
+        required: true
+        default: false
+      confirm:
+        description: Type UPLOAD-IAP-SCREENSHOTS to allow apply=true
+        type: string
+        required: false
+        default: ''
+      replace:
+        description: Replace screenshots that already exist
+        type: boolean
+        required: false
+        default: false
+      app_id:
+        description: ASC app id (Apple ID of the app)
+        type: string
+        required: true
+        default: '6836653723'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-iap-review-screenshot
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Refuse apply without confirmation
+        if: ${{ inputs.apply && inputs.confirm != 'UPLOAD-IAP-SCREENSHOTS' }}
+        run: |
+          echo "apply=true needs confirm=UPLOAD-IAP-SCREENSHOTS."
+          exit 1
+      - name: Upload review screenshots
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APP_ID: ${{ inputs.app_id }}
+          APPLY: ${{ inputs.apply && '--apply' || '' }}
+          REPLACE: ${{ inputs.replace && '--replace' || '' }}
+        run: node scripts/asc-iap-review-screenshot.mjs --app "$APP_ID" $APPLY $REPLACE

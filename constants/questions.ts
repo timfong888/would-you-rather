@@ -1,4 +1,5 @@
 import { KIDS_QUESTIONS } from './kidsQuestions';
+import { TEEN_QUESTIONS } from './teenQuestions';
 import { isCategoryAvailable } from './platformFilter';
 
 export type CategoryId =
@@ -11,11 +12,49 @@ export type CategoryId =
   | 'career-climber'
   | 'tech-dystopia'
   | 'wildest-dreams'
-  | 'kids-family';
+  | 'tiny-choices'
+  | 'make-believe'
+  | 'giggle-factory'
+  | 'road-trip-rally'
+  | 'dinner-table'
+  | 'heart-to-heart'
+  | 'future-me'
+  | 'real-talk'
+  | 'holiday-table';
 
 export type CategoryTier = 'free' | 'premium';
 
-export const FREE_TRIAL_COUNT = 3; // First N questions of premium categories are free
+/**
+ * Who a category is written for (docs/specs/kids-family-categories.md §2.3).
+ * - `kids`: youngest age under 13. COPPA applies: no tracking, no persisted IDs (isKidsPath).
+ * - `teen`: 13 to 17. Follows the adult analytics rules, but its purchases keep the parental gate.
+ * - `adult`: everything else.
+ * Every kids rule in the app derives from this, so a new category cannot silently miss the rule.
+ */
+export type Audience = 'adult' | 'kids' | 'teen';
+
+/** [youngest, oldest] age the questions are written for. */
+export type AgeRange = readonly [number, number];
+
+/** First age that is not a "kid" for COPPA purposes. */
+export const KIDS_UNDER_AGE = 13;
+/** First age treated as an adult. */
+export const ADULT_FROM_AGE = 18;
+const ADULT_AGES: AgeRange = [ADULT_FROM_AGE, 99];
+
+/** The audience a youngest age implies. Tests check every category's `audience` against this. */
+export function audienceForAges(ages: AgeRange): Audience {
+  if (ages[0] < KIDS_UNDER_AGE) return 'kids';
+  if (ages[0] < ADULT_FROM_AGE) return 'teen';
+  return 'adult';
+}
+
+/** Free questions at the start of every grown-up category (Tim, 2026-11-25, issue #238). */
+export const FREE_QUESTION_COUNT = 5;
+/** @deprecated use FREE_QUESTION_COUNT. Kept so older imports compile. */
+export const FREE_TRIAL_COUNT = FREE_QUESTION_COUNT;
+/** The free count grown-up premium categories had before #238. Only the frozen public (SEO) rule still uses it. */
+const LEGACY_PREMIUM_PUBLIC_COUNT = 3;
 
 export interface CategoryDef {
   id: CategoryId;
@@ -24,6 +63,8 @@ export interface CategoryDef {
   color: string;
   tier: CategoryTier;
   featured?: boolean;
+  audience: Audience;
+  ages: AgeRange;
 }
 
 export interface Question {
@@ -56,6 +97,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     color: '#C9A84C',
     tier: 'premium',
     featured: true,
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'moral-compass',
@@ -64,6 +107,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     color: '#2D6A4F',
     tier: 'free',
     featured: true,
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'midnight-secrets',
@@ -72,6 +117,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     color: '#7B2FBE',
     tier: 'premium',
     featured: true,
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'social-blunders',
@@ -79,6 +126,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '😳',
     color: '#1B4FA8',
     tier: 'free',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'time-traveler',
@@ -86,6 +135,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '⏳',
     color: '#C0392B',
     tier: 'premium',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'deep-desires',
@@ -93,6 +144,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '💜',
     color: '#8B2252',
     tier: 'premium',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'career-climber',
@@ -100,6 +153,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '🪜',
     color: '#1A7F64',
     tier: 'free',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'tech-dystopia',
@@ -107,6 +162,8 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '🤖',
     color: '#2C4A6E',
     tier: 'free',
+    audience: 'adult',
+    ages: ADULT_AGES,
   },
   {
     id: 'wildest-dreams',
@@ -114,14 +171,90 @@ const ALL_CATEGORIES: CategoryDef[] = [
     emoji: '🌟',
     color: '#4B1C8C',
     tier: 'premium',
+    audience: 'adult',
+    ages: ADULT_AGES,
+  },
+  // Kids and teen topic categories (spec §2.2). Each has 8 free questions; the rest are volume 2.
+  {
+    id: 'tiny-choices',
+    label: 'Tiny Choices',
+    emoji: '🐣',
+    color: '#D9822B',
+    tier: 'free',
+    audience: 'kids',
+    ages: [3, 5],
   },
   {
-    // Written for kids ~4–11 and the grown-ups playing with them.
-    id: 'kids-family',
-    label: 'Kids & Family',
-    emoji: '🧸',
-    color: '#D9622B',
+    id: 'make-believe',
+    label: 'Make-Believe',
+    emoji: '🏰',
+    color: '#7A5BD6',
     tier: 'free',
+    audience: 'kids',
+    ages: [4, 8],
+  },
+  {
+    id: 'giggle-factory',
+    label: 'Giggle Factory',
+    emoji: '😂',
+    color: '#E0559B',
+    tier: 'free',
+    audience: 'kids',
+    ages: [5, 10],
+  },
+  {
+    id: 'road-trip-rally',
+    label: 'Road Trip Rally',
+    emoji: '🚗',
+    color: '#2E86C1',
+    tier: 'free',
+    audience: 'kids',
+    ages: [4, 12],
+  },
+  {
+    id: 'dinner-table',
+    label: 'Dinner Table',
+    emoji: '🍽️',
+    color: '#3F9B6B',
+    tier: 'free',
+    audience: 'kids',
+    ages: [6, 12],
+  },
+  {
+    id: 'heart-to-heart',
+    label: 'Heart to Heart',
+    emoji: '💛',
+    color: '#D9486C',
+    tier: 'free',
+    audience: 'kids',
+    ages: [7, 12],
+  },
+  {
+    id: 'future-me',
+    label: 'Future Me',
+    emoji: '🚀',
+    color: '#14908F',
+    tier: 'free',
+    audience: 'kids',
+    ages: [11, 17],
+  },
+  {
+    id: 'real-talk',
+    label: 'Real Talk',
+    emoji: '💬',
+    color: '#34495E',
+    tier: 'free',
+    audience: 'teen',
+    ages: [13, 17],
+  },
+  {
+    id: 'holiday-table',
+    label: 'Holiday Table',
+    emoji: '🎄',
+    color: '#B5333E',
+    tier: 'free',
+    audience: 'kids',
+    ages: [4, 12],
   },
 ];
 
@@ -132,9 +265,29 @@ export const CATEGORIES: CategoryDef[] = ALL_CATEGORIES.filter((c) => isCategory
 // Quick-play category groups
 // ---------------------------------------------------------------------------
 
-// Only the Kids & Family bank is safe for children. moral-compass and the other adult banks
+// Only the kids-audience categories are safe for children. moral-compass and the other adult banks
 // include crime, infidelity and workplace themes, so they are not "family friendly".
-export const FAMILY_FRIENDLY: CategoryId[] = ['kids-family'];
+// Derived from `audience`, never a list of ids (spec §2.3). Uses the full list, not the platform-filtered
+// CATEGORIES: the kids rule must not depend on which categories a platform ships.
+export const FAMILY_FRIENDLY: CategoryId[] = ALL_CATEGORIES.filter((c) => c.audience === 'kids').map((c) => c.id);
+/** Categories whose purchase screens sit behind the parental gate: kids and teen. */
+export const PARENTAL_GATE_CATEGORIES: CategoryId[] = ALL_CATEGORIES.filter((c) => c.audience !== 'adult').map((c) => c.id);
+
+/**
+ * Category ids that no longer exist but may still be linked (old shares, bookmarks, search results). They stay
+ * kids routes so a stale link never fires analytics before it redirects (docs/specs/kids-family-categories.md §2.3).
+ */
+export const RETIRED_KIDS_CATEGORY_IDS: readonly string[] = ['kids-family'];
+
+/** The audience of a category id, or undefined for an id that is not a category. */
+export function getCategoryAudience(id: string): Audience | undefined {
+  return ALL_CATEGORIES.find((c) => c.id === id)?.audience;
+}
+
+/** True for a category written for under-13s: the no-tracking rule applies to its routes. */
+export function isKidsCategoryId(id: string): boolean {
+  return getCategoryAudience(id) === 'kids';
+}
 export const DARING: CategoryId[] = ['midnight-secrets', 'deep-desires', 'time-traveler', 'wildest-dreams', 'high-life'];
 
 // Questions
@@ -1359,8 +1512,9 @@ const ALL_QUESTIONS: Question[] = [
   { id: 'td-39', category: 'tech-dystopia', volume: 2, optionA: 'Have a hologram of your favorite musician perform in your living room', optionB: 'Have a robot that can play any instrument teach you to play' },
   { id: 'td-40', category: 'tech-dystopia', volume: 2, optionA: 'Have a screen-free day every single week', optionB: 'Have unlimited screen time but only on Sundays' },
 
-  // Kids & Family (kf-1 through kf-223): see constants/kidsQuestions.ts
+  // Kids categories (kf-*, under 13) and the teen category (tn-*): see constants/kidsQuestions.ts and teenQuestions.ts
   ...KIDS_QUESTIONS,
+  ...TEEN_QUESTIONS,
 ];
 
 export const QUESTIONS: Question[] = ALL_QUESTIONS.filter((q) => isCategoryAvailable(q.category));
@@ -1385,10 +1539,13 @@ export function getCategoryQuestions(categoryId: CategoryId): Question[] {
 // Access / gating helpers
 //
 // Every screen must decide "is this question playable?" the same way, so the
-// rule lives here and nowhere else:
-//   - premium category: first FREE_TRIAL_COUNT questions are free
-//   - free category:    all of volume 1 is free; expansion volumes are paid
-//   - unlocking a category (purchase or owner access) opens everything in it
+// rule lives here and nowhere else (issue #238, docs/specs/plan.md):
+//   - grown-up category: the first FREE_QUESTION_COUNT (5) questions are free,
+//     the rest are sold in tranches: tranche 1 = positions 6 to 20, tranche k
+//     (k >= 2) = positions 20(k-1)+1 to 20k, capped at the category total
+//   - kids and teen categories: unchanged (8 free, one paid tranche; their own
+//     20-question tranches are Unit 4 of #124)
+//   - owner access, premium_all and test unlocks open everything
 // ---------------------------------------------------------------------------
 
 export function getQuestionVolume(q: Question): number {
@@ -1398,18 +1555,18 @@ export function getQuestionVolume(q: Question): number {
 /** Number of questions at the start of the category that are free to play. */
 export function getFreeQuestionCount(category: CategoryDef): number {
   const questions = getCategoryQuestions(category.id);
-  if (category.tier === 'premium') {
-    return Math.min(FREE_TRIAL_COUNT, questions.length);
-  }
+  if (category.audience === 'adult') return Math.min(FREE_QUESTION_COUNT, questions.length);
+  // Kids and teen keep their rule until Unit 4: premium trial, else all of volume 1 (8 today).
+  if (category.tier === 'premium') return Math.min(LEGACY_PREMIUM_PUBLIC_COUNT, questions.length);
   return questions.filter((q) => getQuestionVolume(q) === 1).length;
 }
 
-/** Number of questions in the category that sit behind the unlock. */
+/** Number of questions in the category that sit behind an unlock. */
 export function getLockedQuestionCount(category: CategoryDef): number {
   return getCategoryQuestions(category.id).length - getFreeQuestionCount(category);
 }
 
-/** True when the category has anything to sell (premium, or has an expansion pack). */
+/** True when the category has anything to sell. */
 export function hasPaidContent(category: CategoryDef): boolean {
   return getLockedQuestionCount(category) > 0;
 }
@@ -1419,24 +1576,169 @@ export function getExpansionQuestions(categoryId: CategoryId): Question[] {
   return getCategoryQuestions(categoryId).filter((q) => getQuestionVolume(q) >= 2);
 }
 
+/** One paid slice of a category: positions are 1-based, inclusive. */
+export interface Tranche {
+  k: number;
+  first: number;
+  last: number;
+}
+
+/** Grown-up tranches end at multiples of this (20, 40, 60, ...). */
+export const TRANCHE_END_STEP = 20;
+/** A last tranche smaller than this joins the one before it. */
+export const MIN_TRANCHE_SIZE = 10;
+
 /**
- * Whether the question at `questionIndex` (position within the category's
- * ordered question list) is locked for a user who has / has not unlocked it.
+ * Cut points for a grown-up category with `n` questions and `free` free ones:
+ * tranche 1 is free+1 to 20, tranche k >= 2 is 20(k-1)+1 to 20k, all capped at n.
+ * A final tranche under MIN_TRANCHE_SIZE joins the previous one.
  */
-export function isQuestionLocked(
-  category: CategoryDef,
-  questionIndex: number,
-  categoryUnlocked: boolean,
-): boolean {
-  if (categoryUnlocked) return false;
-  return questionIndex >= getFreeQuestionCount(category);
+export function trancheBounds(n: number, free: number): Tranche[] {
+  const out: Tranche[] = [];
+  let first = free + 1;
+  for (let k = 1; first <= n; k++) {
+    const last = Math.min(TRANCHE_END_STEP * k, n);
+    if (last >= first) out.push({ k, first, last });
+    first = Math.max(last, first - 1) + 1;
+  }
+  const tail = out[out.length - 1];
+  if (out.length > 1 && tail.last - tail.first + 1 < MIN_TRANCHE_SIZE) {
+    out.pop();
+    out[out.length - 1].last = tail.last;
+  }
+  return out;
+}
+
+/** The paid tranches of a category, in order. Kids and teen have one paid tranche for now. */
+export function getTranches(category: CategoryDef): Tranche[] {
+  const n = getCategoryQuestions(category.id).length;
+  const free = getFreeQuestionCount(category);
+  if (category.audience !== 'adult') return n > free ? [{ k: 1, first: free + 1, last: n }] : [];
+  return trancheBounds(n, free);
+}
+
+/**
+ * What a player may open: `true` = everything (owner access, premium_all, a test
+ * unlock), `false` = only the free questions, or the set of owned tranche numbers.
+ */
+export type Access = boolean | ReadonlySet<number>;
+
+/**
+ * Whether the question at `questionIndex` (0-based position within the category's
+ * ordered list) is locked. Access is decided per tranche from the set of owned
+ * tranche numbers, never from a prefix or a count.
+ */
+export function isQuestionLocked(category: CategoryDef, questionIndex: number, access: Access): boolean {
+  if (access === true) return false;
+  if (questionIndex < getFreeQuestionCount(category)) return false;
+  if (access === false) return true;
+  const position = questionIndex + 1;
+  const tranche = getTranches(category).find((t) => position >= t.first && position <= t.last);
+  return !tranche || !access.has(tranche.k);
 }
 
 /** Questions the user can play right now, in category order. */
-export function getAccessibleQuestions(category: CategoryDef, categoryUnlocked: boolean): Question[] {
-  const questions = getCategoryQuestions(category.id);
-  if (categoryUnlocked) return questions;
-  return questions.slice(0, getFreeQuestionCount(category));
+export function getAccessibleQuestions(category: CategoryDef, access: Access): Question[] {
+  return getCategoryQuestions(category.id).filter((_, i) => !isQuestionLocked(category, i, access));
+}
+
+/**
+ * Highest tranche number that has a store product today. Step F5 creates the `_2` products and raises it.
+ * Until then the tranche-2 buttons are disabled (the web free unlock still opens everything).
+ */
+export const SELLABLE_TRANCHE_MAX = 1;
+
+/** The first paid tranche the player does not own yet, or undefined when nothing locked remains. */
+export function getNextTranche(category: CategoryDef, access: Access): Tranche | undefined {
+  if (access === true) return undefined;
+  return getTranches(category).find((t) => access === false || !access.has(t.k));
+}
+
+/** True when `questionIndex` (0-based) is the first question of a paid tranche. */
+export function isTrancheStart(category: CategoryDef, questionIndex: number): boolean {
+  return getTranches(category).some((t) => t.first - 1 === questionIndex);
+}
+
+/**
+ * How many questions from the start are open without a gap: the free set plus consecutive owned
+ * tranches. This is what "completed" means on the complete screen. A tranche owned after a gap
+ * (a refunded tranche 1 with tranche 2 kept) is not counted: those questions were not played.
+ */
+export function openPrefixCount(category: CategoryDef, access: Access): number {
+  const n = getCategoryQuestions(category.id).length;
+  let i = 0;
+  while (i < n && !isQuestionLocked(category, i, access)) i++;
+  return i;
+}
+
+/** True when the player owns at least one paid tranche (or everything). */
+export function hasAnyTranche(access: Access): boolean {
+  return access === true || (access instanceof Set && access.size > 0);
+}
+
+/**
+ * True only for the exact last-open to first-locked step: the current question is open
+ * and the next one starts a paid tranche. A share recipient on a locked question is not
+ * "finishing" anything, so they go to the paywall instead of the complete screen.
+ */
+export function endsOpenSet(category: CategoryDef, currentIdx: number, access: Access): boolean {
+  return (
+    !isQuestionLocked(category, currentIdx, access) &&
+    isQuestionLocked(category, currentIdx + 1, access) &&
+    isTrancheStart(category, currentIdx + 1)
+  );
+}
+
+/** Size of a tranche in questions. */
+export function trancheSize(t: Tranche): number {
+  return t.last - t.first + 1;
+}
+
+/** True while at least one question in the category is still locked for this player. */
+export function hasLockedRemaining(category: CategoryDef, access: Access): boolean {
+  return getNextTranche(category, access) !== undefined;
+}
+
+/**
+ * How many questions each category publishes to search engines and in category JSON-LD.
+ * Pinned per category id on purpose: it must not move when a category is retagged or the
+ * free count changes (Tim, 2026-11-25: questions 6 to 20 of Moral Compass, Social Blunders,
+ * Career Climber and Tech Dystopia stay public). Premium grown-up categories publish 3,
+ * those four publish their 20 volume-1 questions, kids and teen publish 8. A category
+ * not listed here falls back to its free count.
+ */
+export const PUBLIC_QUESTION_COUNTS: Readonly<Partial<Record<CategoryId, number>>> = {
+  'high-life': 3,
+  'midnight-secrets': 3,
+  'time-traveler': 3,
+  'deep-desires': 3,
+  'wildest-dreams': 3,
+  'moral-compass': 20,
+  'social-blunders': 20,
+  'career-climber': 20,
+  'tech-dystopia': 20,
+  'tiny-choices': 8,
+  'make-believe': 8,
+  'giggle-factory': 8,
+  'road-trip-rally': 8,
+  'dinner-table': 8,
+  'heart-to-heart': 8,
+  'future-me': 8,
+  'real-talk': 8,
+  'holiday-table': 8,
+};
+
+export function getPublicQuestionCount(category: CategoryDef): number {
+  const n = getCategoryQuestions(category.id).length;
+  return Math.min(PUBLIC_QUESTION_COUNTS[category.id] ?? getFreeQuestionCount(category), n);
+}
+
+export function isQuestionPublic(category: CategoryDef, questionIndex: number): boolean {
+  return questionIndex < getPublicQuestionCount(category);
+}
+
+export function getPublicQuestions(category: CategoryDef): Question[] {
+  return getCategoryQuestions(category.id).slice(0, getPublicQuestionCount(category));
 }
 
 /** @deprecated use isQuestionLocked — kept for callers on older branches. */

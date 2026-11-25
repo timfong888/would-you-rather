@@ -13,10 +13,12 @@
 import { existsSync, readFileSync } from 'fs';
 import { isDeepStrictEqual } from 'util';
 import { resolve } from 'path';
-import { CATEGORIES, QUESTIONS, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
+import { CATEGORIES, QUESTIONS, getCategoryAudience, getCategoryQuestions, isKidsCategoryId, isQuestionPublic } from '../constants/questions';
 import { SEO, SITE_URL } from '../constants/config';
-import { KIDS_CATEGORY, SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage } from '../constants/seoPages';
+import { SEO_PAGES, getRelatedSeoPages, getSeoPageQuestions, isKidsPage, listsFullWrittenSet } from '../constants/seoPages';
 import { CANONICAL_ORIGIN } from '../lib/site';
+import { SEO_QUESTION_PAGES, SEO_CATEGORY_CTA_IDS, isSeoBatchId } from '../lib/seoBatch';
+import { GUIDES, guideQuestionIds } from '../lib/guides';
 import { categoriesIndexJsonLd, categoryJsonLd, homeJsonLd, landingPageJsonLd } from '../lib/seo';
 
 const ROOT = resolve(__dirname, '..');
@@ -76,17 +78,18 @@ for (const page of SEO_PAGES) {
   for (const q of questions) {
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
-    if (isQuestionLocked(cat, idx, false)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
+    // D4: kids pages list their full written set, locked or not (constants/seoPages.ts).
+    if (!listsFullWrittenSet(page) && !isQuestionPublic(cat, idx)) fail(`registry: "${page.slug}" lists locked question ${q.id}`);
   }
 
   // Child safety: a kids page lists only Kids & Family questions, its play flow stays in that
   // bank (the game's "next" walks the question's own category), and it links only to kids pages.
   if (isKidsPage(page)) {
-    if (page.categoryIds.length !== 1 || page.categoryIds[0] !== KIDS_CATEGORY) {
-      fail(`kids: "${page.slug}" must draw only from ${KIDS_CATEGORY} (has ${page.categoryIds.join(', ')})`);
+    for (const id of page.categoryIds) {
+      if (!isKidsCategoryId(id)) fail(`kids: "${page.slug}" must draw only from kids-audience categories (has ${id})`);
     }
     for (const q of questions) {
-      if (q.category !== KIDS_CATEGORY) fail(`kids: "${page.slug}" lists ${q.id} from ${q.category}, outside the kids bank`);
+      if (!isKidsCategoryId(q.category)) fail(`kids: "${page.slug}" lists ${q.id} from ${q.category}, outside the kids bank`);
     }
     const { samePersona, other } = getRelatedSeoPages(page);
     for (const p of [...samePersona, ...other]) {
@@ -122,6 +125,7 @@ const rewrites: { source: string; destination: string }[] = JSON.parse(read('ver
 const needsRewrite = [
   ...SEO_PAGES.map((p) => `/${p.slug}`),
   '/categories',
+  '/kids',
 ];
 for (const source of needsRewrite) {
   const r = rewrites.find((x) => x.source === source);
@@ -137,18 +141,47 @@ if (new Set(locs).size !== locs.length) fail('sitemap: duplicate <loc> entries')
 for (const loc of locs) if (new URL(loc).host !== host) fail(`sitemap: ${loc} is not on ${host} (EXPO_PUBLIC_SITE_URL)`);
 const locSet = new Set(locs);
 const url = (path: string) => `${SITE_URL}${path === '/' ? '' : path}`;
-for (const path of ['/', '/categories', ...CATEGORIES.map((c) => `/categories/${c.id}`), ...SEO_PAGES.map((p) => `/${p.slug}`)]) {
+for (const path of ['/', '/categories', '/kids', ...CATEGORIES.map((c) => `/categories/${c.id}`), ...SEO_PAGES.map((p) => `/${p.slug}`)]) {
   if (!locSet.has(url(path))) fail(`sitemap: missing ${url(path)}`);
 }
 const lockedGameUrls = new Set<string>();
 const freeGameUrls = new Set<string>();
 for (const cat of CATEGORIES) {
   getCategoryQuestions(cat.id).forEach((q, i) =>
-    (isQuestionLocked(cat, i, false) ? lockedGameUrls : freeGameUrls).add(url(`/game/${q.id}`)),
+    (!isQuestionPublic(cat, i) ? lockedGameUrls : freeGameUrls).add(url(`/game/${q.id}`)),
   );
 }
 for (const loc of locs) if (lockedGameUrls.has(loc)) fail(`sitemap: lists locked question URL ${loc}`);
-for (const loc of freeGameUrls) if (!locSet.has(loc)) fail(`sitemap: missing playable question URL ${loc}`);
+// A question with a read-only page (SEO_QUESTION_PAGES) is indexed at /q/<id>; its playable /game/<id> is out of the sitemap (it
+// canonicalises to /q/<id>). Every question that is free today has such a page, except Midnight Secrets and Deep Desires, which are
+// left out on purpose. No /game/<id> URL is listed at all, so the sitemap does not depend on the free count (S3).
+for (const loc of freeGameUrls) {
+  const id = loc.slice(loc.lastIndexOf('/') + 1);
+  if (locSet.has(loc)) fail(`sitemap: lists ${loc}; playable question URLs are not indexed (read-only pages are)`);
+  if (!isSeoBatchId(id) && !['midnight-secrets', 'deep-desires'].includes(QUESTIONS.find((q) => q.id === id)?.category ?? '')) {
+    fail(`seo batch: ${id} is free today but has no read-only page (lib/seoBatch.js)`);
+  }
+}
+for (const g of GUIDES) {
+  if (!locSet.has(url(`/guides/${g.slug}`))) fail(`sitemap: missing guide /guides/${g.slug}`);
+  for (const id of guideQuestionIds(g)) if (!isSeoBatchId(id)) fail(`guide ${g.slug}: ${id} has no read-only question page (not in SEO_QUESTION_PAGES, lib/seoBatch.js)`);
+  if (g.kids) for (const id of guideQuestionIds(g)) {
+    if (!isKidsCategoryId(QUESTIONS.find((q) => q.id === id)?.category ?? '')) fail(`kids: guide "${g.slug}" lists ${id}, outside the kids bank`);
+  }
+}
+for (const id of SEO_QUESTION_PAGES) {
+  if (!QUESTIONS.some((q) => q.id === id)) fail(`seo batch: ${id} is not a question`);
+  if (!locSet.has(url(`/q/${id}`))) fail(`sitemap: missing read-only question page /q/${id}`);
+}
+
+// The canonical for a playable /game/<id> whose question has a read-only page must be in the server response (vercel.json Link header).
+{
+  const vercel = JSON.parse(read('vercel.json')) as { headers: { source: string; headers: { key: string; value: string }[] }[] };
+  const link = new Map(vercel.headers.map((h) => [h.source, h.headers.find((x) => x.key === 'Link')?.value]));
+  for (const id of SEO_QUESTION_PAGES) {
+    if (link.get(`/game/${id}`) !== `<${CANONICAL_ORIGIN}/q/${id}>; rel="canonical"`) fail(`vercel.json: no canonical Link header on /game/${id} (run node scripts/sync-vercel-canonicals.mjs)`);
+  }
+}
 
 const robots = read('public/robots.txt');
 if (!robots.split('\n').some((l) => l.trim() === `Sitemap: ${SITE_URL}/sitemap.xml`)) {
@@ -185,10 +218,13 @@ const unescape = (s: string | undefined) =>
   s?.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
 if (withDist) {
+  // Kids pages publish their full written set on purpose (D4), so those texts are not "locked leaks".
+  const publicByDesign = new Set(SEO_PAGES.filter(listsFullWrittenSet).flatMap((p) => getSeoPageQuestions(p).map((q) => q.id)));
   const lockedTexts = QUESTIONS.flatMap((q) => {
+    if (publicByDesign.has(q.id)) return [];
     const cat = CATEGORIES.find((c) => c.id === q.category)!;
     const idx = getCategoryQuestions(cat.id).findIndex((x) => x.id === q.id);
-    return isQuestionLocked(cat, idx, false) ? [q.optionA, q.optionB] : [];
+    return !isQuestionPublic(cat, idx) ? [q.optionA, q.optionB] : [];
   });
 
   const pages = [
@@ -240,16 +276,19 @@ if (withDist) {
     // link only to kids destinations.
     if (page && isKidsPage(page)) {
       // Allowlist, not a denylist: every same-site link on a kids page must be the home page,
-      // the kids category, a kids game question, another kids page, or a static asset.
-      const kidsIds = new Set(QUESTIONS.filter((q) => q.category === KIDS_CATEGORY).map((q) => q.id));
+      // the kids category, a kids game question or its read-only page, another kids page, or a static asset.
+      const kidsIds = new Set(QUESTIONS.filter((q) => isKidsCategoryId(q.category)).map((q) => q.id));
       const kidsSlugs = new Set(SEO_PAGES.filter(isKidsPage).map((sp) => sp.slug));
       for (const path of linkedPaths(html)) {
         const bare = path.replace(/\/+$/, '').replace(/\.html$/, '') || '/';
         const game = bare.match(/^\/game\/([^/]+)$/);
+        // A kids question's read-only page (no script, no tracking) is a kids destination too (S3).
+        const qPage = bare.match(/^\/q\/([^/]+)$/);
         const ok =
           bare === '/' ||
-          bare === `/categories/${KIDS_CATEGORY}` ||
+          (bare.startsWith('/categories/') && isKidsCategoryId(bare.slice('/categories/'.length))) ||
           (game !== null && kidsIds.has(game[1])) ||
+          (qPage !== null && kidsIds.has(qPage[1])) ||
           kidsSlugs.has(bare.slice(1)) ||
           /^\/(_expo|assets)\//.test(bare) ||
           /\.(ico|png|svg|jpe?g|webp|css|js|json|xml|txt|woff2?)$/.test(bare);
@@ -280,7 +319,7 @@ if (withDist) {
   // Category pages are rendered client-side from one template; check the builder
   // still produces valid, locked-text-free markup for every category.
   for (const cat of CATEGORIES) {
-    const free = getCategoryQuestions(cat.id).filter((_, i) => !isQuestionLocked(cat, i, false));
+    const free = getCategoryQuestions(cat.id).filter((_, i) => isQuestionPublic(cat, i));
     const ld = JSON.stringify(categoryJsonLd(cat, free));
     for (const text of lockedTexts) if (ld.includes(text)) { fail(`categoryJsonLd(${cat.id}) contains locked text`); break; }
   }
@@ -312,6 +351,62 @@ if (withDist) {
     if (!meta(html, 'name', 'twitter:image')) fail(`${c.file}: twitter:image is missing`);
     if (!/<link[^>]*rel="apple-touch-icon"/.test(html)) fail(`${c.file}: apple-touch-icon link is missing`);
     if (!/<link[^>]*rel="(shortcut )?icon"/.test(html)) fail(`${c.file}: favicon link is missing`);
+  }
+}
+
+if (withDist) {
+  // Read-only question pages (docs/specs/seo-question-pages.md): exported, canonical to themselves, no script but JSON-LD, no form or vote control.
+  for (const id of SEO_QUESTION_PAGES) {
+    const file = `dist/q/${id}.html`;
+    if (!existsSync(resolve(ROOT, file))) { fail(`dist: ${file} was not exported`); continue; }
+    const html = read(file);
+    if (tag(html, /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${file}: canonical is not ${url(`/q/${id}`)}`);
+    if (/<script(?![^>]*application\/ld\+json)/i.test(html)) fail(`${file}: has a script other than JSON-LD (the page is read-only)`);
+    if (/<(button|form|input|select|textarea)\b/i.test(html)) fail(`${file}: has a form or vote control (the page is read-only)`);
+    if (SEO_CATEGORY_CTA_IDS.includes(id)) {
+      // Paid-tier question: the page leads to the category's free questions, never straight to a paywall.
+      const catId = QUESTIONS.find((x) => x.id === id)?.category;
+      // The breadcrumb also links the category, so match the call-to-action element itself.
+      if (!html.includes(`<a class="cta" href="${SITE_URL}/categories/${catId}"`)) fail(`${file}: call to action does not link to the category's free questions`);
+      if (html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: paid question links straight to its playable screen (the paywall)`);
+    } else if (!html.includes(`${SITE_URL}/game/${id}`)) fail(`${file}: has no link into the playable web app`);
+    const q = QUESTIONS.find((x) => x.id === id);
+    if (q && getCategoryAudience(q.category) !== 'adult') {
+      // kids and teen pages alike (the generator and the unit test use the same rule)
+      for (const m of html.matchAll(/<a [^>]*href="([^"]+)"/g)) {
+        const href = m[1];
+        if (!href.startsWith(SITE_URL)) continue;
+        const path = href.slice(SITE_URL.length) || '/';
+        const ok = path === '/kids' || path.startsWith('/game/') || path.startsWith('/q/') || path.startsWith('/categories/') || SEO_PAGES.some((p) => `/${p.slug}` === path && isKidsPage(p));
+        if (!ok) fail(`${file}: kids question page links to ${path}, which is not a kids destination`);
+      }
+    }
+  }
+  // Pillar guides (issue #211): exported, canonical to themselves, read-only, keyword in title and h1, links to every listed question page.
+  for (const g of GUIDES) {
+    const file = `dist/guides/${g.slug}.html`;
+    if (!existsSync(resolve(ROOT, file))) { fail(`dist: ${file} was not exported`); continue; }
+    const html = read(file);
+    if (tag(html, /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/guides/${g.slug}`)) fail(`${file}: canonical is not ${url(`/guides/${g.slug}`)}`);
+    if (/<script(?![^>]*application\/ld\+json)/i.test(html)) fail(`${file}: has a script other than JSON-LD`);
+    if (/<(button|form|input|select|textarea)\b/i.test(html)) fail(`${file}: has a form or vote control`);
+    if ((html.match(/<h1>/g) ?? []).length !== 1) fail(`${file}: expected exactly one <h1>`);
+    if (!(unescape(tag(html, /<title[^>]*>([^<]*)<\/title>/)) ?? '').toLowerCase().includes(g.keyword)) fail(`${file}: title does not contain "${g.keyword}"`);
+    if (!(unescape(tag(html, /<h1>([^<]*)<\/h1>/)) ?? '').toLowerCase().includes(g.keyword)) fail(`${file}: h1 does not contain "${g.keyword}"`);
+    for (const id of guideQuestionIds(g)) if (!html.includes(`href="${SITE_URL}/q/${id}"`)) fail(`${file}: does not link to /q/${id}`);
+    if (g.kids) {
+      for (const m of html.matchAll(/<a [^>]*href="([^"]+)"/g)) {
+        if (!m[1].startsWith(SITE_URL)) continue;
+        const path = m[1].slice(SITE_URL.length) || '/';
+        const ok = path === '/kids' || path.startsWith('/q/') || path.startsWith('/categories/') || path.startsWith('/guides/') || SEO_PAGES.some((p) => `/${p.slug}` === path && isKidsPage(p));
+        if (!ok) fail(`${file}: kids guide links to ${path}, which is not a kids destination`);
+      }
+    }
+  }
+  // The playable page and the legacy share page point their canonical at the read-only page.
+  for (const id of SEO_QUESTION_PAGES) {
+    const share = `dist/p/${id}.html`;
+    if (existsSync(resolve(ROOT, share)) && tag(read(share), /<link[^>]*rel="canonical"[^>]*href="([^"]*)"/) !== url(`/q/${id}`)) fail(`${share}: canonical is not ${url(`/q/${id}`)}`);
   }
 }
 

@@ -10,15 +10,18 @@
  * Where the pages come from: docs/seo/keyword-research-2026-11.md (one page per
  * search-intent cluster) and the process in docs/seo-content-skill.md.
  *
- * Only questions a first-time visitor can play for free are ever listed
- * (getAccessibleQuestions with categoryUnlocked = false), so the pages never
- * publish locked expansion or premium text.
+ * Adult pages list only questions a first-time visitor can play for free
+ * (getPublicQuestions: the public rule frozen before #238 until step F3), so they never publish
+ * locked expansion or premium text. Kids pages are the one exception (decision D4,
+ * docs/specs/kids-family-categories.md §7): they list their full written set, which
+ * is already public and indexed. The paywall gates the in-app category run, new
+ * writing and AI, not these pages.
  */
 import {
   CATEGORIES,
   DARING,
   QUESTIONS,
-  getAccessibleQuestions,
+  getPublicQuestions,
   type CategoryDef,
   type CategoryId,
   type Question,
@@ -70,7 +73,7 @@ export interface SeoPageDef {
   listHeading?: string;
   /**
    * Draw the page's questions from the questions tagged with this value
-   * (the Kids & Family bank). Takes precedence over categoryIds.
+   * (the kids bank), found within `categoryIds` (the first one is where the page's play button goes).
    */
   questionTag?: string;
   /** Otherwise: categories to draw from, listed round-robin so the page stays varied. */
@@ -116,7 +119,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '25 "Would You Rather" Questions for Kids',
     questionTag: 'kids',
-    categoryIds: ['kids-family'],
+    categoryIds: ['make-believe'],
     limit: 25,
     keywords: ['would you rather questions for kids', 'kids would you rather questions', 'would you rather for kids'],
   },
@@ -150,7 +153,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '20 Funny "Would You Rather" Questions',
     questionTag: 'funny',
-    categoryIds: ['kids-family'],
+    categoryIds: ['giggle-factory'],
     limit: 20,
     keywords: ['funny would you rather questions for kids', 'silly would you rather questions for kids', 'funny would you rather questions'],
   },
@@ -185,7 +188,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '20 Questions for Ages 4–6',
     questionTag: 'little',
-    categoryIds: ['kids-family'],
+    categoryIds: ['tiny-choices'],
     limit: 20,
     keywords: ['would you rather questions for kindergarten', 'would you rather questions for preschoolers', 'would you rather questions for 5 year olds'],
   },
@@ -220,7 +223,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '20 Questions for Grades 1–5',
     questionTag: 'elementary',
-    categoryIds: ['kids-family'],
+    categoryIds: ['dinner-table', 'make-believe', 'future-me'],
     limit: 20,
     keywords: ['would you rather questions for elementary students', 'would you rather questions for first graders', 'would you rather questions for 3rd graders'],
   },
@@ -254,7 +257,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '15 Gross "Would You Rather" Questions',
     questionTag: 'gross',
-    categoryIds: ['kids-family'],
+    categoryIds: ['giggle-factory'],
     limit: 15,
     keywords: ['gross would you rather questions', 'gross would you rather questions for kids', 'disgusting would you rather questions'],
   },
@@ -288,7 +291,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '20 This or That Questions',
     questionTag: 'this-or-that',
-    categoryIds: ['kids-family'],
+    categoryIds: ['giggle-factory'],
     limit: 20,
     keywords: ['this or that questions for kids', 'this or that for kids', 'this or that questions'],
   },
@@ -322,7 +325,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '15 Thanksgiving Questions',
     questionTag: 'thanksgiving',
-    categoryIds: ['kids-family'],
+    categoryIds: ['holiday-table'],
     limit: 15,
     keywords: ['thanksgiving would you rather questions', 'thanksgiving would you rather questions for kids', 'thanksgiving games for family'],
   },
@@ -356,7 +359,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '18 Christmas Questions',
     questionTag: 'christmas',
-    categoryIds: ['kids-family'],
+    categoryIds: ['holiday-table'],
     limit: 18,
     keywords: ['christmas would you rather questions for kids', 'christmas would you rather questions', 'christmas games for kids'],
   },
@@ -391,7 +394,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '20 Family "Would You Rather" Questions',
     questionTag: 'family',
-    categoryIds: ['kids-family'],
+    categoryIds: ['dinner-table'],
     limit: 20,
     keywords: ['would you rather questions for family', 'family would you rather questions', 'would you rather questions for family game night'],
   },
@@ -426,7 +429,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '20 Family Dinner Questions',
     questionTag: 'dinner',
-    categoryIds: ['kids-family'],
+    categoryIds: ['dinner-table', 'heart-to-heart'],
     limit: 20,
     keywords: ['family dinner questions', 'dinner table conversation starters', 'dinner conversation starters for families'],
   },
@@ -461,7 +464,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '20 Road Trip Questions',
     questionTag: 'road-trip',
-    categoryIds: ['kids-family'],
+    categoryIds: ['road-trip-rally'],
     limit: 20,
     keywords: ['road trip would you rather questions', 'road trip games for kids', 'car games for kids'],
   },
@@ -495,7 +498,7 @@ export const SEO_PAGES: SeoPageDef[] = [
     ],
     listHeading: '10 Questions to Start With',
     questionTag: 'app',
-    categoryIds: ['kids-family'],
+    categoryIds: ['make-believe'],
     limit: 10,
     keywords: ['would you rather app', 'would you rather game online', 'free would you rather game'],
   },
@@ -552,10 +555,12 @@ export function getSeoPage(slug: string): SeoPageDef | undefined {
 /** Other pages for the same persona, then the rest: the page's internal links. */
 /**
  * Kids pages: written for parents and played by children (ages 4–11). They list and link
- * only to the Kids & Family bank and to other kids pages. `verify-seo` enforces this.
+ * only to kids-audience categories (`isKidsCategoryId`) and to other kids pages. `verify-seo` enforces this.
  */
-export const KIDS_CATEGORY: CategoryId = 'kids-family';
 export const isKidsPage = (page: SeoPageDef): boolean => page.persona === 'parents';
+
+/** Kids pages are tagged to the kids bank and (D4) list that bank's full written set. */
+export const listsFullWrittenSet = (page: SeoPageDef): boolean => isKidsPage(page) && !!page.questionTag;
 
 export function getRelatedSeoPages(page: SeoPageDef): { samePersona: SeoPageDef[]; other: SeoPageDef[] } {
   const others = SEO_PAGES.filter((p) => p.slug !== page.slug);
@@ -567,28 +572,31 @@ export function getRelatedSeoPages(page: SeoPageDef): { samePersona: SeoPageDef[
 }
 
 /**
- * The free, playable questions for a page.
+ * The questions a page lists.
  *
- * Tagged pages take the questions written for them (in bank order). Otherwise
- * questions are drawn round-robin across the page's categories, so a
+ * Tagged kids pages take the questions written for them, free or not (D4), in bank order. Otherwise
+ * only free, playable questions are listed, drawn round-robin across the page's categories, so a
  * three-category page is not twenty questions from the first.
  */
 export function getSeoPageQuestions(page: SeoPageDef): Question[] {
   if (page.questionTag) {
+    const categories = new Set(page.categoryIds as string[]);
+    const written = (q: Question) => categories.has(q.category) && q.tags?.includes(page.questionTag!);
+    if (listsFullWrittenSet(page)) return QUESTIONS.filter(written).slice(0, page.limit);
     const free = new Set(
       page.categoryIds
         .map((id) => CATEGORIES.find((c): c is CategoryDef => c.id === id))
         .filter((c): c is CategoryDef => c !== undefined)
-        .flatMap((c) => getAccessibleQuestions(c, false))
+        .flatMap((c) => getPublicQuestions(c))
         .map((q) => q.id),
     );
-    return QUESTIONS.filter((q) => free.has(q.id) && q.tags?.includes(page.questionTag!)).slice(0, page.limit);
+    return QUESTIONS.filter((q) => free.has(q.id) && written(q)).slice(0, page.limit);
   }
 
   const pools = page.categoryIds
     .map((id) => CATEGORIES.find((c): c is CategoryDef => c.id === id))
     .filter((c): c is CategoryDef => c !== undefined)
-    .map((c) => getAccessibleQuestions(c, false));
+    .map((c) => getPublicQuestions(c));
 
   const picked: Question[] = [];
   for (let round = 0; picked.length < page.limit; round++) {

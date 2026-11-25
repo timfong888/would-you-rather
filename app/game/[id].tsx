@@ -9,13 +9,15 @@ import {
   Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
+import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, endsOpenSet } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import JsonLd from '@/components/JsonLd';
 import { questionPageJsonLd } from '@/lib/seo';
+import { isSeoBatchId } from '@/lib/seoBatch';
 import OptionButton from '@/components/OptionButton';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
@@ -25,6 +27,7 @@ import { useThemedStyles } from '@/contexts/ThemeContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl, trackVoteForActivation } from '@/lib/analytics';
 import { shareLink, shareEvents, SHARE_FEEDBACK } from '@/lib/shareQuestion';
+import { SHARE_PROMPT } from '@/lib/shareInvite';
 import { decodeFriend, matchOutcome, pickLine, headingFor, shareText, uiText, matchEvent } from '@/lib/matchShare';
 import { castVote, fetchTally, getLockedChoice } from '@/lib/votes';
 import { reconcileChoice } from '@/lib/votes-core';
@@ -55,7 +58,7 @@ function legacyCopy(value: string): boolean {
 export default function GameScreen() {
   const { id, cat, idx, link_id, f } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string; f: string }>();
   const router = useRouter();
-  const { isUnlocked, entitlementsLoaded } = useUnlocked();
+  const { openTranches, entitlementsLoaded } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -101,7 +104,7 @@ export default function GameScreen() {
   const friend = decodeFriend(f);
   const friendPick = friend === 'A' || friend === 'B' ? friend : null;
   const arrivedViaShare = (typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id)) || friend !== null;
-  const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
+  const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, openTranches(category)));
   const gate = questionGate({ locked: currentLocked, arrivedViaShare, entitlementsLoaded });
   // A buyer's entitlements arrive asynchronously (RevenueCat). Until the first
   // fetch settles, a locked-looking question may belong to a paid category, so
@@ -141,7 +144,7 @@ export default function GameScreen() {
   // Share the question: before confirming ("challenge a friend first") and after
   // (the "send it to someone" prompt). Works in every category. The Kids & Family
   // category sends no analytics at all (the shared link is the bare question URL: no link_id or generation).
-  const isKidsCategory = catId === 'kids-family';
+  const isKidsCategory = !!catId && isKidsCategoryId(catId);
   const runShare = useCallback(async (shareUrl: string, text: string, copyMessage = false) => {
     const web = Platform.OS === 'web' && typeof navigator !== 'undefined';
     const result = await shareLink({
@@ -181,9 +184,9 @@ export default function GameScreen() {
       track(ev.name, ev.props);
     }
 
-    const intro = shareText(isKidsCategory, myPick === 'ask' ? 'first_before' : 'first_after');
-    await runShare(shareUrl, `${intro}\n${question?.optionA} — OR — ${question?.optionB}`);
-  }, [question, id, selected, confirmed, incomingGeneration, incomingLinkId, visitorId, isKidsCategory, runShare]);
+    // The link card shows the question, so the text is only an invitation (#186).
+    await runShare(shareUrl, SHARE_PROMPT);
+  }, [question, catId, id, selected, confirmed, incomingGeneration, incomingLinkId, visitorId, isKidsCategory, runShare]);
 
   // Match share (#92): once this player has an answer, compare it with the friend's pick
   // from the link. Computed in the browser only; nothing is stored or sent.
@@ -256,20 +259,15 @@ export default function GameScreen() {
   const isLastInCategory = catId ? currentIdx >= totalInCategory - 1 : false;
   const nextIdx = currentIdx + 1;
   const nextQuestion = catId && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
-  // Is the next question behind the unlock? (premium trial ended, or the free
-  // set of a free category is finished and the expansion pack starts.)
-  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, isUnlocked(category.id)));
-  // Finishing the free set of a free category is a real milestone: celebrate
-  // it on the complete screen (which carries the expansion upsell) instead of
-  // dropping straight onto the paywall. Premium trials keep the direct paywall.
-  // Only the exact last-free → first-locked step counts: someone who arrived
-  // via a share link on an expansion question and continues goes to the
-  // paywall, not to a "you finished the free set" screen they never played.
-  const endsFreeSet =
-    nextLocked &&
-    category !== undefined &&
-    category.tier === 'free' &&
-    currentIdx + 1 === getFreeQuestionCount(category);
+  // Is the next question behind the unlock? (the free set or an owned tranche has ended)
+  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, openTranches(category)));
+  // Reaching the end of the free set or of an owned tranche is a real milestone:
+  // celebrate it on the complete screen (which carries the upsell for the next
+  // tranche) instead of dropping straight onto the paywall. Only the exact
+  // last-open → first-locked step counts: someone who arrived via a share link
+  // on a locked question and continues goes to the paywall, not to a "you
+  // finished" screen they never played.
+  const endsFreeSet = category !== undefined && endsOpenSet(category, currentIdx, openTranches(category));
 
   // Funnel events for someone who opened a shared link (#134). Kids items send nothing.
   const trackRecipient = (action: RecipientAction, surface?: string, outcomeNow = outcome) => {
@@ -407,12 +405,12 @@ export default function GameScreen() {
       }
       router.push(`/game/${nextQuestion.id}?cat=${catId}&idx=${nextIdx}`);
     } else {
-      router.push('/categories');
+      router.push(browseHrefFor(catId));
     }
   };
 
   const handleLeaveCategory = () => {
-    router.push('/categories');
+    router.push(browseHrefFor(catId));
   };
 
   // Real percentages only, from the server, at or above the vote threshold.
@@ -435,11 +433,12 @@ export default function GameScreen() {
       <PageHead
         title={truncatedTitle}
         description={pageDescription.slice(0, 200)}
-        canonicalUrl={`${SITE_URL}/game/${question.id}`}
+        // A question with a read-only page (/q/<id>) is indexed there; this playable page points at it (docs/specs/seo-question-pages.md).
+        canonicalUrl={`${SITE_URL}${isSeoBatchId(question.id) ? '/q/' : '/game/'}${question.id}`}
         imageUrl={`${SITE_URL}/api/card?id=${encodeURIComponent(question.id)}&ratio=1.91x1`}
         twitterCard="summary_large_image"
       />
-      <JsonLd data={questionPageJsonLd(question, category)} />
+      {!isSeoBatchId(question.id) && <JsonLd data={questionPageJsonLd(question, category)} />}
       {/* Leave Category Link */}
       {category && (
         <Pressable

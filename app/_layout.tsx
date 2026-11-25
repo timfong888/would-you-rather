@@ -113,6 +113,13 @@ function AppLayout() {
           }}
         />
         <Stack.Screen
+          name="kids/index"
+          options={{
+            title: 'With kids',
+            headerBackTitle: 'Home',
+          }}
+        />
+        <Stack.Screen
           name="categories/[id]"
           options={{
             title: 'Category',

@@ -13,6 +13,7 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
+import { CATEGORIES, QUESTIONS } from '../../api/_lib/data.js';
 const HOST = process.env.APP_HOST || 'http://localhost:4175';
 const results = [];
 const check = (ok, label, extra = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); };
@@ -84,11 +85,62 @@ const browser = await chromium.launch();
   } } catch {} });
   const page = await ctx.newPage();
   await page.route(/posthog\.com|\/api\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
-  await page.goto(`${HOST}/categories/kids-family`, { waitUntil: 'networkidle' });
+  await page.goto(`${HOST}/categories/tiny-choices`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
   const left = await page.evaluate(() => ({ voted: localStorage.getItem('wyr_voted_v1'), answered: localStorage.getItem('wyr_answered_questions'), pending: localStorage.getItem('wyr_pending_votes') }));
   check(!/kf-/.test(JSON.stringify(left)), 'kids route: older stored kids answers are purged', JSON.stringify(left));
   check(left.voted === JSON.stringify({ 'hl-1': 'B' }), 'kids route: adult answers are kept', String(left.voted));
+  await ctx.close();
+}
+// Every kids category (audience 'kids', read from the data, so a new one is covered the day it exists): its category,
+// end-of-category, unlock (parental gate) and result routes, and its first question. Each in a fresh browser with an
+// ID already stored: nothing is sent, the ID is removed, nothing is stored, no cookie.
+// Real Talk (audience 'teen') follows the adult rules: analytics on, ID persisted.
+{
+  const kidsCats = CATEGORIES.filter((c) => c.audience === 'kids');
+  const teenCats = CATEGORIES.filter((c) => c.audience === 'teen');
+  check(kidsCats.length === 8 && teenCats.length === 1, 'data: 8 kids categories and 1 teen category', `${kidsCats.length}/${teenCats.length}`);
+  for (const c of kidsCats) {
+    const first = QUESTIONS.find((q) => q.category === c.id);
+    for (const route of [`/categories/${c.id}`, `/complete/${c.id}`, `/unlock/${c.id}`, `/game/${first.id}`, `/results/${first.id}`]) {
+      const { ctx, page, ph, events } = await player(browser, 'pre-existing-adult-id');
+      await page.goto(`${HOST}${route}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1200);
+      const stored = await page.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter((k) => /^(wyr_|ph_)/.test(k)));
+      const ok = events.length === 0 && ph.length === 0 && (await vid(page)) === null && stored.length === 0 && (await ctx.cookies()).length === 0;
+      check(ok, `kids ${c.id}: ${route} sends nothing, keeps no ID, stores nothing`, ok ? '' : JSON.stringify({ events, ph: ph.length, vid: await vid(page), stored }));
+      await ctx.close();
+    }
+  }
+  for (const c of teenCats) {
+    for (const route of [`/categories/${c.id}`, `/game/${QUESTIONS.find((q) => q.category === c.id).id}`]) {
+      const { ctx, page, events } = await player(browser);
+      await page.goto(`${HOST}${route}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1500);
+      check(events.includes('session_start') && !!(await vid(page)), `teen ${c.id}: ${route} follows the adult rules (events fire, ID persisted)`, events.join(','));
+      await ctx.close();
+    }
+  }
+}
+// With kids browse screen (/kids): a kids route. Loading it, switching age chips and tapping "pick one for me" sends
+// nothing, keeps no ID, stores nothing, sets no cookie. The chip choice is not persisted.
+{
+  const { ctx, page, ph, events } = await player(browser, 'pre-existing-adult-id');
+  await page.goto(`${HOST}/kids`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  for (const label of ['3–5', '6–9', '10–12', '13–17', 'All']) {
+    await page.getByRole('radio', { name: label === 'All' ? 'All ages' : `Ages ${label}` }).click();
+    await page.waitForTimeout(150);
+  }
+  check((await page.getByText('Ages 3–5').count()) >= 1, 'kids browse: age labels are shown on the cards');
+  await page.getByRole('radio', { name: 'Ages 3–5' }).click();
+  check((await page.getByText('Ages 13–17').count()) === 0, 'kids browse: the 3–5 chip hides the teen category');
+  await page.getByRole('button', { name: 'Pick one for me' }).click();
+  await page.waitForTimeout(1200);
+  check(/\/game\/kf-/.test(page.url()), 'kids browse: pick-one lands on a kids question', page.url());
+  const stored = await page.evaluate(() => [...Object.keys(localStorage), ...Object.keys(sessionStorage)].filter((k) => /^(wyr_|ph_)/.test(k)));
+  const ok = events.length === 0 && ph.length === 0 && (await vid(page)) === null && stored.length === 0 && (await ctx.cookies()).length === 0;
+  check(ok, 'kids browse: /kids and its chips and pick-one send nothing, keep no ID, store nothing, set no cookie', ok ? '' : JSON.stringify({ events, ph: ph.length, stored }));
   await ctx.close();
 }
 await browser.close();

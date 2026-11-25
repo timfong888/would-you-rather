@@ -14,7 +14,7 @@ import VersionText from '@/components/VersionText';
 import { useTheme, useThemedStyles } from '@/contexts/ThemeContext';
 import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnsweredQuestions } from '@/hooks/useAnsweredQuestions';
-import { CATEGORIES, hasPaidContent } from '@/constants/questions';
+import { CATEGORIES, hasAnyTranche, hasPaidContent } from '@/constants/questions';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
 import { track } from '@/lib/analytics';
 
@@ -23,7 +23,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { isDark, toggleTheme } = useTheme();
   const {
-    isUnlocked,
+    openTranches,
     reset: resetUnlocked,
     ownerAccess,
     revokeOwnerAccess,
@@ -38,10 +38,9 @@ export default function SettingsScreen() {
     track('owner_access_revoked');
   };
 
-  // Packs with paid content (premium categories + free categories with an
-  // expansion pack) that this device can fully play.
+  // Categories with paid questions that this device has unlocked (at least one tranche owned).
   const unlockedPacks = CATEGORIES.filter(
-    (cat) => hasPaidContent(cat) && isUnlocked(cat.id)
+    (cat) => hasPaidContent(cat) && hasAnyTranche(openTranches(cat))
   );
 
   const handleResetProgress = () => {
@@ -115,7 +114,7 @@ export default function SettingsScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.ownerBannerTitle}>Owner access active</Text>
                   <Text style={styles.ownerBannerBody}>
-                    Every pack and expansion is unlocked on this device. Analytics events
+                    Every category is unlocked on this device. Analytics events
                     from this device are tagged so they stay out of paywall metrics.
                   </Text>
                 </View>

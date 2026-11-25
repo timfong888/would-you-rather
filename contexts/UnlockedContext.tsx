@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
-import type { CategoryId } from '@/constants/questions';
+import type { Access, CategoryDef, CategoryId } from '@/constants/questions';
 import {
   loadOwnerAccess,
   saveOwnerAccess,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/ownerAccess';
 import { setOwnerAccessFlag } from '@/lib/analytics';
 import { ENTITLEMENT_ALL, FALLBACK_PRICE_ALL, FALLBACK_PRICE_CATEGORY, PRODUCT_ALL, productForCategory } from '@/lib/catalog';
-import { canPlayCategory } from '@/lib/access';
+import { canPlayCategory, openTranchesFor, trancheEntitlementId } from '@/lib/access';
 import { purchases } from '@/lib/purchases';
 import { webFreeUnlockAllowed } from '@/lib/testUnlockPolicy';
 
@@ -30,8 +30,12 @@ export const FREE_UNLOCK = WEB_FREE_UNLOCK;
 interface UnlockedContextValue {
   /** True when the user may play every question in the category. */
   isUnlocked: (id: CategoryId) => boolean;
-  /** Free unlock for a single category. A no-op unless FREE_UNLOCK (test or temporary web). */
+  /** What the player may open in a category: everything, nothing, or the owned tranche numbers (#238). Pass it to isQuestionLocked. */
+  openTranches: (category: CategoryDef) => Access;
+  /** Free unlock for a single category. A no-op unless FREE_UNLOCK (test or temporary web). Kids and teen use it; it opens everything. */
   unlock: (id: CategoryId) => void;
+  /** Free unlock of one tranche (web, while the free unlock is on): the same step the $1.99 purchase takes on iPhone. */
+  unlockTranche: (id: CategoryId, k: number) => void;
   /** Free "unlock every category" (mirrors the $4.99 pack). A no-op unless FREE_UNLOCK. */
   unlockAll: () => void;
   /** Clear free unlocks. Owner access and purchases are left in place. */
@@ -60,7 +64,9 @@ interface UnlockedContextValue {
 
 const UnlockedContext = createContext<UnlockedContextValue>({
   isUnlocked: () => false,
+  openTranches: () => false,
   unlock: () => {},
+  unlockTranche: () => {},
   unlockAll: () => {},
   reset: () => {},
   purchasesAvailable: false,
@@ -182,6 +188,12 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     setOwnerAccessFlag(ownerAccess);
   }, [ownerAccess]);
 
+  const openTranches = useCallback(
+    (category: CategoryDef) =>
+      openTranchesFor({ ownerAccess, entitlements, testUnlocks: unlocked, testUnlockEnabled: FREE_UNLOCK }, category),
+    [ownerAccess, unlocked, entitlements],
+  );
+
   const isUnlocked = useCallback(
     (id: CategoryId) =>
       canPlayCategory({ ownerAccess, entitlements, testUnlocks: unlocked, testUnlockEnabled: FREE_UNLOCK }, id),
@@ -197,6 +209,19 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
+
+  const unlockTranche = useCallback(
+    (id: CategoryId, k: number) => {
+      if (!FREE_UNLOCK) return;
+      setUnlocked((prev) => {
+        const next = new Set(prev);
+        next.add(trancheEntitlementId(id, k));
+        saveToStorage(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const unlockAll = useCallback(() => unlock(ENTITLEMENT_ALL as CategoryId), [unlock]);
 
@@ -231,7 +256,9 @@ export function UnlockedProvider({ children }: { children: React.ReactNode }) {
     <UnlockedContext.Provider
       value={{
         isUnlocked,
+        openTranches,
         unlock,
+        unlockTranche,
         unlockAll,
         reset,
         purchasesAvailable: purchases.isAvailable(),

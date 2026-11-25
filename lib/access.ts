@@ -3,7 +3,8 @@
  * contexts/UnlockedContext.tsx feeds it live state, so a purchase that adds an
  * entitlement opens the questions on the next render, without a reload.
  */
-import { ENTITLEMENT_ALL, isCategoryEntitled } from './catalog';
+import { ENTITLEMENT_ALL, entitlementForCategory, isCategoryEntitled } from './catalog';
+import { getTranches, type Access, type CategoryDef } from '../constants/questions';
 
 export interface AccessState {
   /** Owner code redeemed (web and native dev builds only, lib/ownerAccessPolicy.ts). */
@@ -20,6 +21,55 @@ export function canPlayCategory(state: AccessState, id: string): boolean {
   if (state.ownerAccess) return true;
   if (isCategoryEntitled(state.entitlements, id)) return true;
   return state.testUnlockEnabled && (state.testUnlocks.has(id) || state.testUnlocks.has(ENTITLEMENT_ALL));
+}
+
+/**
+ * What the player may open in a category (issue #238). Owner access, a test unlock
+ * and `premium_all` open every tranche. Otherwise a grown-up category opens the
+ * tranches whose entitlement is held: tranche 1 is `cat_<id>` (the id that exists
+ * today), tranche k >= 2 is `cat_<id>_<k>`. Kids and teen keep the all-or-nothing
+ * rule until their own tranches (Unit 4 of #124).
+ */
+export function openTranchesFor(state: AccessState, category: CategoryDef): Access {
+  if (category.audience !== 'adult') return canPlayCategory(state, category.id);
+  if (state.ownerAccess || state.entitlements.has(ENTITLEMENT_ALL)) return true;
+  // A free test unlock keyed by ENTITLEMENT_ALL opens everything (the bare category id of the old web free unlock opens tranche 1 only, below).
+  if (state.testUnlockEnabled && state.testUnlocks.has(ENTITLEMENT_ALL)) return true;
+  const owned = new Set<number>();
+  for (const t of getTranches(category)) {
+    const key = trancheEntitlementId(category.id, t.k);
+    // The old web free unlock stored the bare category id. It opens tranche 1 only (Tim, 2026-11-25).
+    if (t.k === 1 && state.testUnlockEnabled && state.testUnlocks.has(category.id)) owned.add(t.k);
+    // The web free unlock grants one tranche per tap, stored under the tranche's entitlement id.
+    if (state.entitlements.has(key) || (state.testUnlockEnabled && state.testUnlocks.has(key))) owned.add(t.k);
+  }
+  return owned;
+}
+
+/** Entitlement id of tranche `k` of a category: `cat_<id>` for tranche 1 (the id that exists today), `cat_<id>_<k>` after. */
+export function trancheEntitlementId(categoryId: string, k: number): string {
+  return k === 1 ? entitlementForCategory(categoryId) : `${entitlementForCategory(categoryId)}_${k}`;
+}
+
+/** True when the entitlements include `premium_all` or any tranche of this category (used to word a restore). */
+export function holdsAnyTranche(entitlements: Iterable<string>, categoryId: string): boolean {
+  const base = entitlementForCategory(categoryId);
+  for (const e of entitlements) {
+    if (e === ENTITLEMENT_ALL || e === base) return true;
+    if (e.startsWith(`${base}_`) && /^\d+$/.test(e.slice(base.length + 1))) return true;
+  }
+  return false;
+}
+
+/**
+ * A restore counts as success only when the restored entitlements open the tranche the paywall
+ * offers. Adult categories: `premium_all` or that tranche's own entitlement. Kids and teen keep the
+ * all-or-nothing rule (their tranches come in a later step).
+ */
+export function restoreOpensTranche(entitlements: Iterable<string>, category: CategoryDef, k: number): boolean {
+  const list = [...entitlements];
+  if (category.audience !== 'adult') return holdsAnyTranche(list, category.id);
+  return list.includes(ENTITLEMENT_ALL) || list.includes(trancheEntitlementId(category.id, k));
 }
 
 /**
@@ -44,6 +94,12 @@ export type PaywallEntry = 'wait' | 'to-category' | 'track-view';
 export function paywallEntry(input: { entitlementsLoaded: boolean; navReady: boolean; unlocked: boolean }): PaywallEntry {
   if (!input.entitlementsLoaded || !input.navReady) return 'wait';
   return input.unlocked ? 'to-category' : 'track-view';
+}
+
+/** True when the tranche the paywall offered at entry is now open (a late entitlement landed). */
+export function offeredTrancheOpen(access: Access, offeredK: number | undefined): boolean {
+  if (offeredK === undefined) return false;
+  return access === true || (access instanceof Set && access.has(offeredK));
 }
 
 /**

@@ -9,8 +9,9 @@ import {
   Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, getFreeQuestionCount, isQuestionLocked } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, endsOpenSet } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 import { useTally } from '@/lib/useTally';
@@ -20,13 +21,14 @@ import { useUnlocked } from '@/contexts/UnlockedContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { track, buildShareUrl } from '@/lib/analytics';
 import { nativeShareOptions } from '@/lib/shareQuestion';
+import { SHARE_PROMPT } from '@/lib/shareInvite';
 import { SITE_URL } from '@/constants/config';
 
 export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked } = useUnlocked();
+  const { openTranches } = useUnlocked();
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,8 +66,8 @@ export default function ResultsScreen() {
 
   const handleShare = useCallback(async () => {
     const title = 'Would You Rather?';
-    const text = `${question?.optionA} — OR — ${question?.optionB}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+    const text = SHARE_PROMPT;
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''));
 
     track('share_clicked', {
       question_id: id,
@@ -99,16 +101,16 @@ export default function ResultsScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId]);
+  }, [question, cat, id, incomingGeneration, incomingLinkId, visitorId]);
 
-  // "Share my take" — shares /p/:id?voted=A/B so iMessage shows the rich card preview
+  // "Share my take": the same link as a challenge, plus the pick as the `f` code so the
+  // recipient sees it only inside the app, after they answer (#188). The preview card
+  // and the share text never show the pick.
   const handleShareMyTake = useCallback(async () => {
-    if (!voted) return;
-    const { url: baseUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
-    const myTakeUrl = `${baseUrl}&voted=${voted}`;
-    const myOption = voted === 'A' ? question?.optionA : question?.optionB;
+    if (!safeVoted) return;
+    const { url: myTakeUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''), safeVoted);
     const title = 'My Would You Rather Take';
-    const text = `I chose: "${myOption}" — do you agree?`;
+    const text = SHARE_PROMPT;
 
     track('share_clicked', {
       question_id: id,
@@ -142,7 +144,7 @@ export default function ResultsScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: myTakeUrl, os: Platform.OS }));
     }
-  }, [voted, question, id, incomingGeneration, incomingLinkId, visitorId]);
+  }, [safeVoted, cat, question, id, incomingGeneration, incomingLinkId, visitorId]);
 
   const cardUrl9x16 = Platform.select({
     web: typeof window !== 'undefined'
@@ -172,15 +174,17 @@ export default function ResultsScreen() {
     'career-climber': ['#WouldYouRather', '#CareerClimber', '#WorkLife'],
     'tech-dystopia': ['#WouldYouRather', '#TechDystopia', '#AI'],
     'wildest-dreams': ['#WouldYouRather', '#WildestDreams', '#Superpowers'],
-    'kids-family': ['#WouldYouRather', '#FamilyGameNight', '#KidsQuestions'],
   };
 
-  const hashtags = cat ? (categoryHashtags[cat] || ['#WouldYouRather']) : ['#WouldYouRather'];
+  const hashtags = cat
+    ? (isKidsCategoryId(cat) ? ['#WouldYouRather', '#FamilyGameNight', '#KidsQuestions'] : categoryHashtags[cat] || ['#WouldYouRather'])
+    : ['#WouldYouRather'];
 
   const handleTikTokShare = useCallback(async () => {
     const title = 'Would You Rather?';
+    // TikTok captions don't unfurl a link card, so this one keeps the question (#186).
     const text = `${question?.optionA} — OR — ${question?.optionB}\n\n${hashtags.join(' ')}`;
-    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration);
+    const { url: shareUrl, linkId } = buildShareUrl(id ?? '', incomingGeneration, isKidsCategoryId(question?.category ?? cat ?? ''));
 
     track('share_clicked', {
       question_id: id,
@@ -212,7 +216,7 @@ export default function ResultsScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
-  }, [question, id, incomingGeneration, incomingLinkId, visitorId, hashtags]);
+  }, [question, cat, id, incomingGeneration, incomingLinkId, visitorId, hashtags]);
 
   const categoryQuestions = cat ? getCategoryQuestions(cat as CategoryId) : [];
   const currentIdx = categoryQuestions.findIndex((q) => q.id === id);
@@ -220,10 +224,10 @@ export default function ResultsScreen() {
     ? categoryQuestions[currentIdx + 1]
     : null;
   // Same routing rule as the game screen: a locked next question goes to the
-  // paywall, except the last-free → first-locked step of a free category,
-  // which celebrates on the complete screen (with the expansion upsell).
-  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, currentIdx + 1, isUnlocked(category.id)));
-  const endsFreeSet = nextLocked && !!category && category.tier === 'free' && currentIdx + 1 === getFreeQuestionCount(category);
+  // paywall, except the last-open → first-locked step of a tranche,
+  // which celebrates on the complete screen (with the upsell).
+  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, currentIdx + 1, openTranches(category)));
+  const endsFreeSet = !!category && endsOpenSet(category, currentIdx, openTranches(category));
   const handleNextQuestion = () => {
     if (!nextQuestion || !cat) return;
     if (endsFreeSet) {
@@ -405,7 +409,7 @@ export default function ResultsScreen() {
           </Pressable>
         ) : (
           <Pressable
-            onPress={() => router.push('/categories')}
+            onPress={() => router.push(browseHrefFor(category?.id ?? question?.category))}
             style={({ pressed }) => [
               styles.nextButton,
               { backgroundColor: catColor },

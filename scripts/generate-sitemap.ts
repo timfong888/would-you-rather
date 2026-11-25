@@ -6,9 +6,9 @@
  *
  * What goes in (and nothing else):
  *   /, /categories, every category, every SEO landing page (constants/seoPages.ts),
- *   and every question a first-time visitor can play for free.
- * Locked expansion/premium questions are left out: their URLs redirect to the
- * category page, and a sitemap should only list URLs that resolve to themselves.
+ *   the read-only question pages (/q/<id>, every id in lib/seoBatch.js), and the pillar guides (/guides/<slug>).
+ * No /game/<id> URL is listed: a playable question's canonical is its /q/<id> page, and the list never depends on the free count.
+ * (Midnight Secrets and Deep Desires questions have no read-only page and so no entry.)
  *
  * <lastmod> is the date of the last commit touching the content, and is omitted
  * when git can't say so honestly (no git, or a shallow clone). Search engines
@@ -17,9 +17,11 @@
 import { execSync } from 'child_process';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { CATEGORIES, getCategoryQuestions, isQuestionLocked } from '../constants/questions';
+import { CATEGORIES } from '../constants/questions';
 import { SEO_PAGES, getSeoPageQuestions, getSeoPageUpdated, type Persona } from '../constants/seoPages';
 import { ORGANIZATION_DESCRIPTION } from '../lib/seo';
+import { SEO_QUESTION_PAGES } from '../lib/seoBatch';
+import { GUIDES } from '../lib/guides';
 import { SITE_URL } from '../constants/config';
 
 function lastModified(paths: string[]): string | undefined {
@@ -41,15 +43,13 @@ interface Entry { path: string; lastmod?: string }
 const entries: Entry[] = [
   { path: '/', lastmod: PAGES },
   { path: '/categories', lastmod: CONTENT },
+  { path: '/kids', lastmod: CONTENT },
   ...CATEGORIES.map((c) => ({ path: `/categories/${c.id}`, lastmod: CONTENT })),
   ...SEO_PAGES.map((p) => ({ path: `/${p.slug}`, lastmod: PAGES })),
 ];
 
-for (const cat of CATEGORIES) {
-  getCategoryQuestions(cat.id).forEach((q, i) => {
-    if (!isQuestionLocked(cat, i, false)) entries.push({ path: `/game/${q.id}`, lastmod: CONTENT });
-  });
-}
+for (const id of SEO_QUESTION_PAGES) entries.push({ path: `/q/${id}`, lastmod: CONTENT });
+for (const g of GUIDES) entries.push({ path: `/guides/${g.slug}`, lastmod: g.updated });
 
 const loc = (path: string) => `${SITE_URL}${path === '/' ? '' : path}`;
 const xml = `<?xml version="1.0" encoding="UTF-8"?>

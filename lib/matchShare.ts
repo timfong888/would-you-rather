@@ -78,7 +78,7 @@ export function __resetLineMemory(): void {
   lastIndex = {};
 }
 
-type ShareKey = 'first_after' | 'first_before' | 'tell_matched' | 'tell_different' | 'tell_asked' | 'ask_another';
+type ShareKey = 'tell_matched' | 'tell_different' | 'tell_asked' | 'ask_another';
 
 /** Share message text. `{line}` is replaced by the line the player just saw. */
 export function shareText(kids: boolean, key: ShareKey, line = ''): string {
