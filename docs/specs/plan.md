@@ -76,6 +76,38 @@ review-screenshot test is expected red between 4a and 4d for the new products on
 - Refund of a tranche closes only that tranche. The listener already revokes on the next fetch.
 - Family Sharing is off for all products today (`familySharable: false`); that stays unless Tim asks.
 
+## Now: one free-count rule for every category (#238)
+
+**Why.** Tim (2026-11-25): "i've removed the concept of an entirely free category. we've now made consistent across all
+categories, they have a fixed number that is free and the additional 20 they have to pay an upgrade. so i believe we said
+it was 5 free, so that means there are no longer any that have just completely 20 or more free". Today Moral Compass, Social
+Blunders, Career Climber and Tech Dystopia are `tier: 'free'` (20 free, 20 paid) and the other five give 3 free.
+
+**Rule (proposed, waits on Tim).** No free tier. One constant, `FREE_QUESTION_COUNT = 5`. The first 5 questions of every
+grown-up category are free; everything else is paid. Labels, paywall, store text and docs derive from
+`getFreeQuestionCount` / `getLockedQuestionCount`, never from a typed number. Entitlement ids (`cat_<id>`, `premium_all`)
+and the 8 product ids do not change.
+
+**Open answers (ticket #238, Decisions 1 to 7).** Free count 5 (code says 3 and 8 today; nothing in the repo says 5). What the
+unlock opens after 5 free: 15 or 35 questions, not 20. Kids and teen (8 free). SEO pages for questions 6 to 20. Product text.
+Home question count (260 or 586). Web free unlock copy.
+
+**No app code until Tim answers.** Gating and prices are payments scope: one change per PR, none batched, Tim reviews each.
+
+| Step | What | Files |
+|---|---|---|
+| F1 | Rule and tests: `FREE_QUESTION_COUNT`, `tier` split removed for grown-ups, `tests/unit/free-count.test.ts` | `constants/questions.ts`, tests |
+| F2 | Labels and paywall: no FREE pill, one paywall copy, derived counts, random play uses every category | `app/index.tsx`, `app/categories/*`, `app/unlock/[id].tsx`, `app/game/[id].tsx`, `app/results/[id].tsx`, `app/complete/[id].tsx`, `components/CategoryCard.tsx`, `constants/copy.ts`, `lib/nextCategory.ts` |
+| F3 | SEO per Tim's answer | `constants/seoPages.ts`, `scripts/verify-seo.ts`, sitemap |
+| F4 | Store text and docs | `store/ios/*`, `docs/specs/app-store-listing.md`, `docs/specs/kids-family-categories.md` |
+| F5 | Product text or new products, only if the unlock scope changes (payments) | `lib/catalog.ts`, `store/ios/iap-products.json`; App Store Connect text is Tim's |
+| F6 | Review screenshots re-rendered if the paywall changes | `store/ios/iap-review/` |
+
+**Buyers.** None known: RevenueCat revenue is $0 over 28 days, the iOS app is unreleased, web unlocks for free. Under the
+single-unlock option nothing changes for products. A split unlock or tranches add product ids (separate PRs).
+
+**Done when.** The ticket's acceptance tests 1 to 10 pass on web and iPhone, and Tim has reviewed each PR.
+
 ## Later
 
 Items from the MVP spec and growth plan that are not scheduled yet live in `docs/specs/growth-plan.md` and
