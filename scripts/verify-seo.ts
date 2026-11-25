@@ -276,16 +276,19 @@ if (withDist) {
     // link only to kids destinations.
     if (page && isKidsPage(page)) {
       // Allowlist, not a denylist: every same-site link on a kids page must be the home page,
-      // the kids category, a kids game question, another kids page, or a static asset.
+      // the kids category, a kids game question or its read-only page, another kids page, or a static asset.
       const kidsIds = new Set(QUESTIONS.filter((q) => isKidsCategoryId(q.category)).map((q) => q.id));
       const kidsSlugs = new Set(SEO_PAGES.filter(isKidsPage).map((sp) => sp.slug));
       for (const path of linkedPaths(html)) {
         const bare = path.replace(/\/+$/, '').replace(/\.html$/, '') || '/';
         const game = bare.match(/^\/game\/([^/]+)$/);
+        // A kids question's read-only page (no script, no tracking) is a kids destination too (S3).
+        const qPage = bare.match(/^\/q\/([^/]+)$/);
         const ok =
           bare === '/' ||
           (bare.startsWith('/categories/') && isKidsCategoryId(bare.slice('/categories/'.length))) ||
           (game !== null && kidsIds.has(game[1])) ||
+          (qPage !== null && kidsIds.has(qPage[1])) ||
           kidsSlugs.has(bare.slice(1)) ||
           /^\/(_expo|assets)\//.test(bare) ||
           /\.(ico|png|svg|jpe?g|webp|css|js|json|xml|txt|woff2?)$/.test(bare);
