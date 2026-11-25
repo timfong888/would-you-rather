@@ -17,6 +17,7 @@ import {
   getCategoryQuestions,
   getQuestionById,
   getAccessibleQuestions,
+  isKidsCategoryId,
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked } from '@/contexts/UnlockedContext';
@@ -94,10 +95,11 @@ export default function CompleteScreen() {
   }, [lastQuestion, incomingGeneration, incomingLinkId, visitorId]);
 
   const handleShareMyTake = useCallback(async () => {
-    if (!lastQuestion || !voted) return;
+    if (!lastQuestion || !safeVoted) return;
     const title = 'My Would You Rather Take';
     const text = shareInvite(lastQuestion.category);
-    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration);
+    // The pick travels as the `f` code and is shown only inside the app after the recipient answers (#188).
+    const { url: shareUrl, linkId } = buildShareUrl(lastQuestion.id, incomingGeneration, isKidsCategoryId(id ?? ''), safeVoted);
 
     track('share_clicked', {
       question_id: lastQuestion.id,
@@ -126,7 +128,7 @@ export default function CompleteScreen() {
     } else {
       Share.share(nativeShareOptions({ title, text, url: shareUrl, os: Platform.OS }));
     }
-  }, [lastQuestion, voted, incomingGeneration, incomingLinkId, visitorId]);
+  }, [lastQuestion, safeVoted, id, incomingGeneration, incomingLinkId, visitorId]);
 
   if (!category) {
     return (
