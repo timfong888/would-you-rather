@@ -1,8 +1,8 @@
 name: Apple IAP create (writes to App Store Connect)
 
 # Manual only, and only with Tim's explicit go. Creates the in-app purchases in
-# store/ios/iap-products.json (26 Non-Consumables: the $4.99 pack and $1.99 per
-# tranche; 8 already exist and are skipped, 18 are new) with en-US text, USA base price and all territories.
+# store/ios/iap-products.json (17 Non-Consumables: the $4.99 pack and $1.99 per
+# category; 8 already exist and are skipped, 9 are new) with en-US text, USA base price and all territories.
 # Default is a dry run (GET only). Skips product ids that already exist.
 # Never submits for review; review screenshots stay manual.
 on:
@@ -14,7 +14,7 @@ on:
         required: true
         default: false
       confirm:
-        description: Type CREATE-18-IAPS to allow apply=true
+        description: Type CREATE-9-IAPS to allow apply=true
         type: string
         required: false
         default: ''
@@ -43,9 +43,9 @@ jobs:
         with:
           node-version: 20
       - name: Refuse apply without confirmation
-        if: ${{ inputs.apply && inputs.confirm != 'CREATE-18-IAPS' }}
+        if: ${{ inputs.apply && inputs.confirm != 'CREATE-9-IAPS' }}
         run: |
-          echo "apply=true needs confirm=CREATE-18-IAPS."
+          echo "apply=true needs confirm=CREATE-9-IAPS."
           exit 1
       - name: Create in-app purchases
         env:

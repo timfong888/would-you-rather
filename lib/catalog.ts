@@ -2,13 +2,13 @@
  * Product catalog and access rule, shared by the app, the tests and
  * scripts/revenuecat/sync-catalog.ts. Pure: no React Native imports.
  *
- * Tim's decision (2026-11-18, issue #54): one all-categories pack plus an
- * unlock per category. Prices: pack $4.99, single category $1.99.
+ * Tim's decisions: one all-categories pack plus an unlock per category (2026-11-18, issue #54); one product per
+ * category with no tranches (2026-11-25, D22, #255). Prices: pack $4.99, single category $1.99.
  *
  * Identifiers are identical in RevenueCat (Test Store), App Store Connect and
  * Google Play, so changing one is a catalog migration, not a code tweak.
  */
-import { CATEGORIES, getTranches, hasPaidContent, trancheSize } from '@/constants/questions';
+import { CATEGORIES, hasPaidContent } from '@/constants/questions';
 import { IOS_V1_EXCLUDED_CATEGORIES } from '@/constants/iosV1';
 import type { CategoryDef, CategoryId } from '@/constants/questions';
 
@@ -33,18 +33,6 @@ export function entitlementForCategory(id: CategoryId | string): string {
 
 export function productForCategory(id: CategoryId | string): string {
   return `wyr_unlock_${String(id).replace(/-/g, '_')}`;
-}
-
-/**
- * Tranche `k` of a category (#238, #252): tranche 1 keeps the id that exists today (`wyr_unlock_<id>`,
- * `cat_<id>`); tranche k >= 2 adds a suffix (`wyr_unlock_<id>_<k>`, `cat_<id>_<k>`).
- */
-export function productForTranche(id: CategoryId | string, k: number): string {
-  return k <= 1 ? productForCategory(id) : `${productForCategory(id)}_${k}`;
-}
-
-export function entitlementForTranche(id: CategoryId | string, k: number): string {
-  return k <= 1 ? entitlementForCategory(id) : `${entitlementForCategory(id)}_${k}`;
 }
 
 /**
@@ -73,13 +61,12 @@ export interface CatalogProduct {
   priceMicros: number;
   /** null for the all-categories pack. */
   categoryId: CategoryId | null;
-  /** The tranche this product opens (1 = positions 6-20); null for the pack. */
-  tranche: number | null;
 }
 
 /**
- * Every product to create, derived from the question bank so it cannot drift: the pack plus one product per
- * paid tranche of each category (grown-up, kids and teen share one rule). The pack opens grown-up categories only.
+ * Every product to create, derived from the question bank so it cannot drift: the pack plus one product per paid
+ * category (D22, #255). A category product opens every question after the free ones. Grown-up, kids and teen share
+ * the rule; the pack opens grown-up categories only.
  */
 export function buildCatalog(categories: CategoryDef[] = CATEGORIES): CatalogProduct[] {
   const products: CatalogProduct[] = [
@@ -90,21 +77,17 @@ export function buildCatalog(categories: CategoryDef[] = CATEGORIES): CatalogPro
       description: 'All grown-up categories, plus future ones',
       priceMicros: PRICE_ALL_MICROS,
       categoryId: null,
-      tranche: null,
     },
   ];
   for (const c of paidCategories(categories)) {
-    for (const t of getTranches(c)) {
-      products.push({
-        productId: productForTranche(c.id, t.k),
-        entitlementId: entitlementForTranche(c.id, t.k),
-        title: t.k === 1 ? c.label : `${c.label} · Part ${t.k}`,
-        description: `Unlock ${trancheSize(t)} more questions in ${c.label}`,
-        priceMicros: PRICE_CATEGORY_MICROS,
-        categoryId: c.id,
-        tranche: t.k,
-      });
-    }
+    products.push({
+      productId: productForCategory(c.id),
+      entitlementId: entitlementForCategory(c.id),
+      title: c.label,
+      description: `Unlock all of ${c.label}`,
+      priceMicros: PRICE_CATEGORY_MICROS,
+      categoryId: c.id,
+    });
   }
   return products;
 }

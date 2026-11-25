@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import { COPY } from '../../constants/copy';
 import {
   CATEGORIES,
-  SELLABLE_TRANCHE_MAX,
   getNextTranche,
   getTranches,
   hasLockedRemaining,
@@ -41,44 +40,36 @@ test('no screen reads the category tier any more', () => {
   }
 });
 
-test('next tranche: what the paywall and the upsell sell', () => {
-  assert.deepEqual(getNextTranche(td, false), { k: 1, first: 6, last: 20 });
-  assert.equal(trancheSize(getNextTranche(td, false)!), 15);
-  assert.equal(trancheSize(getNextTranche(td, new Set([1]))!), 20);
-  assert.equal(getNextTranche(td, new Set([1]))!.k, 2);
-  assert.equal(getNextTranche(td, new Set([2]))!.k, 1, 'owning only tranche 2 still sells tranche 1');
-  assert.equal(getNextTranche(td, new Set([1, 2])), undefined);
+test('next tranche: what the paywall and the upsell sell is everything after the free questions (D22, #255)', () => {
+  assert.deepEqual(getNextTranche(td, false), { k: 1, first: 6, last: 40 });
+  assert.equal(trancheSize(getNextTranche(td, false)!), 35);
+  assert.equal(getNextTranche(td, new Set([1])), undefined, 'one purchase opens the lot');
   assert.equal(getNextTranche(td, true), undefined);
   assert.equal(getNextTranche(hl, new Set([1])), undefined);
+  assert.equal(trancheSize(getNextTranche(hl, false)!), 15);
 });
 
-test('hasLockedRemaining: a tranche-1 buyer of a 40-question category still has something to buy', () => {
+test('hasLockedRemaining: nothing is left to buy after the category product', () => {
   assert.equal(hasLockedRemaining(td, false), true);
-  assert.equal(hasLockedRemaining(td, new Set([1])), true);
-  assert.equal(hasLockedRemaining(td, new Set([1, 2])), false);
+  assert.equal(hasLockedRemaining(td, new Set([1])), false);
   assert.equal(hasLockedRemaining(td, true), false);
   assert.equal(hasLockedRemaining(hl, new Set([1])), false);
   assert.equal(hasLockedRemaining(hl, false), true);
 });
 
-test('the complete-screen step happens at every tranche start, for every grown-up category', () => {
+test('the complete-screen step happens once, at question 6, for every category', () => {
   for (const c of adult) {
-    for (const t of getTranches(c)) assert.equal(isTrancheStart(c, t.first - 1), true, `${c.id} tranche ${t.k}`);
+    assert.equal(isTrancheStart(c, 5), true, c.id);
     assert.equal(isTrancheStart(c, 0), false, c.id);
     assert.equal(isTrancheStart(c, 4), false, c.id);
+    assert.equal(isTrancheStart(c, 20), false, `${c.id} has no part 2`);
   }
-  assert.equal(isTrancheStart(td, 5), true);
-  assert.equal(isTrancheStart(td, 20), true);
   const kids = CATEGORIES.find((c) => c.audience === 'kids')!;
-  assert.equal(isTrancheStart(kids, 5), true, 'kids use the same tranche start as grown-ups');
-});
-
-test('tranche 2 has no store product yet: only tranche 1 is sellable until step F5', () => {
-  assert.equal(SELLABLE_TRANCHE_MAX, 1);
+  assert.equal(isTrancheStart(kids, 5), true, 'kids use the same step as grown-ups');
 });
 
 // ---- web free unlock: one tap, one tranche (Tim, 2026-11-25) and the other F2 fixes ----
-import { holdsAnyTranche, openTranchesFor, trancheEntitlementId } from '../../lib/access';
+import { holdsAnyTranche, openTranchesFor } from '../../lib/access';
 import type { AccessState } from '../../lib/access';
 import {
   PUBLIC_QUESTION_COUNTS,
@@ -96,35 +87,26 @@ const webState = (grants: string[], enabled = true): AccessState => ({
   testUnlockEnabled: enabled,
 });
 
-test('web free unlock: each tap grants one tranche, in the same order as iPhone', () => {
-  assert.equal(trancheEntitlementId('tech-dystopia', 1), 'cat_tech-dystopia');
-  assert.equal(trancheEntitlementId('tech-dystopia', 2), 'cat_tech-dystopia_2');
+test('web free unlock: one tap opens the whole category, the same step the $1.99 purchase takes on iPhone', () => {
   const none = openTranchesFor(webState([]), td) as Set<number>;
   assert.deepEqual([...none], []);
-  // tap 1: the next unowned tranche is 1
-  const tap1 = openTranchesFor(webState([trancheEntitlementId('tech-dystopia', getNextTranche(td, none)!.k)]), td) as Set<number>;
-  assert.deepEqual([...tap1], [1]);
-  assert.equal(isQuestionLocked(td, 19, tap1), false);
-  assert.equal(isQuestionLocked(td, 20, tap1), true, 'question 21 is still locked after one tap');
-  // tap 2: the next unowned tranche is 2
-  assert.equal(getNextTranche(td, tap1)!.k, 2);
-  const tap2 = openTranchesFor(webState(['cat_tech-dystopia', 'cat_tech-dystopia_2']), td) as Set<number>;
-  assert.deepEqual([...tap2].sort(), [1, 2]);
-  assert.equal(hasLockedRemaining(td, tap2), false);
+  const tap = openTranchesFor(webState(['cat_tech-dystopia']), td);
+  assert.equal(isQuestionLocked(td, 39, tap), false, 'the last question is open after one tap');
+  assert.equal(hasLockedRemaining(td, tap), false);
 });
 
-test('web free unlock: a 20-question category needs one tap; the old category-id unlock opens tranche 1 only; the all-pack opens everything', () => {
+test('web free unlock: a 20-question category needs one tap; the old category-id unlock opens the category; the all-pack opens everything', () => {
   const hlAfterOne = openTranchesFor(webState(['cat_high-life']), hl) as Set<number>;
   assert.equal(hasLockedRemaining(hl, hlAfterOne), false);
-  assert.deepEqual([...(openTranchesFor(webState(['tech-dystopia']), td) as Set<number>)], [1], 'the earlier web free unlock opens tranche 1 only');
+  assert.equal(hasLockedRemaining(td, openTranchesFor(webState(['tech-dystopia']), td)), false, 'the earlier web free unlock opens the category');
   assert.equal(openTranchesFor(webState(['premium_all']), td), true);
   assert.deepEqual([...(openTranchesFor(webState(['cat_tech-dystopia'], false), td) as Set<number>)], [], 'ignored when the free unlock is off');
 });
 
-test('restore wording counts any tranche of the category, including only tranche 2', () => {
-  assert.equal(holdsAnyTranche(['cat_tech-dystopia_2'], 'tech-dystopia'), true);
+test('restore wording counts the category entitlement or premium_all', () => {
   assert.equal(holdsAnyTranche(['cat_tech-dystopia'], 'tech-dystopia'), true);
   assert.equal(holdsAnyTranche(['premium_all'], 'tech-dystopia'), true);
+  assert.equal(holdsAnyTranche(['cat_tech-dystopia_2'], 'tech-dystopia'), false, 'there is no part 2 product any more');
   assert.equal(holdsAnyTranche(['cat_high-life'], 'tech-dystopia'), false);
   assert.equal(holdsAnyTranche(['cat_tech-dystopia-x'], 'tech-dystopia'), false);
   assert.equal(holdsAnyTranche([], 'tech-dystopia'), false);
@@ -173,12 +155,11 @@ test('settings lists a category when any tranche is owned, including web per-tra
   assert.doesNotMatch(src, /isUnlocked\(cat\.id\)/);
 });
 
-test('only the last open question before a paid tranche goes to the complete screen', () => {
+test('only the last open question before the paid part goes to the complete screen', () => {
   const none = new Set<number>();
   assert.equal(endsOpenSet(td, 4, none), true); // Q5 -> Q6 locked
-  assert.equal(endsOpenSet(td, 19, new Set([1])), true); // Q20 open (owned) -> Q21 locked
-  // share recipient on locked Q20 with nothing owned: Q21 is not a tranche start, and Q20 is locked
-  assert.equal(endsOpenSet(td, 19, none), false);
+  assert.equal(endsOpenSet(td, 19, new Set([1])), false); // owned: Q20 -> Q21 is open too
+  assert.equal(endsOpenSet(td, 19, none), false); // share recipient on locked Q20: Q21 is not the start of the paid part
   assert.equal(endsOpenSet(td, 5, none), false); // locked current question
   const game = code('app/game/[id].tsx');
   const results = code('app/results/[id].tsx');
@@ -196,22 +177,18 @@ test('complete screen does not call bought questions free', () => {
 import { restoreOpensTranche } from '../../lib/access';
 import { readdirSync, statSync } from 'node:fs';
 
-test('restore succeeds only when the restored entitlements open the tranche the paywall offers', () => {
-  const T = td; // 40 questions: tranche 1 = 6-20, tranche 2 = 21-40
-  // tranche-1 owner on the tranche-2 paywall: not enough (the High finding)
-  assert.equal(restoreOpensTranche(['cat_tech-dystopia'], T, 2), false);
-  // tranche-2-only holder on the tranche-1 paywall: does not open tranche 1
-  assert.equal(restoreOpensTranche(['cat_tech-dystopia_2'], T, 1), false);
+test('restore succeeds only when the restored entitlements open the category the paywall offers', () => {
+  const T = td;
   assert.equal(restoreOpensTranche(['cat_tech-dystopia'], T, 1), true);
-  assert.equal(restoreOpensTranche(['cat_tech-dystopia_2'], T, 2), true);
-  assert.equal(restoreOpensTranche(['cat_tech-dystopia', 'cat_tech-dystopia_2'], T, 2), true);
-  assert.equal(restoreOpensTranche(['premium_all'], T, 2), true);
+  assert.equal(restoreOpensTranche(['cat_tech-dystopia_2'], T, 1), false, 'a leftover part-2 id opens nothing');
+  assert.equal(restoreOpensTranche(['premium_all'], T, 1), true);
   assert.equal(restoreOpensTranche(['cat_high-life'], T, 1), false); // another category
   assert.equal(restoreOpensTranche([], T, 1), false);
   assert.equal(restoreOpensTranche(['cat_tech-dystopia-x'], T, 1), false);
   // kids keep the all-or-nothing rule
   const kid = CATEGORIES.find((c) => c.audience !== 'adult')!;
   assert.equal(restoreOpensTranche([`cat_${kid.id}`], kid, 1), true);
+  assert.equal(restoreOpensTranche(['premium_all'], kid, 1), false);
   assert.equal(restoreOpensTranche([], kid, 1), false);
   const src = code('app/unlock/[id].tsx');
   assert.match(src, /restoreOpensTranche\(active, category, nextTranche\?\.k \?\? 1\)/);
@@ -219,13 +196,13 @@ test('restore succeeds only when the restored entitlements open the tranche the 
   assert.equal(COPY.restoredNotIncluded, 'Your purchases were restored, but they do not include this upgrade.');
 });
 
-test('a legacy web unlock key equal to the category id opens tranche 1 only', () => {
+test('a legacy web unlock key equal to the category id opens the whole category', () => {
   const state = { ownerAccess: false, entitlements: new Set<string>(), testUnlocks: new Set([td.id]), testUnlockEnabled: true };
   const open = openTranchesFor(state, td);
   assert.ok(open instanceof Set);
-  assert.deepEqual([...(open as Set<number>)], [1]);
   assert.equal(isQuestionLocked(td, 10, open), false);
-  assert.equal(isQuestionLocked(td, 20, open), true); // Q21 stays locked
+  assert.equal(isQuestionLocked(td, 20, open), false); // Q21 is open too
+  assert.equal(isQuestionLocked(td, 39, open), false);
   const off = openTranchesFor({ ...state, testUnlockEnabled: false }, td);
   assert.equal((off as Set<number>).size, 0);
   const all = openTranchesFor({ ...state, testUnlocks: new Set(['premium_all']) }, td);
@@ -274,16 +251,13 @@ test('the all-categories unlock reports what it opens, not one tranche', () => {
 import { offeredTrancheOpen } from '../../lib/access';
 import { openPrefixCount } from '../../constants/questions';
 
-test('a late entitlement for the tranche the paywall offered ends the paywall, even with more to sell', () => {
-  // tranche 1 offered; cat_<id> arrives; tranche 2 of a 40-question category is still unowned
+test('a late entitlement for the category the paywall offered ends the paywall', () => {
   assert.equal(offeredTrancheOpen(new Set([1]), 1), true);
   assert.equal(offeredTrancheOpen(new Set([2]), 1), false);
   assert.equal(offeredTrancheOpen(new Set<number>(), 1), false);
   assert.equal(offeredTrancheOpen(false, 1), false);
   assert.equal(offeredTrancheOpen(true, 2), true);
   assert.equal(offeredTrancheOpen(new Set([1]), undefined), false);
-  // and the paywall would still have something to sell, which is why nothingToSell alone strands the buyer
-  assert.equal(hasLockedRemaining(td, new Set([1])), true);
   const src = code('app/unlock/[id].tsx');
   assert.match(src, /offeredKRef\.current = nextTranche\?\.k \?\? 1;/);
   assert.match(src, /const unlockedNow = nothingToSell \|\| offeredTrancheOpen\(access, offeredKRef\.current\);/);
@@ -292,11 +266,9 @@ test('a late entitlement for the tranche the paywall offered ends the paywall, e
 test('completed count is the open run from question 1, not every accessible question', () => {
   const n = getCategoryQuestions(td.id).length;
   assert.equal(openPrefixCount(td, false), 5);
-  assert.equal(openPrefixCount(td, new Set([1])), 20);
-  assert.equal(openPrefixCount(td, new Set([1, 2])), n);
+  assert.equal(openPrefixCount(td, new Set([1])), n);
   assert.equal(openPrefixCount(td, true), n);
-  // refunded tranche 1 with tranche 2 kept: Q21-40 are open but were not played
-  assert.equal(openPrefixCount(td, new Set([2])), 5);
+  assert.equal(openPrefixCount(td, new Set([2])), 5, 'a stray part-2 id opens nothing');
   assert.match(code('app/complete/[id].tsx'), /const completedCount = openPrefixCount\(category, access\);/);
 });
 
@@ -310,10 +282,10 @@ test('owner-code redemption sets the start question and says everything is unloc
   assert.match(src, /purchasedAllRef\.current = kind === 'all';/);
 });
 
-test('the all-categories wording and the access.ts comment match the behaviour', () => {
+test('the access.ts comment matches the behaviour', () => {
   const access = readFileSync('lib/access.ts', 'utf8');
-  assert.doesNotMatch(access, /keyed by category id \(the old web free unlock\) or by ENTITLEMENT_ALL opens everything/);
-  assert.match(access, /ENTITLEMENT_ALL opens everything \(the bare category id of the old web free unlock opens tranche 1 only/);
+  assert.match(access, /`cat_<id>` \(the product the category sells, D22 #255\) opens every question after the free ones/);
+  assert.doesNotMatch(access, /tranche k >= 2|cat_<id>_<k>/);
 });
 
 test('the iOS smoke flow asserts the paywall strings the app actually shows (#238)', () => {
@@ -337,20 +309,15 @@ test('the iOS smoke flow asserts the paywall strings the app actually shows (#23
 // ---- review of #251: a kids or teen paywall sells nothing and never offers the grown-up pack ----
 import { isTrancheSellable, offersAllCategoriesPack } from '../../constants/questions';
 
-test('kids and teen sell nothing until F5, even with the web free unlock; grown-ups keep today\'s rule', () => {
+test('kids and teen sell nothing until F5; grown-up categories sell', () => {
   const young = CATEGORIES.filter((c) => c.audience !== 'adult');
   assert.ok(young.length >= 9);
   for (const c of young) {
-    for (const t of getTranches(c)) {
-      assert.equal(isTrancheSellable(c, t), false, `${c.id} tranche ${t.k}`);
-      assert.equal(isTrancheSellable(c, t, true), false, `${c.id} tranche ${t.k} with the web free unlock`);
-    }
+    for (const t of getTranches(c)) assert.equal(isTrancheSellable(c), false, `${c.id} tranche ${t.k}`);
     assert.equal(offersAllCategoriesPack(c), false, `${c.id} must not offer premium_all, which does not open it`);
   }
-  const [t1, t2] = getTranches(td);
-  assert.equal(isTrancheSellable(td, t1), true);
-  assert.equal(isTrancheSellable(td, t2), false, 'tranche 2 has no product yet');
-  assert.equal(isTrancheSellable(td, t2, true), true, 'the web free unlock still opens it for grown-ups');
+  assert.equal(getTranches(td).length, 1, 'one product per category');
+  assert.equal(isTrancheSellable(td), true);
   for (const c of adult) assert.equal(offersAllCategoriesPack(c), true, c.id);
 });
 
@@ -358,7 +325,6 @@ test('the paywall, category and complete screens decide "sellable" with isTranch
   for (const f of ['app/unlock/[id].tsx', 'app/categories/[id].tsx', 'app/complete/[id].tsx']) {
     const src = code(f);
     assert.match(src, /isTrancheSellable\(/, f);
-    assert.doesNotMatch(src, /nextTranche\.k <= SELLABLE_TRANCHE_MAX/, `${f} must not compare the tranche number alone`);
   }
   const unlock = code('app/unlock/[id].tsx');
   assert.match(unlock, /offersAllCategoriesPack\(category\) && \(purchasesAvailable \|\| WEB_FREE_UI\)/);

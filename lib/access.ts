@@ -3,7 +3,7 @@
  * contexts/UnlockedContext.tsx feeds it live state, so a purchase that adds an
  * entitlement opens the questions on the next render, without a reload.
  */
-import { ENTITLEMENT_ALL, entitlementForCategory, entitlementForTranche, isCategoryEntitled } from './catalog';
+import { ENTITLEMENT_ALL, entitlementForCategory, isCategoryEntitled } from './catalog';
 import { getTranches, type Access, type CategoryDef } from '../constants/questions';
 
 export interface AccessState {
@@ -24,54 +24,40 @@ export function canPlayCategory(state: AccessState, id: string): boolean {
 }
 
 /**
- * What the player may open in a category (issue #238). Owner access, a test unlock
- * and `premium_all` open every tranche. Otherwise a grown-up category opens the
- * tranches whose entitlement is held: tranche 1 is `cat_<id>` (the id that exists
- * today), tranche k >= 2 is `cat_<id>_<k>`. Kids and teen follow the same rule, but
- * `premium_all` and the all-categories test unlock never open them.
+ * What the player may open in a category. Owner access, a test unlock and `premium_all` open everything. Otherwise
+ * `cat_<id>` (the product the category sells, D22 #255) opens every question after the free ones. `premium_all` and
+ * the all-categories test unlock never open kids or teen. The web free unlock stores the bare category id and opens
+ * the whole category, the same as a purchase.
  */
 export function openTranchesFor(state: AccessState, category: CategoryDef): Access {
   if (state.ownerAccess) return true;
   // premium_all and the all-categories test unlock open grown-up categories only (kids spec 3.4, 3.1).
   if (category.audience === 'adult') {
     if (state.entitlements.has(ENTITLEMENT_ALL)) return true;
-    // A free test unlock keyed by ENTITLEMENT_ALL opens everything (the bare category id of the old web free unlock opens tranche 1 only, below).
     if (state.testUnlockEnabled && state.testUnlocks.has(ENTITLEMENT_ALL)) return true;
   }
   const owned = new Set<number>();
-  for (const t of getTranches(category)) {
-    const key = trancheEntitlementId(category.id, t.k);
-    // The old web free unlock stored the bare category id. It opens tranche 1 only (Tim, 2026-11-25).
-    if (t.k === 1 && state.testUnlockEnabled && state.testUnlocks.has(category.id)) owned.add(t.k);
-    // The web free unlock grants one tranche per tap, stored under the tranche's entitlement id.
-    if (state.entitlements.has(key) || (state.testUnlockEnabled && state.testUnlocks.has(key))) owned.add(t.k);
-  }
+  const key = entitlementForCategory(category.id);
+  const bought = state.entitlements.has(key) || (state.testUnlockEnabled && (state.testUnlocks.has(key) || state.testUnlocks.has(category.id)));
+  if (bought) for (const t of getTranches(category)) owned.add(t.k);
   return owned;
 }
 
-/** Entitlement id of tranche `k` of a category: `cat_<id>` for tranche 1 (the id that exists today), `cat_<id>_<k>` after. */
-export function trancheEntitlementId(categoryId: string, k: number): string {
-  return entitlementForTranche(categoryId, k);
-}
-
-/** True when the entitlements include `premium_all` or any tranche of this category (used to word a restore). */
+/** True when the entitlements include `premium_all` or this category's own entitlement (used to word a restore). */
 export function holdsAnyTranche(entitlements: Iterable<string>, categoryId: string): boolean {
-  const base = entitlementForCategory(categoryId);
-  for (const e of entitlements) {
-    if (e === ENTITLEMENT_ALL || e === base) return true;
-    if (e.startsWith(`${base}_`) && /^\d+$/.test(e.slice(base.length + 1))) return true;
-  }
+  const key = entitlementForCategory(categoryId);
+  for (const e of entitlements) if (e === ENTITLEMENT_ALL || e === key) return true;
   return false;
 }
 
 /**
- * A restore counts as success only when the restored entitlements open the tranche the paywall
- * offers: that tranche's own entitlement, or `premium_all` for a grown-up category (never for kids or teen).
+ * A restore counts as success only when the restored entitlements open what the paywall offers: the category's own
+ * entitlement, or `premium_all` for a grown-up category (never for kids or teen).
  */
-export function restoreOpensTranche(entitlements: Iterable<string>, category: CategoryDef, k: number): boolean {
+export function restoreOpensTranche(entitlements: Iterable<string>, category: CategoryDef, _k = 1): boolean {
   const list = [...entitlements];
   if (category.audience === 'adult' && list.includes(ENTITLEMENT_ALL)) return true;
-  return list.includes(trancheEntitlementId(category.id, k));
+  return list.includes(entitlementForCategory(category.id));
 }
 
 /**
