@@ -76,3 +76,85 @@ test('the complete-screen step happens at every tranche start, for every grown-u
 test('tranche 2 has no store product yet: only tranche 1 is sellable until step F5', () => {
   assert.equal(SELLABLE_TRANCHE_MAX, 1);
 });
+
+// ---- web free unlock: one tap, one tranche (Tim, 2026-11-25) and the other F2 fixes ----
+import { holdsAnyTranche, openTranchesFor, trancheEntitlementId } from '../../lib/access';
+import type { AccessState } from '../../lib/access';
+import {
+  PUBLIC_QUESTION_COUNTS,
+  getCategoryQuestions,
+  getPublicQuestionCount,
+  getPublicQuestions,
+  isQuestionLocked,
+  isQuestionPublic,
+} from '../../constants/questions';
+
+const webState = (grants: string[], enabled = true): AccessState => ({
+  ownerAccess: false,
+  entitlements: new Set(),
+  testUnlocks: new Set(grants),
+  testUnlockEnabled: enabled,
+});
+
+test('web free unlock: each tap grants one tranche, in the same order as iPhone', () => {
+  assert.equal(trancheEntitlementId('tech-dystopia', 1), 'cat_tech-dystopia');
+  assert.equal(trancheEntitlementId('tech-dystopia', 2), 'cat_tech-dystopia_2');
+  const none = openTranchesFor(webState([]), td) as Set<number>;
+  assert.deepEqual([...none], []);
+  // tap 1: the next unowned tranche is 1
+  const tap1 = openTranchesFor(webState([trancheEntitlementId('tech-dystopia', getNextTranche(td, none)!.k)]), td) as Set<number>;
+  assert.deepEqual([...tap1], [1]);
+  assert.equal(isQuestionLocked(td, 19, tap1), false);
+  assert.equal(isQuestionLocked(td, 20, tap1), true, 'question 21 is still locked after one tap');
+  // tap 2: the next unowned tranche is 2
+  assert.equal(getNextTranche(td, tap1)!.k, 2);
+  const tap2 = openTranchesFor(webState(['cat_tech-dystopia', 'cat_tech-dystopia_2']), td) as Set<number>;
+  assert.deepEqual([...tap2].sort(), [1, 2]);
+  assert.equal(hasLockedRemaining(td, tap2), false);
+});
+
+test('web free unlock: a 20-question category needs one tap; the old category-id unlock and the all-pack still open everything', () => {
+  const hlAfterOne = openTranchesFor(webState(['cat_high-life']), hl) as Set<number>;
+  assert.equal(hasLockedRemaining(hl, hlAfterOne), false);
+  assert.equal(openTranchesFor(webState(['tech-dystopia']), td), true, 'unlocks stored by the earlier web free unlock keep working');
+  assert.equal(openTranchesFor(webState(['premium_all']), td), true);
+  assert.deepEqual([...(openTranchesFor(webState(['cat_tech-dystopia'], false), td) as Set<number>)], [], 'ignored when the free unlock is off');
+});
+
+test('restore wording counts any tranche of the category, including only tranche 2', () => {
+  assert.equal(holdsAnyTranche(['cat_tech-dystopia_2'], 'tech-dystopia'), true);
+  assert.equal(holdsAnyTranche(['cat_tech-dystopia'], 'tech-dystopia'), true);
+  assert.equal(holdsAnyTranche(['premium_all'], 'tech-dystopia'), true);
+  assert.equal(holdsAnyTranche(['cat_high-life'], 'tech-dystopia'), false);
+  assert.equal(holdsAnyTranche(['cat_tech-dystopia-x'], 'tech-dystopia'), false);
+  assert.equal(holdsAnyTranche([], 'tech-dystopia'), false);
+});
+
+test('the public (SEO) set is pinned per category and does not move with tier or the free count', () => {
+  for (const c of CATEGORIES) {
+    const pinned = PUBLIC_QUESTION_COUNTS[c.id];
+    assert.ok(pinned !== undefined, `${c.id} has no pinned public count`);
+    const n = getCategoryQuestions(c.id).length;
+    assert.equal(getPublicQuestionCount(c), Math.min(pinned, n), c.id);
+    for (const tier of ['free', 'premium'] as const) {
+      assert.equal(getPublicQuestionCount({ ...c, tier }), getPublicQuestionCount(c), `${c.id} retagged ${tier}`);
+    }
+    assert.equal(getPublicQuestions(c).length, getPublicQuestionCount(c), c.id);
+  }
+  // Tim, 2026-11-25: questions 6 to 20 of the four categories stay public.
+  for (const id of ['moral-compass', 'social-blunders', 'career-climber', 'tech-dystopia'] as const) {
+    const c = adult.find((x) => x.id === id)!;
+    assert.equal(getPublicQuestionCount(c), 20, id);
+    assert.equal(isQuestionPublic(c, 19), true, id);
+    assert.equal(isQuestionPublic(c, 20), false, id);
+  }
+  for (const id of ['high-life', 'midnight-secrets', 'time-traveler', 'deep-desires', 'wildest-dreams'] as const) {
+    assert.equal(getPublicQuestionCount(adult.find((x) => x.id === id)!), 3, id);
+  }
+});
+
+test('the home count is the grown-up questions, matching its 9 categories', () => {
+  const src = code('app/index.tsx');
+  assert.match(src, /TOTAL_QUESTIONS = GROWNUP_CATEGORIES\.reduce/);
+  assert.equal(adult.reduce((sum, c) => sum + getCategoryQuestions(c.id).length, 0), 260);
+});

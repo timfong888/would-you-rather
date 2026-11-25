@@ -265,7 +265,7 @@ export default function CategoryScreen() {
               {COPY.openNext(trancheSize(nextTranche))}
             </Text>
             <Text style={styles.unlockCtaSub}>
-              {!sellable ? 'Available soon' : `One-time unlock · ${WEB_FREE_UNLOCK ? 'free for now' : priceForCategory(category.id)}`}
+              {!sellable ? 'Available soon' : `One-time unlock · ${priceForCategory(category.id)}${WEB_FREE_UNLOCK ? ' · free for now' : ''}`}
             </Text>
           </View>
           <Text style={styles.unlockCtaArrow}>→</Text>

@@ -275,7 +275,7 @@ export default function CompleteScreen() {
             </Text>
             <View style={styles.upsellCta}>
               <Text style={styles.upsellCtaText}>
-                {sellable ? `${COPY.openNextShort(nextSize)} · ${WEB_FREE_UNLOCK ? 'FREE FOR NOW' : priceForCategory(id as string)}` : 'MORE AVAILABLE SOON'}
+                {sellable ? `${COPY.openNextShort(nextSize)} · ${priceForCategory(id as string)}${WEB_FREE_UNLOCK ? ' · FREE FOR NOW' : ''}` : 'MORE AVAILABLE SOON'}
               </Text>
             </View>
           </Pressable>

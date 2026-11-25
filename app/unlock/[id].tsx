@@ -28,7 +28,7 @@ import {
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
-import { paywallEntry, paywallLateUnlock } from '@/lib/access';
+import { holdsAnyTranche, paywallEntry, paywallLateUnlock } from '@/lib/access';
 import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track as trackEvent } from '@/lib/analytics';
@@ -36,7 +36,6 @@ import { requiresParentalGate } from '@/lib/parentalGate';
 import { ParentalGate } from '@/components/ParentalGate';
 import {
   PRODUCT_ALL,
-  isCategoryEntitled,
   productForCategory,
 } from '@/lib/catalog';
 import { purchases } from '@/lib/purchases';
@@ -83,6 +82,7 @@ export default function UnlockScreen() {
     isUnlocked,
     openTranches,
     unlock,
+    unlockTranche,
     unlockAll,
     ownerAccessAvailable,
     grantOwnerAccess,
@@ -254,6 +254,7 @@ export default function UnlockScreen() {
       payment_method: 'free_unlock',
     });
     if (kind === 'all') unlockAll();
+    else if (category?.audience === 'adult' && nextTranche) unlockTranche(id as CategoryId, nextTranche.k); // one tap, one tranche
     else unlock(id as CategoryId);
     setPaymentState('success');
   };
@@ -304,10 +305,11 @@ export default function UnlockScreen() {
     setPaymentState('processing');
     {
       try {
+        purchasedStartRef.current = trancheStart;
         const active = await purchases.restore();
         applyEntitlements(active);
-        // The context recomputes access from the restored entitlements.
-        if (isCategoryEntitled(active, id as string)) {
+        // The context recomputes access from the restored entitlements. Any tranche of this category counts.
+        if (holdsAnyTranche(active, id as string)) {
           setPaymentState('success');
         } else {
           setRestoreMsg(
@@ -417,7 +419,7 @@ export default function UnlockScreen() {
 
         {/* Price + CTA */}
         <View style={styles.priceBlock}>
-          <Text style={styles.price}>{WEB_FREE_UI ? 'Free' : shownPrice}</Text>
+          <Text style={styles.price}>{shownPrice}</Text>
           <Text style={styles.priceNote}>
             {WEB_FREE_UI ? 'FREE FOR NOW · NO PAYMENT NEEDED' : 'ONE-TIME CATEGORY UNLOCK · NO SUBSCRIPTION'}
           </Text>
@@ -460,7 +462,7 @@ export default function UnlockScreen() {
             accessibilityLabel={WEB_FREE_UI ? 'Unlock all categories for free' : `Unlock all categories for ${allPrice}`}
           >
             <Text style={[styles.restoreBtnText, { color: category.color }]}>
-              Or unlock every category · {WEB_FREE_UI ? 'free' : allPrice}
+              Or unlock every category · {allPrice}{WEB_FREE_UI ? ' · free for now' : ''}
             </Text>
           </Pressable>
         )}

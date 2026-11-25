@@ -33,13 +33,30 @@ export function canPlayCategory(state: AccessState, id: string): boolean {
 export function openTranchesFor(state: AccessState, category: CategoryDef): Access {
   if (category.audience !== 'adult') return canPlayCategory(state, category.id);
   if (state.ownerAccess || state.entitlements.has(ENTITLEMENT_ALL)) return true;
+  // A free test unlock keyed by category id (the old web free unlock) or by ENTITLEMENT_ALL opens everything.
   if (state.testUnlockEnabled && (state.testUnlocks.has(category.id) || state.testUnlocks.has(ENTITLEMENT_ALL))) return true;
   const owned = new Set<number>();
   for (const t of getTranches(category)) {
-    const entitlement = t.k === 1 ? entitlementForCategory(category.id) : `${entitlementForCategory(category.id)}_${t.k}`;
-    if (state.entitlements.has(entitlement)) owned.add(t.k);
+    const key = trancheEntitlementId(category.id, t.k);
+    // The web free unlock grants one tranche per tap, stored under the tranche's entitlement id.
+    if (state.entitlements.has(key) || (state.testUnlockEnabled && state.testUnlocks.has(key))) owned.add(t.k);
   }
   return owned;
+}
+
+/** Entitlement id of tranche `k` of a category: `cat_<id>` for tranche 1 (the id that exists today), `cat_<id>_<k>` after. */
+export function trancheEntitlementId(categoryId: string, k: number): string {
+  return k === 1 ? entitlementForCategory(categoryId) : `${entitlementForCategory(categoryId)}_${k}`;
+}
+
+/** True when the entitlements include `premium_all` or any tranche of this category (used to word a restore). */
+export function holdsAnyTranche(entitlements: Iterable<string>, categoryId: string): boolean {
+  const base = entitlementForCategory(categoryId);
+  for (const e of entitlements) {
+    if (e === ENTITLEMENT_ALL || e === base) return true;
+    if (e.startsWith(`${base}_`) && /^\d+$/.test(e.slice(base.length + 1))) return true;
+  }
+  return false;
 }
 
 /**

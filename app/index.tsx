@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { QUESTIONS, CATEGORIES, getCategoryQuestions, getAccessibleQuestions, getFreeQuestionCount } from '@/constants/questions';
+import { CATEGORIES, getCategoryQuestions, getAccessibleQuestions, getFreeQuestionCount } from '@/constants/questions';
 import ModeSwitch from '@/components/ModeSwitch';
 import { categoriesForMode } from '@/lib/browse';
 import { COPY } from '@/constants/copy';
@@ -32,7 +32,8 @@ const GROWNUP_CATEGORIES = categoriesForMode('grownups', CATEGORIES);
 const h1 = { role: 'heading', 'aria-level': 1 } as object;
 const h2 = { role: 'heading', 'aria-level': 2 } as object;
 
-const TOTAL_QUESTIONS = QUESTIONS.length;
+// Grown-up questions only, so the number matches the grown-up categories listed below (Tim, 2026-11-25).
+const TOTAL_QUESTIONS = GROWNUP_CATEGORIES.reduce((sum, c) => sum + getCategoryQuestions(c.id).length, 0);
 
 export default function HomeScreen() {
   const router = useRouter();

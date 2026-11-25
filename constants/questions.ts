@@ -1670,15 +1670,37 @@ export function hasLockedRemaining(category: CategoryDef, access: Access): boole
 }
 
 /**
- * Questions published to search engines and shown in category JSON-LD. Frozen at the
- * rule before #238 (grown-up premium: 3, former-free: all of volume 1, kids and teen:
- * their free count) until step F3 decides what SEO should publish (#238, Decision 4).
+ * How many questions each category publishes to search engines and in category JSON-LD.
+ * Pinned per category id on purpose: it must not move when a category is retagged or the
+ * free count changes (Tim, 2026-11-25: questions 6 to 20 of Moral Compass, Social Blunders,
+ * Career Climber and Tech Dystopia stay public). Premium grown-up categories publish 3,
+ * those four publish their 20 volume-1 questions, kids and teen publish 8. A category
+ * not listed here falls back to its free count.
  */
+export const PUBLIC_QUESTION_COUNTS: Readonly<Partial<Record<CategoryId, number>>> = {
+  'high-life': 3,
+  'midnight-secrets': 3,
+  'time-traveler': 3,
+  'deep-desires': 3,
+  'wildest-dreams': 3,
+  'moral-compass': 20,
+  'social-blunders': 20,
+  'career-climber': 20,
+  'tech-dystopia': 20,
+  'tiny-choices': 8,
+  'make-believe': 8,
+  'giggle-factory': 8,
+  'road-trip-rally': 8,
+  'dinner-table': 8,
+  'heart-to-heart': 8,
+  'future-me': 8,
+  'real-talk': 8,
+  'holiday-table': 8,
+};
+
 export function getPublicQuestionCount(category: CategoryDef): number {
-  if (category.audience !== 'adult') return getFreeQuestionCount(category);
-  const questions = getCategoryQuestions(category.id);
-  if (category.tier === 'premium') return Math.min(LEGACY_PREMIUM_PUBLIC_COUNT, questions.length);
-  return questions.filter((q) => getQuestionVolume(q) === 1).length;
+  const n = getCategoryQuestions(category.id).length;
+  return Math.min(PUBLIC_QUESTION_COUNTS[category.id] ?? getFreeQuestionCount(category), n);
 }
 
 export function isQuestionPublic(category: CategoryDef, questionIndex: number): boolean {
