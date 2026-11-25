@@ -6,13 +6,13 @@
   "familySharable": false,
   "reviewNote": "Purchase from the paywall that appears after the free questions in a category. \"Or unlock every category\" buys the pack. Restore Purchases is on the same screen.",
   "products": [
-    { "productId": "wyr_premium_all", "referenceName": "All Categories", "displayName": "All Categories", "description": "Every category, plus future questions", "priceUsd": "4.99" },
-    { "productId": "wyr_unlock_high_life", "referenceName": "Unlock The High Life", "displayName": "The High Life", "description": "Every question in The High Life", "priceUsd": "1.99" },
-    { "productId": "wyr_unlock_moral_compass", "referenceName": "Unlock Moral Compass", "displayName": "Moral Compass", "description": "Every question in Moral Compass", "priceUsd": "1.99" },
-    { "productId": "wyr_unlock_social_blunders", "referenceName": "Unlock Social Blunders", "displayName": "Social Blunders", "description": "Every question in Social Blunders", "priceUsd": "1.99" },
-    { "productId": "wyr_unlock_time_traveler", "referenceName": "Unlock Time Traveler", "displayName": "Time Traveler", "description": "Every question in Time Traveler", "priceUsd": "1.99" },
-    { "productId": "wyr_unlock_career_climber", "referenceName": "Unlock Career Climber", "displayName": "Career Climber", "description": "Every question in Career Climber", "priceUsd": "1.99" },
-    { "productId": "wyr_unlock_tech_dystopia", "referenceName": "Unlock Tech Dystopia", "displayName": "Tech Dystopia", "description": "Every question in Tech Dystopia", "priceUsd": "1.99" },
-    { "productId": "wyr_unlock_wildest_dreams", "referenceName": "Unlock Wildest Dreams", "displayName": "Wildest Dreams", "description": "Every question in Wildest Dreams", "priceUsd": "1.99" }
+    { "productId": "wyr_premium_all", "referenceName": "All Categories", "displayName": "All Grown-up Categories", "description": "All grown-up categories, plus future ones", "priceUsd": "4.99" },
+    { "productId": "wyr_unlock_high_life", "referenceName": "Unlock The High Life", "displayName": "The High Life", "description": "Unlock 15 more questions in The High Life", "priceUsd": "1.99" },
+    { "productId": "wyr_unlock_moral_compass", "referenceName": "Unlock Moral Compass", "displayName": "Moral Compass", "description": "Unlock 15 more questions in Moral Compass", "priceUsd": "1.99" },
+    { "productId": "wyr_unlock_social_blunders", "referenceName": "Unlock Social Blunders", "displayName": "Social Blunders", "description": "Unlock 15 more questions in Social Blunders", "priceUsd": "1.99" },
+    { "productId": "wyr_unlock_time_traveler", "referenceName": "Unlock Time Traveler", "displayName": "Time Traveler", "description": "Unlock 15 more questions in Time Traveler", "priceUsd": "1.99" },
+    { "productId": "wyr_unlock_career_climber", "referenceName": "Unlock Career Climber", "displayName": "Career Climber", "description": "Unlock 15 more questions in Career Climber", "priceUsd": "1.99" },
+    { "productId": "wyr_unlock_tech_dystopia", "referenceName": "Unlock Tech Dystopia", "displayName": "Tech Dystopia", "description": "Unlock 15 more questions in Tech Dystopia", "priceUsd": "1.99" },
+    { "productId": "wyr_unlock_wildest_dreams", "referenceName": "Unlock Wildest Dreams", "displayName": "Wildest Dreams", "description": "Unlock 15 more questions in Wildest Dreams", "priceUsd": "1.99" }
   ]
 }
