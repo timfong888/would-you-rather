@@ -28,7 +28,7 @@ import {
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
-import { holdsAnyTranche, paywallEntry, paywallLateUnlock } from '@/lib/access';
+import { paywallEntry, paywallLateUnlock, restoreOpensTranche } from '@/lib/access';
 import { replaceWhenReady } from '@/lib/navigateWhenReady';
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import { track as trackEvent } from '@/lib/analytics';
@@ -142,6 +142,7 @@ export default function UnlockScreen() {
   const sellable = nextTranche === undefined || nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK;
   const nothingToSell = category ? !hasLockedRemaining(category, access) : isUnlocked(id as CategoryId);
   const purchasedStartRef = useRef(trancheStart);
+  const purchasedSizeRef = useRef(nextSize);
   const BENEFITS = benefitsFor(nextSize);
 
   useEffect(() => {
@@ -245,6 +246,7 @@ export default function UnlockScreen() {
   const handleFreeUnlock = (kind: 'category' | 'all') => {
     if (!WEB_FREE_UI || paymentState !== 'idle') return;
     purchasedStartRef.current = trancheStart;
+    purchasedSizeRef.current = nextSize;
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
@@ -262,6 +264,7 @@ export default function UnlockScreen() {
   const handleBuy = async (kind: 'category' | 'all') => {
     if (paymentState !== 'idle') return;
     purchasedStartRef.current = trancheStart;
+    purchasedSizeRef.current = nextSize;
     setPurchaseError(null);
     setRestoreMsg(null);
     track('paywall_cta_clicked', {
@@ -306,15 +309,16 @@ export default function UnlockScreen() {
     {
       try {
         purchasedStartRef.current = trancheStart;
+    purchasedSizeRef.current = nextSize;
         const active = await purchases.restore();
         applyEntitlements(active);
-        // The context recomputes access from the restored entitlements. Any tranche of this category counts.
-        if (holdsAnyTranche(active, id as string)) {
+        // Success only when the restore opens the tranche this paywall offers; otherwise the paywall stays.
+        if (category && restoreOpensTranche(active, category, nextTranche?.k ?? 1)) {
           setPaymentState('success');
         } else {
           setRestoreMsg(
             active.length > 0
-              ? 'Your purchases were restored, but they do not include this category.'
+              ? COPY.restoredNotIncluded
               : Platform.OS === 'web'
                 ? 'No purchases found in this browser. Web purchases stay with the browser you bought in.'
                 : 'No previous purchases found for this account.',
@@ -421,7 +425,7 @@ export default function UnlockScreen() {
         <View style={styles.priceBlock}>
           <Text style={styles.price}>{shownPrice}</Text>
           <Text style={styles.priceNote}>
-            {WEB_FREE_UI ? 'FREE FOR NOW · NO PAYMENT NEEDED' : 'ONE-TIME CATEGORY UNLOCK · NO SUBSCRIPTION'}
+            {WEB_FREE_UI ? 'FREE FOR NOW · NO PAYMENT NEEDED' : 'ONE-TIME UNLOCK · NO SUBSCRIPTION'}
           </Text>
         </View>
 
@@ -662,13 +666,13 @@ export default function UnlockScreen() {
 
           <View style={styles.successTextBlock}>
             <Text style={[styles.successTitle, { color: colors.text }]}>
-              Category Unlocked!
+              {COPY.unlockedTitle}
             </Text>
             <Text style={[styles.successCategory, { color: category.color }]}>
               {category.emoji}  {category.label}
             </Text>
             <Text style={[styles.successBody, { color: colors.textSecondary }]}>
-              All {questions.length} dilemmas are now yours to explore.
+              {COPY.unlockedBody(purchasedSizeRef.current)}
             </Text>
           </View>
 

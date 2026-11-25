@@ -114,7 +114,7 @@ export default function SettingsScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.ownerBannerTitle}>Owner access active</Text>
                   <Text style={styles.ownerBannerBody}>
-                    Every pack and expansion is unlocked on this device. Analytics events
+                    Every category is unlocked on this device. Analytics events
                     from this device are tagged so they stay out of paywall metrics.
                   </Text>
                 </View>

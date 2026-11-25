@@ -25,6 +25,9 @@ import {
 import { COPY } from '@/constants/copy';
 import type { CategoryId } from '@/constants/questions';
 import { useUnlocked, WEB_FREE_UNLOCK } from '@/contexts/UnlockedContext';
+
+// Inline env test so the minifier drops the marker string when the flag is off (see app/unlock/[id].tsx).
+const WEB_FREE_UI = Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1' && WEB_FREE_UNLOCK;
 import { useThemedStyles } from '@/contexts/ThemeContext';
 import VoteBar from '@/components/VoteBar';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
@@ -275,7 +278,7 @@ export default function CompleteScreen() {
             </Text>
             <View style={styles.upsellCta}>
               <Text style={styles.upsellCtaText}>
-                {sellable ? `${COPY.openNextShort(nextSize)} · ${priceForCategory(id as string)}${WEB_FREE_UNLOCK ? ' · FREE FOR NOW' : ''}` : 'MORE AVAILABLE SOON'}
+                {sellable ? `${COPY.openNextShort(nextSize)} · ${priceForCategory(id as string)}${WEB_FREE_UI ? ' · FREE FOR NOW' : ''}` : 'MORE AVAILABLE SOON'}
               </Text>
             </View>
           </Pressable>

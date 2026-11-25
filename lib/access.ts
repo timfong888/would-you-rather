@@ -34,10 +34,12 @@ export function openTranchesFor(state: AccessState, category: CategoryDef): Acce
   if (category.audience !== 'adult') return canPlayCategory(state, category.id);
   if (state.ownerAccess || state.entitlements.has(ENTITLEMENT_ALL)) return true;
   // A free test unlock keyed by category id (the old web free unlock) or by ENTITLEMENT_ALL opens everything.
-  if (state.testUnlockEnabled && (state.testUnlocks.has(category.id) || state.testUnlocks.has(ENTITLEMENT_ALL))) return true;
+  if (state.testUnlockEnabled && state.testUnlocks.has(ENTITLEMENT_ALL)) return true;
   const owned = new Set<number>();
   for (const t of getTranches(category)) {
     const key = trancheEntitlementId(category.id, t.k);
+    // The old web free unlock stored the bare category id. It opens tranche 1 only (Tim, 2026-11-25).
+    if (t.k === 1 && state.testUnlockEnabled && state.testUnlocks.has(category.id)) owned.add(t.k);
     // The web free unlock grants one tranche per tap, stored under the tranche's entitlement id.
     if (state.entitlements.has(key) || (state.testUnlockEnabled && state.testUnlocks.has(key))) owned.add(t.k);
   }
@@ -57,6 +59,17 @@ export function holdsAnyTranche(entitlements: Iterable<string>, categoryId: stri
     if (e.startsWith(`${base}_`) && /^\d+$/.test(e.slice(base.length + 1))) return true;
   }
   return false;
+}
+
+/**
+ * A restore counts as success only when the restored entitlements open the tranche the paywall
+ * offers. Adult categories: `premium_all` or that tranche's own entitlement. Kids and teen keep the
+ * all-or-nothing rule (their tranches come in a later step).
+ */
+export function restoreOpensTranche(entitlements: Iterable<string>, category: CategoryDef, k: number): boolean {
+  const list = [...entitlements];
+  if (category.audience !== 'adult') return holdsAnyTranche(list, category.id);
+  return list.includes(ENTITLEMENT_ALL) || list.includes(trancheEntitlementId(category.id, k));
 }
 
 /**

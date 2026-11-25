@@ -113,10 +113,10 @@ test('web free unlock: each tap grants one tranche, in the same order as iPhone'
   assert.equal(hasLockedRemaining(td, tap2), false);
 });
 
-test('web free unlock: a 20-question category needs one tap; the old category-id unlock and the all-pack still open everything', () => {
+test('web free unlock: a 20-question category needs one tap; the old category-id unlock opens tranche 1 only; the all-pack opens everything', () => {
   const hlAfterOne = openTranchesFor(webState(['cat_high-life']), hl) as Set<number>;
   assert.equal(hasLockedRemaining(hl, hlAfterOne), false);
-  assert.equal(openTranchesFor(webState(['tech-dystopia']), td), true, 'unlocks stored by the earlier web free unlock keep working');
+  assert.deepEqual([...(openTranchesFor(webState(['tech-dystopia']), td) as Set<number>)], [1], 'the earlier web free unlock opens tranche 1 only');
   assert.equal(openTranchesFor(webState(['premium_all']), td), true);
   assert.deepEqual([...(openTranchesFor(webState(['cat_tech-dystopia'], false), td) as Set<number>)], [], 'ignored when the free unlock is off');
 });
@@ -190,4 +190,75 @@ test('complete screen does not call bought questions free', () => {
   const src = code('app/complete/[id].tsx');
   assert.doesNotMatch(src, /played all \$\{completedCount\} free/);
   assert.match(src, /played all \$\{completedCount\} \$\{category\.label\}/);
+});
+
+// ── Review findings on 1108b6e (restore rule, overlay, stale strings, marker guard) ──
+import { restoreOpensTranche } from '../../lib/access';
+import { readdirSync, statSync } from 'node:fs';
+
+test('restore succeeds only when the restored entitlements open the tranche the paywall offers', () => {
+  const T = td; // 40 questions: tranche 1 = 6-20, tranche 2 = 21-40
+  // tranche-1 owner on the tranche-2 paywall: not enough (the High finding)
+  assert.equal(restoreOpensTranche(['cat_tech-dystopia'], T, 2), false);
+  // tranche-2-only holder on the tranche-1 paywall: does not open tranche 1
+  assert.equal(restoreOpensTranche(['cat_tech-dystopia_2'], T, 1), false);
+  assert.equal(restoreOpensTranche(['cat_tech-dystopia'], T, 1), true);
+  assert.equal(restoreOpensTranche(['cat_tech-dystopia_2'], T, 2), true);
+  assert.equal(restoreOpensTranche(['cat_tech-dystopia', 'cat_tech-dystopia_2'], T, 2), true);
+  assert.equal(restoreOpensTranche(['premium_all'], T, 2), true);
+  assert.equal(restoreOpensTranche(['cat_high-life'], T, 1), false); // another category
+  assert.equal(restoreOpensTranche([], T, 1), false);
+  assert.equal(restoreOpensTranche(['cat_tech-dystopia-x'], T, 1), false);
+  // kids keep the all-or-nothing rule
+  const kid = CATEGORIES.find((c) => c.audience !== 'adult')!;
+  assert.equal(restoreOpensTranche([`cat_${kid.id}`], kid, 1), true);
+  assert.equal(restoreOpensTranche([], kid, 1), false);
+  const src = code('app/unlock/[id].tsx');
+  assert.match(src, /restoreOpensTranche\(active, category, nextTranche\?\.k \?\? 1\)/);
+  assert.doesNotMatch(src, /holdsAnyTranche/);
+  assert.equal(COPY.restoredNotIncluded, 'Your purchases were restored, but they do not include this upgrade.');
+});
+
+test('a legacy web unlock key equal to the category id opens tranche 1 only', () => {
+  const state = { ownerAccess: false, entitlements: new Set<string>(), testUnlocks: new Set([td.id]), testUnlockEnabled: true };
+  const open = openTranchesFor(state, td);
+  assert.ok(open instanceof Set);
+  assert.deepEqual([...(open as Set<number>)], [1]);
+  assert.equal(isQuestionLocked(td, 10, open), false);
+  assert.equal(isQuestionLocked(td, 20, open), true); // Q21 stays locked
+  const off = openTranchesFor({ ...state, testUnlockEnabled: false }, td);
+  assert.equal((off as Set<number>).size, 0);
+  const all = openTranchesFor({ ...state, testUnlocks: new Set(['premium_all']) }, td);
+  assert.equal(all, true);
+});
+
+test('the success overlay names the tranche that opened, not the whole category', () => {
+  assert.equal(COPY.unlockedBody(20), '20 more dilemmas are now yours to explore.');
+  const src = code('app/unlock/[id].tsx');
+  assert.doesNotMatch(src, /Category Unlocked!/);
+  assert.doesNotMatch(src, /All \{questions\.length\} dilemmas/);
+  assert.match(src, /COPY\.unlockedBody\(purchasedSizeRef\.current\)/);
+});
+
+test('stale strings are gone', () => {
+  assert.doesNotMatch(code('app/unlock/[id].tsx'), /ONE-TIME CATEGORY UNLOCK/);
+  assert.doesNotMatch(code('app/settings.tsx'), /Every pack and expansion/);
+  const doc = readFileSync('docs/payments.md', 'utf8');
+  assert.doesNotMatch(doc, /the price reads "Free"/);
+  assert.match(doc, /\$1\.99 with "FREE FOR NOW/);
+});
+
+function appFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((f) => {
+    const p = `${dir}/${f}`;
+    return statSync(p).isDirectory() ? appFiles(p) : /\.tsx?$/.test(p) ? [p] : [];
+  });
+}
+
+test('every app file that carries the FREE FOR NOW marker tests the env flag inline', () => {
+  const offenders = appFiles('app').filter((p) => {
+    const src = code(p);
+    return src.includes('FREE FOR NOW') && !/process\.env\.EXPO_PUBLIC_WEB_FREE_UNLOCK === '1'/.test(src);
+  });
+  assert.deepEqual(offenders, []);
 });

@@ -107,11 +107,13 @@ test('openTranchesFor: entitlements map to tranches; tranche 1 keeps the existin
   assert.deepEqual([...(openTranchesFor({ ...base, entitlements: new Set(['cat_high-life']) }, td) as Set<number>)], []);
 });
 
-test('premium_all, owner access and test unlocks open every tranche of every grown-up category', () => {
+test('premium_all, owner access and the all-pack test unlock open every tranche of every grown-up category', () => {
   for (const c of adult) {
     assert.equal(openTranchesFor({ ...base, entitlements: new Set([ENTITLEMENT_ALL]) }, c), true, c.id);
     assert.equal(openTranchesFor({ ...base, ownerAccess: true }, c), true, c.id);
-    assert.equal(openTranchesFor({ ...base, testUnlocks: new Set([c.id]), testUnlockEnabled: true }, c), true, c.id);
+    assert.equal(openTranchesFor({ ...base, testUnlocks: new Set([ENTITLEMENT_ALL]), testUnlockEnabled: true }, c), true, c.id);
+    // the old web free unlock stored the bare category id: it opens tranche 1 only
+    assert.deepEqual([...(openTranchesFor({ ...base, testUnlocks: new Set([c.id]), testUnlockEnabled: true }, c) as Set<number>)], [1], c.id);
     assert.deepEqual([...(openTranchesFor({ ...base, testUnlocks: new Set([c.id]), testUnlockEnabled: false }, c) as Set<number>)], [], c.id);
   }
 });
