@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, isTrancheStart } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, endsOpenSet } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import VoteBar from '@/components/VoteBar';
 import { useTally } from '@/lib/useTally';
@@ -227,7 +227,7 @@ export default function ResultsScreen() {
   // paywall, except the last-open → first-locked step of a tranche,
   // which celebrates on the complete screen (with the upsell).
   const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, currentIdx + 1, openTranches(category)));
-  const endsFreeSet = nextLocked && !!category && isTrancheStart(category, currentIdx + 1);
+  const endsFreeSet = !!category && endsOpenSet(category, currentIdx, openTranches(category));
   const handleNextQuestion = () => {
     if (!nextQuestion || !cat) return;
     if (endsFreeSet) {

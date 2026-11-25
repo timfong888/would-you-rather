@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect, useRootNavigationState } from 'expo-router';
 import { browseHrefFor } from '@/lib/browse';
 import { FONTS, SPACING, RADIUS, type ThemeColors } from '@/constants/theme';
-import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, isTrancheStart } from '@/constants/questions';
+import { getQuestionById, getCategoryById, getCategoryQuestions, isKidsCategoryId, isQuestionLocked, endsOpenSet } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
@@ -267,10 +267,7 @@ export default function GameScreen() {
   // last-open → first-locked step counts: someone who arrived via a share link
   // on a locked question and continues goes to the paywall, not to a "you
   // finished" screen they never played.
-  const endsFreeSet =
-    nextLocked &&
-    category !== undefined &&
-    isTrancheStart(category, currentIdx + 1);
+  const endsFreeSet = category !== undefined && endsOpenSet(category, currentIdx, openTranches(category));
 
   // Funnel events for someone who opened a shared link (#134). Kids items send nothing.
   const trackRecipient = (action: RecipientAction, surface?: string, outcomeNow = outcome) => {

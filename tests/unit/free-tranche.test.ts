@@ -158,3 +158,36 @@ test('the home count is the grown-up questions, matching its 9 categories', () =
   assert.match(src, /TOTAL_QUESTIONS = GROWNUP_CATEGORIES\.reduce/);
   assert.equal(adult.reduce((sum, c) => sum + getCategoryQuestions(c.id).length, 0), 260);
 });
+
+// ── Sinatra findings on #242 ────────────────────────────────────────────────
+import { endsOpenSet, hasAnyTranche } from '../../constants/questions';
+
+test('settings lists a category when any tranche is owned, including web per-tranche unlocks', () => {
+  assert.equal(hasAnyTranche(false), false);
+  assert.equal(hasAnyTranche(new Set<number>()), false);
+  assert.equal(hasAnyTranche(new Set([1])), true);
+  assert.equal(hasAnyTranche(new Set([2])), true);
+  assert.equal(hasAnyTranche(true), true);
+  const src = code('app/settings.tsx');
+  assert.match(src, /hasAnyTranche\(openTranches\(cat\)\)/);
+  assert.doesNotMatch(src, /isUnlocked\(cat\.id\)/);
+});
+
+test('only the last open question before a paid tranche goes to the complete screen', () => {
+  const none = new Set<number>();
+  assert.equal(endsOpenSet(td, 4, none), true); // Q5 -> Q6 locked
+  assert.equal(endsOpenSet(td, 19, new Set([1])), true); // Q20 open (owned) -> Q21 locked
+  // share recipient on locked Q20 with nothing owned: Q21 is not a tranche start, and Q20 is locked
+  assert.equal(endsOpenSet(td, 19, none), false);
+  assert.equal(endsOpenSet(td, 5, none), false); // locked current question
+  const game = code('app/game/[id].tsx');
+  const results = code('app/results/[id].tsx');
+  assert.match(game, /endsOpenSet\(category, currentIdx, openTranches\(category\)\)/);
+  assert.match(results, /endsOpenSet\(category, currentIdx, openTranches\(category\)\)/);
+});
+
+test('complete screen does not call bought questions free', () => {
+  const src = code('app/complete/[id].tsx');
+  assert.doesNotMatch(src, /played all \$\{completedCount\} free/);
+  assert.match(src, /played all \$\{completedCount\} \$\{category\.label\}/);
+});

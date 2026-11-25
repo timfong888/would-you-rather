@@ -1659,6 +1659,24 @@ export function isTrancheStart(category: CategoryDef, questionIndex: number): bo
   return getTranches(category).some((t) => t.first - 1 === questionIndex);
 }
 
+/** True when the player owns at least one paid tranche (or everything). */
+export function hasAnyTranche(access: Access): boolean {
+  return access === true || (access instanceof Set && access.size > 0);
+}
+
+/**
+ * True only for the exact last-open to first-locked step: the current question is open
+ * and the next one starts a paid tranche. A share recipient on a locked question is not
+ * "finishing" anything, so they go to the paywall instead of the complete screen.
+ */
+export function endsOpenSet(category: CategoryDef, currentIdx: number, access: Access): boolean {
+  return (
+    !isQuestionLocked(category, currentIdx, access) &&
+    isQuestionLocked(category, currentIdx + 1, access) &&
+    isTrancheStart(category, currentIdx + 1)
+  );
+}
+
 /** Size of a tranche in questions. */
 export function trancheSize(t: Tranche): number {
   return t.last - t.first + 1;

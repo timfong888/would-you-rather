@@ -266,7 +266,7 @@ export default function CompleteScreen() {
                   KEEP THE CONVERSATION GOING
                 </Text>
                 <Text style={styles.upsellHook}>
-                  {`You've played all ${completedCount} free ${category.label} dilemmas. ${nextSize} more are waiting.`}
+                  {`You've played all ${completedCount} ${category.label} dilemmas. ${nextSize} more are waiting.`}
                 </Text>
               </View>
             </View>
