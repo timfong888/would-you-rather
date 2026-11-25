@@ -70,7 +70,7 @@ test('the complete-screen step happens at every tranche start, for every grown-u
   assert.equal(isTrancheStart(td, 5), true);
   assert.equal(isTrancheStart(td, 20), true);
   const kids = CATEGORIES.find((c) => c.audience === 'kids')!;
-  assert.equal(isTrancheStart(kids, 8), true, 'kids keep their single step at the end of the free 8');
+  assert.equal(isTrancheStart(kids, 5), true, 'kids use the same tranche start as grown-ups');
 });
 
 test('tranche 2 has no store product yet: only tranche 1 is sellable until step F5', () => {
@@ -332,4 +332,40 @@ test('the iOS smoke flow asserts the paywall strings the app actually shows (#23
   // restore
   assert.match(flow, /assertVisible: "Restore previous purchases"/);
   assert.match(src, /accessibilityLabel="Restore previous purchases"/);
+});
+
+// ---- review of #251: a kids or teen paywall sells nothing and never offers the grown-up pack ----
+import { isTrancheSellable, offersAllCategoriesPack } from '../../constants/questions';
+
+test('kids and teen sell nothing until F5, even with the web free unlock; grown-ups keep today\'s rule', () => {
+  const young = CATEGORIES.filter((c) => c.audience !== 'adult');
+  assert.ok(young.length >= 9);
+  for (const c of young) {
+    for (const t of getTranches(c)) {
+      assert.equal(isTrancheSellable(c, t), false, `${c.id} tranche ${t.k}`);
+      assert.equal(isTrancheSellable(c, t, true), false, `${c.id} tranche ${t.k} with the web free unlock`);
+    }
+    assert.equal(offersAllCategoriesPack(c), false, `${c.id} must not offer premium_all, which does not open it`);
+  }
+  const [t1, t2] = getTranches(td);
+  assert.equal(isTrancheSellable(td, t1), true);
+  assert.equal(isTrancheSellable(td, t2), false, 'tranche 2 has no product yet');
+  assert.equal(isTrancheSellable(td, t2, true), true, 'the web free unlock still opens it for grown-ups');
+  for (const c of adult) assert.equal(offersAllCategoriesPack(c), true, c.id);
+});
+
+test('the paywall, category and complete screens decide "sellable" with isTrancheSellable, and the pack CTA is grown-up only', () => {
+  for (const f of ['app/unlock/[id].tsx', 'app/categories/[id].tsx', 'app/complete/[id].tsx']) {
+    const src = code(f);
+    assert.match(src, /isTrancheSellable\(/, f);
+    assert.doesNotMatch(src, /nextTranche\.k <= SELLABLE_TRANCHE_MAX/, `${f} must not compare the tranche number alone`);
+  }
+  const unlock = code('app/unlock/[id].tsx');
+  assert.match(unlock, /offersAllCategoriesPack\(category\) && \(purchasesAvailable \|\| WEB_FREE_UI\)/);
+  // The only place the pack is offered or bought is behind that guard.
+  assert.equal((unlock.match(/Or unlock every category/g) ?? []).length, 1);
+  assert.ok(unlock.indexOf('offersAllCategoriesPack(category)') < unlock.indexOf('Or unlock every category'));
+  for (const f of ['app/categories/[id].tsx', 'app/complete/[id].tsx']) {
+    assert.doesNotMatch(code(f), /unlock every category|handleBuy\('all'\)|PRODUCT_ALL/i, `${f} has no all-categories purchase`);
+  }
 });

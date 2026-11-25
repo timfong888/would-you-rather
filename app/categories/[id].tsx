@@ -14,7 +14,7 @@ import {
   getCategoryQuestions,
   getFreeQuestionCount,
   getLockedQuestionCount,
-  SELLABLE_TRANCHE_MAX,
+  isTrancheSellable,
   getNextTranche,
   getTranches,
   hasPaidContent,
@@ -72,7 +72,7 @@ export default function CategoryScreen() {
   // What is still locked for this player: banners, headers and the button follow it, not a yes/no unlock.
   const nextTranche = getNextTranche(category, access);
   const stillLocked = questions.filter((_, i) => isQuestionLocked(category, i, access)).length;
-  const sellable = nextTranche !== undefined && (nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK);
+  const sellable = nextTranche !== undefined && isTrancheSellable(category, nextTranche, WEB_FREE_UNLOCK);
   const freeCount = getFreeQuestionCount(category);
   const lockedCount = getLockedQuestionCount(category);
   const total = questions.length;

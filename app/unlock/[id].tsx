@@ -24,7 +24,8 @@ import {
   getNextTranche,
   hasLockedRemaining,
   isQuestionLocked,
-  SELLABLE_TRANCHE_MAX,
+  isTrancheSellable,
+  offersAllCategoriesPack,
   trancheSize,
 } from '@/constants/questions';
 import type { CategoryId } from '@/constants/questions';
@@ -144,8 +145,8 @@ export default function UnlockScreen() {
   // What the all-categories unlock opens in this category: everything still locked for this player.
   const remainingLocked = category ? questions.filter((_, i) => isQuestionLocked(category, i, access)).length : 0;
   const trancheStart = nextTranche ? nextTranche.first - 1 : freeCount;
-  // Tranche 2 has no store product until step F5; the web free unlock opens everything.
-  const sellable = nextTranche === undefined || nextTranche.k <= SELLABLE_TRANCHE_MAX || WEB_FREE_UNLOCK;
+  // Tranche 2 and every kids or teen tranche have no store product until step F5; the web free unlock is for grown-ups only.
+  const sellable = nextTranche === undefined || (!!category && isTrancheSellable(category, nextTranche, WEB_FREE_UNLOCK));
   const nothingToSell = category ? !hasLockedRemaining(category, access) : isUnlocked(id as CategoryId);
   const purchasedStartRef = useRef(trancheStart);
   const purchasedSizeRef = useRef(nextSize);
@@ -466,7 +467,7 @@ export default function UnlockScreen() {
           <Text style={styles.unlockBtnText}>{sellable ? `START ${nextSize} MORE CONVERSATIONS →` : 'MORE AVAILABLE SOON'}</Text>
         </Pressable>
 
-        {(purchasesAvailable || WEB_FREE_UI) && (
+        {offersAllCategoriesPack(category) && (purchasesAvailable || WEB_FREE_UI) && (
           <Pressable
             onPress={() => {
               if (WEB_FREE_UI) {

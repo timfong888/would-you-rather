@@ -13,6 +13,7 @@ import {
   isQuestionLocked,
   isQuestionPublic,
   trancheBounds,
+  trancheSize,
   type CategoryId,
 } from '../../constants/questions';
 import { ENTITLEMENT_ALL } from '../../lib/catalog';
@@ -64,11 +65,13 @@ test('tranche 2 of each 40-question category is exactly its volume 2 questions',
   }
 });
 
-test('trancheBounds: cut points at 20, 40, 60; a remainder under 10 joins the previous tranche', () => {
+test('trancheBounds: cut points at 20, 40, 60; a tail of 10 or fewer joins the previous tranche', () => {
   assert.deepEqual(trancheBounds(20, 5), [{ k: 1, first: 6, last: 20 }]);
   assert.deepEqual(trancheBounds(40, 5), [{ k: 1, first: 6, last: 20 }, { k: 2, first: 21, last: 40 }]);
   assert.deepEqual(trancheBounds(45, 5), [{ k: 1, first: 6, last: 20 }, { k: 2, first: 21, last: 45 }]);
-  assert.deepEqual(trancheBounds(50, 5), [{ k: 1, first: 6, last: 20 }, { k: 2, first: 21, last: 40 }, { k: 3, first: 41, last: 50 }]);
+  assert.deepEqual(trancheBounds(50, 5), [{ k: 1, first: 6, last: 20 }, { k: 2, first: 21, last: 50 }], 'a 10-question tail folds in');
+  assert.deepEqual(trancheBounds(51, 5), [{ k: 1, first: 6, last: 20 }, { k: 2, first: 21, last: 40 }, { k: 3, first: 41, last: 51 }], 'an 11-question tail stays');
+  assert.deepEqual(trancheBounds(30, 5), [{ k: 1, first: 6, last: 30 }], '30 questions: one tranche of 25');
   assert.deepEqual(trancheBounds(3, 5), []);
   assert.deepEqual(trancheBounds(5, 5), []);
   assert.deepEqual(trancheBounds(6, 5), [{ k: 1, first: 6, last: 6 }]);
@@ -118,15 +121,27 @@ test('premium_all, owner access and the all-pack test unlock open every tranche 
   }
 });
 
-test('kids and teen keep their rule: 8 free, one paid tranche, all-or-nothing access', () => {
-  for (const c of CATEGORIES.filter((c) => c.audience !== 'adult')) {
+test('kids and teen: 5 free, the grown-up tranche function, premium_all never opens them', () => {
+  const young = CATEGORIES.filter((c) => c.audience !== 'adult');
+  let products = 0;
+  for (const c of young) {
     const n = getCategoryQuestions(c.id).length;
-    assert.equal(getFreeQuestionCount(c), 8, c.id);
-    assert.deepEqual(getTranches(c), [{ k: 1, first: 9, last: n }], c.id);
-    assert.equal(openTranchesFor(base, c), false, c.id);
-    assert.equal(openTranchesFor({ ...base, entitlements: new Set([`cat_${c.id}`]) }, c), true, c.id);
-    assert.equal(getAccessibleQuestions(c, false).length, 8, c.id);
+    assert.equal(getFreeQuestionCount(c), 5, c.id);
+    assert.deepEqual(getTranches(c), trancheBounds(n, 5), c.id);
+    products += getTranches(c).length;
+    const setOf = (a: unknown) => a as ReadonlySet<number>;
+    assert.equal(setOf(openTranchesFor(base, c)).size, 0, c.id);
+    assert.equal(setOf(openTranchesFor({ ...base, entitlements: new Set([`cat_${c.id}`]) }, c)).has(1), true, c.id);
+    assert.equal(setOf(openTranchesFor({ ...base, entitlements: new Set(['premium_all']) }, c)).size, 0, `premium_all: ${c.id}`);
+    assert.equal(setOf(openTranchesFor({ ...base, testUnlockEnabled: true, testUnlocks: new Set(['premium_all']) }, c)).size, 0, `test all: ${c.id}`);
+    assert.equal(openTranchesFor({ ...base, ownerAccess: true }, c), true, `owner: ${c.id}`);
+    assert.equal(getAccessibleQuestions(c, false).length, 5, c.id);
   }
+  assert.equal(products, 14, '9 first tranches plus 5 later ones: the 10-question tails are folded in (Tim, 2026-11-25)');
+  const sizes = Object.fromEntries(young.map((c) => [c.id, getTranches(c).map(trancheSize)]));
+  assert.deepEqual(sizes['tiny-choices'], [25]);
+  assert.deepEqual(sizes['giggle-factory'], [15, 20, 15]);
+  assert.deepEqual(sizes['dinner-table'], [15, 27]);
 });
 
 test('the public (SEO) set stays at the rule before #238 until step F3', () => {

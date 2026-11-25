@@ -9,12 +9,11 @@ Keep it current: when a unit ships or the order changes, edit it here.
 and "having a free category with a hundred questions will reduce monetization". Family and kids is an audience, not
 a topic.
 
-**Pricing (Tim, 2026-11-24):** 8 free per category, then each $1.99 purchase opens the next 20 questions of that category, repeatable until it is exhausted. This replaces the "$1.99 unlocks a whole category" model for kids categories.
+**Pricing (Tim, 2026-11-25, supersedes 2026-11-24):** 5 free per category, the same rule as grown-ups ("Use 5, keep it consistent"; #238). Each $1.99 purchase opens the next tranche: positions 6-20, then 20 more at a time; a last tranche of 10 or fewer questions joins the one before it ("kids upgrade: yes"). The earlier "8 free" and "12 tranches" below are history; **the design is 14 kids and teen products** (table below).
 
 **What.** Replace it with eight topic categories (Tiny Choices, Make-Believe, Giggle Factory, Road Trip Rally,
 Dinner Table, Heart to Heart, Future Me, Real Talk) and one seasonal one (Holiday Table). Each shows an age range.
-Each has 8 free questions; after that each $1.99 purchase opens the next 20 (spec §3.4, decided: Tim accepted its
-five defaults on 2026-11-24). After unlocking, "More like this" serves new AI-written questions that a person has reviewed.
+Each has 5 free questions; after that each $1.99 purchase opens the next tranche (see Pricing above; PR #251). After unlocking, "More like this" serves new AI-written questions that a person has reviewed.
 
 **Rules that do not change.** Nothing under 13 is tracked and no ID is stored on a kids route. Every purchase from
 the kids side sits behind the parental gate. Question ids never change.
@@ -51,9 +50,21 @@ until Unit 4 shows parents buy the written unlock.
 - Tranche ids: product `wyr_unlock_<category>_<k>`, entitlement `cat_<category>_<k>`, `k` from 1. Same shape as today.
 - Teen (Real Talk) is sold like the kids categories (tranches plus the With kids pack, behind the gate).
 
-**The 12 tranches** (paid questions per category; free 8 first): Tiny Choices 22 (1); Make-Believe 33 (20, 13); Giggle Factory 47
+**Current design (2026-11-25, PR #251): 14 kids and teen products.** Free 5 first; tranche 1 is positions 6-20; later tranches add 20; a tail of 10 or fewer folds into the previous tranche:
+
+| Category | n | Tranches (positions, size) | Products |
+|---|---|---|---|
+| Tiny Choices, Road Trip Rally, Heart to Heart, Future Me, Real Talk | 30 | 6-30 (25) | 1 each |
+| Make-Believe | 41 | 6-20 (15), 21-41 (21) | 2 |
+| Giggle Factory | 55 | 6-20 (15), 21-40 (20), 41-55 (15) | 3 |
+| Dinner Table | 47 | 6-20 (15), 21-47 (27) | 2 |
+| Holiday Table | 33 | 6-20 (15), 21-33 (13) | 2 |
+
+Product ids: tranche 1 `wyr_unlock_<category>` / `cat_<id>`, tranche k >= 2 `wyr_unlock_<category>_<k>` / `cat_<id>_<k>`. `wyr_premium_all` does **not** open kids or teen tranches, and neither does the all-categories test unlock; owner access does. **Until step F5 creates the products, a kids or teen paywall sells nothing** (`SELLABLE_YOUNG_TRANCHES = false`): the button reads "MORE AVAILABLE SOON", the "unlock every category" link is not shown, and the web free unlock does not open kids or teen tranches. Spec §3.4 and the rest of this section below describe the superseded 12-tranche version.
+
+**The 12 tranches (superseded)** (paid questions per category; free 8 first): Tiny Choices 22 (1); Make-Believe 33 (20, 13); Giggle Factory 47
 (20, 27); Road Trip Rally 22 (1); Dinner Table 39 (20, 19); Heart to Heart 22 (1); Future Me 22 (1); Real Talk 22 (1); Holiday Table
-25 (1). Product count after Unit 4: 8 today, plus 12 tranches, plus the With kids pack = **21**.
+25 (1). Product count after Unit 4 in this superseded version: 8 today, plus 12 tranches, plus the With kids pack = 21; the current design is 14 kids and teen products, 26 in total with the grown-up ones (#252).
 
 **Rule.** Every payments change is its own PR. They are never batched, none is auto-merged, and each goes to Tim's queue with a link and
 one line on what a user would notice. No App Store Connect product, and no RevenueCat product, is created without asking the orchestrator

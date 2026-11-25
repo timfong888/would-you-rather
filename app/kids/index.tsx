@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, Pressable, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FONTS, RADIUS, SPACING, type ThemeColors } from '@/constants/theme';
-import { CATEGORIES, getAccessibleQuestions } from '@/constants/questions';
+import { CATEGORIES, getAccessibleQuestions, getCategoryQuestions } from '@/constants/questions';
 import { SITE_URL } from '@/constants/config';
 import PageHead from '@/components/PageHead';
 import SafeScrollView from '@/components/SafeScrollView';
@@ -21,26 +21,26 @@ import { DEFAULT_BAND_ID, categoriesForBand, randomKidsCategories } from '@/lib/
 export default function WithKidsScreen() {
   const router = useRouter();
   const { styles } = useThemedStyles(makeStyles);
-  const { isUnlocked } = useUnlocked();
+  const { openTranches } = useUnlocked();
   const [bandId, setBandId] = useState(DEFAULT_BAND_ID);
   const shown = categoriesForBand(CATEGORIES, bandId);
 
-  // Only ever a question the player can open now: a prefix of the category list, so indexOf is the category index.
+  // Only ever a question the player can open now: by tranche, with gaps possible, so the real index is looked up in the full list.
   const pickOne = () => {
     const pool = randomKidsCategories(CATEGORIES, bandId);
     if (!pool.length) return;
     const cat = pool[Math.floor(Math.random() * pool.length)];
-    const questions = getAccessibleQuestions(cat, isUnlocked(cat.id));
+    const questions = getAccessibleQuestions(cat, openTranches(cat));
     if (!questions.length) return;
     const q = questions[Math.floor(Math.random() * questions.length)];
-    router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
+    router.push(`/game/${q.id}?cat=${cat.id}&idx=${getCategoryQuestions(cat.id).indexOf(q)}`);
   };
 
   return (
     <SafeScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <PageHead
         title="Would You Rather with kids: pick a topic by age"
-        description="Would You Rather questions for kids and families, grouped by topic and age. Eight questions free in every category."
+        description="Would You Rather questions for kids and families, grouped by topic and age. Five questions free in every category."
         canonicalUrl={`${SITE_URL}/kids`}
       />
       <ModeSwitch mode="kids" />
