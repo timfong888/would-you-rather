@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Read-only App Store Connect API helper. Used by .github/workflows/apple-ops.yml.
 // Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (.p8 contents). Never printed.
-// Usage: node scripts/asc-api.mjs <app|builds|prerelease|bundle-ids|iap> --app <ascAppId>
+// Usage: node scripts/asc-api.mjs <app|builds|prerelease|bundle-ids|iap|build-icon|versions|iap-images|iap-screenshots> --app <ascAppId>
+// GET requests only. Nothing here writes to App Store Connect. URLs in responses are hidden.
 import { createPrivateKey, sign } from 'node:crypto';
 
 const { ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY } = process.env;
@@ -33,7 +34,7 @@ async function get(path) {
 const [cmd, ...rest] = process.argv.slice(2);
 const appId = rest[rest.indexOf('--app') + 1];
 if (!cmd || (cmd !== 'bundle-ids' && !appId)) {
-  console.error('Usage: asc-api.mjs <app|builds|prerelease|bundle-ids|iap> --app <ascAppId>');
+  console.error('Usage: asc-api.mjs <app|builds|prerelease|bundle-ids|iap|build-icon|versions|iap-images|iap-screenshots> --app <ascAppId>');
   process.exit(2);
 }
 
@@ -54,18 +55,60 @@ const paths = {
   // In-app purchases (read only): product id, type and review state.
   iap: `/v1/apps/${appId}/inAppPurchasesV2?limit=50` +
     '&fields[inAppPurchases]=name,productId,inAppPurchaseType,state,familySharable',
+  // Icon investigation (read only). iconAssetToken is the build's icon asset; only its presence and size print.
+  'build-icon': `/v1/builds?filter[app]=${appId}&sort=-uploadedDate&limit=5` +
+    '&fields[builds]=version,uploadedDate,processingState,iconAssetToken',
+  // App Store versions with their selected build (the App Store icon comes from that build).
+  versions: `/v1/apps/${appId}/appStoreVersions?limit=10&include=build` +
+    '&fields[appStoreVersions]=versionString,appStoreState,platform,releaseType,createdDate' +
+    '&fields[builds]=version,iconAssetToken',
+};
+// Per-IAP lookups: list the app's IAPs, then one GET per IAP.
+const perIap = {
+  'iap-images': (id) => `/v2/inAppPurchases/${id}/images?limit=10` +
+    '&fields[inAppPurchaseImages]=fileName,fileSize,state',
+  'iap-screenshots': (id) => `/v2/inAppPurchases/${id}/appStoreReviewScreenshot` +
+    '?fields[inAppPurchaseAppStoreReviewScreenshots]=fileName,fileSize,assetDeliveryState',
 };
 paths.uploads = paths.prerelease; // 'uploads' kept as the workflow's option name (buildUploads has no list endpoint)
-if (!paths[cmd]) { console.error(`Unknown command ${cmd}`); process.exit(2); }
+if (!paths[cmd] && !perIap[cmd]) { console.error(`Unknown command ${cmd}`); process.exit(2); }
 
-const { status, body } = await get(paths[cmd]);
-console.log(`HTTP ${status}`);
-if (body.errors) {
-  for (const e of body.errors) console.log(`ERROR ${e.status} ${e.code}: ${e.title} - ${e.detail}`);
+// Hide URLs (they can carry tokens) and reduce iconAssetToken to presence and size.
+function clean(v, key) {
+  if (key === 'iconAssetToken') {
+    return v ? { present: true, width: v.width, height: v.height } : { present: false };
+  }
+  if (typeof v === 'string') return /^https?:\/\//i.test(v) ? '(url hidden)' : v;
+  if (Array.isArray(v)) return v.map((x) => clean(x));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x, k)]));
+  return v;
 }
-const rows = Array.isArray(body.data) ? body.data : body.data ? [body.data] : [];
-// JSON:API puts include=... records (e.g. builds of a pre-release version) in `included`.
-const included = Array.isArray(body.included) ? body.included : [];
-for (const r of [...rows, ...included]) console.log(JSON.stringify({ id: r.id, type: r.type, ...r.attributes }, null, 2));
-if (!rows.length && !body.errors) console.log(body.nonJson ? '(non-JSON response, see HTTP status)' : '(no data returned)');
-process.exit(status >= 400 ? 1 : 0);
+
+function show({ status, body }, { okStatuses = [] } = {}) {
+  console.log(`HTTP ${status}`);
+  if (body.errors) {
+    for (const e of body.errors) console.log(`ERROR ${e.status} ${e.code}: ${e.title} - ${e.detail}`);
+  }
+  const rows = Array.isArray(body.data) ? body.data : body.data ? [body.data] : [];
+  // JSON:API puts include=... records (e.g. builds of a pre-release version) in `included`.
+  const included = Array.isArray(body.included) ? body.included : [];
+  for (const r of [...rows, ...included]) {
+    console.log(JSON.stringify(clean({ id: r.id, type: r.type, ...r.attributes }), null, 2));
+  }
+  if (!rows.length && !body.errors) console.log(body.nonJson ? '(non-JSON response, see HTTP status)' : '(no data returned)');
+  return status < 400 || okStatuses.includes(status);
+}
+
+if (perIap[cmd]) {
+  const list = await get(paths.iap);
+  console.log(`IAP list: HTTP ${list.status}`);
+  const iaps = Array.isArray(list.body.data) ? list.body.data : [];
+  let ok = list.status < 400;
+  for (const iap of iaps) {
+    console.log(`--- ${iap.attributes?.productId ?? iap.id} (${iap.attributes?.state ?? 'state unknown'})`);
+    ok = show(await get(perIap[cmd](iap.id)), { okStatuses: [404] }) && ok;
+  }
+  process.exit(ok ? 0 : 1);
+}
+
+process.exit(show(await get(paths[cmd])) ? 0 : 1);
