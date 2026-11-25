@@ -17,20 +17,28 @@ import { fileURLToPath } from 'node:url';
 
 export const BASELINE_FILE = new URL('./tsc-baseline.txt', import.meta.url);
 
-/** "<file> <TS code> <message>" for each `error TS` diagnostic in tsc output. Continuation lines are not counted. */
+/**
+ * "<file> <TS code> <message>" for each `error TS` diagnostic in tsc output. The indented continuation lines that
+ * follow a diagnostic (the detail of TS2769 "No overload matches this call.", for one) are part of its key, joined
+ * with " | ", so two diagnostics with the same headline but different details do not collide.
+ */
 export function parseTscErrors(output) {
   const keys = [];
+  let current = null;
   for (const line of output.split('\n')) {
     const m = line.match(/^(.+?)\(\d+,\d+\): error (TS\d+): (.*)$/);
-    if (m) {
-      keys.push(`${m[1]} ${m[2]} ${m[3].trim()}`);
-      continue;
-    }
     // Global diagnostics have no location (TS2688, TS2318, TS5xxx, TS6053): count them under a placeholder file.
-    const g = line.match(/^error (TS\d+): (.*)$/);
-    if (g) keys.push(`<global> ${g[1]} ${g[2].trim()}`);
+    const g = m ? null : line.match(/^error (TS\d+): (.*)$/);
+    if (m || g) {
+      current = m ? [m[1], m[2], m[3]] : ['<global>', g[1], g[2]];
+      keys.push(current);
+    } else if (current && /^\s+\S/.test(line)) {
+      current.push(line.trim());
+    } else {
+      current = null;
+    }
   }
-  return keys;
+  return keys.map(([file, code, headline, ...detail]) => [`${file} ${code} ${headline.trim()}`, ...detail].join(' | '));
 }
 
 function tally(keys) {
@@ -78,7 +86,7 @@ function main() {
       console.error(`Baseline not written: ${run.why}.`);
       process.exit(2);
     }
-    writeFileSync(BASELINE_FILE, `# tsc baseline (scripts/check-tsc-baseline.mjs): one "<file> <TS code> <message>" per known error.\n${[...keys].sort().join('\n')}\n`);
+    writeFileSync(BASELINE_FILE, `# tsc baseline (scripts/check-tsc-baseline.mjs): one "<file> <TS code> <message> [| detail lines]" per known error.\n${[...keys].sort().join('\n')}\n`);
     console.log(`Wrote ${keys.length} errors to scripts/tsc-baseline.txt.`);
     return;
   }

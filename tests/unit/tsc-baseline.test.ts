@@ -10,14 +10,17 @@ import { parseTscErrors, compareToBaseline, judge, isEntryPoint } from '../../sc
 
 const diag = (file: string, code: string, line = 1, msg = 'something') => `${file}(${line},1): error ${code}: ${msg}`;
 
-test('parses one "<file> <code>" per diagnostic, not the continuation lines', () => {
+test('parses one key per diagnostic; the continuation lines belong to the diagnostic above them', () => {
   const out = [
     diag('tests/unit/a.test.ts', 'TS2304'),
     '  The last overload gave the following error.',
     "    Type 'string' is not assignable to type 'number'.",
     diag('app/b.tsx', 'TS2322', 9),
   ].join('\n');
-  assert.deepEqual(parseTscErrors(out), ['tests/unit/a.test.ts TS2304 something', 'app/b.tsx TS2322 something']);
+  assert.deepEqual(parseTscErrors(out), [
+    "tests/unit/a.test.ts TS2304 something | The last overload gave the following error. | Type 'string' is not assignable to type 'number'.",
+    'app/b.tsx TS2322 something',
+  ]);
   assert.deepEqual(parseTscErrors(''), []);
 });
 
@@ -27,6 +30,16 @@ test('replacing an error with a different one of the same code in the same file 
   assert.equal(judge({ status: 2, keys: replaced }, baseline).code, 1);
   // The same errors on other lines (unrelated edits move them) still pass.
   const moved = parseTscErrors([diag('t.ts', 'TS2345', 30, "Argument of type 'a' is not assignable"), diag('t.ts', 'TS2345', 90, "Argument of type 'b' is not assignable")].join('\n'));
+  assert.equal(judge({ status: 2, keys: moved }, baseline).code, 0);
+});
+
+test('same headline, different detail (TS2769 "No overload matches this call.") is a different error (P1 on #258)', () => {
+  const overload = (line: number, detail: string) => [diag('t.ts', 'TS2769', line, 'No overload matches this call.'), '  Overload 1 of 2 gave the following error.', `    ${detail}`].join('\n');
+  const baseline = parseTscErrors([overload(3, "Argument of type 'a' is not assignable."), overload(9, "Argument of type 'b' is not assignable.")].join('\n'));
+  assert.equal(new Set(baseline).size, 2);
+  const swapped = parseTscErrors([overload(3, "Argument of type 'a' is not assignable."), overload(400, "Argument of type 'z' is not assignable.")].join('\n'));
+  assert.equal(judge({ status: 2, keys: swapped }, baseline).code, 1);
+  const moved = parseTscErrors([overload(30, "Argument of type 'a' is not assignable."), overload(90, "Argument of type 'b' is not assignable.")].join('\n'));
   assert.equal(judge({ status: 2, keys: moved }, baseline).code, 0);
 });
 
