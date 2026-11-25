@@ -16,8 +16,9 @@ name: WYR iOS (build and TestFlight)
 #   change to the reviewed preview profile. It is a blocklist, not a proof: the ancestor-of-main rule is the real control. wyr_sha may be ANY
 #   ancestor of main, so the check runs on whatever tree it is. Never loosen the ancestor check (for example to build PR heads);
 #   the script and the workflow always come from the dispatching main commit;
-# - eas-cli is installed (pinned version, --ignore-scripts, clean npm config) into a neutral directory by a secretless step and
-#   run from there against the clone, so npx never resolves anything through the clone's npm config;
+# - eas-cli is installed by a secretless step with `npm ci --ignore-scripts` from the committed tools/eas-cli/package-lock.json
+#   (the whole dependency tree is pinned, registry URLs only), in the main checkout, and run by absolute path against the clone,
+#   so npx never resolves anything through the clone's npm config;
 # - the profile is fixed to `preview` (production builds need Tim's explicit go); the sha input only ever reaches the shell through env:;
 # - third-party actions are pinned to commit SHAs; permissions contents: read; no artifacts; no pull_request_target;
 # - secrets reach exactly one step; the .p8 goes to a 0600 temp file outside the checkout and is deleted;
@@ -85,22 +86,19 @@ jobs:
           WYR_ROOT: ${{ runner.temp }}/wyr
         run: node scripts/wyr-check.mjs
 
-      - name: Install eas-cli into a neutral directory (pinned, no scripts, no secrets)
+      - name: Install eas-cli from the committed lockfile (whole tree pinned, no scripts, no secrets)
         env:
           NPM_CONFIG_USERCONFIG: /dev/null
-          NPM_CONFIG_GLOBALCONFIG: /dev/null
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
         run: |
-          mkdir -p "$RUNNER_TEMP/eas"
-          cd "$RUNNER_TEMP/eas"
-          npm install --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/eas" eas-cli@27.11.0
-          test -x "$RUNNER_TEMP/eas/node_modules/.bin/eas"
+          cd tools/eas-cli
+          npm ci --ignore-scripts --no-audit --no-fund
+          test -x node_modules/.bin/eas
 
       - name: Install dependencies of the app being built (no scripts, no secrets, clean npm config)
         env:
           WYR_ROOT: ${{ runner.temp }}/wyr
           NPM_CONFIG_USERCONFIG: /dev/null
-          NPM_CONFIG_GLOBALCONFIG: /dev/null
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
         run: |
           cd "$WYR_ROOT"
@@ -113,5 +111,5 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           WYR_ROOT: ${{ runner.temp }}/wyr
-          EAS_BIN: ${{ runner.temp }}/eas/node_modules/.bin/eas
+          EAS_BIN: ${{ github.workspace }}/tools/eas-cli/node_modules/.bin/eas
         run: node scripts/wyr-testflight.mjs

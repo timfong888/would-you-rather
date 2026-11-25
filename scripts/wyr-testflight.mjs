@@ -2,7 +2,7 @@
 // Build the Would You Rather iOS app (this repo, at a merged sha) on EAS and send it to TestFlight.
 // Used by .github/workflows/wyr-ios-testflight.yml. Modelled on scripts/neville-testflight.mjs.
 // Env (all GitHub Actions secrets, only this step sees them): EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY,
-//   plus EAS_BIN (eas-cli 27.11.0 installed by a secretless step into a neutral directory), WYR_ROOT (checkout of this repo at a sha that is an ancestor of main), EAS_PROFILE (must be preview), APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
+//   plus EAS_BIN (eas-cli installed by a secretless step from the committed tools/eas-cli lockfile), WYR_ROOT (checkout of this repo at a sha that is an ancestor of main), EAS_PROFILE (must be preview), APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
 // Flow: preflight app (GET) -> eas build (EAS creates the missing provisioning profile via the ASC key)
 //   -> existing scripts/asc-upload.mjs -> poll builds (GET) -> job summary with build number and state only.
 // Never prints: the key, key id, issuer id, JWT, team id or Expo token (all masked and redacted). On the success path the only
@@ -34,7 +34,7 @@ for (const [k, v] of Object.entries({ EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC
 if (!/^[A-Z0-9]{10}$/.test(APPLE_TEAM_ID)) die('APPLE_TEAM_ID is not a 10-character team id.', 2);
 const profile = env.EAS_PROFILE || WYR_PROFILE;
 if (profile !== WYR_PROFILE) die(`EAS_PROFILE must be ${WYR_PROFILE}; production builds need Tim's explicit go.`, 2);
-const easBin = env.EAS_BIN; // eas-cli installed by an earlier secretless step into a neutral directory, never resolved through the clone's npm config
+const easBin = env.EAS_BIN; // eas-cli installed by an earlier secretless step from tools/eas-cli/package-lock.json, never resolved through the clone's npm config
 if (!easBin || !easBin.startsWith('/') || !fs.existsSync(easBin)) die('EAS_BIN must be the absolute path of the eas-cli installed by the earlier step.', 2);
 const wyrDir = env.WYR_ROOT; // the checkout of this repo at the requested sha (outside the workflow workspace)
 if (!wyrDir || !wyrDir.startsWith('/')) die('WYR_ROOT must be an absolute path.', 2);
@@ -81,8 +81,8 @@ try {
     EXPO_TOKEN, EXPO_APPLE_TEAM_ID: APPLE_TEAM_ID, EXPO_APPLE_TEAM_TYPE: 'COMPANY_OR_ORGANIZATION',
     EXPO_ASC_API_KEY_PATH: keyPath, EXPO_ASC_KEY_ID: ASC_KEY_ID, EXPO_ASC_ISSUER_ID: ASC_ISSUER_ID,
     EXPO_NO_TELEMETRY: '1',
-    // Keep npm out of the clone's and the runner's config: no user/global .npmrc, registry pinned.
-    NPM_CONFIG_USERCONFIG: '/dev/null', NPM_CONFIG_GLOBALCONFIG: '/dev/null', NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org/',
+    // Keep npm out of the user's config and pin the registry. (Not GLOBALCONFIG too: npm refuses /dev/null loaded as both user and global config.)
+    NPM_CONFIG_USERCONFIG: '/dev/null', NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org/',
   };
   // 3a. Read-only: what is EAS's current remote build number? Refuse BEFORE spending a build if the next one would be under the floor.
   {

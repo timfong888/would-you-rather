@@ -185,14 +185,14 @@ test('check: a missing checkout or a symlinked root fails closed', () => {
 test('workflow order: self-contained check, then eas-cli install, then npm ci, all before the only secret step', () => {
   const i = (needle: string) => wf.indexOf(needle);
   assert.ok(i('node scripts/wyr-check.mjs') > i('merge-base --is-ancestor'));
-  assert.ok(i('node scripts/wyr-check.mjs') < i('npm install --ignore-scripts'));
-  assert.ok(i('npm install --ignore-scripts') < i('npm ci --ignore-scripts'));
+  assert.ok(i('node scripts/wyr-check.mjs') < i('cd tools/eas-cli'));
+  assert.ok(i('cd tools/eas-cli') < i('cd "$WYR_ROOT"'));
   assert.ok(i('npm ci --ignore-scripts') < i('secrets.EXPO_TOKEN'));
-  assert.match(wf, /eas-cli@27\.11\.0/);
-  assert.match(wf, /EAS_BIN: \$\{\{ runner\.temp \}\}\/eas\/node_modules\/\.bin\/eas/);
+    assert.match(wf, /EAS_BIN: \$\{\{ github\.workspace \}\}\/tools\/eas-cli\/node_modules\/\.bin\/eas/);
   assert.ok(!/npx/.test(script.replace(/\/\/.*$/gm, '')), 'the secret step never runs npx');
   const npmSteps = wf.split('\n      - ').slice(1).filter((x) => /npm (ci|install)/.test(x));
   assert.equal(npmSteps.length, 2);
+  assert.ok(!/npm install/.test(npmSteps.join('\n')), 'both installs are npm ci from a lockfile');
   for (const st of npmSteps) { assert.match(st, /NPM_CONFIG_USERCONFIG: \/dev\/null/); assert.match(st, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org\//); assert.match(st, /--ignore-scripts/); }
   assert.match(script, /NPM_CONFIG_USERCONFIG: '\/dev\/null'/);
   assert.match(script, /spawnSync\(easBin,/);
@@ -255,4 +255,34 @@ test('remote build number: the next number must not be under 23, checked before 
 test('workflow comments do not claim the check proves anything', () => {
   assert.ok(!/refuses anything that could/i.test(wf));
   assert.match(wf, /blocklist, not a proof/);
+});
+
+test('check: a package.json imports field and # / non-grammar / undeclared plugins fail (Sinatra P2)', () => {
+  assert.match(errs(tree((d) => edit(d, 'package.json', (j) => { j.imports = { '#p/app.plugin': './evil.js' }; }))), /imports field/);
+  for (const bad of ['#p', '#p/app.plugin', 'Not_A_Name', 'a b', '@scope', 'pkg//x', '-x']) {
+    assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push(bad); }))), /plugin/, bad);
+  }
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push('some-undeclared-package'); }))), /not declared dependencies/);
+  assert.match(errs(tree((d) => edit(d, 'app.json', (j) => { j.expo.plugins.push('@scope/undeclared/plugin'); }))), /not declared dependencies/);
+  assert.equal(isLocalPlugin('#p'), true);
+  assert.equal(isLocalPlugin('expo-router'), false);
+  assert.equal(isLocalPlugin('@expo/config-plugins'), false);
+});
+
+test('eas-cli pin: tools/eas-cli has an exact version and a registry-only lockfile v3 that the workflow installs with npm ci', () => {
+  const pkg = JSON.parse(real('tools/eas-cli/package.json'));
+  const lock = JSON.parse(real('tools/eas-cli/package-lock.json'));
+  assert.match(pkg.dependencies['eas-cli'], /^\d+\.\d+\.\d+$/);
+  assert.equal(lock.lockfileVersion, 3);
+  assert.equal(lock.packages['node_modules/eas-cli'].version, pkg.dependencies['eas-cli']);
+  const bad = Object.entries(lock.packages).filter(([, v]: any) => v?.resolved && !/^https:\/\/registry\.npmjs\.org\//.test(v.resolved) || v?.link);
+  assert.deepEqual(bad, []);
+  assert.ok(!lock.dependencies);
+  assert.match(wf, /cd tools\/eas-cli\n\s+npm ci --ignore-scripts/);
+});
+
+test('npm config pins: USERCONFIG=/dev/null and the registry only (npm errors if /dev/null is loaded as both user and global config)', () => {
+  assert.ok(!/NPM_CONFIG_GLOBALCONFIG/.test(wf));
+  assert.ok(!/NPM_CONFIG_GLOBALCONFIG/.test(script));
+  assert.equal((wf.match(/NPM_CONFIG_USERCONFIG: \/dev\/null/g) || []).length, 2);
 });

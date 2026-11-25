@@ -79,10 +79,14 @@ export function checkNextBuildNumber(current, floor = WYR_MIN_BUILD) {
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 
 // A plugin must be a package NAME: a string with no path syntax. Anything else (a function, a path, ../x, file:, an absolute path) runs local code.
+export const NPM_PLUGIN_NAME_RE = /^(@[a-z0-9~][a-z0-9-._~]*\/)?[a-z0-9~][a-z0-9-._~]*(\/[A-Za-z0-9._-]+)*$/;
 export function isLocalPlugin(p) {
   const n = Array.isArray(p) ? p[0] : p;
-  return typeof n !== 'string' || /^(\.|\/|\\|~|[A-Za-z]:|(file|link|portal):)/i.test(n.trim()) || n.includes('..');
+  // Not a string, path-like, a `#` subpath import (resolved through package.json "imports"), or not the npm package-name grammar.
+  return typeof n !== 'string' || /^(\.|\/|\\|~|#|[A-Za-z]:|(file|link|portal):)/i.test(n.trim()) || n.includes('..') || !NPM_PLUGIN_NAME_RE.test(n);
 }
+// The package a plugin name refers to (`@scope/pkg/sub` -> `@scope/pkg`, `pkg/sub` -> `pkg`).
+export function pluginPackage(name) { const parts = String(name).split('/'); return name.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]; }
 
 // A dependency spec that does not come from the npm registry: local path, workspace, git or any URL.
 export function isNonRegistrySpec(spec) {
@@ -143,6 +147,7 @@ export function checkWyrSelfContained(dir, { fs, profile = WYR_PROFILE }) {
     else lines.push('all package.json dependencies come from the npm registry');
     if (pkg.bundledDependencies || pkg.bundleDependencies) errors.push('package.json lists bundled dependencies');
     if ('exports' in pkg) errors.push('package.json has an exports field (a plugin named after this package would resolve to local files)');
+    if ('imports' in pkg) errors.push('package.json has an imports field (a # plugin name would resolve to local files)');
   }
 
   // 4. package-lock.json: every resolved URL is the npm registry over https; no link or file entries.
@@ -174,6 +179,11 @@ export function checkWyrSelfContained(dir, { fs, profile = WYR_PROFILE }) {
     const local = plugins.filter(isLocalPlugin);
     const selfRef = pkg && typeof pkg.name === 'string' ? plugins.filter((p) => (Array.isArray(p) ? p[0] : p) === pkg.name || String(Array.isArray(p) ? p[0] : p).startsWith(`${pkg.name}/`)) : [];
     if (selfRef.length) errors.push('app.json lists a plugin named after this package itself (resolves to local files)');
+    if (pkg) {
+      const declared = new Set(Object.keys({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies }));
+      const undeclared = plugins.filter((p) => !isLocalPlugin(p)).map((p) => pluginPackage(Array.isArray(p) ? p[0] : p)).filter((n) => !declared.has(n));
+      if (undeclared.length) errors.push(`app.json lists ${undeclared.length} plugin(s) that are not declared dependencies in package.json`);
+    }
     if (local.length) errors.push(`app.json lists ${local.length} plugin(s) that are local files, paths or not plain names; only package-name plugins are allowed`);
     else lines.push('app.json plugins: package names only');
     if (exp.ios?.bundleIdentifier !== WYR_BUNDLE_ID) errors.push(`app.json ios.bundleIdentifier is not ${WYR_BUNDLE_ID}`); else lines.push(`app.json ios bundle id: ${WYR_BUNDLE_ID}`);
