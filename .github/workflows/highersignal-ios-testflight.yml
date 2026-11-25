@@ -1,0 +1,124 @@
+name: Higher Signal iOS (build and TestFlight)
+
+# Manual only. Builds the Higher Signal iOS app (timfong888/highersignal, bundle pckg.highersignal) on EAS and uploads it to
+# TestFlight against the ASC app in HIGHERSIGNAL_APP_ID (empty until the app record exists; the run stops before any secret is
+# used while it is empty). WRITES to App Store Connect; never submits for App Review.
+#
+# Security (public repo, public logs, holds the ASC key and an Expo token; the app repo is PRIVATE):
+# - dispatch only, only by timfong888, only from main (so only merged workflow code ever sees the secrets);
+# - the only input is highersignal_sha, a full sha that must be an ancestor of highersignal's main, checked BEFORE any
+#   Apple/Expo secret is used; repo, ref, build directory and ASC app id are hardcoded, never input, never interpolated into a run: script;
+# - private clone: a READ-ONLY, single-repo deploy key (secret HIGHERSIGNAL_DEPLOY_KEY in the apple-ops environment).
+#   It is visible to the clone step only, lives in a 0600 temp file outside the checkout, is deleted when the step ends, and is
+#   never given to the Apple/Expo step. The Apple/Expo secrets are never visible to the clone step;
+# - the app is cloned OUTSIDE this repo's tree ($RUNNER_TEMP), so EAS/Expo never resolves this repo's package.json or metro config;
+# - the secretless check (scripts/highersignal-check.mjs) fails the run before any Apple/Expo secret if the app directory is not
+#   self-contained (own package.json, lockfile, app.json, eas.json, pckg.highersignal bundle id, EAS profile, no workspaces, no parent
+#   dependency, no local-file plugins, registry-only lockfile v3, no .npmrc/.env/app.config.*);
+# - eas-cli comes from the committed tools/eas-cli lockfile (whole tree pinned), run by absolute path, never via npx in the app dir;
+# - Apple/Expo secrets reach exactly one step; contents: read; no artifacts; no pull_request_target;
+# - the ASC preflight checks the app id against pckg.highersignal; third-party actions are pinned to commit SHAs;
+#   on success the only Apple data printed is build number and state (a failed `eas build` prints its last 60 lines, redacted).
+on:
+  workflow_dispatch:
+    inputs:
+      highersignal_sha:
+        description: Full 40-char commit sha on highersignal main (merged code only)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: highersignal-ios-testflight
+  cancel-in-progress: false
+
+env:
+  HIGHERSIGNAL_REPO: timfong888/highersignal
+  # Where the Expo app lives in that repo: '.' (repo root) or 'native'. Allowlisted in scripts/lib/highersignalRelease.mjs.
+  HIGHERSIGNAL_SUBDIR: .
+  # Not a secret. Fill in with the numeric App Store Connect app id once the app record exists.
+  HIGHERSIGNAL_APP_ID: ''
+  EAS_PROFILE: production
+  APPLE_TEAM_ID: VJKU43W3C2
+
+jobs:
+  highersignal-ios:
+    if: github.event_name == 'workflow_dispatch' && github.actor == 'timfong888' && github.triggering_actor == 'timfong888' && github.repository == 'timfong888/would-you-rather' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
+    timeout-minutes: 120
+    steps:
+      - name: Validate highersignal_sha format and the ASC app id
+        env:
+          HIGHERSIGNAL_SHA: ${{ inputs.highersignal_sha }}
+        run: |
+          [[ "$HIGHERSIGNAL_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "highersignal_sha must be a full 40-char lowercase hex sha"; exit 1; }
+          [[ "$HIGHERSIGNAL_APP_ID" =~ ^[0-9]{8,12}$ ]] || { echo "HIGHERSIGNAL_APP_ID is not set: create the app record in App Store Connect and put its numeric id in this workflow's env"; exit 1; }
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Clone highersignal (read-only deploy key, this step only) outside the workspace and pin it to the requested sha
+        env:
+          HIGHERSIGNAL_DEPLOY_KEY: ${{ secrets.HIGHERSIGNAL_DEPLOY_KEY }}
+          HIGHERSIGNAL_SHA: ${{ inputs.highersignal_sha }}
+          HIGHERSIGNAL_DEST: ${{ runner.temp }}/highersignal
+        run: |
+          set -euo pipefail
+          umask 077
+          [ -n "$HIGHERSIGNAL_DEPLOY_KEY" ] || { echo "HIGHERSIGNAL_DEPLOY_KEY is missing from the apple-ops environment"; exit 1; }
+          while IFS= read -r l; do [ "${#l}" -ge 4 ] && echo "::add-mask::$l"; done <<< "$HIGHERSIGNAL_DEPLOY_KEY"
+          keydir="$(mktemp -d)"
+          trap 'rm -rf "$keydir"' EXIT
+          printf '%s\n' "$HIGHERSIGNAL_DEPLOY_KEY" > "$keydir/id"
+          # GitHub's published ed25519 host key (SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU); never ssh-keyscan.
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "$keydir/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $keydir/id -o IdentitiesOnly=yes -o UserKnownHostsFile=$keydir/known_hosts -o StrictHostKeyChecking=yes"
+          git clone --no-tags "git@github.com:${HIGHERSIGNAL_REPO}.git" "$HIGHERSIGNAL_DEST"
+          cd "$HIGHERSIGNAL_DEST"
+          git cat-file -e "${HIGHERSIGNAL_SHA}^{commit}" || { echo "sha not found in highersignal"; exit 1; }
+          git merge-base --is-ancestor "$HIGHERSIGNAL_SHA" origin/main || { echo "sha is not an ancestor of highersignal main; refusing"; exit 1; }
+          git checkout --detach "$HIGHERSIGNAL_SHA"
+          echo "building highersignal at ${HIGHERSIGNAL_SHA:0:12}"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          # Expo SDK 58 (eas-cli, Metro) needs Node >= 22.13.
+          node-version: '22'
+
+      - name: Check the highersignal directory is self-contained (no secrets)
+        env:
+          HIGHERSIGNAL_ROOT: ${{ runner.temp }}/highersignal
+        run: node scripts/highersignal-check.mjs
+
+      - name: Install eas-cli from the committed lockfile (whole tree pinned, no scripts, no secrets)
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+        run: |
+          cd tools/eas-cli
+          npm ci --ignore-scripts --no-audit --no-fund
+          test -x node_modules/.bin/eas
+
+      - name: Install highersignal dependencies (no scripts, no secrets, clean npm config)
+        env:
+          HIGHERSIGNAL_ROOT: ${{ runner.temp }}/highersignal
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+        run: |
+          cd "$HIGHERSIGNAL_ROOT/$HIGHERSIGNAL_SUBDIR"
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Build on EAS and upload to TestFlight
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          HIGHERSIGNAL_ROOT: ${{ runner.temp }}/highersignal
+          EAS_BIN: ${{ github.workspace }}/tools/eas-cli/node_modules/.bin/eas
+        run: node scripts/highersignal-testflight.mjs
