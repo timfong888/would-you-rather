@@ -58,7 +58,7 @@ function legacyCopy(value: string): boolean {
 export default function GameScreen() {
   const { id, cat, idx, link_id, f } = useLocalSearchParams<{ id: string; cat: string; idx: string; link_id: string; f: string }>();
   const router = useRouter();
-  const { isUnlocked, entitlementsLoaded } = useUnlocked();
+  const { openTranches, entitlementsLoaded } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<'A' | 'B' | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -104,7 +104,7 @@ export default function GameScreen() {
   const friend = decodeFriend(f);
   const friendPick = friend === 'A' || friend === 'B' ? friend : null;
   const arrivedViaShare = (typeof link_id === 'string' && SHARE_LINK_ID_RE.test(link_id)) || friend !== null;
-  const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, isUnlocked(category.id)));
+  const currentLocked = !!(category && question && isQuestionLocked(category, currentIdx, openTranches(category)));
   const gate = questionGate({ locked: currentLocked, arrivedViaShare, entitlementsLoaded });
   // A buyer's entitlements arrive asynchronously (RevenueCat). Until the first
   // fetch settles, a locked-looking question may belong to a paid category, so
@@ -261,7 +261,7 @@ export default function GameScreen() {
   const nextQuestion = catId && nextIdx < categoryQuestions.length ? categoryQuestions[nextIdx] : null;
   // Is the next question behind the unlock? (premium trial ended, or the free
   // set of a free category is finished and the expansion pack starts.)
-  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, isUnlocked(category.id)));
+  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, nextIdx, openTranches(category)));
   // Finishing the free set of a free category is a real milestone: celebrate
   // it on the complete screen (which carries the expansion upsell) instead of
   // dropping straight onto the paywall. Premium trials keep the direct paywall.

@@ -16,7 +16,7 @@ import {
   getLockedQuestionCount,
   hasPaidContent,
   isQuestionLocked,
-  getAccessibleQuestions,
+  getPublicQuestions,
   RETIRED_KIDS_CATEGORY_IDS,
 } from '@/constants/questions';
 import { COPY } from '@/constants/copy';
@@ -34,7 +34,7 @@ export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { answered, refresh } = useAnsweredQuestions();
-  const { isUnlocked, priceForCategory } = useUnlocked();
+  const { isUnlocked, openTranches, priceForCategory } = useUnlocked();
   const { styles, colors } = useThemedStyles(makeStyles);
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
@@ -97,7 +97,7 @@ export default function CategoryScreen() {
         canonicalUrl={`${SITE_URL}/categories/${category.id}`}
       />
       {/* Schema lists only the free questions, never locked text. */}
-      <JsonLd data={categoryJsonLd(category, getAccessibleQuestions(category, false))} />
+      <JsonLd data={categoryJsonLd(category, getPublicQuestions(category))} />
       {/* Category Hero */}
       <View style={[styles.hero, { borderColor: `${category.color}30`, backgroundColor: `${category.color}10` }]}>
         <Text style={styles.heroEmoji}>{category.emoji}</Text>
@@ -159,7 +159,7 @@ export default function CategoryScreen() {
       {/* Questions List */}
       <View style={styles.list}>
         {questions.map((q, idx) => {
-          const isLocked = isQuestionLocked(category, idx, categoryUnlocked);
+          const isLocked = isQuestionLocked(category, idx, openTranches(category));
           const answeredChoice = answered[q.id];
           const isAnswered = answeredChoice !== undefined;
           // Header above the first question beyond the free set — only while locked,

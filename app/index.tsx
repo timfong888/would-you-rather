@@ -38,16 +38,16 @@ export default function HomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { styles } = useThemedStyles((colors) => makeStyles(colors, width), [width]);
-  const { isUnlocked } = useUnlocked();
+  const { openTranches } = useUnlocked();
 
   // Random play only ever lands on a question the user can actually play.
-  // Accessible questions are a prefix of the category list, so indexOf is the
-  // category index the game screen expects.
+  // The game screen expects the category index, so look the question up in the
+  // category list (the playable ones need not be a prefix once tranches exist).
   const navigateToQuestion = (cat: typeof CATEGORIES[number]) => {
-    const questions = getAccessibleQuestions(cat, isUnlocked(cat.id));
+    const questions = getAccessibleQuestions(cat, openTranches(cat));
     if (!questions.length) return;
     const q = questions[Math.floor(Math.random() * questions.length)];
-    router.push(`/game/${q.id}?cat=${cat.id}&idx=${questions.indexOf(q)}`);
+    router.push(`/game/${q.id}?cat=${cat.id}&idx=${getCategoryQuestions(cat.id).indexOf(q)}`);
   };
 
   const handleRandomQuestion = () => {

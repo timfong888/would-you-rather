@@ -11,7 +11,7 @@
  * search-intent cluster) and the process in docs/seo-content-skill.md.
  *
  * Adult pages list only questions a first-time visitor can play for free
- * (getAccessibleQuestions with categoryUnlocked = false), so they never publish
+ * (getPublicQuestions: the public rule frozen before #238 until step F3), so they never publish
  * locked expansion or premium text. Kids pages are the one exception (decision D4,
  * docs/specs/kids-family-categories.md §7): they list their full written set, which
  * is already public and indexed. The paywall gates the in-app category run, new
@@ -21,7 +21,7 @@ import {
   CATEGORIES,
   DARING,
   QUESTIONS,
-  getAccessibleQuestions,
+  getPublicQuestions,
   type CategoryDef,
   type CategoryId,
   type Question,
@@ -587,7 +587,7 @@ export function getSeoPageQuestions(page: SeoPageDef): Question[] {
       page.categoryIds
         .map((id) => CATEGORIES.find((c): c is CategoryDef => c.id === id))
         .filter((c): c is CategoryDef => c !== undefined)
-        .flatMap((c) => getAccessibleQuestions(c, false))
+        .flatMap((c) => getPublicQuestions(c))
         .map((q) => q.id),
     );
     return QUESTIONS.filter((q) => free.has(q.id) && written(q)).slice(0, page.limit);
@@ -596,7 +596,7 @@ export function getSeoPageQuestions(page: SeoPageDef): Question[] {
   const pools = page.categoryIds
     .map((id) => CATEGORIES.find((c): c is CategoryDef => c.id === id))
     .filter((c): c is CategoryDef => c !== undefined)
-    .map((c) => getAccessibleQuestions(c, false));
+    .map((c) => getPublicQuestions(c));
 
   const picked: Question[] = [];
   for (let round = 0; picked.length < page.limit; round++) {

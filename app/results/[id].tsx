@@ -28,7 +28,7 @@ export default function ResultsScreen() {
   const { id, voted, cat } = useLocalSearchParams<{ id: string; voted: string; cat: string }>();
   const router = useRouter();
   const { styles, colors } = useThemedStyles(makeStyles);
-  const { isUnlocked } = useUnlocked();
+  const { openTranches } = useUnlocked();
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const igTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -226,7 +226,7 @@ export default function ResultsScreen() {
   // Same routing rule as the game screen: a locked next question goes to the
   // paywall, except the last-free → first-locked step of a free category,
   // which celebrates on the complete screen (with the expansion upsell).
-  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, currentIdx + 1, isUnlocked(category.id)));
+  const nextLocked = !!(category && nextQuestion && isQuestionLocked(category, currentIdx + 1, openTranches(category)));
   const endsFreeSet = nextLocked && !!category && category.tier === 'free' && currentIdx + 1 === getFreeQuestionCount(category);
   const handleNextQuestion = () => {
     if (!nextQuestion || !cat) return;
