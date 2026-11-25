@@ -83,16 +83,46 @@ categories, they have a fixed number that is free and the additional 20 they hav
 it was 5 free, so that means there are no longer any that have just completely 20 or more free". Today Moral Compass, Social
 Blunders, Career Climber and Tech Dystopia are `tier: 'free'` (20 free, 20 paid) and the other five give 3 free.
 
-**Rule (proposed, waits on Tim).** No free tier. One constant, `FREE_QUESTION_COUNT = 5`. The first 5 questions of every
-grown-up category are free; everything else is paid. Labels, paywall, store text and docs derive from
-`getFreeQuestionCount` / `getLockedQuestionCount`, never from a typed number. Entitlement ids (`cat_<id>`, `premium_all`)
-and the 8 product ids do not change.
+**Rule (Tim, 2026-11-25, option C in #238).** No free tier. One free count `F`, then paid tranches: "each unlocked scope within a single
+category is just an additional 20 questions capped, no matter what the category". **Free count `F = 5` is not yet confirmed**: Tim wrote
+"i believe we said it was 5", and nothing in the repo says 5 (code: 3 and 8). No app code until the orchestrator confirms it.
+Labels, paywall, store text and docs derive from the tranche function, never from a typed number.
 
-**Open answers (ticket #238, Decisions 1 to 7).** Free count 5 (code says 3 and 8 today; nothing in the repo says 5). What the
-unlock opens after 5 free: 15 or 35 questions, not 20. Kids and teen (8 free). SEO pages for questions 6 to 20. Product text.
-Home question count (260 or 586). Web free unlock copy.
+**Tranche function.** `tranches(category)`: with `n` questions in category order and `F = getFreeQuestionCount(category)`, tranche `k` (1-based)
+holds positions `F + 20(k-1) + 1` to `min(F + 20k, n)` (1-based). A remainder under 10 joins the previous tranche (the kids rule in
+`docs/specs/kids-family-categories.md` §3.4; no grown-up remainder is under 10). Free = positions 1 to `F`. Computed from the data on main (`npx tsx` over
+`getCategoryQuestions`, 2026-11-25), `F = 5`:
 
-**No app code until Tim answers.** Gating and prices are payments scope: one change per PR, none batched, Tim reviews each.
+| Category | n | Free | Tranche 1 | Tranche 2 |
+|---|---|---|---|---|
+| The High Life | 20 | 1-5 (hl-1..hl-5) | 6-20, 15 questions (hl-6..hl-20) | none |
+| Midnight Secrets | 20 | 1-5 | 6-20, 15 (ms-6..ms-20) | none |
+| Time Traveler | 20 | 1-5 | 6-20, 15 (tt-6..tt-20) | none |
+| Deep Desires | 20 | 1-5 | 6-20, 15 (dd-6..dd-20) | none |
+| Wildest Dreams | 20 | 1-5 | 6-20, 15 (wd-6..wd-20) | none |
+| Moral Compass | 40 | 1-5 (mc-1..mc-5) | 6-25, 20 (mc-6..mc-25) | 26-40, 15 (mc-26..mc-40) |
+| Social Blunders | 40 | 1-5 | 6-25, 20 (sb-6..sb-25) | 26-40, 15 (sb-26..sb-40) |
+| Career Climber | 40 | 1-5 | 6-25, 20 (cc-6..cc-25) | 26-40, 15 (cc-26..cc-40) |
+| Tech Dystopia | 40 | 1-5 (td-1..td-5) | 6-25, 20 (td-6..td-25) | 26-40, 15 (td-26..td-40) |
+
+Tranche 1 of the four 40-question categories crosses the old volume boundary (positions 21-25 are volume 2); `volume` stops mattering for access.
+
+**Products.** Tranche 1 keeps today's ids: `wyr_unlock_<category>` / entitlement `cat_<id>` (so nothing that exists changes id; only its text and the
+questions it opens change). Tranche 2 follows the kids pattern `wyr_unlock_<category>_<k>` / `cat_<id>_<k>`. Four new products, $1.99 each (price is
+an assumption; Tim approved $1.99 for the old per-category unlock): `wyr_unlock_moral_compass_2`, `wyr_unlock_social_blunders_2`,
+`wyr_unlock_career_climber_2`, `wyr_unlock_tech_dystopia_2`. Catalog grows from 8 to 12 grown-up products (iOS v1; Midnight Secrets and Deep Desires
+stay out of iOS v1, so only 7 of the 9 categories sell there).
+
+**`wyr_premium_all`** ($4.99) opens every tranche of every grown-up category, including tranches added later (as `docs/specs/kids-family-categories.md` §3.4 already decided: it does not open kids or teen tranches).
+
+**Kids.** Kids and teen tranches are already specified (§3.4; 12 products, `F = 8`, same 20-question step, remainder under 10 merges) and are Unit 4, not built
+(`lib/tranches.ts` does not exist on main). One function serves both: only `F` and the entitlement id differ (grown-up tranche 1 keeps the legacy
+`cat_<id>`). Whether kids move to `F = 5` is Decision 3 in #238.
+
+**Creating a product without a write by the Apple ops key.** The Apple ops workflow is read-only and stays so. Two ways to create the four products,
+both Tim's: (1) by hand in App Store Connect: app > Monetization > In-App Purchases > "+" > Non-Consumable, product id, $1.99, en-US text, review screenshot; or (2) the existing
+`Apple IAP create` workflow (`apple-iap-create.yml`, dry run first, then `apply=true` with its confirm string, which is hard-coded `CREATE-8-IAPS` and must change to the new count in a
+separate PR). Note both use the same `ASC_*` secrets; only workflow (2) writes. RevenueCat products, entitlements and packages come from `npm run rc:sync` (Tim runs it; I never do) or the RevenueCat dashboard.
 
 | Step | What | Files |
 |---|---|---|
@@ -100,13 +130,21 @@ Home question count (260 or 586). Web free unlock copy.
 | F2 | Labels and paywall: no FREE pill, one paywall copy, derived counts, random play uses every category | `app/index.tsx`, `app/categories/*`, `app/unlock/[id].tsx`, `app/game/[id].tsx`, `app/results/[id].tsx`, `app/complete/[id].tsx`, `components/CategoryCard.tsx`, `constants/copy.ts`, `lib/nextCategory.ts` |
 | F3 | SEO per Tim's answer | `constants/seoPages.ts`, `scripts/verify-seo.ts`, sitemap |
 | F4 | Store text and docs | `store/ios/*`, `docs/specs/app-store-listing.md`, `docs/specs/kids-family-categories.md` |
-| F5 | Product text or new products, only if the unlock scope changes (payments) | `lib/catalog.ts`, `store/ios/iap-products.json`; App Store Connect text is Tim's |
+| F5 | Payments, one PR: tranche function and access by owned tranche set, the 4 `_2` products in the catalog, new paywall text ("Open the next {n} questions") | `lib/catalog.ts`, `constants/questions.ts`, `store/ios/iap-products.json`, `app/unlock/[id].tsx`; App Store Connect and RevenueCat creation are Tim's |
 | F6 | Review screenshots re-rendered if the paywall changes | `store/ios/iap-review/` |
 
-**Buyers.** None known: RevenueCat revenue is $0 over 28 days, the iOS app is unreleased, web unlocks for free. Under the
-single-unlock option nothing changes for products. A split unlock or tranches add product ids (separate PRs).
+**Buyers.** None known: RevenueCat revenue is $0 over 28 days, the iOS app is unreleased, web unlocks for free. Existing product ids and entitlements keep their ids; tranche 1 of a 40-question category now opens positions 6 to 25, not all 40, so
+the four existing `wyr_unlock_*` products change text (`READY_TO_SUBMIT`, never approved) and four `_2` products are added (separate PR).
 
-**Done when.** The ticket's acceptance tests 1 to 10 pass on web and iPhone, and Tim has reviewed each PR.
+**Acceptance tests for the tranche rule** (`tests/unit/tranches.test.ts`, run `npx tsx --test tests/unit/tranches.test.ts`; plus device checks):
+1. For each grown-up category the tranche table above is reproduced exactly (first, last, size), free = positions 1 to `F`, tranches contiguous, no gaps or overlap, last tranche ends at `n`.
+2. Access is by the set of owned tranches: owning only tranche 2 opens 26-40 and nothing in 6-25; refunding tranche 1 while owning 2 closes exactly 6-25.
+3. `premium_all` opens every tranche of every grown-up category and none of a kids or teen category.
+4. `buildCatalog()` yields the 8 current ids plus the four `_2` ids; ids and entitlement ids match the pattern.
+5. iPhone (TestFlight, sandbox): Tech Dystopia, answer 5, question 6 shows the paywall "Open the next 20 questions"; buy tranche 1: 6-25 play, 26 shows the paywall "Open the next 15 questions"; buy tranche 2: all 40 play; relaunch and Restore keep both. High Life: question 6 paywall "Open the next 15", one purchase opens to 20.
+6. Web with the free unlock on: one tap opens the next tranche only (or all, per Tim), and the copy says "free for now".
+
+**Done when.** The ticket's acceptance tests 1 to 10 and the tranche tests above pass on web and iPhone, and Tim has reviewed each PR.
 
 ## Later
 
