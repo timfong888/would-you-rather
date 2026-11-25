@@ -5,6 +5,8 @@ Date: 2026-11-20. Owner of the decisions: Tim. Builds on the #87 kit (`store/ios
 
 App: ASC app id `6836653723`, record name "Would You Rather? Family Fun", bundle `com.timfong888.wouldyourather`, SKU `wyr-ios-001`. iPhone only (`supportsTablet: false`, Tim 2026-11-18). iOS v1 ships 8 categories: 7 adult/teen plus free Kids & Family; Midnight Secrets and Deep Desires are left out (`constants/iosV1.ts`).
 
+> **2026-11-25 update:** section 8 below is the field-by-field checklist for version 1.0 (ticket #243). Where it differs from sections 2 and 3 (screenshot size, "Free to start" wording, keywords), section 8 wins.
+
 ## 0. What I found that changes the plan
 
 1. **The "see how everyone voted" story cannot be shown honestly yet.** The app shows a vote split only after 20 votes on a question (`VOTE_THRESHOLD`, PRD: never fake or seeded counts). The #87 screenshot `05-answered.png` shows the real state: no split, only "New question. Send it to someone and see if they pick the same." Captions and the description must sell the share/match loop now and the vote split only once real counts exist. Apple also wants screenshots to show the app as it is (guideline 2.3.3).
@@ -286,3 +288,222 @@ Agent automation needs a new **write** workflow (the existing `apple-ops.yml` is
 ## 7. Open questions for Tim
 
 See the linked issue for the decision list with a recommendation each.
+
+## 8. Required fields before "Add for Review" (audit 2026-11-25, ticket #243)
+
+Nothing here is entered in App Store Connect. Method: Apple ops (GET only: `app`, `versions`, `iap`, `iap-screenshots`, `iap-images`, run 2026-11-25), Tim's screenshot of the version page, and the repo files cited. Apple ops cannot read localizations, age rating, App Privacy, pricing or review details, so those are **unverified** unless Tim's screenshot shows them. "Blank" means blank in Tim's screenshot or not set in any file; Tim confirms on the page.
+
+### 8.1 Live reads
+
+| Fact | Value | Source |
+|---|---|---|
+| App | "Would You Rather? Family Fun", bundle `com.timfong888.wouldyourather`, SKU `wyr-ios-001`, primary locale en-US | Apple ops `app` |
+| Version | 1.0, `PREPARE_FOR_SUBMISSION`, release type `AFTER_APPROVAL` (automatic), created 2026-11-18 | Apple ops `versions` |
+| Build on the version | build 23 attached, icon asset present (120x120) | Apple ops `versions` |
+| In-app purchases | 8 exist, all non-consumable, all `READY_TO_SUBMIT`, family sharing off | Apple ops `iap` |
+| IAP review screenshots | 8 of 8 uploaded, state COMPLETE | Apple ops `iap-screenshots` |
+| IAP promotional images | none (optional) | Apple ops `iap-images` |
+| Support URL page | live (HTTP 200), shows contact `tim@wouldyourather.fyi` | `curl https://www.wouldyourather.fyi/support` |
+| Privacy page | live (HTTP 200), mentions PostHog (adult screens only), RevenueCat, kids exclusions | `curl https://www.wouldyourather.fyi/privacy` |
+
+Note: `store/ios/iap.md` still says "none exist"; that is stale (ticket #238 row E).
+
+### 8.2 Field table
+
+State: **blank** (empty in Tim's screenshot or nowhere set), **set** (read live), **unverified** (cannot read; Tim checks). Character counts were measured with `node`.
+
+| # | Page | Field | State | Proposed value | Limit |
+|---|---|---|---|---|---|
+| 1 | Version | App Previews | blank (0 of 3) | None for v1. Optional; skip until screenshots are done. | 886x1920 |
+| 2 | Version | Screenshots | blank (0 of 10) | 6 screenshots, section 8.3 | 1206x2622 |
+| 3 | Version | Promotional Text | blank | `Pick a side, then see if your family or friends picked the same. Free questions in every category, optional upgrades, no account needed.` (136) | 170 |
+| 4 | Version | Description | unverified (draft in `listing-final.json`) | Section 8.4 (1,259 chars, Family wording proposed for Tim). Replaces the "Free to start" paragraph so it states no count (#238). | 4000 |
+| 5 | Version | Keywords | **pending data** | Leave open. Placeholder only, not for entry: `game,icebreaker,road trip,this or that,date night,dilemma,conversation,parents,teens,couples,party` (98). See 8.5. | 100 |
+| 6 | Version | Support URL | unverified | `https://www.wouldyourather.fyi/support` (page live, 200) | |
+| 7 | Version | Marketing URL | unverified | `https://www.wouldyourather.fyi` | |
+| 8 | Version | What's New | unverified | Not shown for a first version (unverified). If asked: `Welcome to Would You Rather. Pick a side, challenge a friend, and see if they chose the same.` (93) | 4000 |
+| 9 | Version | Copyright | unverified | `2026 Tim Fong` (legal name open in #114) | |
+| 10 | Version | Build | **set** | Build 23, already attached. Confirm it is the build Tim wants after #238 code lands; a new build means re-attaching. | |
+| 11 | Version | In-App Purchases | unverified | Attach all 8 products to this version | |
+| 12 | Version | Version release | set: automatic after approval | Recommend **manual** release, so launch waits for #238 and a Tim go. Tim decides. | |
+| 13 | Version | Sign-in required | unverified | No | |
+| 14 | App Review | Contact first name, last name, phone, email | unverified | **Tim types**: personal data, not in any file | |
+| 15 | App Review | Review notes | unverified | Section 8.6 | 4000 |
+| 16 | App Review | Attachment | unverified | None | |
+| 17 | App Information | Name | unverified (record name is this) | `Would You Rather? Family Fun` (28) | 30 |
+| 18 | App Information | Subtitle | unverified | `Questions for the whole family` (30) | 30 |
+| 19 | App Information | Privacy Policy URL | unverified | `https://www.wouldyourather.fyi/privacy` (live, 200). Needs Tim's legal read first (#114). | |
+| 20 | App Information | Primary category | unverified | Entertainment (listing.md). Secondary: none, or Games > Family. Tim decides. | |
+| 21 | App Information | Content rights | unverified | "No, it does not contain, show or access third-party content." Questions are written with AI help and reviewed (PRD). Tim confirms. | |
+| 22 | App Information | Age rating questionnaire | unverified (not read from ASC) | **Decided: keep 13+, not Made for Kids** (Tim, 2026-11-25: "D3: keep 13+"). Answers in section 5.1; Apple computes the final rating. | |
+| 23 | App Compliance (new) | Contents of this section | **unverified** | Not readable via API; I do not know what it asks. Likely items: export compliance (already `ITSAppUsesNonExemptEncryption: false` in `app.json`) and, if sold in the EU, Digital Services Act trader status. Tim opens it and reports each question. | |
+| 24 | App Compliance | EU trader status | unverified | Likely not needed with US-only availability (row 29); confirm in the section. If EU storefronts are added later, Tim decides then; a trader status makes a contact address and phone public on the EU listing (unverified how ASC shows it). | |
+| 25 | App Privacy | Data types collected | unverified | Section 5.3 table (purchase history, device ID, product interaction, coarse location; none used for tracking) | |
+| 26 | App Accessibility | Accessibility labels | unverified | Declare nothing until each feature is tested on a device. I have not verified VoiceOver, Dynamic Type or contrast. Believed voluntary for now (unverified). | |
+| 27 | Ratings and Reviews | Any required field | unverified | None expected; age rating is under App Information (verify). | |
+| 28 | Monetization | Price | unverified | Free, base territory USA | |
+| 29 | Monetization | Availability | unverified | **United States only** (Tim, 2026-11-25, his direct words; not read from ASC). Remove every other storefront. | |
+| 30 | Monetization | Paid Apps agreement, banking, tax | unverified | **Tim** (Account Holder). Needed for in-app purchases. | |
+| 31 | In-App Purchases | 8 products: name, description, price, screenshot | **set** (`READY_TO_SUBMIT`; screenshots COMPLETE) | Keep. Display text "Every question in X" may be wrong after #238; do not edit until Tim answers #238 decision 2. | |
+| 32 | Version | Advertising Identifier (asked at submit) | unverified | No (no ads, no ATT, section 5.3). Tim confirms RevenueCat does not read the IDFA. | |
+| 33 | Version | Export compliance (asked at submit) | set in `app.json` | Not asked per build; nothing to do (section 5.4). | |
+
+Not required for v1, skip: In-App Events, Custom Product Pages, Product Page Optimization, Promo Codes, Asset Library, Game Center, iPad screenshots (`supportsTablet: false`), Apple Watch.
+
+Claims in the copy and where they come from: eight categories and kids set (`store/ios/iap.md`, `constants/iosV1.ts`); anonymous answers and kids exclusions (live privacy page); no subscription and Restore Purchases (`store/ios/iap.md`). The vote-split bullet is kept as "as more people answer", matching `listing-final.json` and the PRD's 20-vote rule.
+
+### 8.3 Screenshot set
+
+**Exact size: 1206x2622 px, portrait, PNG, no alpha.** Tim's screenshot of the upload slot lists 1179x2556 and 1206x2622 (and landscape). The earlier plan (section 2) used 1320x2868; that size is not on the list Tim saw, so do not use it. I pick 1206x2622 because an iPhone 16 Pro or 17 Pro takes screenshots at exactly that size (unverified for Tim's phone: check Settings > General > About > Model Name).
+
+**How many: 6** (first 3 show in search; 4 more than the minimum buys nothing). The 10-slot limit is not a target.
+
+| # | Caption (max 36, counted) | Screen | Capture note |
+|---|---|---|---|
+| 1 | `Pick a side.` (12) | Question screen, option A selected | `/game/hl-1` |
+| 2 | `Challenge a friend.` (19) | Share / send-a-question flow | real state, no counts |
+| 3 | `See if they matched.` (20) | Shared-question match result | real state |
+| 4 | `Eight categories, one tap.` (26) | Categories grid | iOS v1 catalog (8) |
+| 5 | `Dinner table. Car ride.` (23) | Kids & Family category | `kf-*` questions only |
+| 6 | `Free to start. Unlock what you like.` (36) | Native paywall at the real store price | needs a device or simulator; do not state a free count |
+
+Dropped from section 2: "Dark mode, too" (padding). The real vote-split shot stays out until a question has 20 or more real votes (PRD). Captions say nothing about free counts (#238).
+
+**Without a Mac** (pick one, recommendation first):
+1. **Tim's iPhone, 10 minutes.** Install build 23 or later from TestFlight, open each of the 6 screens, take a screenshot (side button + volume up), AirDrop or share to Files, send the 6 raw files. The native paywall (shot 6) comes only from here or option 2. I compose captions on a gradient with `sharp` and output 1206x2622 flat PNGs to `store/ios/screenshots/iphone-6.3/`.
+2. **macOS CI runner.** `.github/workflows/ios-simulator-smoke.yml` already builds the app for the simulator on `macos-15`. A new workflow (separate PR, needs Tim's go) would boot an iPhone 16 Pro simulator, open each deep link with `xcrun simctl openurl`, and save `xcrun simctl io booted screenshot`. Slower; paywall store price is unverified in a simulator without StoreKit config.
+3. **Web render (draft only).** `scripts/store/screenshots.mjs`: set a device to 402x874 CSS px at scale 3 (= 1206x2622). Header chrome differs from native and the paywall is simulated, so Apple may object (guideline 2.3.3). Fine for review of captions, not for upload.
+
+Upload: Tim drags the files into the 6.3" slot (human step below), or an ASC API workflow after his approval of the set.
+
+### 8.4 Description (1,259 characters) — Family wording **accepted by Tim, 2026-11-25**
+
+The Family-category wording below was accepted by Tim on 2026-11-25 ("D4: yes", decision 7 in 8.8): it replaces "Kids & Family" to lower the risk under guideline 5.1.4 (section 9.2). Tim decides. Screenshots are unchanged; screenshot 5 still says Kids & Family and keeps that risk.
+
+```
+One question, two choices, a table full of opinions. Would You Rather turns dinner, car rides and waiting rooms into real conversation. Pick A or B, send the question to someone, and see if they chose the same.
+
+HOW IT WORKS
+- Read a dilemma and tap the option you would choose.
+- Send the question to a friend and see if they pick the same.
+- As more people answer a question, you see how everyone voted.
+
+EIGHT CATEGORIES
+The High Life, Moral Compass, Social Blunders, Time Traveler, Career Climber, Tech Dystopia and Wildest Dreams for teens and adults, plus a Family category for the whole table. New questions are added over time.
+
+FREE TO START
+Every category has free questions to try. Want more? Unlock a category with an optional upgrade.
+
+UNLOCK WHAT YOU LIKE
+- Unlock one category with a single purchase.
+- Or unlock every category in one pack, including questions added later.
+- No subscription. Restore Purchases is always available.
+
+PRIVATE BY DEFAULT
+No account and no sign-up. Your answers are stored anonymously to build vote totals. Family category answers are stored with no device ID and no location.
+
+Some categories contain mature themes and are meant for teens and adults. The Family category is designed for families to play together.
+```
+
+Changed from `listing-final.json`: the "Free to start" paragraph no longer names categories as free or says "free to play with an optional expansion" (removed by #238). Re-check once #238 settles whether Kids & Family stays free.
+
+### 8.5 Keywords: pending data
+
+Tim's view (2026-11-25): "would you rather" is the right term. Two things to check before it goes in the field:
+- Apple indexes the app name, subtitle and keywords together. "Would You Rather" is already in the name, so repeating it in the keyword field spends characters for no extra match. The value of the term is in the name; the keyword field should add *other* words.
+- Search Ads popularity (Tim's account) measures how often a term is searched, not how well this app would rank. Competitors with exact "Would You Rather ..." names own that space (section 3). Popularity, plus the number of apps ranking for a term, together decide.
+
+Verified: nothing about search volume. Unverified: popularity of any term, including "would you rather". When Tim has the data, send me the terms with their popularity and I fill the 100 characters (comma-separated, no spaces after commas, singular forms, no competitor names, no "kids").
+
+### 8.6 App Review notes (replace the stale text in `listing.md`)
+
+```
+No sign-in is needed. Open a category and play. Categories show a paywall after the free questions; purchases use in-app purchase. Use a sandbox account to test: the all-categories pack, or any single category. Restore Purchases is on the paywall screen.
+
+Kids & Family: any purchase screen opened from Kids & Family content shows a "Grown-ups only" gate first (solve a three-number sum). The app is not in the Kids Category.
+```
+
+`ParentalGate.tsx` exists in `components/`. Whether it ships in build 23 is unverified; Tim checks on a device before sending these notes.
+
+### 8.7 Human-only steps for Tim
+
+All links open App Store Connect for app 6836653723; menu paths move, so each is "(verify)". Paste the value shown.
+
+| # | Step | Link | Paste |
+|---|---|---|---|
+| 1 | Open the version page | https://appstoreconnect.apple.com/apps/6836653723/distribution/ios/version/inflight (verify) | |
+| 2 | Promotional Text | same page | `Pick a side, then see if your family or friends picked the same. Free questions in every category, optional upgrades, no account needed.` |
+| 3 | Description | same page | section 8.4 block |
+| 4 | Support, Marketing URL | same page | `https://www.wouldyourather.fyi/support` and `https://www.wouldyourather.fyi` |
+| 5 | Copyright | same page | `2026 Tim Fong` (or the legal entity) |
+| 6 | Screenshots | same page, 6.3" slot | the 6 PNGs, 1206x2622, after Tim approves the set |
+| 7 | Attach in-app purchases | same page, In-App Purchases section | all 8 |
+| 8 | App Review contact | same page, App Review | Tim's first and last name, phone, email |
+| 9 | Review notes | same page | section 8.6 block |
+| 10 | Name and Subtitle | https://appstoreconnect.apple.com/apps/6836653723/distribution/info (verify) | `Would You Rather? Family Fun` and `Questions for the whole family` |
+| 11 | Privacy Policy URL, category, content rights | same page | `https://www.wouldyourather.fyi/privacy`; Entertainment; "No" third-party content |
+| 12 | Age rating questionnaire | same page | section 5.1 answers |
+| 13 | App Compliance (new) | left menu, App Compliance | read each question to me, then answer; trader status is Tim's call (row 24) |
+| 14 | App Privacy | https://appstoreconnect.apple.com/apps/6836653723/distribution/privacy (verify) | section 5.3 table |
+| 15 | Price and availability | left menu, Monetization / Pricing and Availability | Free; USA base; availability: United States only |
+| 16 | Paid Apps agreement, banking, tax | https://appstoreconnect.apple.com/business | Account Holder only |
+| 17 | Keywords | version page | **wait** for Search Ads data (8.5) |
+| 18 | Add for Review | version page | **only after Tim's explicit go** |
+
+### 8.8 Decisions for Tim
+
+1. **Screenshots: iPhone capture or CI?** Recommend your iPhone (option 1): fastest, real paywall.
+2. **Keyword field:** hold until Search Ads data, and do not repeat "would you rather". Recommend hold.
+3. **Release type:** manual, not automatic. Recommend manual.
+4. **Territories: decided, United States only** (Tim, 2026-11-25). EU trader status is then expected not to apply (unverified); revisit if more storefronts are added.
+5. **Ship before or after #238?** IAP text ("Every question in X") and paywall copy may change. Recommend fix #238 first; screenshots 6 and the IAP review screenshots need re-capture if the paywall changes.
+6. **Accessibility:** skip labels for v1 until tested. Recommend skip.
+7. **Category name mismatch: decided** (Tim, 2026-11-25: "D4: yes"). The store text says "Family" and the app keeps "Kids & Family". Nothing is renamed in the app. Section 8.6 (review notes) keeps "Kids & Family" on purpose because it describes the app to App Review. Screenshot 5 is unchanged.
+
+## 9. Age rating options and Kids Category bands (2026-11-25)
+
+Answers Tim's question of 2026-11-25 ("what are the other child ranges, and tradeoffs"). Sources were read on 2026-11-25; each claim names its page. Apple computes the final rating from the questionnaire, so the "this app" column is an expectation, not a result.
+
+Sources:
+- [A] Age rating values: https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/
+- [B] Set an app age rating: https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating/
+- [C] Kids category (design safe and age-appropriate experiences): https://developer.apple.com/app-store/kids-apps/
+- [D] App Review Guidelines 1.3 and 5.1.4: https://developer.apple.com/app-store/review/guidelines/
+
+### 9.1 The two scales
+
+| Scale | Values | Source |
+|---|---|---|
+| App Store age rating | 4+, 9+, 13+, 16+, 18+ | [A] |
+| Kids category age band ("Made for Kids") | 5 and under, 6-8, 9-11 | [C] |
+
+The two are separate. The band is an extra choice on top of the rating, and it is only offered when the calculated rating is 4+ or 9+ [B]. Apple's definition of 13+ includes "Infrequent alcohol, tobacco, or drug use or references" [A]. The #87 audit found 2 of 443 questions with wine references (`hl-16`, `hl-17`), which is why 13+ is expected. Whether removing them would give 9+ is unverified; Apple computes it.
+
+### 9.2 Options and the rules that apply to this app
+
+| Option in App Store Connect | Age bands | Third-party analytics (PostHog on adult screens) | In-app purchases | Adult categories | Source |
+|---|---|---|---|---|---|
+| **1. Calculated rating, "Not Applicable"** (expected 13+) | none | Allowed; disclose in App Privacy and the privacy policy. Kids content must still follow 5.1.4. | Allowed. A parental gate on kids purchase screens is good practice here, not required for this option. | Allowed | [B], [D] 5.1.4 |
+| **2. Override to a higher rating** (16+ or 18+) | none | same as 1 | same as 1 | Allowed | [B] |
+| **3. Made for Kids, 5 and under** | 5 and under | Apple says kids apps should not send personally identifiable or device information to third parties, "even in sections intended for adults", unless a parent consents. Third-party analytics are allowed only in limited cases (no IDFA, nothing identifiable). | Only behind a parental gate | Not workable: the rating must calculate to 4+ or 9+ [B], and the whole app must follow Kids category rules [C] | [B], [C], [D] 1.3 |
+| **4. Made for Kids, 6-8** | 6-8 | as 3 | as 3 | as 3 | same |
+| **5. Made for Kids, 9-11** | 9-11 | as 3 | as 3 | as 3 | same |
+
+Notes that apply to every option:
+- The "Made for Kids" selection cannot be changed once App Review approves it, and the app and all later updates must follow the Kids category guidelines [B].
+- Metadata rule (5.1.4, which points to 2.3.8): apps not in the Kids category "cannot include any terms in app name, subtitle, icon, screenshots or description that imply the main audience for the app is children" [D]. This listing says "Family Fun", "Questions for the whole family" and "Kids & Family". I read "family" as not implying children as the main audience, but this is my judgment, not Apple's; App Review decides. Risk is highest for the "Kids & Family" wording in the description and screenshot 5.
+- Kids category purchase rule: no purchasing opportunities except behind a parental gate [D] 1.3.
+
+### 9.3 Which option fits this app
+
+**Option 1 (calculated rating, not Made for Kids).** Reasons, each from the sources above:
+1. The app has seven teen and adult categories. A Made for Kids selection needs a calculated 4+ or 9+ rating [B], and the adult content (and wine references) points to 13+ [A].
+2. PostHog runs on adult screens. For the Kids category Apple says kids apps should not send identifiable or device information to third parties even in adult sections [C]. Removing PostHog from the whole iOS app would be needed.
+3. This matches the decision already recorded in section 5.2 (Tim, 2026-11-19: general listing, rated 13+).
+
+The tradeoff is real: a 13+ app is not shown in the Kids category and is not installable on a child's device with age limits under 13. A later separate kids-only app (section 5.2, path B) is the way into the Kids category.
+
+### 9.4 Open items
+- The final rating comes from Apple's questionnaire in the App Information page; Tim enters the answers (row 22).
+- **Decided: option 1, calculated rating, not Made for Kids** (Tim, 2026-11-25: "D3: keep 13+"). The age rating stays 13+. No Kids category band is selected.
+- The Family wording in the description (8.4) was accepted by Tim on 2026-11-25 ("D4: yes"). Screenshot 5 (8.3) still says Kids & Family and is unchanged.
