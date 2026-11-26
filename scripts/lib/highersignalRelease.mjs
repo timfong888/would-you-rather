@@ -106,7 +106,8 @@ const stringsOf = (o) => (typeof o === 'string' ? [o] : o && typeof o === 'objec
 // Secretless check that the build dir builds on its own and cannot run repo code inside eas-cli's reach. Reads files only; prints fixed
 // text and line numbers, never file content. It is a blocklist, not a proof: the real control is that the sha is merged on main.
 // Returns { lines, warnings, errors }. `fs` is injected for tests. `appId` (optional): the configured ASC app id, checked against eas.json submit.
-export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.versions.node, profile = 'production', appId = undefined, minVersion }) {
+/** @param {string} dir @param {string} name @param {{ fs: any, root?: string, nodeVersion?: string, profile?: string, appId?: string, minVersion?: string }} opts */
+export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.versions.node, profile = 'production', appId, minVersion }) {
   validateDir(name);
   const lines = [], warnings = [], errors = [];
   if (root) errors.push(...checkDirSafety(root, name, fs));
