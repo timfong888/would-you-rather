@@ -24,7 +24,7 @@ All 17 are **Non-Consumable**: the pack and one product per paid category (D22, 
 | 16 | `wyr_unlock_real_talk` | Unlock Real Talk | Real Talk | Unlock all of Real Talk | $1.99 |
 | 17 | `wyr_unlock_holiday_table` | Unlock Holiday Table | Holiday Table | Unlock all of Holiday Table | $1.99 |
 
-(`kids-family` is free and has no product. **Midnight Secrets and Deep Desires have no product**: they are left out of iOS v1 (Tim, 2026-11-18). The pack covers the 7 grown-up categories that ship, plus questions added to them later; it does not open kids or teen categories.) Kids and teen products exist in the catalog but sell nothing until F5b (`SELLABLE_YOUNG_TRANCHES`).
+(`kids-family` is free and has no product. **Midnight Secrets and Deep Desires have no product**: they are left out of iOS v1 (Tim, 2026-11-18). The pack covers the 7 grown-up categories that ship, plus questions added to them later; it does not open kids or teen categories.) Kids and teen category products are sold since F5b (`SELLABLE_YOUNG_TRANCHES = true`, #255); their review screenshots (device shots) are still to come.
 
 ## Text changes after creation
 The create workflow never changes a product that already exists. Text edits to existing products go through the **Apple IAP text update** workflow (`.github/workflows/apple-iap-update.yml`, `scripts/asc-iap-update.mjs`, #252): dry run by default (prints each product's text before and after; D22 #255 changes the text of the 8 existing products to "Unlock all of <category>"), writes only with `apply=true` and `confirm=UPDATE-IAP-TEXT`, run only with Tim's go. It changes the en-US name and description only (never price, availability or review state) and skips products that are in review or approved.

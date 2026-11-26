@@ -60,7 +60,7 @@ until Unit 4 shows parents buy the written unlock.
 | Dinner Table | 47 | 6-20 (15), 21-47 (27) | 2 |
 | Holiday Table | 33 | 6-20 (15), 21-33 (13) | 2 |
 
-Product ids: tranche 1 `wyr_unlock_<category>` / `cat_<id>`, tranche k >= 2 `wyr_unlock_<category>_<k>` / `cat_<id>_<k>`. `wyr_premium_all` does **not** open kids or teen tranches, and neither does the all-categories test unlock; owner access does. **Until step F5 creates the products, a kids or teen paywall sells nothing** (`SELLABLE_YOUNG_TRANCHES = false`): the button reads "MORE AVAILABLE SOON", the "unlock every category" link is not shown, and the web free unlock does not open kids or teen tranches. Spec §3.4 and the rest of this section below describe the superseded 12-tranche version.
+Product ids: tranche 1 `wyr_unlock_<category>` / `cat_<id>`, tranche k >= 2 `wyr_unlock_<category>_<k>` / `cat_<id>_<k>`. `wyr_premium_all` does **not** open kids or teen tranches, and neither does the all-categories test unlock; owner access does. **Since F5b (`SELLABLE_YOUNG_TRANCHES = true`) a kids or teen paywall sells the $1.99 category product** and the web free unlock opens them like any category; the "unlock every category" link is still never shown on them. With the switch off the button reads "MORE AVAILABLE SOON". Spec §3.4 and the rest of this section below describe the superseded 12-tranche version.
 
 **The 12 tranches (superseded)** (paid questions per category; free 8 first): Tiny Choices 22 (1); Make-Believe 33 (20, 13); Giggle Factory 47
 (20, 27); Road Trip Rally 22 (1); Dinner Table 39 (20, 19); Heart to Heart 22 (1); Future Me 22 (1); Real Talk 22 (1); Holiday Table
