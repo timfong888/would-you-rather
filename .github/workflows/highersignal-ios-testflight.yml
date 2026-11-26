@@ -42,11 +42,11 @@ env:
   HIGHERSIGNAL_SUBDIR: app
   # Not a secret. The existing Sophia app record in App Store Connect (bundle sophia.pkg); Higher Signal reuses it.
   HIGHERSIGNAL_APP_ID: '6467124124'
-  # Floor guard for the reused Sophia app, not secret, never a dispatch input (a dispatch could lower it). Empty until Tim sends them:
-  # the highest RELEASED version (x.y.z) and the highest existing BUILD number of the ASC app. The build must be above both; an empty
+  # Floor guard for the reused Sophia app, not secret, never a dispatch input (a dispatch could lower it). From Tim, App Store Connect, 2026-11-26:
+  # the highest RELEASED version (1.1.1) and the highest existing TestFlight BUILD number (420) of the ASC app. The build must be above both; an empty
   # value stops the run before the clone and before any secret.
-  HIGHERSIGNAL_MIN_VERSION: ''
-  HIGHERSIGNAL_MIN_BUILD: ''
+  HIGHERSIGNAL_MIN_VERSION: '1.1.1'
+  HIGHERSIGNAL_MIN_BUILD: '420'
   EAS_PROFILE: production
   APPLE_TEAM_ID: VJKU43W3C2
 

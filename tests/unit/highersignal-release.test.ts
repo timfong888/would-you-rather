@@ -271,8 +271,8 @@ test('floor guard: version and build must be strictly above the floors; empty or
 });
 
 test('workflow: the floors are env constants, empty or valid, validated before the clone, and never a dispatch input', () => {
-  assert.match(wf, /HIGHERSIGNAL_MIN_VERSION: '([0-9]+\.[0-9]+\.[0-9]+)?'\n/);
-  assert.match(wf, /HIGHERSIGNAL_MIN_BUILD: '([0-9]{1,9})?'\n/);
+  assert.match(wf, /HIGHERSIGNAL_MIN_VERSION: '1\.1\.1'\n/); // released version of the Sophia app (Tim, App Store Connect)
+  assert.match(wf, /HIGHERSIGNAL_MIN_BUILD: '420'\n/); // highest TestFlight build
   assert.doesNotMatch(wf, /inputs\.[a-z_]*(min|floor|version|build)/i);
   const v = wfSteps[stepIdx(/Validate highersignal_sha/)];
   assert.match(v, /HIGHERSIGNAL_MIN_VERSION" =~ \^\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+\$/);
