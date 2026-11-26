@@ -309,11 +309,11 @@ test('the iOS smoke flow asserts the paywall strings the app actually shows (#23
 // ---- review of #251: a kids or teen paywall sells nothing and never offers the grown-up pack ----
 import { isTrancheSellable, offersAllCategoriesPack } from '../../constants/questions';
 
-test('kids and teen sell nothing until F5; grown-up categories sell', () => {
+test('F5b: kids and teen sell like grown-up categories, but never offer the grown-up pack', () => {
   const young = CATEGORIES.filter((c) => c.audience !== 'adult');
   assert.ok(young.length >= 9);
   for (const c of young) {
-    for (const t of getTranches(c)) assert.equal(isTrancheSellable(c), false, `${c.id} tranche ${t.k}`);
+    for (const t of getTranches(c)) assert.equal(isTrancheSellable(c), true, `${c.id} tranche ${t.k}`);
     assert.equal(offersAllCategoriesPack(c), false, `${c.id} must not offer premium_all, which does not open it`);
   }
   assert.equal(getTranches(td).length, 1, 'one product per category');

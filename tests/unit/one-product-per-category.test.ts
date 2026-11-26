@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as questions from '../../constants/questions';
+const { hasPaidContent } = questions;
 import {
   CATEGORIES,
   getAccessibleQuestions,
@@ -63,10 +64,13 @@ test('premium_all still opens grown-up categories only; owner access and the tes
   }
 });
 
-test('the gates stay off: kids and teen sell nothing yet', () => {
-  assert.equal(questions.SELLABLE_YOUNG_TRANCHES, false);
+test('F5b: the sell switch is on, so kids and teen categories sell like grown-up ones', () => {
+  assert.equal(questions.SELLABLE_YOUNG_TRANCHES, true);
+  for (const c of CATEGORIES.filter((x) => x.audience !== 'adult' && hasPaidContent(x))) {
+    assert.equal(questions.isTrancheSellable(c), true, c.id);
+  }
   const kid = CATEGORIES.find((c) => c.audience === 'kids')!;
-  assert.equal(questions.isTrancheSellable(kid), false);
+  assert.equal(questions.isTrancheSellable(kid), true);
   const adult = CATEGORIES.find((c) => c.id === 'tech-dystopia')!;
   assert.equal(questions.isTrancheSellable(adult), true);
 });

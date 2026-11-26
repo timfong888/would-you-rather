@@ -1613,12 +1613,13 @@ export function getAccessibleQuestions(category: CategoryDef, access: Access): Q
 }
 
 /**
- * Kids and teen categories have no store product until step F5 creates them, so a kids or teen paywall sells nothing
- * (and the web free unlock never opens them). F5 flips this on together with the products.
+ * The sell switch for kids and teen categories (F5b, #255). The 9 category products exist in App Store Connect and
+ * RevenueCat, so a kids or teen paywall sells the $1.99 category product and the web free unlock opens them like
+ * any other category. Set to false to stop selling them again ("MORE AVAILABLE SOON").
  */
-export const SELLABLE_YOUNG_TRANCHES = false;
+export const SELLABLE_YOUNG_TRANCHES = true;
 
-/** True when the player can actually buy `category` today. Grown-up categories sell (and the web free unlock opens them); kids and teen wait for F5. */
+/** True when the player can actually buy `category` today: grown-up categories always, kids and teen while SELLABLE_YOUNG_TRANCHES is on. */
 export function isTrancheSellable(category: CategoryDef): boolean {
   return category.audience === 'adult' || SELLABLE_YOUNG_TRANCHES;
 }
