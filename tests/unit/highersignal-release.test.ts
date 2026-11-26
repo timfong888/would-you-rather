@@ -30,7 +30,8 @@ test('workflow: one input (a sha), hardcoded repo, dir and ASC app id; inputs on
   assert.equal((wf.match(/^      [a-z_]+:\n        description:/gm) || []).length, 1);
   assert.match(wf, /HIGHERSIGNAL_REPO: timfong888\/highersignal/);
   assert.match(wf, /HIGHERSIGNAL_SUBDIR: app\n/);
-  assert.match(wf, /HIGHERSIGNAL_APP_ID: '([0-9]{8,12})?'/); // empty until the app record exists (the run then stops); a numeric id afterwards
+  assert.match(wf, /HIGHERSIGNAL_APP_ID: '6467124124'\n/); // the existing Sophia ASC app (bundle sophia.pkg); Higher Signal reuses it
+  assert.doesNotMatch(wf, /6740147041/); // never Neville's app
   assert.match(wf, /\^\[0-9a-f\]\{40\}\$/);
   assert.match(wf, /\^\[0-9\]\{8,12\}\$/);
   for (const l of wf.split('\n').filter((x: string) => x.includes('inputs.'))) assert.match(l, /^\s+HIGHERSIGNAL_SHA: \$\{\{ inputs\.highersignal_sha \}\}$/, l);
@@ -110,7 +111,7 @@ test('workflow: shares nothing with Neville but read-only helper imports that st
 });
 
 test('app id and dir are validated; dir is an allowlist, never a path', () => {
-  assert.equal(validateAppId('6740147999'), '6740147999');
+  assert.equal(validateAppId('6467124124'), '6467124124');
   for (const bad of ['', undefined, 'abc', '12', '1234567890123', '6740147041; rm']) assert.throws(() => validateAppId(bad as string), /numeric ASC app id/);
   assert.deepEqual(HIGHERSIGNAL_DIRS, ['app']);
   for (const bad of ['..', '.', '../x', '/etc', 'app/..', 'native', 'other', '']) assert.throws(() => validateDir(bad), /HIGHERSIGNAL_SUBDIR/);
@@ -125,10 +126,10 @@ test('parseEasBuild accepts a first build (1.0.0 / 1) and refuses foreign artifa
   assert.throws(() => parseEasBuild(eas({ appBuildVersion: '1; x' })), /numeric build/);
 });
 
-test('preflight passes only for pckg.highersignal and refuses an empty app id before any call', async () => {
+test('preflight passes only for sophia.pkg and refuses an empty app id before any call', async () => {
   const calls: string[] = [];
-  await preflightApp(async (p: string) => { calls.push(p); return { status: 200, body: { data: { attributes: { bundleId: 'pckg.highersignal' } } } }; }, '6740147999');
-  assert.match(calls[0], /^\/v1\/apps\/6740147999\?/);
+  await preflightApp(async (p: string) => { calls.push(p); return { status: 200, body: { data: { attributes: { bundleId: 'sophia.pkg' } } } }; }, '6467124124');
+  assert.match(calls[0], /^\/v1\/apps\/6467124124\?/);
   await assert.rejects(preflightApp(async () => ({ status: 200, body: { data: { attributes: { bundleId: 'pckg.neville' } } } }), '6740147041'), /Higher Signal bundle id/);
   await assert.rejects(preflightApp(async () => { throw new Error('called'); }, ''), /numeric ASC app id/);
 });
@@ -148,7 +149,7 @@ const fixture = (files: Record<string, string>, sub = 'app') => {
 const good: Record<string, string> = {
   'package.json': JSON.stringify({ name: 'hs', dependencies: { expo: '~58.0.0', 'expo-router': '~5.0.0' } }),
   'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { '': {}, 'node_modules/expo': { resolved: 'https://registry.npmjs.org/expo/-/expo-58.0.0.tgz' } } }),
-  'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, extra: { eas: { projectId: 'x' } } } }),
+  'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'sophia.pkg' }, extra: { eas: { projectId: 'x' } } } }),
   'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store', autoIncrement: true } } }),
 };
 const check = (files: Record<string, string>, sub = 'app', opts = {}) => { const { root, dir } = fixture(files, sub); return checkSelfContained(dir, sub, { fs, root, nodeVersion: '22.14.0', ...opts }); };
@@ -167,15 +168,15 @@ test('check: not self-contained fails (missing files, wrong bundle id, workspace
   bad({ 'package-lock.json': null }, /package-lock\.json is missing/);
   bad({ 'app.json': null }, /app\.json is missing/);
   bad({ 'eas.json': null }, /eas\.json is missing/);
-  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.neville' } } }) }, /not pckg\.highersignal/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.neville' } } }) }, /not sophia\.pkg/);
   bad({ 'package.json': JSON.stringify({ workspaces: ['a'] }) }, /workspaces/);
   bad({ 'package.json': JSON.stringify({ name: 'hs', imports: { '#p': './p.js' } }) }, /"imports"/);
   bad({ 'package.json': JSON.stringify({ name: 'hs', exports: './x.js' }) }, /"exports"/);
   bad({ 'package.json': JSON.stringify({ name: 'hs', dependencies: { expo: '~58.0.0' }, overrides: { x: 'github:a/b' } }) }, /not from the npm registry/);
   bad({ 'package.json': JSON.stringify({ name: 'hs', dependencies: { x: 'git+ssh://git@github.com/a/b.git' } }) }, /not from the npm registry/);
-  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['#p'] } }) }, /local files/);
-  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['hs'] } }) }, /named after this package/);
-  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['some-undeclared-plugin'] } }) }, /not declared dependencies/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'sophia.pkg' }, plugins: ['#p'] } }) }, /local files/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'sophia.pkg' }, plugins: ['hs'] } }) }, /named after this package/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'sophia.pkg' }, plugins: ['some-undeclared-plugin'] } }) }, /not declared dependencies/);
   bad({ 'babel.config.js': "const cp = require('child_process');" }, /babel\.config\.js has lines/);
   bad({ 'metro.config.js': "const x = require('./evil');" }, /metro\.config\.js has lines/);
   bad({ 'metro.config.js': 'process.env.X;' }, /metro\.config\.js has lines/);
@@ -184,12 +185,12 @@ test('check: not self-contained fails (missing files, wrong bundle id, workspace
   bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store', extends: 'base' , autoIncrement: true } } }) }, /credentialsSource or extends/);
   bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'local' }, build: { production: { distribution: 'store', autoIncrement: true } } }) }, /not remote/);
   bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store' } } }) }, /autoIncrement/);
-  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, submit: { production: { ios: { ascAppId: '1111111111' } } }, build: { production: { distribution: 'store', autoIncrement: true } } }) }, /ascAppId/, { appId: '6740147999' });
+  bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, submit: { production: { ios: { ascAppId: '1111111111' } } }, build: { production: { distribution: 'store', autoIncrement: true } } }) }, /ascAppId/, { appId: '6467124124' });
   bad({ 'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/x': {} } }) }, /no resolved URL/);
   bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'file:../shared' } }) }, /not from the npm registry/);
   bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'workspace:*' } }) }, /not from the npm registry/);
   bad({ 'metro.config.js': "const p = path.resolve(__dirname, '..');" }, /reach the parent dir/);
-  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'pckg.highersignal' }, plugins: ['./plugins/x.js'] } }) }, /local files/);
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'sophia.pkg' }, plugins: ['./plugins/x.js'] } }) }, /local files/);
   bad({ '.npmrc': 'x' }, /\.npmrc\* is present/);
   bad({ '.env.local': 'x' }, /\.env\* is present/);
   bad({ 'babel.config.cjs': 'x' }, /babel\.config/);
@@ -218,7 +219,7 @@ test('check: a symlink anywhere in the tree, or a symlinked build dir, fails clo
 test('check script: passes a good dir, rejects a non-self-contained one, refuses an empty app id, prints no secrets or file content', () => {
   const secrets = { EXPO_TOKEN: 'tok-EXPO-123456', ASC_KEY_ID: 'KEYID12345', ASC_PRIVATE_KEY: 'PEM-BODY-xyz', HIGHERSIGNAL_DEPLOY_KEY: 'DEPLOYKEY-abcdef' };
   const run = (root: string, extra: Record<string, string> = {}) => spawnSync('node', [new URL('../../scripts/highersignal-check.mjs', import.meta.url).pathname],
-    { env: { ...process.env, HIGHERSIGNAL_ROOT: root, HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6740147999', EAS_PROFILE: 'production', ...secrets, ...extra }, encoding: 'utf8' });
+    { env: { ...process.env, HIGHERSIGNAL_ROOT: root, HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6467124124', EAS_PROFILE: 'production', ...secrets, ...extra }, encoding: 'utf8' });
   const ok = run(fixture(good).root);
   assert.equal(ok.status, 0, ok.stdout + ok.stderr);
   assert.match(ok.stdout, /directory: app/);
@@ -236,7 +237,7 @@ test('check script: passes a good dir, rejects a non-self-contained one, refuses
 });
 
 test('highersignal-testflight.mjs refuses an empty app id or a bad dir before any spawn or network call', () => {
-  const env = (o: Record<string, string>) => ({ ...process.env, EAS_BIN: process.execPath, EXPO_TOKEN: 't', ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'issuer-9', ASC_PRIVATE_KEY: 'k', APPLE_TEAM_ID: 'VJKU43W3C2', HIGHERSIGNAL_ROOT: tmpdir(), HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6740147999', ...o });
+  const env = (o: Record<string, string>) => ({ ...process.env, EAS_BIN: process.execPath, EXPO_TOKEN: 't', ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'issuer-9', ASC_PRIVATE_KEY: 'k', APPLE_TEAM_ID: 'VJKU43W3C2', HIGHERSIGNAL_ROOT: tmpdir(), HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6467124124', ...o });
   const run = (o: Record<string, string>) => spawnSync('node', [new URL('../../scripts/highersignal-testflight.mjs', import.meta.url).pathname], { env: env(o), encoding: 'utf8', timeout: 20000 });
   const a = run({ HIGHERSIGNAL_APP_ID: '' }); assert.equal(a.status, 2); assert.match(a.stderr, /numeric ASC app id/);
   const b = run({ HIGHERSIGNAL_SUBDIR: '../etc' }); assert.equal(b.status, 2); assert.ok(!(b.stdout + b.stderr).includes('../etc'));

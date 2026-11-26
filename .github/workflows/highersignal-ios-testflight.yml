@@ -1,8 +1,8 @@
 name: Higher Signal iOS (build and TestFlight)
 
-# Manual only. Builds the Higher Signal iOS app (timfong888/highersignal, bundle pckg.highersignal) on EAS and uploads it to
-# TestFlight against the ASC app in HIGHERSIGNAL_APP_ID (empty until the app record exists; the run stops before any secret is
-# used while it is empty). WRITES to App Store Connect; never submits for App Review.
+# Manual only. Builds the Higher Signal iOS app (timfong888/highersignal, bundle sophia.pkg) on EAS and uploads it to
+# TestFlight against the ASC app in HIGHERSIGNAL_APP_ID (the existing Sophia app; if it is ever empty the run stops before any secret is
+# used). WRITES to App Store Connect; never submits for App Review.
 #
 # Security (public repo, public logs, holds the ASC key and an Expo token; the app repo is PRIVATE):
 # - dispatch only, only by timfong888, only from main (so only merged workflow code ever sees the secrets);
@@ -13,12 +13,12 @@ name: Higher Signal iOS (build and TestFlight)
 #   never given to the Apple/Expo step. The Apple/Expo secrets are never visible to the clone step;
 # - the app is cloned OUTSIDE this repo's tree ($RUNNER_TEMP), so EAS/Expo never resolves this repo's package.json or metro config;
 # - the secretless check (scripts/highersignal-check.mjs) fails the run before any Apple/Expo secret if the app directory is not
-#   self-contained (own package.json, lockfile, app.json, eas.json, pckg.highersignal bundle id, EAS profile, no workspaces, no parent
+#   self-contained (own package.json, lockfile, app.json, eas.json, sophia.pkg bundle id, EAS profile, no workspaces, no parent
 #   dependency, no local-file plugins, registry-only lockfile v3, store-distribution profile with autoIncrement, no .npmrc/.env/app.config.*, no symlinks, no
 #   config that loads local code). It is a blocklist, not a proof: the sha-must-be-on-main rule is the real control;
 # - eas-cli comes from the committed tools/eas-cli lockfile (whole tree pinned), run by absolute path, never via npx in the app dir;
 # - Apple/Expo secrets reach exactly one step; contents: read; no artifacts; no pull_request_target;
-# - the ASC preflight checks the app id against pckg.highersignal; third-party actions are pinned to commit SHAs;
+# - the ASC preflight checks the app id against sophia.pkg; third-party actions are pinned to commit SHAs;
 #   on success the only Apple data printed is build number and state (a failed `eas build` prints its last 60 lines, redacted).
 on:
   workflow_dispatch:
@@ -39,8 +39,8 @@ env:
   HIGHERSIGNAL_REPO: timfong888/highersignal
   # Where the Expo app lives in that repo. The only value allowlisted in scripts/lib/highersignalRelease.mjs.
   HIGHERSIGNAL_SUBDIR: app
-  # Not a secret. Fill in with the numeric App Store Connect app id once the app record exists.
-  HIGHERSIGNAL_APP_ID: ''
+  # Not a secret. The existing Sophia app record in App Store Connect (bundle sophia.pkg); Higher Signal reuses it.
+  HIGHERSIGNAL_APP_ID: '6467124124'
   EAS_PROFILE: production
   APPLE_TEAM_ID: VJKU43W3C2
 

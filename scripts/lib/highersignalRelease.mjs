@@ -7,7 +7,7 @@ import { isLocalPlugin, pluginPackage, isNonRegistrySpec } from './wyrRelease.mj
 export { validateSha, pollBuild, finalOutcome, tailLines, tailErrors } from './nevilleRelease.mjs';
 
 export const HIGHERSIGNAL_REPO = 'timfong888/highersignal';
-export const HIGHERSIGNAL_BUNDLE_ID = 'pckg.highersignal';
+export const HIGHERSIGNAL_BUNDLE_ID = 'sophia.pkg';
 export const APP_ID_RE = /^[0-9]{8,12}$/;
 // Where the Expo app lives in the repo (app/, with its own package.json, app.json, eas.json). Never an input; the only allowed value.
 export const HIGHERSIGNAL_DIRS = ['app'];
