@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build the Higher Signal iOS app on EAS and send it to TestFlight. Used by .github/workflows/highersignal-ios-testflight.yml.
 // Env (all GitHub Actions secrets, only this step sees them): EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY,
-//   plus EAS_BIN (eas-cli from tools/eas-cli/package-lock.json), HIGHERSIGNAL_ROOT (checkout of timfong888/highersignal at a merged sha), HIGHERSIGNAL_SUBDIR (allowlist), HIGHERSIGNAL_APP_ID (not secret), EAS_PROFILE, APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
+//   plus EAS_BIN (eas-cli from tools/eas-cli/package-lock.json), HIGHERSIGNAL_ROOT (checkout of timfong888/highersignal at a merged sha), HIGHERSIGNAL_SUBDIR (allowlist), HIGHERSIGNAL_APP_ID, HIGHERSIGNAL_MIN_VERSION, HIGHERSIGNAL_MIN_BUILD (all not secret), EAS_PROFILE, APPLE_TEAM_ID, GITHUB_STEP_SUMMARY.
 //   The repo deploy key is NOT here: only the clone step sees it.
 // Flow: preflight app (GET) -> eas build (EAS creates the missing provisioning profile via the ASC key)
 //   -> existing scripts/asc-upload.mjs -> poll builds (GET) -> job summary with build number and state only.
@@ -16,7 +16,7 @@ import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
-import { validateAppId, resolveDir, checkDirSafety, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/highersignalRelease.mjs';
+import { validateFloors, validateAppId, resolveDir, checkDirSafety, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/highersignalRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -36,8 +36,8 @@ if (!/^[A-Za-z0-9_-]{1,40}$/.test(profile)) die('EAS_PROFILE has unexpected char
 const easBin = env.EAS_BIN; // eas-cli installed by an earlier secretless step from the committed tools/eas-cli lockfile, never resolved through the app's npm config
 if (!easBin || !easBin.startsWith('/') || !fs.existsSync(easBin)) die('EAS_BIN must be the absolute path of the eas-cli installed by the earlier step.', 2);
 let appDir; // root + allowlisted subdir only; anything else dies before a secret is used
-let appId;
-try { appId = validateAppId(env.HIGHERSIGNAL_APP_ID); appDir = resolveDir(env.HIGHERSIGNAL_ROOT, env.HIGHERSIGNAL_SUBDIR); } catch (e) { die(e.message, 2); }
+let appId, floors;
+try { appId = validateAppId(env.HIGHERSIGNAL_APP_ID); floors = validateFloors(env.HIGHERSIGNAL_MIN_VERSION, env.HIGHERSIGNAL_MIN_BUILD); appDir = resolveDir(env.HIGHERSIGNAL_ROOT, env.HIGHERSIGNAL_SUBDIR); } catch (e) { die(e.message, 2); }
 { // no symlink, and the real path stays inside the real checkout, before anything is spawned
   const bad = checkDirSafety(env.HIGHERSIGNAL_ROOT, env.HIGHERSIGNAL_SUBDIR, fs);
   if (bad.length) die(`build directory check failed: ${bad.join('; ')}`, 2);
@@ -89,7 +89,7 @@ try {
     const tail = tailLines(eas.stderr, redact, 60) || '| (no stderr output)';
     die(`eas build failed (exit ${eas.status}). Last lines of EAS output (secrets redacted):\n${tail}`);
   }
-  const { version, build, ipaUrl } = parseEasBuild(eas.stdout);
+  const { version, build, ipaUrl } = parseEasBuild(eas.stdout, floors);
   say(`eas build finished: version ${version}, build ${build}`);
 
   // 4. Upload with the existing, unchanged uploader (its output is already secret-safe); stream through the redactor.

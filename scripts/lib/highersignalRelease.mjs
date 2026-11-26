@@ -13,6 +13,23 @@ export const APP_ID_RE = /^[0-9]{8,12}$/;
 export const HIGHERSIGNAL_DIRS = ['app'];
 export const MIN_NODE = [22, 13, 0];
 
+// Floor guard for the reused Sophia app: the build must be on a version ABOVE the highest released version, and its build number
+// ABOVE the highest build Apple has. Both come from workflow env constants (reviewed in a PR, never a dispatch input, so a dispatch
+// cannot lower them). Empty means "not set yet": every check refuses.
+export const VERSION_RE = /^\d+\.\d+\.\d+$/;
+export function validateFloors(minVersion, minBuild) {
+  if (typeof minVersion !== 'string' || !VERSION_RE.test(minVersion) || typeof minBuild !== 'string' || !/^\d{1,9}$/.test(minBuild)) {
+    throw new Error('HIGHERSIGNAL_MIN_VERSION (x.y.z) and HIGHERSIGNAL_MIN_BUILD (digits) are not set. Put the highest released version and highest build number of the ASC app in the workflow env.');
+  }
+  return { minVersion, minBuild };
+}
+const vparts = (v) => String(v).split('.').map(Number);
+export function versionAbove(version, floor) {
+  const a = vparts(version), b = vparts(floor);
+  for (let i = 0; i < 3; i++) { const x = a[i] ?? 0, y = b[i] ?? 0; if (x !== y) return x > y; }
+  return false; // equal is not above
+}
+
 export function validateAppId(id) {
   if (typeof id !== 'string' || !APP_ID_RE.test(id)) {
     throw new Error('HIGHERSIGNAL_APP_ID is not set to a numeric ASC app id. Create the app record in App Store Connect, then put its id in the workflow env.');
@@ -44,7 +61,8 @@ export function checkDirSafety(root, name, fs) {
   return errors;
 }
 
-export function parseEasBuild(stdout) {
+export function parseEasBuild(stdout, floors) {
+  const { minVersion, minBuild } = validateFloors(floors?.minVersion, floors?.minBuild);
   let json;
   try { json = JSON.parse(stdout); } catch { throw new Error('eas build did not return JSON.'); }
   const b = Array.isArray(json) ? json[0] : json;
@@ -55,6 +73,8 @@ export function parseEasBuild(stdout) {
   if (!/^\d+(\.\d+){1,2}$/.test(version)) throw new Error('EAS build has no usable app version.');
   if (!/^\d+$/.test(build)) throw new Error('EAS build has no usable numeric build number.');
   if (!/^https:\/\/expo\.dev\/artifacts\/eas\/[A-Za-z0-9_-]+\.ipa$/.test(ipaUrl)) throw new Error('EAS artifact URL is not an https://expo.dev/artifacts/eas/<id>.ipa URL.');
+  if (!versionAbove(version, minVersion)) throw new Error(`Refusing to upload version ${version}: it must be above the released version ${minVersion}.`);
+  if (!(Number(build) > Number(minBuild))) throw new Error(`Refusing to upload build ${build}: it must be above the highest existing build ${minBuild}.`);
   return { version, build, ipaUrl };
 }
 
@@ -86,7 +106,7 @@ const stringsOf = (o) => (typeof o === 'string' ? [o] : o && typeof o === 'objec
 // Secretless check that the build dir builds on its own and cannot run repo code inside eas-cli's reach. Reads files only; prints fixed
 // text and line numbers, never file content. It is a blocklist, not a proof: the real control is that the sha is merged on main.
 // Returns { lines, warnings, errors }. `fs` is injected for tests. `appId` (optional): the configured ASC app id, checked against eas.json submit.
-export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.versions.node, profile = 'production', appId = undefined }) {
+export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.versions.node, profile = 'production', appId = undefined, minVersion }) {
   validateDir(name);
   const lines = [], warnings = [], errors = [];
   if (root) errors.push(...checkDirSafety(root, name, fs));
@@ -172,6 +192,7 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
     }
     if (exp.ios?.bundleIdentifier === HIGHERSIGNAL_BUNDLE_ID) lines.push(`app.json ios bundle id: ${HIGHERSIGNAL_BUNDLE_ID}`);
     else errors.push(`${label}/app.json ios.bundleIdentifier is not ${HIGHERSIGNAL_BUNDLE_ID}`);
+    if (minVersion !== undefined && !versionAbove(String(exp.version ?? ''), minVersion)) errors.push(`${label}/app.json version is not above the released version ${minVersion}`);
     if (!exp.extra?.eas?.projectId) warnings.push('app.json has no extra.eas.projectId; run `eas init` once so EAS knows the project');
   }
 

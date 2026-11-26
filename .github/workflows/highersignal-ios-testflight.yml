@@ -18,6 +18,7 @@ name: Higher Signal iOS (build and TestFlight)
 #   config that loads local code). It is a blocklist, not a proof: the sha-must-be-on-main rule is the real control;
 # - eas-cli comes from the committed tools/eas-cli lockfile (whole tree pinned), run by absolute path, never via npx in the app dir;
 # - Apple/Expo secrets reach exactly one step; contents: read; no artifacts; no pull_request_target;
+# - the build must be on a version above the released one and a build number above the highest existing one (floors in env, not input);
 # - the ASC preflight checks the app id against sophia.pkg; third-party actions are pinned to commit SHAs;
 #   on success the only Apple data printed is build number and state (a failed `eas build` prints its last 60 lines, redacted).
 on:
@@ -41,6 +42,11 @@ env:
   HIGHERSIGNAL_SUBDIR: app
   # Not a secret. The existing Sophia app record in App Store Connect (bundle sophia.pkg); Higher Signal reuses it.
   HIGHERSIGNAL_APP_ID: '6467124124'
+  # Floor guard for the reused Sophia app, not secret, never a dispatch input (a dispatch could lower it). Empty until Tim sends them:
+  # the highest RELEASED version (x.y.z) and the highest existing BUILD number of the ASC app. The build must be above both; an empty
+  # value stops the run before the clone and before any secret.
+  HIGHERSIGNAL_MIN_VERSION: ''
+  HIGHERSIGNAL_MIN_BUILD: ''
   EAS_PROFILE: production
   APPLE_TEAM_ID: VJKU43W3C2
 
@@ -52,11 +58,12 @@ jobs:
     environment: apple-ops
     timeout-minutes: 120
     steps:
-      - name: Validate highersignal_sha format and the ASC app id
+      - name: Validate highersignal_sha format, the ASC app id and the version/build floor
         env:
           HIGHERSIGNAL_SHA: ${{ inputs.highersignal_sha }}
         run: |
           [[ "$HIGHERSIGNAL_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "highersignal_sha must be a full 40-char lowercase hex sha"; exit 1; }
+          [[ "$HIGHERSIGNAL_MIN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$HIGHERSIGNAL_MIN_BUILD" =~ ^[0-9]{1,9}$ ]] || { echo "HIGHERSIGNAL_MIN_VERSION and HIGHERSIGNAL_MIN_BUILD are not set: put the highest released version and highest build number of the ASC app in this workflow's env"; exit 1; }
           [[ "$HIGHERSIGNAL_APP_ID" =~ ^[0-9]{8,12}$ ]] || { echo "HIGHERSIGNAL_APP_ID is not set: create the app record in App Store Connect and put its numeric id in this workflow's env"; exit 1; }
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

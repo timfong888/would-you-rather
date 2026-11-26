@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 // @ts-ignore plain .mjs module
-import { validateAppId, validateDir, resolveDir, parseEasBuild, preflightApp, summaryMarkdown, checkSelfContained, HIGHERSIGNAL_DIRS } from '../../scripts/lib/highersignalRelease.mjs';
+import { validateAppId, validateFloors, versionAbove, validateDir, resolveDir, parseEasBuild, preflightApp, summaryMarkdown, checkSelfContained, HIGHERSIGNAL_DIRS } from '../../scripts/lib/highersignalRelease.mjs';
 
 const wfFull = readFileSync('.github/workflows/highersignal-ios-testflight.yml', 'utf8');
 const wf = wfFull.split('\n').filter((l: string) => !/^\s*#/.test(l)).join('\n'); // code only: comments may name what is forbidden
@@ -120,10 +120,11 @@ test('app id and dir are validated; dir is an allowlist, never a path', () => {
 
 test('parseEasBuild accepts a first build (1.0.0 / 1) and refuses foreign artifact hosts', () => {
   const eas = (o = {}) => JSON.stringify([{ status: 'FINISHED', platform: 'IOS', appVersion: '1.0.0', appBuildVersion: '1', artifacts: { buildUrl: 'https://expo.dev/artifacts/eas/a_b.ipa' }, ...o }]);
-  assert.deepEqual(parseEasBuild(eas()), { version: '1.0.0', build: '1', ipaUrl: 'https://expo.dev/artifacts/eas/a_b.ipa' });
-  assert.throws(() => parseEasBuild(eas({ artifacts: { buildUrl: 'https://evil.example/x.ipa' } })), /artifact URL/);
-  assert.throws(() => parseEasBuild(eas({ status: 'ERRORED' })), /not FINISHED/);
-  assert.throws(() => parseEasBuild(eas({ appBuildVersion: '1; x' })), /numeric build/);
+  assert.deepEqual(parseEasBuild(eas(), { minVersion: '0.9.0', minBuild: '0' }), { version: '1.0.0', build: '1', ipaUrl: 'https://expo.dev/artifacts/eas/a_b.ipa' });
+  const F = { minVersion: '0.9.0', minBuild: '0' };
+  assert.throws(() => parseEasBuild(eas({ artifacts: { buildUrl: 'https://evil.example/x.ipa' } }), F), /artifact URL/);
+  assert.throws(() => parseEasBuild(eas({ status: 'ERRORED' }), F), /not FINISHED/);
+  assert.throws(() => parseEasBuild(eas({ appBuildVersion: '1; x' }), F), /numeric build/);
 });
 
 test('preflight passes only for sophia.pkg and refuses an empty app id before any call', async () => {
@@ -149,10 +150,10 @@ const fixture = (files: Record<string, string>, sub = 'app') => {
 const good: Record<string, string> = {
   'package.json': JSON.stringify({ name: 'hs', dependencies: { expo: '~58.0.0', 'expo-router': '~5.0.0' } }),
   'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { '': {}, 'node_modules/expo': { resolved: 'https://registry.npmjs.org/expo/-/expo-58.0.0.tgz' } } }),
-  'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'sophia.pkg' }, extra: { eas: { projectId: 'x' } } } }),
+  'app.json': JSON.stringify({ expo: { version: '1.5.0', ios: { bundleIdentifier: 'sophia.pkg' }, extra: { eas: { projectId: 'x' } } } }),
   'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store', autoIncrement: true } } }),
 };
-const check = (files: Record<string, string>, sub = 'app', opts = {}) => { const { root, dir } = fixture(files, sub); return checkSelfContained(dir, sub, { fs, root, nodeVersion: '22.14.0', ...opts }); };
+const check = (files: Record<string, string>, sub = 'app', opts = {}) => { const { root, dir } = fixture(files, sub); return checkSelfContained(dir, sub, { fs, root, nodeVersion: '22.14.0', minVersion: '1.4.0', ...opts }); };
 
 test('check: a self-contained app dir passes', () => {
   { const r = check(good); assert.deepEqual(r.errors, []); assert.deepEqual(r.warnings, []); }
@@ -187,6 +188,9 @@ test('check: not self-contained fails (missing files, wrong bundle id, workspace
   bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, build: { production: { distribution: 'store' } } }) }, /autoIncrement/);
   bad({ 'eas.json': JSON.stringify({ cli: { appVersionSource: 'remote' }, submit: { production: { ios: { ascAppId: '1111111111' } } }, build: { production: { distribution: 'store', autoIncrement: true } } }) }, /ascAppId/, { appId: '6467124124' });
   bad({ 'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/x': {} } }) }, /no resolved URL/);
+  bad({}, /version is not above the released version 1\.5\.0/, { minVersion: '1.5.0' });
+  bad({}, /version is not above the released version 2\.0\.0/, { minVersion: '2.0.0' });
+  bad({ 'app.json': JSON.stringify({ expo: { ios: { bundleIdentifier: 'sophia.pkg' } } }) }, /version is not above/);
   bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'file:../shared' } }) }, /not from the npm registry/);
   bad({ 'package.json': JSON.stringify({ dependencies: { shared: 'workspace:*' } }) }, /not from the npm registry/);
   bad({ 'metro.config.js': "const p = path.resolve(__dirname, '..');" }, /reach the parent dir/);
@@ -219,7 +223,7 @@ test('check: a symlink anywhere in the tree, or a symlinked build dir, fails clo
 test('check script: passes a good dir, rejects a non-self-contained one, refuses an empty app id, prints no secrets or file content', () => {
   const secrets = { EXPO_TOKEN: 'tok-EXPO-123456', ASC_KEY_ID: 'KEYID12345', ASC_PRIVATE_KEY: 'PEM-BODY-xyz', HIGHERSIGNAL_DEPLOY_KEY: 'DEPLOYKEY-abcdef' };
   const run = (root: string, extra: Record<string, string> = {}) => spawnSync('node', [new URL('../../scripts/highersignal-check.mjs', import.meta.url).pathname],
-    { env: { ...process.env, HIGHERSIGNAL_ROOT: root, HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6467124124', EAS_PROFILE: 'production', ...secrets, ...extra }, encoding: 'utf8' });
+    { env: { ...process.env, HIGHERSIGNAL_ROOT: root, HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6467124124', HIGHERSIGNAL_MIN_VERSION: '1.4.0', HIGHERSIGNAL_MIN_BUILD: '212', EAS_PROFILE: 'production', ...secrets, ...extra }, encoding: 'utf8' });
   const ok = run(fixture(good).root);
   assert.equal(ok.status, 0, ok.stdout + ok.stderr);
   assert.match(ok.stdout, /directory: app/);
@@ -231,14 +235,47 @@ test('check script: passes a good dir, rejects a non-self-contained one, refuses
   const noId = run(fixture(good).root, { HIGHERSIGNAL_APP_ID: '' });
   assert.equal(noId.status, 2);
   assert.match(noId.stderr, /numeric ASC app id/);
+  const noFloor = run(fixture(good).root, { HIGHERSIGNAL_MIN_VERSION: '', HIGHERSIGNAL_MIN_BUILD: '' });
+  assert.equal(noFloor.status, 2);
+  assert.match(noFloor.stderr, /MIN_VERSION/);
+  const lowVer = run(fixture(good).root, { HIGHERSIGNAL_MIN_VERSION: '1.5.0' });
+  assert.equal(lowVer.status, 1);
+  assert.match(lowVer.stdout, /not above the released version/);
   const badDir = run(fixture(good).root, { HIGHERSIGNAL_SUBDIR: '../x' });
   assert.equal(badDir.status, 2);
   assert.ok(!(badDir.stdout + badDir.stderr).includes('../x'));
 });
 
 test('highersignal-testflight.mjs refuses an empty app id or a bad dir before any spawn or network call', () => {
-  const env = (o: Record<string, string>) => ({ ...process.env, EAS_BIN: process.execPath, EXPO_TOKEN: 't', ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'issuer-9', ASC_PRIVATE_KEY: 'k', APPLE_TEAM_ID: 'VJKU43W3C2', HIGHERSIGNAL_ROOT: tmpdir(), HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6467124124', ...o });
+  const env = (o: Record<string, string>) => ({ ...process.env, EAS_BIN: process.execPath, EXPO_TOKEN: 't', ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'issuer-9', ASC_PRIVATE_KEY: 'k', APPLE_TEAM_ID: 'VJKU43W3C2', HIGHERSIGNAL_ROOT: tmpdir(), HIGHERSIGNAL_SUBDIR: 'app', HIGHERSIGNAL_APP_ID: '6467124124', HIGHERSIGNAL_MIN_VERSION: '1.4.0', HIGHERSIGNAL_MIN_BUILD: '212', ...o });
   const run = (o: Record<string, string>) => spawnSync('node', [new URL('../../scripts/highersignal-testflight.mjs', import.meta.url).pathname], { env: env(o), encoding: 'utf8', timeout: 20000 });
   const a = run({ HIGHERSIGNAL_APP_ID: '' }); assert.equal(a.status, 2); assert.match(a.stderr, /numeric ASC app id/);
+  const c = run({ HIGHERSIGNAL_MIN_BUILD: '' }); assert.equal(c.status, 2); assert.match(c.stderr, /MIN_BUILD/);
   const b = run({ HIGHERSIGNAL_SUBDIR: '../etc' }); assert.equal(b.status, 2); assert.ok(!(b.stdout + b.stderr).includes('../etc'));
+});
+
+test('floor guard: version and build must be strictly above the floors; empty or malformed floors refuse everything', () => {
+  assert.ok(versionAbove('1.2.0', '1.1.9') && versionAbove('2.0.0', '1.99.99') && versionAbove('1.10.0', '1.9.0'));
+  assert.ok(!versionAbove('1.1.0', '1.1.0') && !versionAbove('1.0.9', '1.1.0'));
+  assert.deepEqual(validateFloors('1.4.0', '212'), { minVersion: '1.4.0', minBuild: '212' });
+  for (const [v, b] of [['', ''], ['1.4', '212'], ['1.4.0', ''], ['1.4.0', 'x'], ['1.4.0; x', '1'], [undefined, undefined]]) assert.throws(() => validateFloors(v as string, b as string), /not set/);
+  const eas = (o = {}) => JSON.stringify([{ status: 'FINISHED', platform: 'IOS', appVersion: '1.5.0', appBuildVersion: '213', artifacts: { buildUrl: 'https://expo.dev/artifacts/eas/a_b.ipa' }, ...o }]);
+  const F = { minVersion: '1.4.0', minBuild: '212' };
+  assert.equal(parseEasBuild(eas(), F).build, '213');
+  assert.throws(() => parseEasBuild(eas({ appVersion: '1.4.0' }), F), /above the released version 1\.4\.0/);
+  assert.throws(() => parseEasBuild(eas({ appVersion: '1.3.0' }), F), /above the released version/);
+  assert.throws(() => parseEasBuild(eas({ appBuildVersion: '212' }), F), /above the highest existing build 212/);
+  assert.throws(() => parseEasBuild(eas({ appBuildVersion: '9' }), F), /above the highest existing build/);
+  assert.throws(() => parseEasBuild(eas()), /not set/);
+  assert.throws(() => parseEasBuild(eas(), { minVersion: '', minBuild: '' }), /not set/);
+});
+
+test('workflow: the floors are env constants, empty or valid, validated before the clone, and never a dispatch input', () => {
+  assert.match(wf, /HIGHERSIGNAL_MIN_VERSION: '([0-9]+\.[0-9]+\.[0-9]+)?'\n/);
+  assert.match(wf, /HIGHERSIGNAL_MIN_BUILD: '([0-9]{1,9})?'\n/);
+  assert.doesNotMatch(wf, /inputs\.[a-z_]*(min|floor|version|build)/i);
+  const v = wfSteps[stepIdx(/Validate highersignal_sha/)];
+  assert.match(v, /HIGHERSIGNAL_MIN_VERSION" =~ \^\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+\$/);
+  assert.match(v, /HIGHERSIGNAL_MIN_BUILD" =~ \^\[0-9\]\{1,9\}\$/);
+  assert.ok(stepIdx(/Validate highersignal_sha/) < stepIdx(/Clone highersignal/));
 });
