@@ -103,14 +103,6 @@ export const FORBIDDEN_PATTERNS = [
 ];
 const METRO_PARENT_RE = /(\.\.\/|__dirname *\+ *['"]\/\.\.|path\.(resolve|join)\([^)]*['"]\.\.['"]|path\.dirname\(\s*__dirname)/;
 const ROOT_CONFIG_LABELS = ['.npmrc*', '.yarnrc*', '.env*'];
-// Does a root `workspaces` entry (a glob) match the app directory? Entries we cannot interpret (braces, negation, extglobs, non-strings) fail closed.
-function workspaceIncludes(entry, name) {
-  if (typeof entry !== 'string') return true;
-  const e = entry.trim().replace(/^\.\//, '').replace(/\/+$/, '');
-  if (/[{}()[\]!+@?]/.test(e)) return true;
-  const re = new RegExp(`^${e.split('**').map((part) => part.split('*').map((x) => x.replace(/[.+^$|\\]/g, '\\$&')).join('[^/]*')).join('.*')}$`);
-  return re.test(name);
-}
 const MAX_FILES = 20000, MAX_JSON = 20 * 1024 * 1024, MAX_CFG = 256 * 1024;
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 const hasKey = (o, keys) => o && typeof o === 'object' && (Object.keys(o).some((k) => keys.includes(k)) || Object.values(o).some((v) => hasKey(v, keys)));
@@ -152,7 +144,7 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
   for (const l of seen) errors.push(`${label}/${l} is present and not allowed (changes install/config resolution)`);
 
   // 2b. The repo root (the clone) can change how npm installs app/: npm uses a parent workspace root as the project root (its lockfile and
-  // .npmrc), and eas archives the git root. So the root may not declare workspaces that include app, nor carry .npmrc*/.yarnrc*/.env*.
+  // .npmrc), and eas archives the git root. So the root may not have a workspaces key at all (no glob matching), nor carry .npmrc*/.yarnrc*/.env*.
   if (root && dir !== root) {
     let rootNames = []; try { rootNames = fs.readdirSync(root); } catch { /* reported by the dir safety check */ }
     const rootSeen = new Set();
@@ -163,11 +155,7 @@ export function checkSelfContained(dir, name, { fs, root, nodeVersion = process.
     else if (rootNames.includes('package.json')) {
       let rootPkg; try { if (fs.statSync(join(root, 'package.json')).size <= MAX_JSON) rootPkg = JSON.parse(fs.readFileSync(join(root, 'package.json'), 'utf8')); } catch { /* invalid */ }
       if (!rootPkg || typeof rootPkg !== 'object') errors.push('root package.json is not valid JSON or is too large');
-      else if (rootPkg.workspaces !== undefined) {
-        const ws = rootPkg.workspaces;
-        const entries = Array.isArray(ws) ? ws : Array.isArray(ws?.packages) ? ws.packages : null;
-        if (!entries || entries.some((e) => workspaceIncludes(e, name))) errors.push(`root package.json declares workspaces that include ${label}`);
-      }
+      else if (Object.hasOwn(rootPkg, 'workspaces')) errors.push('root package.json declares workspaces (not allowed: npm may use the root as the project root for app/)');
     }
   }
 

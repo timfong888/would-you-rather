@@ -303,21 +303,19 @@ test('testflight script: build:version:get runs and is checked before `eas build
   assert.doesNotMatch(src, /floor 23|WYR_/); // nothing WYR-specific copied over
 });
 
-test('check: the repo root can change the install of app/: root workspaces that include app, a root symlinked or broken package.json, and root .npmrc*/.yarnrc*/.env* fail', () => {
+test('check: the repo root can change the install of app/: any root workspaces key, a root symlinked or broken package.json, and root .npmrc*/.yarnrc*/.env* fail', () => {
   const run = (rootFiles: Record<string, string>, opts = {}) => {
     const { root, dir } = fixture(good);
     for (const [f, c] of Object.entries(rootFiles)) writeFileSync(join(root, f), c);
     return checkSelfContained(dir, 'app', { fs, root, nodeVersion: '22.14.0', minVersion: '1.4.0', ...opts });
   };
   const failing = (rootFiles: Record<string, string>, re: RegExp) => { const r = run(rootFiles); assert.ok(r.errors.some((e: string) => re.test(e)), `${re}: ${r.errors.join('|')}`); };
-  // passes: no root files, an unrelated root package.json, workspaces that do not include app
+  // passes: no root files, a root package.json with no workspaces key
   assert.deepEqual(run({}).errors, []);
   assert.deepEqual(run({ 'package.json': JSON.stringify({ name: 'root', private: true }) }).errors, []);
-  assert.deepEqual(run({ 'package.json': JSON.stringify({ workspaces: ['packages/*', 'app/*'] }) }).errors, []);
-  assert.deepEqual(run({ 'package.json': JSON.stringify({ workspaces: { packages: ['api'] } }) }).errors, []);
-  // fails: workspaces that include app, in every spelling
-  for (const ws of [['app'], ['./app'], ['app/'], ['*'], ['**'], ['a*'], { packages: ['app'] }, ['{app,api}'], ['!api']]) {
-    failing({ 'package.json': JSON.stringify({ workspaces: ws }) }, /root package\.json declares workspaces that include app/);
+  // fails: a root package.json with a workspaces key at all, whatever it holds (no glob matching)
+  for (const ws of [['**/app'], ['app/../app'], ['./app'], ['app'], ['app/'], ['*'], ['packages/*'], ['api'], [], { packages: ['app'] }, { packages: ['api'] }, { packages: [] }, { nohoist: ['x'] }, '', null, 'app']) {
+    failing({ 'package.json': JSON.stringify({ workspaces: ws }) }, /root package\.json declares workspaces/);
   }
   failing({ 'package.json': '{' }, /root package\.json is not valid JSON/);
   failing({ '.npmrc': 'x' }, /root \.npmrc\* is present/);
