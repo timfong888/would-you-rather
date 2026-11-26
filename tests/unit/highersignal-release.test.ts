@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 // @ts-ignore plain .mjs module
-import { validateAppId, validateFloors, versionAbove, validateDir, resolveDir, parseEasBuild, preflightApp, summaryMarkdown, checkSelfContained, HIGHERSIGNAL_DIRS } from '../../scripts/lib/highersignalRelease.mjs';
+import { validateAppId, validateFloors, versionAbove, checkNextBuild, parseBuildVersionGet, validateDir, resolveDir, parseEasBuild, preflightApp, summaryMarkdown, checkSelfContained, HIGHERSIGNAL_DIRS } from '../../scripts/lib/highersignalRelease.mjs';
 
 const wfFull = readFileSync('.github/workflows/highersignal-ios-testflight.yml', 'utf8');
 const wf = wfFull.split('\n').filter((l: string) => !/^\s*#/.test(l)).join('\n'); // code only: comments may name what is forbidden
@@ -278,4 +278,27 @@ test('workflow: the floors are env constants, empty or valid, validated before t
   assert.match(v, /HIGHERSIGNAL_MIN_VERSION" =~ \^\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+\$/);
   assert.match(v, /HIGHERSIGNAL_MIN_BUILD" =~ \^\[0-9\]\{1,9\}\$/);
   assert.ok(stepIdx(/Validate highersignal_sha/) < stepIdx(/Clone highersignal/));
+});
+
+test('pre-build counter check: the next EAS build number must be strictly above the floor, refused before any build', () => {
+  assert.equal(checkNextBuild(420, '420'), 421);
+  assert.equal(checkNextBuild(500, '420'), 501);
+  for (const cur of [0, 1, 23, 419]) assert.throws(() => checkNextBuild(cur, '420'), /under the floor 421/);
+  assert.throws(() => checkNextBuild(-1, '420'), /not a usable number/);
+  assert.throws(() => checkNextBuild(NaN, '420'), /not a usable number/);
+  assert.equal(parseBuildVersionGet('{"buildNumber":"420"}'), 420);
+  assert.equal(parseBuildVersionGet('iOS buildNumber - 420'), 420);
+  assert.throws(() => parseBuildVersionGet('eas-cli/27.11.0 something'), /could not read/);
+});
+
+test('testflight script: build:version:get runs and is checked before `eas build`; the eas child env pins npm; floor message uses the configured floor', () => {
+  const src = readFileSync('scripts/highersignal-testflight.mjs', 'utf8');
+  const get = src.indexOf("'build:version:get'"), build = src.indexOf("['build', '--platform'");
+  assert.ok(get > 0 && build > 0 && get < build, 'counter check precedes the build');
+  assert.ok(src.indexOf('checkNextBuild(') > 0 && src.indexOf('checkNextBuild(') < build);
+  assert.match(src, /NPM_CONFIG_USERCONFIG: '\/dev\/null'/);
+  assert.match(src, /NPM_CONFIG_REGISTRY: 'https:\/\/registry\.npmjs\.org\/'/);
+  const childEnv = src.slice(src.indexOf('const childEnv'), src.indexOf('};', src.indexOf('const childEnv')));
+  assert.ok(childEnv.includes('NPM_CONFIG_USERCONFIG') && childEnv.includes('NPM_CONFIG_REGISTRY'));
+  assert.doesNotMatch(src, /floor 23|WYR_/); // nothing WYR-specific copied over
 });

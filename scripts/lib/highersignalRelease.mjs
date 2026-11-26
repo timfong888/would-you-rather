@@ -2,7 +2,7 @@
 // Generic helpers are imported from the Neville library (unchanged). Neville's live-version guard does not apply: this is a new app.
 import { join, sep } from 'node:path';
 import { versionAtLeast } from './nevilleRelease.mjs';
-import { isLocalPlugin, pluginPackage, isNonRegistrySpec } from './wyrRelease.mjs'; // shared plugin and dependency-spec rules, same as the WYR check
+import { isLocalPlugin, pluginPackage, isNonRegistrySpec, parseBuildVersionGet, checkNextBuildNumber } from './wyrRelease.mjs'; // shared plugin and dependency-spec rules, same as the WYR check
 
 export { validateSha, pollBuild, finalOutcome, tailLines, tailErrors } from './nevilleRelease.mjs';
 
@@ -29,6 +29,10 @@ export function versionAbove(version, floor) {
   for (let i = 0; i < 3; i++) { const x = a[i] ?? 0, y = b[i] ?? 0; if (x !== y) return x > y; }
   return false; // equal is not above
 }
+
+export { parseBuildVersionGet };
+// Pre-build: the next EAS remote build number (current + 1) must be strictly above the floor. Returns that number or throws before any build.
+export function checkNextBuild(current, minBuild) { return checkNextBuildNumber(current, Number(minBuild) + 1); }
 
 export function validateAppId(id) {
   if (typeof id !== 'string' || !APP_ID_RE.test(id)) {

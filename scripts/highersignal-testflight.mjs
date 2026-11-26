@@ -16,7 +16,7 @@ import { appendFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeRedactor } from './lib/ascAppsList.mjs';
-import { validateFloors, validateAppId, resolveDir, checkDirSafety, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/highersignalRelease.mjs';
+import { checkNextBuild, parseBuildVersionGet, validateFloors, validateAppId, resolveDir, checkDirSafety, finalOutcome, parseEasBuild, preflightApp, pollBuild, summaryMarkdown, tailErrors, tailLines } from './lib/highersignalRelease.mjs';
 
 const env = process.env;
 const { EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID } = env;
@@ -80,7 +80,19 @@ try {
     EXPO_TOKEN, EXPO_APPLE_TEAM_ID: APPLE_TEAM_ID, EXPO_APPLE_TEAM_TYPE: 'COMPANY_OR_ORGANIZATION',
     EXPO_ASC_API_KEY_PATH: keyPath, EXPO_ASC_KEY_ID: ASC_KEY_ID, EXPO_ASC_ISSUER_ID: ASC_ISSUER_ID,
     EXPO_NO_TELEMETRY: '1',
+    // Keep npm out of the user's config and pin the registry. (Not GLOBALCONFIG too: npm refuses /dev/null loaded as both user and global config.)
+    NPM_CONFIG_USERCONFIG: '/dev/null', NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org/',
   };
+  // 3a. Read-only: what is EAS's current remote build number? Refuse BEFORE spending a build if the next one would not be above the floor.
+  {
+    const run = (extra) => spawnSync(easBin, ['build:version:get', '--platform', 'ios', '--profile', profile, '--non-interactive', ...extra], { cwd: appDir, env: childEnv, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    let v = run(['--json']);
+    if (v.status !== 0) v = run([]); // older eas-cli output without --json
+    if (v.status !== 0) die(`eas build:version:get failed (exit ${v.status}); not starting a build.\n${tailLines(v.stderr, redact, 20) || '| (no stderr output)'}`);
+    let next;
+    try { next = checkNextBuild(parseBuildVersionGet(v.stdout), floors.minBuild); } catch (e) { die(`${e.message} Run \`eas build:version:set -p ios\` once in the app directory. Not starting a build.`); }
+    say(`remote build number check ok: the next build will be ${next} (must be above ${floors.minBuild})`);
+  }
   say(`eas build: starting (directory ${env.HIGHERSIGNAL_SUBDIR}, profile ${profile}); output is captured, waiting for EAS`);
   const eas = spawnSync(easBin, ['build', '--platform', 'ios', '--profile', profile,
     '--non-interactive', '--wait', '--json'], { cwd: appDir, env: childEnv, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
