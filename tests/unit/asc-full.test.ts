@@ -129,7 +129,8 @@ test('dryRunReport marks keywords as pending when null', () => {
 
 // --- go comment verification ---
 
-function mockFetch(overrides: Record<string, unknown> = {}) {
+function mockFetch(overrides: { jsonBody?: Record<string, unknown>; ok?: boolean; status?: number } = {}) {
+  const { jsonBody, ...responseOverrides } = overrides;
   const defaults = {
     ok: true,
     status: 200,
@@ -138,9 +139,9 @@ function mockFetch(overrides: Record<string, unknown> = {}) {
       issue_url: 'https://api.github.com/repos/timfong888/would-you-rather/issues/265',
       body: 'Ready. SUBMIT v1.0',
       created_at: '2026-11-27T00:00:00Z',
-      ...overrides.jsonBody,
+      ...(jsonBody ?? {}),
     }),
-    ...overrides,
+    ...responseOverrides,
   };
   return async (_url: string, _opts: unknown) => defaults as Response;
 }
