@@ -372,9 +372,8 @@ export function stillBlockedList() {
     '4. Paid Apps agreement, banking and tax forms — Account Holder only at appstoreconnect.apple.com/business',
     '5. App Compliance section — open in ASC left menu; read each question to the agent to fill',
     '6. EU trader status — not expected for US-only, but verify inside App Compliance',
-    '7. Keywords — null (pending Search Ads data). The first submission ships WITHOUT keywords unless Tim supplies them before the submit run.',
-    '8. ParentalGate.tsx in build 23 — verify on a device before sending review notes',
-    '9. Price / territories write — if the apply run logs "schedule exists", verify free and US-only in ASC UI',
-    '10. IAP attachment — if the POST /relationships/inAppPurchasesV2 fails, attach manually in version page',
+    '7. ParentalGate.tsx in build 23 — verify on a device before sending review notes',
+    '8. Price / territories write — if the apply run logs "schedule exists", verify free and US-only in ASC UI',
+    '9. IAP attachment — if the POST /relationships/inAppPurchasesV2 fails, attach manually in version page',
   ].join('\n');
 }

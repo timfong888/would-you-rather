@@ -42,11 +42,11 @@ test('name (28) and subtitle (30) are within limits', () => {
 });
 
 test('name, subtitle and keywords have no "kids" or "children"', () => {
-  for (const v of [listing.appInfo.name, listing.appInfo.subtitle]) {
+  for (const v of [listing.appInfo.name, listing.appInfo.subtitle, listing.version.keywords]) {
     assert.doesNotMatch(v, /\bkids?\b|\bchildren\b/i);
   }
-  // keywords is null (pending), so no check needed there
-  assert.equal(listing.version.keywords, null, 'keywords must be null until Tim supplies Search Ads data');
+  assert.ok(typeof listing.version.keywords === 'string' && listing.version.keywords.trim(), 'keywords must be a non-empty string');
+  assert.ok([...listing.version.keywords].length <= 100, `keywords is ${[...listing.version.keywords].length} chars (limit 100)`);
 });
 
 test('no repeated words between name and subtitle (case-insensitive)', () => {
@@ -128,7 +128,8 @@ test('dryRunReport includes all required field labels', () => {
 });
 
 test('dryRunReport marks keywords as pending when null', () => {
-  const report = dryRunReport(listing, null);
+  const copy = { ...listing, version: { ...listing.version, keywords: null } };
+  const report = dryRunReport(copy, null);
   assert.match(report, /pending/i);
 });
 
@@ -305,7 +306,7 @@ test('uploadScreenshots sends one PUT per upload operation', async () => {
 
 test('stillBlockedList covers all human-only fields and keywords-without-submit note', () => {
   const list = stillBlockedList();
-  for (const item of ['entered by Tim, unverified by API', 'App Privacy', 'Paid Apps', 'App Compliance', 'Keywords', 'ParentalGate', 'ships WITHOUT keywords']) {
+  for (const item of ['entered by Tim, unverified by API', 'App Privacy', 'Paid Apps', 'App Compliance', 'ParentalGate']) {
     assert.match(list, new RegExp(item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), `stillBlockedList missing "${item}"`);
   }
 });
