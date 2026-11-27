@@ -90,6 +90,7 @@ jobs:
       - name: Boot iPhone 16 Pro simulator and install the app
         run: |
           SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          export SDK
           echo "SDK=$SDK"
           xcrun simctl list runtimes
           UDID=$(xcrun simctl list devices available -j | python3 -c "
@@ -112,7 +113,7 @@ jobs:
                   if 'iPhone' in n and 'Pro' in n and 'Max' not in n and dev.get('isAvailable', True):
                       print(dev['udid']); sys.exit(0)
           sys.exit(1)
-          " SDK="$SDK")
+          ")
           echo "UDID=$UDID"
           echo "UDID=$UDID" >> "$GITHUB_ENV"
           xcrun simctl boot "$UDID"
@@ -122,6 +123,7 @@ jobs:
 
       - name: Capture 6 raw screenshots (navigate via Maestro, screenshot via simctl)
         run: |
+          set -eo pipefail
           RAW_DIR="store/ios/screenshots/iphone-6.3/raw"
           mkdir -p "$RAW_DIR"
 
@@ -131,10 +133,8 @@ jobs:
             local out="$RAW_DIR/${name}.png"
 
             echo "── $name ──────────────────────────────────"
-            # Navigate to the target screen
-            maestro --device "$UDID" test "$flow" 2>&1 | tee "maestro-${name}.log" || {
-              echo "::warning::Maestro flow $name failed; screenshot may show wrong state"
-            }
+            # Navigate to the target screen; failure stops the job
+            maestro --device "$UDID" test "$flow" 2>&1 | tee "maestro-${name}.log"
             # Screenshot at physical resolution (1206×2622 on iPhone 16 Pro)
             xcrun simctl io "$UDID" screenshot --type=png "$out"
             echo "saved $out ($(wc -c < "$out") bytes)"
