@@ -21,11 +21,12 @@ name: Higher Signal iOS (build and TestFlight)
 # - the build must be on a version above the released one and a build number above the highest existing one (floors in env, not input);
 # - the ASC preflight checks the app id against sophia.pkg; third-party actions are pinned to commit SHAs;
 #   on success the only Apple data printed is build number and state (a failed `eas build` prints its last 60 lines, redacted).
-# - Credential validation: the build step writes ASC_PRIVATE_KEY to a 0600 temp file outside the checkout, then exports
-#   EXPO_ASC_API_KEY_PATH, EXPO_ASC_KEY_ID, EXPO_ASC_ISSUER_ID, EXPO_APPLE_TEAM_ID, and EXPO_APPLE_TEAM_TYPE so that
-#   eas-cli (v27.11.0, confirmed in tools/eas-cli/node_modules/eas-cli/build/credentials/ios/appstore/resolveCredentials.js)
-#   can authenticate with App Store Connect in non-interactive mode. The key is masked line-by-line and the temp file is
-#   deleted by a trap when the step ends.
+# - Credential setup: scripts/highersignal-signing.mjs (called from the build step) creates a short-lived
+#   Apple Distribution certificate and IOS_APP_STORE provisioning profile via the ASC API, writes them as EAS
+#   local credentials (credentials.json + credentialsSource: local in eas.json) to the temp clone, then runs
+#   scripts/highersignal-testflight.mjs to build and upload. On exit (even on failure) it deletes the cert and
+#   profile from Apple and removes the temp files. The key is masked line-by-line; the .p12 password is randomly
+#   generated per run and masked immediately; neither is ever printed.
 on:
   workflow_dispatch:
     inputs:
@@ -149,4 +150,4 @@ jobs:
           export EXPO_ASC_ISSUER_ID="$ASC_ISSUER_ID"
           export EXPO_APPLE_TEAM_ID="$APPLE_TEAM_ID"
           export EXPO_APPLE_TEAM_TYPE="COMPANY_OR_ORGANIZATION"
-          node scripts/highersignal-testflight.mjs
+          node scripts/highersignal-signing.mjs
