@@ -4,7 +4,7 @@
  * Tests:
  *  1. checkPng helper: rejects wrong sizes, alpha channels, and non-PNGs.
  *  2. checkPng helper: accepts a correctly-sized flat RGB PNG header.
- *  3. Any committed PNG files in store/ios/screenshots/iphone-6.3/ pass both checks.
+ *  3. Any committed PNG files in store/ios/screenshots/iphone-6.9/ pass both checks.
  *
  * PNG fixture buffers are constructed from raw IHDR bytes so the test has no
  * external build dependency; checkPng only reads the first 26 bytes.
@@ -49,8 +49,8 @@ describe('checkPng helper', () => {
     assert.deepEqual(errs, [], `expected no errors, got: ${errs.join('; ')}`);
   });
 
-  test('rejects a PNG with wrong dimensions', () => {
-    const buf = makePngHeader(1290, 2796, 2);
+  test('rejects a PNG with wrong dimensions (6.3-inch 1206x2622)', () => {
+    const buf = makePngHeader(1206, 2622, 2);
     const errs = checkPng(buf);
     assert.ok(errs.some((e: string) => e.includes('wrong size')), `expected size error, got: ${errs.join('; ')}`);
   });
@@ -74,8 +74,8 @@ describe('checkPng helper', () => {
   });
 });
 
-describe('committed screenshots in store/ios/screenshots/iphone-6.3/', () => {
-  const screenshotsDir = path.resolve('store/ios/screenshots/iphone-6.3');
+describe('committed screenshots in store/ios/screenshots/iphone-6.9/', () => {
+  const screenshotsDir = path.resolve('store/ios/screenshots/iphone-6.9');
 
   if (!existsSync(screenshotsDir)) {
     test('directory not yet created — no PNGs to check', () => {

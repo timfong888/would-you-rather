@@ -1,7 +1,7 @@
 {
-  "_comment": "6-shot storyboard for iPhone 6.3-inch (1206x2622). Captions from docs/specs/app-store-listing.md §8.3. First 3 carry the pitch; no fake vote counts, no free-question count, no for-kids wording.",
-  "device": "iPhone 16 Pro",
-  "size": { "width": 1206, "height": 2622 },
+  "_comment": "6-shot storyboard for iPhone 6.9-inch (1320x2868, iPhone 16 Pro Max). Captions from docs/specs/app-store-listing.md §8.3. First 3 carry the pitch; no fake vote counts, no free-question count, no for-kids wording.",
+  "device": "iPhone 16 Pro Max",
+  "size": { "width": 1320, "height": 2868 },
   "shots": [
     {
       "id": "01-question",

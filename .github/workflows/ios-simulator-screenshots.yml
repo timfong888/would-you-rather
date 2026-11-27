@@ -1,10 +1,10 @@
-name: iOS App Store screenshots (iPhone 6.3")
+name: iOS App Store screenshots (iPhone 6.9")
 
-# Builds the app for the iPhone 16 Pro simulator (1206×2622), boots the device,
+# Builds the app for the iPhone 16 Pro Max simulator (1320×2868), boots the device,
 # navigates each screen in .maestro/screenshots/, captures raw PNGs with xcrun
 # simctl, then composes them (gradient bg + caption + rounded corners) with
 # scripts/store/compose.mjs. Outputs two artifacts: raw-screenshots and
-# composed-screenshots-iphone-6.3.
+# composed-screenshots-iphone-6.9.
 #
 # No secrets required. No upload to App Store Connect (see scripts/asc-upload.mjs).
 #
@@ -87,7 +87,7 @@ jobs:
           unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
 
-      - name: Boot iPhone 16 Pro simulator and install the app
+      - name: Boot iPhone 16 Pro Max simulator and install the app
         run: |
           SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
           export SDK
@@ -101,16 +101,16 @@ jobs:
           ios = [(k, v) for k, v in d.items() if 'iOS' in k]
           ios.sort(key=lambda kv: [int(x) for x in kv[0].split('iOS-')[-1].split('-')])
           match = [kv for kv in ios if kv[0].endswith(want)] or ios[-1:]
-          # Prefer exact 'iPhone 16 Pro' (not Max) on the matched runtime
+          # Prefer exact 'iPhone 16 Pro Max' on the matched runtime
           for k, v in reversed(match):
               for dev in v:
-                  if dev.get('name') == 'iPhone 16 Pro' and dev.get('isAvailable', True):
+                  if dev.get('name') == 'iPhone 16 Pro Max' and dev.get('isAvailable', True):
                       print(dev['udid']); sys.exit(0)
-          # Fallback: any available iPhone Pro (not Max) on the latest matched runtime
+          # Fallback: any available iPhone Pro Max on the latest matched runtime
           for k, v in reversed(match):
               for dev in v:
                   n = dev.get('name', '')
-                  if 'iPhone' in n and 'Pro' in n and 'Max' not in n and dev.get('isAvailable', True):
+                  if 'iPhone' in n and 'Pro Max' in n and dev.get('isAvailable', True):
                       print(dev['udid']); sys.exit(0)
           sys.exit(1)
           ")
@@ -124,7 +124,7 @@ jobs:
       - name: Capture 6 raw screenshots (navigate via Maestro, screenshot via simctl)
         run: |
           set -eo pipefail
-          RAW_DIR="store/ios/screenshots/iphone-6.3/raw"
+          RAW_DIR="store/ios/screenshots/iphone-6.9/raw"
           mkdir -p "$RAW_DIR"
 
           capture_shot() {
@@ -156,7 +156,7 @@ jobs:
       - name: Verify 6 composed PNGs exist and pass size/alpha check
         run: |
           # Quick shell check: 6 non-empty PNG files must exist
-          count=$(ls store/ios/screenshots/iphone-6.3/*.png 2>/dev/null | wc -l | tr -d ' ')
+          count=$(ls store/ios/screenshots/iphone-6.9/*.png 2>/dev/null | wc -l | tr -d ' ')
           echo "Composed PNGs found: $count"
           if [ "$count" -lt 6 ]; then
             echo "ERROR: expected 6 composed PNGs, got $count"
@@ -171,7 +171,7 @@ jobs:
         if: always()
         with:
           name: raw-screenshots
-          path: store/ios/screenshots/iphone-6.3/raw/
+          path: store/ios/screenshots/iphone-6.9/raw/
           if-no-files-found: warn
           retention-days: 30
 
@@ -179,8 +179,8 @@ jobs:
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: composed-screenshots-iphone-6.3
-          path: store/ios/screenshots/iphone-6.3/*.png
+          name: composed-screenshots-iphone-6.9
+          path: store/ios/screenshots/iphone-6.9/*.png
           if-no-files-found: warn
           retention-days: 30
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Composes App Store screenshots for the iPhone 6.3" slot (1206x2622).
+ * Composes App Store screenshots for the iPhone 6.9" slot (1320x2868, iPhone 16 Pro Max).
  *
  * For each shot in store/ios/storyboard.json:
  *   1. Read the raw simulator screenshot from --raw-dir (default: store/ios/screenshots/iphone-6.3/raw/)
@@ -21,23 +21,23 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.
 
 const storyboard = JSON.parse(readFileSync(path.join(ROOT, 'store/ios/storyboard.json'), 'utf8'));
 
-// --- Canvas dimensions (App Store 6.3" iPhone, §8.3) ---
-export const CANVAS_W = storyboard.size.width;   // 1206
-export const CANVAS_H = storyboard.size.height;  // 2622
+// --- Canvas dimensions (App Store 6.9" iPhone, §8.3) ---
+export const CANVAS_W = storyboard.size.width;   // 1320
+export const CANVAS_H = storyboard.size.height;  // 2868
 
 // --- Screen area: app screenshot placed in the upper 68% ---
-// Scale raw screenshot (1206×2622 aspect) to fit: width = 800px, height preserves ratio
-const SCREEN_W = 800;
-const SCREEN_H = Math.round(SCREEN_W * CANVAS_H / CANVAS_W);  // 800 * 2622/1206 = 1738
-const SCREEN_X = Math.floor((CANVAS_W - SCREEN_W) / 2);       // 203 — centred
-const SCREEN_Y = 90;
-const CORNER_R = 50;  // rounded-corner radius on the displayed screen
+// Scale raw screenshot (1320×2868 aspect) to fit: width = 875px, height preserves ratio
+const SCREEN_W = 875;
+const SCREEN_H = Math.round(SCREEN_W * CANVAS_H / CANVAS_W);  // 875 * 2868/1320 = 1901
+const SCREEN_X = Math.floor((CANVAS_W - SCREEN_W) / 2);       // 222 — centred
+const SCREEN_Y = 100;
+const CORNER_R = 55;  // rounded-corner radius on the displayed screen
 
 // --- Caption zone: remaining space below the screen ---
-const CAPTION_TOP = SCREEN_Y + SCREEN_H + 60;        // 90 + 1738 + 60 = 1888
-const CAPTION_MID_Y = CAPTION_TOP + (CANVAS_H - CAPTION_TOP) / 2; // 1888 + 367 = 2255
-const FONT_SIZE = 86;
-const LINE_H = Math.round(FONT_SIZE * 1.22);  // 105 — line-height
+const CAPTION_TOP = SCREEN_Y + SCREEN_H + 66;        // 100 + 1901 + 66 = 2067
+const CAPTION_MID_Y = CAPTION_TOP + (CANVAS_H - CAPTION_TOP) / 2; // 2067 + 400 = 2468
+const FONT_SIZE = 94;
+const LINE_H = Math.round(FONT_SIZE * 1.22);  // 115 — line-height
 
 // --- Palette ---
 const INDIGO = '#5C54E8';
@@ -176,9 +176,9 @@ async function composeShot(shot, rawDir, outDir) {
 async function run() {
   const args = process.argv.slice(2);
   const rawDir = args[args.indexOf('--raw-dir') + 1] ??
-    path.join(ROOT, 'store/ios/screenshots/iphone-6.3/raw');
+    path.join(ROOT, 'store/ios/screenshots/iphone-6.9/raw');
   const outDir = args[args.indexOf('--out-dir') + 1] ??
-    path.join(ROOT, 'store/ios/screenshots/iphone-6.3');
+    path.join(ROOT, 'store/ios/screenshots/iphone-6.9');
   const dryRun = args.includes('--dry-run');
 
   if (dryRun) {
