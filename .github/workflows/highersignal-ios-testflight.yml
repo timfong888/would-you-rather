@@ -21,6 +21,11 @@ name: Higher Signal iOS (build and TestFlight)
 # - the build must be on a version above the released one and a build number above the highest existing one (floors in env, not input);
 # - the ASC preflight checks the app id against sophia.pkg; third-party actions are pinned to commit SHAs;
 #   on success the only Apple data printed is build number and state (a failed `eas build` prints its last 60 lines, redacted).
+# - Credential validation: the build step writes ASC_PRIVATE_KEY to a 0600 temp file outside the checkout, then exports
+#   EXPO_ASC_API_KEY_PATH, EXPO_ASC_KEY_ID, EXPO_ASC_ISSUER_ID, EXPO_APPLE_TEAM_ID, and EXPO_APPLE_TEAM_TYPE so that
+#   eas-cli (v27.11.0, confirmed in tools/eas-cli/node_modules/eas-cli/build/credentials/ios/appstore/resolveCredentials.js)
+#   can authenticate with App Store Connect in non-interactive mode. The key is masked line-by-line and the temp file is
+#   deleted by a trap when the step ends.
 on:
   workflow_dispatch:
     inputs:
@@ -132,4 +137,16 @@ jobs:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           HIGHERSIGNAL_ROOT: ${{ runner.temp }}/highersignal
           EAS_BIN: ${{ github.workspace }}/tools/eas-cli/node_modules/.bin/eas
-        run: node scripts/highersignal-testflight.mjs
+        run: |
+          set -euo pipefail
+          umask 077
+          _keydir="$(mktemp -d)"
+          trap 'rm -rf "$_keydir"' EXIT
+          printf '%s\n' "$ASC_PRIVATE_KEY" | tr -d '\r' > "$_keydir/AuthKey.p8"
+          while IFS= read -r _l; do [ "${#_l}" -ge 4 ] && echo "::add-mask::$_l"; done < "$_keydir/AuthKey.p8"
+          export EXPO_ASC_API_KEY_PATH="$_keydir/AuthKey.p8"
+          export EXPO_ASC_KEY_ID="$ASC_KEY_ID"
+          export EXPO_ASC_ISSUER_ID="$ASC_ISSUER_ID"
+          export EXPO_APPLE_TEAM_ID="$APPLE_TEAM_ID"
+          export EXPO_APPLE_TEAM_TYPE="COMPANY_OR_ORGANIZATION"
+          node scripts/highersignal-testflight.mjs
