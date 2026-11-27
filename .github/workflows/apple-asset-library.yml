@@ -1,0 +1,65 @@
+name: Apple Asset Library (dry-run)
+
+# Uploads one image to the App Asset Library (reserve → upload → commit).
+# DRY RUN by default: prints the request body and calls nothing.
+# Set dry_run=false only when Tim has approved the image.
+# NEVER publishes: upload puts the asset in PREPARE_FOR_SUBMISSION; it must be
+# explicitly placed and submitted via a separate review-submission workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: ASC app id (Apple ID of the app)
+        type: string
+        required: true
+        default: '6836653723'
+      image_path:
+        description: Repo-relative path to the PNG image (e.g. store/ios/screenshots/iphone-6.9/01-question.png)
+        type: string
+        required: true
+      reference_name:
+        description: Human-readable label for the asset in the library
+        type: string
+        required: false
+        default: ''
+      category:
+        description: Asset category
+        type: choice
+        required: true
+        default: APP_SCREENSHOTS_AND_PREVIEWS
+        options:
+          - APP_SCREENSHOTS_AND_PREVIEWS
+          - CREATIVE_ASSETS
+      dry_run:
+        description: 'Dry run: print request body, call nothing (default true)'
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    # Key-holding job: runs only from main (GitHub environment branch rule, #246).
+    environment: apple-ops
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+      - name: Upload image to Asset Library
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APP_ID: ${{ inputs.app_id }}
+          IMAGE_PATH: ${{ inputs.image_path }}
+          REFERENCE_NAME: ${{ inputs.reference_name }}
+          CATEGORY: ${{ inputs.category }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/asc-asset-library.mjs
