@@ -34,7 +34,8 @@ export function validateListing(l) {
   need(l.appInfo, 'subtitle', 'appInfo', LIMITS.subtitle);
   need(l.appInfo, 'privacyPolicyUrl', 'appInfo');
   need(l.version, 'description', 'version', LIMITS.description);
-  need(l.version, 'keywords', 'version', LIMITS.keywords);
+  // keywords is optional (null = pending, skip write); if present it must be within limits
+  if (l.version?.keywords != null) need(l.version, 'keywords', 'version', LIMITS.keywords);
   need(l.version, 'promotionalText', 'version', LIMITS.promotionalText);
   need(l.version, 'supportUrl', 'version');
   need(l.version, 'marketingUrl', 'version');
@@ -110,7 +111,8 @@ export async function syncListing({ api, appId, listing, apply }) {
   }
   const verLocs = (await call('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations`)).data ?? [];
   const verLoc = verLocs.find((x) => x.attributes?.locale === loc);
-  const verWanted = { description: v.description, keywords: v.keywords, promotionalText: v.promotionalText, supportUrl: v.supportUrl, marketingUrl: v.marketingUrl, ...(v.whatsNew != null ? { whatsNew: v.whatsNew } : {}) };
+  // keywords: null means "pending" — skip the field entirely so the current live value is not overwritten.
+  const verWanted = { description: v.description, ...(v.keywords != null ? { keywords: v.keywords } : {}), promotionalText: v.promotionalText, supportUrl: v.supportUrl, marketingUrl: v.marketingUrl, ...(v.whatsNew != null ? { whatsNew: v.whatsNew } : {}) };
   if (!verLoc) {
     log.push({ target: 'appStoreVersionLocalization', action: 'create', locale: loc, fields: Object.keys(verWanted) });
     writes.push(['POST', '/v1/appStoreVersionLocalizations', { data: { type: 'appStoreVersionLocalizations', attributes: { locale: loc, ...verWanted }, relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: ver.id } } } } }]);
