@@ -65,6 +65,16 @@ export default function PrivacyPolicyScreen() {
         you came from is not sent.
       </Text>
 
+      <Text style={styles.heading}>Diagnostics</Text>
+      <Text style={styles.body}>
+        If you have opted in to share app analytics with developers (a
+        setting on your iPhone), Apple may send us crash reports when the
+        app stops unexpectedly. These reports contain device model, iOS
+        version, app version and a stack trace. They do not contain your
+        name, email or the per-install random ID, and they are not linked
+        to any identity. We do not use a third-party crash reporting SDK.
+      </Text>
+
       <Text style={styles.heading}>Purchases</Text>
       <Text style={styles.body}>
         In-app purchases are processed by Apple. We use RevenueCat (a
@@ -73,6 +83,17 @@ export default function PrivacyPolicyScreen() {
         ID and your purchase receipt from Apple. It starts when the app opens, on
         every screen, so purchases can be restored. We never see your payment
         details or Apple ID.
+      </Text>
+
+      <Text style={styles.heading}>No Tracking</Text>
+      <Text style={styles.body}>
+        We do not track you across other apps or websites. We do not share
+        personal data with data brokers or advertising networks. We do not
+        request or use the Advertising Identifier (IDFA), and no App
+        Tracking Transparency prompt will appear. PostHog and RevenueCat
+        process data on our behalf and are not permitted to use it for
+        their own purposes or for ad targeting. We show no in-app
+        advertising.
       </Text>
 
       <Text style={styles.heading}>Data We Store on Your Device</Text>
