@@ -58,6 +58,11 @@ test('no repeated words between name and subtitle (case-insensitive)', () => {
   assert.deepEqual(repeats, [], `unexpected repeated words between name and subtitle: ${repeats.join(', ')}`);
 });
 
+test('primaryCategory is ENTERTAINMENT', () => {
+  assert.equal(listing.appInfo.primaryCategory, 'ENTERTAINMENT');
+  assert.equal(listing.appInfo.secondaryCategory, null, 'secondaryCategory is null — Tim decides');
+});
+
 test('releaseType is MANUAL', () => {
   assert.equal(listing.releaseType, 'MANUAL');
 });
@@ -117,7 +122,7 @@ test('validateListingFull rejects reviewNotes over 4000 chars', () => {
 
 test('dryRunReport includes all required field labels', () => {
   const report = dryRunReport(listing, null);
-  for (const field of ['name (appInfo)', 'description', 'promotionalText', 'keywords', 'reviewNotes', 'ageRatingDeclaration', 'releaseType', 'territories', 'price', 'attachAllIap']) {
+  for (const field of ['name (appInfo)', 'description', 'promotionalText', 'keywords', 'reviewNotes', 'ageRatingDeclaration', 'primaryCategory', 'releaseType', 'territories', 'price', 'attachAllIap']) {
     assert.match(report, new RegExp(field.replace(/[()]/g, '\\$&')), `field "${field}" missing from dry-run report`);
   }
 });

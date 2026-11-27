@@ -5,7 +5,9 @@
   "appInfo": {
     "name": "Would You Rather? Family Fun",
     "subtitle": "Questions for the whole family",
-    "privacyPolicyUrl": "https://www.wouldyourather.fyi/privacy"
+    "privacyPolicyUrl": "https://www.wouldyourather.fyi/privacy",
+    "primaryCategory": "ENTERTAINMENT",
+    "secondaryCategory": null
   },
   "version": {
     "copyright": "2026 Tim Fong",

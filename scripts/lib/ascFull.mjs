@@ -17,8 +17,9 @@ export const ALLOWED_EXTRA = [
   ['GET',   /^\/v1\/appStoreVersions\/[\w-]+\/appStoreReviewDetail$/],
   ['POST',  /^\/v1\/appStoreReviewDetails$/],
   ['PATCH', /^\/v1\/appStoreReviewDetails\/[\w-]+$/],
-  // version release type
+  // version release type + category on appInfo
   ['GET',   /^\/v1\/apps\/\d+\/appStoreVersions/],
+  ['PATCH', /^\/v1\/appInfos\/[\w-]+$/],
   // pricing (read + write price schedule)
   ['GET',   /^\/v1\/apps\/\d+\/appPriceSchedule$/],
   ['GET',   /^\/v1\/apps\/\d+\/appPricePoints\?/],
@@ -88,6 +89,8 @@ export function dryRunReport(listing, liveInfo) {
     { field: 'whatsNew',                limit: 4000, proposed: listing.version?.whatsNew ?? '(null — skipped)', live: liveInfo?.whatsNew },
     { field: 'copyright',               limit: 200,  proposed: listing.version?.copyright,        live: liveInfo?.copyright },
     // new fields
+    { field: 'primaryCategory',         limit: null, proposed: listing.appInfo?.primaryCategory ?? '(null — skipped)', live: liveInfo?.primaryCategory ?? '(unverified)' },
+    { field: 'secondaryCategory',       limit: null, proposed: listing.appInfo?.secondaryCategory ?? '(null — Tim decides)', live: liveInfo?.secondaryCategory ?? '(unverified)' },
     { field: 'reviewNotes',             limit: 4000, proposed: listing.reviewNotes ?? '(null — skipped)', live: liveInfo?.reviewNotes },
     { field: 'ageRatingDeclaration',    limit: null, proposed: listing.ageRatingDeclaration ? JSON.stringify(listing.ageRatingDeclaration) : '(null — skipped)', live: liveInfo?.ageRatingDeclaration ? '(set — unreadable via GET)' : '(unverified)' },
     { field: 'releaseType',             limit: null, proposed: listing.releaseType ?? '(null — skipped)', live: liveInfo?.releaseType },
@@ -122,6 +125,18 @@ export async function syncFullMetadata({ api, appId, listing, apply }) {
   const versions = (await api('GET', `/v1/apps/${appId}/appStoreVersions?filter[platform]=IOS&limit=10`)).data ?? [];
   const ver = versions.find((x) => EDITABLE_STATES.includes(x.attributes?.appStoreState));
   if (!ver) throw new Error('No editable iOS version found (should have been caught earlier)');
+
+  // --- primary category (on appInfo, not appInfoLocalization) ---
+  if (listing.appInfo?.primaryCategory != null) {
+    const infos = (await api('GET', `/v1/apps/${appId}/appInfos`)).data ?? [];
+    const info = infos.find((i) => EDITABLE_STATES.includes(i.attributes?.appStoreState));
+    if (info) {
+      const relationships = { primaryCategory: { data: { type: 'appCategories', id: listing.appInfo.primaryCategory } } };
+      if (listing.appInfo.secondaryCategory) relationships.secondaryCategory = { data: { type: 'appCategories', id: listing.appInfo.secondaryCategory } };
+      log.push({ target: 'appInfo', action: apply ? 'update' : 'would update', fields: ['primaryCategory', ...(listing.appInfo.secondaryCategory ? ['secondaryCategory'] : [])] });
+      if (apply) await api('PATCH', `/v1/appInfos/${info.id}`, { data: { type: 'appInfos', id: info.id, relationships } });
+    }
+  }
 
   // --- release type ---
   if (listing.releaseType != null) {
