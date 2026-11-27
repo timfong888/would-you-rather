@@ -1,0 +1,28 @@
+# Shot 03: match result — "See if they matched."
+# Opens hl-1 as a recipient (f=2a3 → friend chose A from A_SET).
+# After tapping option A and confirming, the match card shows
+# "You matched the person who sent this."
+#
+# Encoding: f param is 3 chars: FILL[0]+A_SET[1]+FILL[2]
+# FILL = '23456789cdfjnqrsy', A_SET = 'ahkpvz'
+# "2a3" is a valid code for friend pick = A.
+appId: com.timfong888.wouldyourather
+name: Screenshot 03 — match result
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- waitForAnimationToEnd
+# Open as a recipient: friend chose A, we also choose A → matched
+- openLink: "would-you-rather:///game/hl-1?cat=high-life&idx=0&f=2a3"
+- extendedWaitUntil:
+    visible: "Have a private yacht.*"
+    timeout: 20000
+# Arrived via share: one-tap confirm (no CONFIRM PREFERENCE button in this mode)
+- tapOn: "Have a private yacht.*"
+- extendedWaitUntil:
+    visible: "You matched.*"
+    timeout: 15000
+- waitForAnimationToEnd

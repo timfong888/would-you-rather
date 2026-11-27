@@ -1,0 +1,19 @@
+# Shot 01: question screen — "Pick a side."
+# Shows hl-1 (yacht vs jet) before the user has answered.
+# Screenshot taken externally via: xcrun simctl io $UDID screenshot 01-question.png
+appId: com.timfong888.wouldyourather
+name: Screenshot 01 — question screen
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- waitForAnimationToEnd
+- openLink: "would-you-rather:///game/hl-1?cat=high-life&idx=0"
+- extendedWaitUntil:
+    visible: "Have a private yacht.*"
+    timeout: 20000
+# Tap option A so it shows selected (highlighted) for the marketing shot
+- tapOn: "Have a private yacht.*"
+- waitForAnimationToEnd

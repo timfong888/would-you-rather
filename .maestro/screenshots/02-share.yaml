@@ -1,0 +1,25 @@
+# Shot 02: answered state — "Challenge a friend."
+# After answering hl-1, the result banner shows "New question / Send it to someone and
+# see if they pick the same." — the share CTA the marketing shot needs.
+appId: com.timfong888.wouldyourather
+name: Screenshot 02 — share screen
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- waitForAnimationToEnd
+- openLink: "would-you-rather:///game/hl-1?cat=high-life&idx=0"
+- extendedWaitUntil:
+    visible: "Have a private yacht.*"
+    timeout: 20000
+- tapOn: "Have a private yacht.*"
+- extendedWaitUntil:
+    visible: "CONFIRM PREFERENCE"
+    timeout: 10000
+- tapOn: "CONFIRM PREFERENCE"
+- extendedWaitUntil:
+    visible: "New question"
+    timeout: 15000
+- waitForAnimationToEnd

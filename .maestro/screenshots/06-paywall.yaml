@@ -1,0 +1,23 @@
+# Shot 06: native paywall — "Free to start. Unlock what you like."
+# Opens /unlock/high-life directly. The paywall renders the upgrade offer.
+#
+# PRICE NOTE: RevenueCat cannot fetch prices from a plain CI simulator build
+# (no credentials, no App Store entitlement). The price button may show a
+# loading/unavailable state. For a production screenshot with real prices either:
+#   a) Run from Xcode with store/ios/Screenshots.storekit set in the scheme, or
+#   b) Use a TestFlight build on an iPhone with a sandbox account.
+# See store/ios/storyboard.json shot 06-paywall note.
+appId: com.timfong888.wouldyourather
+name: Screenshot 06 — paywall
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- waitForAnimationToEnd
+- openLink: "would-you-rather:///unlock/high-life"
+- extendedWaitUntil:
+    visible: "MORE DILEMMAS|Unlock|UNLOCK"
+    timeout: 20000
+- waitForAnimationToEnd
