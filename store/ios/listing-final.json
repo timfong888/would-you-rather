@@ -1,5 +1,5 @@
 {
-  "_readme": "Text sent to App Store Connect by .github/workflows/apple-metadata.yml. Copy comes from docs/specs/app-store-listing.md (name variant A, the recommended one). Tim reviews THIS file; apply is refused until approved is true. Open decisions are tracked in issue #114.",
+  "_readme": "Text and metadata sent to App Store Connect by .github/workflows/apple-metadata.yml. All copy comes from docs/specs/app-store-listing.md section 8 (branch docs/asc-required-fields, PR #244). Tim reviews THIS file; apply is refused until approved is true. Open decisions are tracked in issue #265.",
   "approved": false,
   "locale": "en-US",
   "appInfo": {
@@ -9,11 +9,33 @@
   },
   "version": {
     "copyright": "2026 Tim Fong",
-    "description": "One question, two choices, a table full of opinions. Would You Rather turns dinner, car rides and waiting rooms into real conversation. Pick A or B, send the question to someone, and see if they chose the same.\n\nHOW IT WORKS\n- Read a dilemma and tap the option you would choose.\n- Send the question to a friend and see if they pick the same.\n- As more people answer a question, you see how everyone voted.\n\nEIGHT CATEGORIES\nThe High Life, Moral Compass, Social Blunders, Time Traveler, Career Climber, Tech Dystopia and Wildest Dreams for teens and adults, plus Kids & Family for the whole table. New questions are added over time.\n\nFREE TO START\nEvery category has free questions to try. Moral Compass, Social Blunders, Career Climber and Tech Dystopia are free to play with an optional expansion, and Kids & Family is free. Other categories include a free preview.\n\nUNLOCK WHAT YOU LIKE\n- Unlock one category with a single purchase.\n- Or unlock every category in one pack, including questions added later.\n- No subscription. Restore Purchases is always available.\n\nPRIVATE BY DEFAULT\nNo account and no sign-up. Your answers are stored anonymously to build vote totals. Kids & Family answers are stored with no device ID and no location.\n\nSome categories contain mature themes and are meant for teens and adults. Kids & Family is designed for families to play together.",
-    "keywords": "game,icebreaker,road trip,this or that,date night,dilemma,conversation,parents,teens,couples,party",
-    "promotionalText": "Pick a side, then see if your family or friends picked the same. Hundreds of dilemmas, free to start, no account needed.",
+    "description": "One question, two choices, a table full of opinions. Would You Rather turns dinner, car rides and waiting rooms into real conversation. Pick A or B, send the question to someone, and see if they chose the same.\n\nHOW IT WORKS\n- Read a dilemma and tap the option you would choose.\n- Send the question to a friend and see if they pick the same.\n- As more people answer a question, you see how everyone voted.\n\nEIGHT CATEGORIES\nThe High Life, Moral Compass, Social Blunders, Time Traveler, Career Climber, Tech Dystopia and Wildest Dreams for teens and adults, plus a Family category for the whole table. New questions are added over time.\n\nFREE TO START\nEvery category has free questions to try. Want more? Unlock a category with an optional upgrade.\n\nUNLOCK WHAT YOU LIKE\n- Unlock one category with a single purchase.\n- Or unlock every category in one pack, including questions added later.\n- No subscription. Restore Purchases is always available.\n\nPRIVATE BY DEFAULT\nNo account and no sign-up. Your answers are stored anonymously to build vote totals. Family category answers are stored with no device ID and no location.\n\nSome categories contain mature themes and are meant for teens and adults. The Family category is designed for families to play together.",
+    "keywords": null,
+    "promotionalText": "Pick a side, then see if your family or friends picked the same. Free questions in every category, optional upgrades, no account needed.",
     "whatsNew": null,
     "supportUrl": "https://www.wouldyourather.fyi/support",
     "marketingUrl": "https://www.wouldyourather.fyi"
-  }
+  },
+  "reviewNotes": "No sign-in is needed. Open a category and play. Categories show a paywall after the free questions; purchases use in-app purchase. Use a sandbox account to test: the all-categories pack, or any single category. Restore Purchases is on the paywall screen.\n\nKids & Family: any purchase screen opened from Kids & Family content shows a \"Grown-ups only\" gate first (solve a three-number sum). The app is not in the Kids Category.",
+  "ageRatingDeclaration": {
+    "madeForKids": false,
+    "kidsAgeBand": null,
+    "profanityOrCrudeHumor": "INFREQUENT_OR_MILD",
+    "alcoholTobaccoOrDrugUseOrReferences": "INFREQUENT_OR_MILD",
+    "matureOrSuggestiveThemes": "INFREQUENT_OR_MILD",
+    "horrorOrFearThemes": "NONE",
+    "gamblingAndContests": "NONE",
+    "gamblingSimulated": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "sexualContentGraphicAndNudity": "NONE",
+    "realisticViolence": "NONE",
+    "cartoonOrFantasyViolence": "NONE",
+    "unrestrictedWebAccess": false,
+    "medicalOrTreatmentInformation": "NONE",
+    "ageRatingOverride": "NONE"
+  },
+  "releaseType": "MANUAL",
+  "territories": ["USA"],
+  "price": 0,
+  "attachAllIap": true
 }

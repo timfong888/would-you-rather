@@ -1,47 +1,82 @@
-name: Apple metadata (text only)
+name: Apple metadata
 
-# Manual only. Pushes listing TEXT from store/ios/listing-final.json to App Store Connect
-# (name, subtitle, description, keywords, promo text, URLs, copyright). DRY RUN unless
-# "apply" is ticked, and apply is refused unless "approved": true is committed in the file.
-# It never uploads builds or screenshots, never changes price or age rating, and never submits for review.
+# Manual only. Three actions:
+#   metadata   — push text, copyright, review notes, age rating, price/availability, IAPs, release type
+#   screenshots — upload store/ios/screenshots/iphone-6.3/*.png to APP_IPHONE_63 (1206×2622)
+#   submit      — create a reviewSubmission (apply=true only; requires a verified go comment on issue 265)
+#
+# DRY RUN unless apply is checked.
+# Content source: store/ios/listing-final.json (reviewed and approved by Tim before apply).
+#
+# Security (public repo, public logs, holds the ASC key):
+# - dispatch only; job guard: github.actor == 'timfong888' && github.ref == 'refs/heads/main'
+#   (belt-and-suspenders; the apple-ops environment is branch-restricted to main in repo settings, #246)
+# - inputs only via env: (never interpolated into run: scripts)
+# - secrets reach exactly one step (the "Run action" step); the go-check step gets only github.token
+# - no artifacts; persist-credentials: false; pinned action SHAs
+# - actions are pinned to the same SHAs as neville-ios-testflight.yml
 on:
   workflow_dispatch:
     inputs:
-      app_id:
-        description: ASC app id (Apple ID of the app)
-        type: string
-        required: true
-        default: '6836653723'
       apply:
         description: Write to App Store Connect (leave off for a dry run)
         type: boolean
         required: true
         default: false
+      action:
+        description: What to do
+        type: choice
+        required: true
+        default: metadata
+        options:
+          - metadata
+          - screenshots
+          - submit
+      go_issue_comment_id:
+        description: Issue 265 comment ID with "SUBMIT v1.0" (submit action only)
+        type: string
+        required: false
 
 permissions:
   contents: read
+  issues: read
 
 jobs:
-  metadata:
+  run:
     runs-on: ubuntu-latest
     # Key-holding job: runs only from main (GitHub environment branch rule, #246).
     environment: apple-ops
-    timeout-minutes: 5
+    if: github.actor == 'timfong888' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
-      - name: Sync listing text
+
+      # Go-check step: uses only github.token (read-only issues:read). No ASC secrets here.
+      # Runs only for the submit action so an error surfaces before any write.
+      - name: Verify go comment (submit only)
+        if: inputs.action == 'submit' && inputs.apply == true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GO_ISSUE_COMMENT_ID: ${{ inputs.go_issue_comment_id }}
+          APP_ID: '6836653723'
+          APPLY: 'false'
+          ACTION: submit
+        run: node scripts/asc-full.mjs submit
+
+      # Main step: ASC secrets + all three actions.
+      - name: Run action
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
-          APP_ID: ${{ inputs.app_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+          APP_ID: '6836653723'
           APPLY: ${{ inputs.apply }}
-        run: |
-          if [ "$APPLY" = "true" ]; then
-            node scripts/asc-metadata.mjs --app "$APP_ID" --apply
-          else
-            node scripts/asc-metadata.mjs --app "$APP_ID"
-          fi
+          ACTION: ${{ inputs.action }}
+          GO_ISSUE_COMMENT_ID: ${{ inputs.go_issue_comment_id }}
+        run: node scripts/asc-full.mjs "$ACTION"
