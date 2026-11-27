@@ -7,7 +7,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createPrivateKey, sign } from 'node:crypto';
-import { validateListingFull, syncFullMetadata, uploadScreenshots, verifyGoComment, createReviewSubmission, dryRunReport, stillBlockedList } from './lib/ascFull.mjs';
+import { validateListingFull, syncFullMetadata, uploadScreenshots, verifyGoComment, createReviewSubmission, dryRunReport, stillBlockedList, SCREENSHOT_DISPLAY_TYPE, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT } from './lib/ascFull.mjs';
 
 const ACTION = process.argv[2];
 if (!['metadata', 'screenshots', 'submit'].includes(ACTION)) {
@@ -94,17 +94,17 @@ try {
 
   if (ACTION === 'screenshots') {
     if (!apply) {
-      const dir = 'store/ios/screenshots/iphone-6.3';
+      const dir = 'store/ios/screenshots/iphone-6.9';
       let files;
       try { files = readdirSync(dir).filter((f) => f.endsWith('.png')).sort(); }
       catch { files = []; }
       console.log(`DRY RUN — screenshots action`);
       console.log(`  Source: ${dir}`);
       console.log(`  Files found: ${files.length ? files.join(', ') : '(none)'}`);
-      console.log(`  Display type: APP_IPHONE_63 (1206×2622, iPhone 16 Pro / 17 Pro 6.3")`);
+      console.log(`  Display type: ${SCREENSHOT_DISPLAY_TYPE} (${SCREENSHOT_WIDTH}×${SCREENSHOT_HEIGHT}, iPhone 6.9" required slot)`);
       console.log('  Re-run with apply=true to upload.');
     } else {
-      const dir = 'store/ios/screenshots/iphone-6.3';
+      const dir = 'store/ios/screenshots/iphone-6.9';
       const names = readdirSync(dir).filter((f) => f.endsWith('.png')).sort();
       if (!names.length) { console.error(`No PNG files found in ${dir}`); process.exit(1); }
       const files = names.map((name) => ({ name, data: readFileSync(join(dir, name)) }));

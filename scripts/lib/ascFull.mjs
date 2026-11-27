@@ -43,7 +43,9 @@ export const ALLOWED_EXTRA = [
   ['POST',  /^\/v1\/reviewSubmissionItems$/],
 ];
 
-export const SCREENSHOT_DISPLAY_TYPE = 'APP_IPHONE_63'; // 1206×2622 — iPhone 16 Pro / 17 Pro 6.3"
+export const SCREENSHOT_DISPLAY_TYPE = 'APP_IPHONE_69'; // 1320×2868 — iPhone 16 Pro Max / 15 Pro Max 6.9" (required slot)
+export const SCREENSHOT_WIDTH = 1320;
+export const SCREENSHOT_HEIGHT = 2868;
 
 /** Validate the extended listing fields (age rating, review notes, etc.). */
 export function validateListingFull(l) {
@@ -231,15 +233,34 @@ export async function syncFullMetadata({ api, appId, listing, apply }) {
 /**
  * Upload screenshots from a directory to an appScreenshotSet for the editable iOS version.
  * files: array of { name: string, data: Buffer } already sorted by filename.
+ * Each file is validated to be a 1320×2868 PNG before upload.
  */
+export function pngDimensions(buf) {
+  // PNG header: 8-byte sig + 4-byte length + 4-byte "IHDR" + 4-byte width + 4-byte height
+  if (buf.length < 24) return null;
+  if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) return null; // not PNG
+  const w = (buf[16] << 24 | buf[17] << 16 | buf[18] << 8 | buf[19]) >>> 0;
+  const h = (buf[20] << 24 | buf[21] << 16 | buf[22] << 8 | buf[23]) >>> 0;
+  return { width: w, height: h };
+}
+
 export async function uploadScreenshots({ api, upload, appId, files }) {
-  if (!files.length) throw new Error('No screenshot files found in store/ios/screenshots/iphone-6.3/');
+  if (!files.length) throw new Error('No screenshot files found in store/ios/screenshots/iphone-6.9/');
+
+  // Validate all files before making any API calls
+  for (const file of files) {
+    const dims = pngDimensions(file.data);
+    if (!dims) throw new Error(`${file.name}: not a valid PNG`);
+    if (dims.width !== SCREENSHOT_WIDTH || dims.height !== SCREENSHOT_HEIGHT) {
+      throw new Error(`${file.name}: expected ${SCREENSHOT_WIDTH}×${SCREENSHOT_HEIGHT}, got ${dims.width}×${dims.height}`);
+    }
+  }
 
   const versions = (await api('GET', `/v1/apps/${appId}/appStoreVersions?filter[platform]=IOS&limit=10`)).data ?? [];
   const ver = versions.find((x) => EDITABLE_STATES.includes(x.attributes?.appStoreState));
   if (!ver) throw new Error('No editable iOS version found');
 
-  // Find or create the screenshot set for APP_IPHONE_63
+  // Find or create the screenshot set for APP_IPHONE_69
   const setRes = await api('GET', `/v1/appStoreVersions/${ver.id}/appScreenshotSets?filter[screenshotDisplayType]=${SCREENSHOT_DISPLAY_TYPE}`);
   let setId = setRes.data?.[0]?.id;
   if (!setId) {
@@ -325,13 +346,13 @@ export async function createReviewSubmission({ api, appId }) {
 export function stillBlockedList() {
   return [
     '--- STILL BLOCKED (manual steps required) ---',
-    '1. App Review contact name, last name, phone number — personal data, never stored in files',
-    '2. App Review email — confirm tim@wouldyourather.fyi or personal address',
-    '3. App Privacy (nutrition label) — answer data-type questions in ASC > App Privacy',
+    '1. App Review contact name, last name, phone number — entered by Tim, unverified by API',
+    '2. App Review email — entered by Tim, unverified by API',
+    '3. App Privacy (nutrition label) — entered by Tim, unverified by API',
     '4. Paid Apps agreement, banking and tax forms — Account Holder only at appstoreconnect.apple.com/business',
     '5. App Compliance section — open in ASC left menu; read each question to the agent to fill',
     '6. EU trader status — not expected for US-only, but verify inside App Compliance',
-    '7. Keywords — leave blank until Tim supplies Search Ads data (see spec 8.5)',
+    '7. Keywords — null (pending Search Ads data). The first submission ships WITHOUT keywords unless Tim supplies them before the submit run.',
     '8. ParentalGate.tsx in build 23 — verify on a device before sending review notes',
     '9. Price / territories write — if the apply run logs "schedule exists", verify free and US-only in ASC UI',
     '10. IAP attachment — if the POST /relationships/inAppPurchasesV2 fails, attach manually in version page',

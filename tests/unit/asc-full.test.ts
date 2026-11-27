@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 // @ts-ignore plain .mjs modules
-import { validateListingFull, dryRunReport, verifyGoComment, stillBlockedList, SCREENSHOT_DISPLAY_TYPE } from '../../scripts/lib/ascFull.mjs';
+import { validateListingFull, dryRunReport, verifyGoComment, stillBlockedList, pngDimensions, SCREENSHOT_DISPLAY_TYPE, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT } from '../../scripts/lib/ascFull.mjs';
 // @ts-ignore
 import { validateListing } from '../../scripts/lib/ascMetadata.mjs';
 
@@ -201,15 +201,37 @@ test('verifyGoComment requires a non-empty commentId', async () => {
 
 // --- screenshot display type ---
 
-test('screenshot display type is APP_IPHONE_63 for 1206x2622', () => {
-  assert.equal(SCREENSHOT_DISPLAY_TYPE, 'APP_IPHONE_63');
+test('screenshot display type is APP_IPHONE_69 for 1320x2868 (required 6.9" slot)', () => {
+  assert.equal(SCREENSHOT_DISPLAY_TYPE, 'APP_IPHONE_69');
+  assert.equal(SCREENSHOT_WIDTH, 1320);
+  assert.equal(SCREENSHOT_HEIGHT, 2868);
+});
+
+test('pngDimensions reads width and height from a minimal PNG header', () => {
+  // Build a minimal PNG IHDR: 8-byte sig + 4-byte len + IHDR + 4-byte w + 4-byte h + padding
+  const buf = Buffer.alloc(24);
+  buf[0] = 0x89; buf[1] = 0x50; buf[2] = 0x4e; buf[3] = 0x47; buf[4] = 0x0d; buf[5] = 0x0a; buf[6] = 0x1a; buf[7] = 0x0a;
+  buf.writeUInt32BE(13, 8); // IHDR length
+  buf.write('IHDR', 12, 'ascii');
+  buf.writeUInt32BE(1320, 16); // width
+  buf.writeUInt32BE(2868, 20); // height
+  const dims = pngDimensions(buf);
+  assert.deepEqual(dims, { width: 1320, height: 2868 });
+});
+
+test('pngDimensions returns null for a non-PNG buffer', () => {
+  assert.equal(pngDimensions(Buffer.from('not a png')), null);
+});
+
+test('pngDimensions returns null for a buffer that is too short', () => {
+  assert.equal(pngDimensions(Buffer.alloc(10)), null);
 });
 
 // --- still-blocked list completeness ---
 
-test('stillBlockedList covers all human-only fields', () => {
+test('stillBlockedList covers all human-only fields and keywords-without-submit note', () => {
   const list = stillBlockedList();
-  for (const item of ['contact', 'App Privacy', 'Paid Apps', 'App Compliance', 'Keywords', 'ParentalGate']) {
-    assert.match(list, new RegExp(item, 'i'), `stillBlockedList missing "${item}"`);
+  for (const item of ['entered by Tim, unverified by API', 'App Privacy', 'Paid Apps', 'App Compliance', 'Keywords', 'ParentalGate', 'ships WITHOUT keywords']) {
+    assert.match(list, new RegExp(item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), `stillBlockedList missing "${item}"`);
   }
 });
