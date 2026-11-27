@@ -15,7 +15,8 @@
 //   3. GET /v1/bundleIds?filter[identifier]=sophia.pkg
 //      POST /v1/profiles  →  IOS_APP_STORE profile
 //   4. openssl pkcs12 → .p12 with a random password (password masked immediately)
-//      Write credentials.json to appDir (temp clone only)
+//      Decode provisioning profile → profile.mobileprovision in temp dir
+//      Write credentials.json (path-based, credentialsSource: local schema) to appDir (temp clone only)
 //      Patch eas.json in appDir with credentialsSource: "local" (original restored on exit)
 //   5. node scripts/highersignal-testflight.mjs (subprocess, stdio: inherit)
 //   6. EXIT trap (try/finally): DELETE profile, DELETE cert, rm tempDir, restore eas.json
@@ -72,12 +73,12 @@ export function buildProfileBody(bundleIdId, certId, name) {
   };
 }
 
-/** credentials.json structure for EAS local credentials (all fields inline base64). */
-export function buildCredentialsJson(p12Base64, certPassword, profileBase64, bundleId) {
+/** credentials.json structure for EAS local credentials (path-based, credentialsSource: local). */
+export function buildCredentialsJson(p12Path, certPassword, profilePath) {
   return {
     ios: {
-      distributionCertificate: { certP12: p12Base64, certPassword },
-      provisioningProfiles: [{ bundleIdentifier: bundleId, provisioningProfile: profileBase64 }],
+      distributionCertificate: { path: p12Path, password: certPassword },
+      provisioningProfilePath: profilePath,
     },
   };
 }
@@ -314,11 +315,15 @@ async function runSigning() {
         '-inkey', keyPath, '-in', certPemPath, '-passout', `pass:${p12Pass}`);
       if (r.status !== 0) throw new Error(`openssl pkcs12 failed: ${r.stderr}`);
     }
-    const p12Base64 = readFileSync(p12Path).toString('base64');
     say('signing: .p12 built');
 
-    // Write credentials.json to appDir (temp clone only, never the repo checkout).
-    const creds = buildCredentialsJson(p12Base64, p12Pass, profileContent, bundleId);
+    // Decode the provisioning profile to a file — EAS local credentials require a file path, not inline base64.
+    const profileFilePath = join(tempDir, 'profile.mobileprovision');
+    writeFileSync(profileFilePath, Buffer.from(profileContent, 'base64'), { mode: 0o600 });
+    say('signing: provisioning profile written to temp dir');
+
+    // Write credentials.json with path-based references (credentialsSource: local schema).
+    const creds = buildCredentialsJson(p12Path, p12Pass, profileFilePath);
     writeFileSync(join(appDir, 'credentials.json'), JSON.stringify(creds, null, 2), { mode: 0o600 });
     credWritten = true;
     say('signing: credentials.json written to app dir (temp clone)');

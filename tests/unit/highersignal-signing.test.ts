@@ -95,13 +95,11 @@ test('buildProfileBody: POST /v1/profiles body has correct type, profileType and
 
 // ── buildCredentialsJson ───────────────────────────────────────────────────────
 
-test('buildCredentialsJson: correct EAS local credentials structure', () => {
-  const creds = buildCredentialsJson('P12_B64', 'secretpass', 'PROFILE_B64', 'sophia.pkg');
-  assert.equal(creds.ios.distributionCertificate.certP12, 'P12_B64');
-  assert.equal(creds.ios.distributionCertificate.certPassword, 'secretpass');
-  assert.equal(creds.ios.provisioningProfiles.length, 1);
-  assert.equal(creds.ios.provisioningProfiles[0].bundleIdentifier, 'sophia.pkg');
-  assert.equal(creds.ios.provisioningProfiles[0].provisioningProfile, 'PROFILE_B64');
+test('buildCredentialsJson: correct EAS local credentials structure with file paths', () => {
+  const creds = buildCredentialsJson('/tmp/dist.p12', 'secretpass', '/tmp/profile.mobileprovision');
+  assert.equal(creds.ios.distributionCertificate.path, '/tmp/dist.p12');
+  assert.equal(creds.ios.distributionCertificate.password, 'secretpass');
+  assert.equal(creds.ios.provisioningProfilePath, '/tmp/profile.mobileprovision');
 });
 
 // ── patchEasJson ───────────────────────────────────────────────────────────────
