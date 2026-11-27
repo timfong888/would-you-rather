@@ -36,9 +36,9 @@ test('promotional text is within 170-char limit', () => {
   assert.ok([...pt].length <= 170, `promotionalText is ${[...pt].length} chars (limit 170)`);
 });
 
-test('name (28) and subtitle (30) are within limits', () => {
-  assert.ok([...listing.appInfo.name].length <= 30);
-  assert.ok([...listing.appInfo.subtitle].length <= 30);
+test('name and subtitle are within 30-char limit', () => {
+  assert.ok([...listing.appInfo.name].length <= 30, `name is ${[...listing.appInfo.name].length} chars`);
+  assert.ok([...listing.appInfo.subtitle].length <= 30, `subtitle is ${[...listing.appInfo.subtitle].length} chars`);
 });
 
 test('name, subtitle and keywords have no "kids" or "children"', () => {
@@ -49,13 +49,20 @@ test('name, subtitle and keywords have no "kids" or "children"', () => {
   assert.ok([...listing.version.keywords].length <= 100, `keywords is ${[...listing.version.keywords].length} chars (limit 100)`);
 });
 
-test('no repeated words between name and subtitle (case-insensitive)', () => {
+test('no repeated words across name, subtitle and keywords (case-insensitive)', () => {
   const words = (s: string) => s.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
   const nameWords = new Set(words(listing.appInfo.name));
-  const subWords = words(listing.appInfo.subtitle);
-  // "family" appears in both — this is an accepted trade-off per Tim's decision (8.8 D4); we just document it
-  const repeats = subWords.filter((w) => nameWords.has(w) && w !== 'family');
-  assert.deepEqual(repeats, [], `unexpected repeated words between name and subtitle: ${repeats.join(', ')}`);
+  const subWords = new Set(words(listing.appInfo.subtitle));
+
+  // name vs subtitle — "family" in both is an accepted trade-off per Tim's decision (8.8 D4)
+  const nameSub = [...subWords].filter((w) => nameWords.has(w) && w !== 'family');
+  assert.deepEqual(nameSub, [], `name/subtitle repeats: ${nameSub.join(', ')}`);
+
+  // keywords must not repeat any word from name or subtitle
+  const combined = new Set([...nameWords, ...subWords]);
+  const kwWords = listing.version.keywords ? words(listing.version.keywords.replace(/,/g, ' ')) : [];
+  const kwRepeats = kwWords.filter((w) => combined.has(w));
+  assert.deepEqual(kwRepeats, [], `keywords repeat name/subtitle words: ${kwRepeats.join(', ')}`);
 });
 
 test('primaryCategory is ENTERTAINMENT', () => {
