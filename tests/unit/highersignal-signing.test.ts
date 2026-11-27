@@ -249,7 +249,7 @@ test('deleteResources: null certId or profileId are skipped gracefully', async (
   assert.deepEqual(deleted, []);
   await deleteResources({ del: mockDel, certId: 'C1', profileId: null });
   assert.equal(deleted.length, 1);
-  assert.ok(deleted[0].includes('/certificates/C1'));
+  assert.ok((deleted[0] as string).includes('/certificates/C1'));
 });
 
 // ── Workflow security checks ───────────────────────────────────────────────────
