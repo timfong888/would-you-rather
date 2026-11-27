@@ -28,6 +28,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.maestro/**'
+      - '!.maestro/screenshots/**'
       - '.github/workflows/ios-simulator-smoke.yml'
   workflow_dispatch:
 
@@ -131,7 +132,11 @@ jobs:
         run: |
           mkdir -p maestro-out
           run_maestro() {
-            maestro --device "$UDID" test .maestro/ \
+            # Run only the two smoke flows explicitly; .maestro/screenshots/ is for the
+            # screenshot-capture workflow and must not run as part of the smoke suite.
+            maestro --device "$UDID" test \
+              .maestro/kids-smoke.yaml \
+              .maestro/adult-paywall-smoke.yaml \
               --format junit --output maestro-out/report.xml \
               --test-output-dir maestro-out/artifacts 2>&1 | tee "$1"
             return "${PIPESTATUS[0]}"

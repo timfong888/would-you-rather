@@ -1,0 +1,24 @@
+# Shot 05: kids section — "Dinner table. Car ride."
+# Shows the With Kids index after switching modes. The age-chip selector and the
+# family-friendly category list (Dinner Table, Road Trip Rally, etc.) are visible.
+appId: com.timfong888.wouldyourather
+name: Screenshot 05 — kids section
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- waitForAnimationToEnd
+- tapOn: "With kids"
+# Retry once for first-launch settling
+- runFlow:
+    when:
+      notVisible: "Pick a topic for the age you are playing with."
+    commands:
+      - waitForAnimationToEnd
+      - tapOn: "With kids"
+- extendedWaitUntil:
+    visible: "Pick a topic for the age you are playing with."
+    timeout: 20000
+- waitForAnimationToEnd

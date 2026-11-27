@@ -1,0 +1,16 @@
+# Shot 04: categories grid — "Eight categories, one tap."
+# Shows the grown-up category grid: The High Life, Moral Compass, etc.
+appId: com.timfong888.wouldyourather
+name: Screenshot 04 — categories grid
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Would You Rather?"
+    timeout: 90000
+- waitForAnimationToEnd
+- openLink: "would-you-rather:///categories"
+- extendedWaitUntil:
+    visible: "THE HIGH LIFE|High Life|high life"
+    timeout: 20000
+- waitForAnimationToEnd

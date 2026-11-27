@@ -1,0 +1,196 @@
+name: iOS App Store screenshots (iPhone 6.9")
+
+# Builds the app for the iPhone 16 Pro Max simulator (1320×2868), boots the device,
+# navigates each screen in .maestro/screenshots/, captures raw PNGs with xcrun
+# simctl, then composes them (gradient bg + caption + rounded corners) with
+# scripts/store/compose.mjs. Outputs two artifacts: raw-screenshots and
+# composed-screenshots-iphone-6.9.
+#
+# No secrets required. No upload to App Store Connect (see scripts/asc-upload.mjs).
+#
+# Paywall price note: RevenueCat cannot fetch prices in a plain simulator build
+# without credentials. Shot 06-paywall will render the paywall UI but the price
+# may show as a loading state. For a production screenshot with real prices either:
+#   a) Run from Xcode with store/ios/Screenshots.storekit set in the scheme, or
+#   b) Use a TestFlight build on an iPhone with a sandbox account.
+# See store/ios/storyboard.json shot 06-paywall note.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-screenshots-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ID: com.timfong888.wouldyourather
+  MAESTRO_VERSION: 2.12.1
+  MAESTRO_SHA256: 54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7
+  EXPO_PUBLIC_DEPLOY_ENV: development
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    timeout-minutes: 75
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Versions
+        run: |
+          xcodebuild -version
+          node --version
+          xcrun simctl list runtimes | grep -i ios || true
+
+      - name: Install JS dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate native iOS project (expo prebuild)
+        run: npx expo prebuild --platform ios --no-install --clean
+
+      - name: Install pods
+        working-directory: ios
+        run: pod install
+
+      - name: Build for the simulator (iPhone 16 Pro — Release, no signing)
+        run: |
+          set -o pipefail
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE  scheme=$SCHEME"
+          xcodebuild \
+            -workspace "$WORKSPACE" -scheme "$SCHEME" \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tail -n 400 > xcodebuild-tail.log || { tail -n 120 xcodebuild-tail.log; exit 1; }
+          APP=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          test -d "$APP" || { echo "no .app produced"; exit 1; }
+          echo "APP_PATH=$PWD/$APP" >> "$GITHUB_ENV"
+
+      - name: Install Maestro (pinned, checksum verified)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" \
+            "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Boot iPhone 16 Pro Max simulator and install the app
+        run: |
+          SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          export SDK
+          echo "SDK=$SDK"
+          xcrun simctl list runtimes
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, os, sys
+          sdk = os.environ['SDK']
+          want = 'iOS-' + sdk.replace('.', '-')
+          d = json.load(sys.stdin)['devices']
+          ios = [(k, v) for k, v in d.items() if 'iOS' in k]
+          ios.sort(key=lambda kv: [int(x) for x in kv[0].split('iOS-')[-1].split('-')])
+          match = [kv for kv in ios if kv[0].endswith(want)] or ios[-1:]
+          # Prefer exact 'iPhone 16 Pro Max' on the matched runtime
+          for k, v in reversed(match):
+              for dev in v:
+                  if dev.get('name') == 'iPhone 16 Pro Max' and dev.get('isAvailable', True):
+                      print(dev['udid']); sys.exit(0)
+          # Fallback: any available iPhone Pro Max on the latest matched runtime
+          for k, v in reversed(match):
+              for dev in v:
+                  n = dev.get('name', '')
+                  if 'iPhone' in n and 'Pro Max' in n and dev.get('isAvailable', True):
+                      print(dev['udid']); sys.exit(0)
+          sys.exit(1)
+          ")
+          echo "UDID=$UDID"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP_PATH"
+          xcrun simctl listapps "$UDID" | grep -c "$APP_ID"
+
+      - name: Capture 6 raw screenshots (navigate via Maestro, screenshot via simctl)
+        run: |
+          set -eo pipefail
+          RAW_DIR="store/ios/screenshots/iphone-6.9/raw"
+          mkdir -p "$RAW_DIR"
+
+          capture_shot() {
+            local flow="$1"   # e.g. .maestro/screenshots/01-question.yaml
+            local name="$2"   # e.g. 01-question
+            local out="$RAW_DIR/${name}.png"
+
+            echo "── $name ──────────────────────────────────"
+            # Navigate to the target screen; failure stops the job
+            maestro --device "$UDID" test "$flow" 2>&1 | tee "maestro-${name}.log"
+            # Screenshot at physical resolution (1206×2622 on iPhone 16 Pro)
+            xcrun simctl io "$UDID" screenshot --type=png "$out"
+            echo "saved $out ($(wc -c < "$out") bytes)"
+          }
+
+          capture_shot .maestro/screenshots/01-question.yaml  01-question
+          capture_shot .maestro/screenshots/02-share.yaml     02-share
+          capture_shot .maestro/screenshots/03-match.yaml     03-match
+          capture_shot .maestro/screenshots/04-categories.yaml 04-categories
+          capture_shot .maestro/screenshots/05-kids.yaml      05-kids
+          capture_shot .maestro/screenshots/06-paywall.yaml   06-paywall
+
+          echo "── raw screenshots ──"
+          ls -lh "$RAW_DIR/"
+
+      - name: Compose screenshots (gradient + caption + rounded corners)
+        run: node scripts/store/compose.mjs
+
+      - name: Verify 6 composed PNGs exist and pass size/alpha check
+        run: |
+          # Quick shell check: 6 non-empty PNG files must exist
+          count=$(ls store/ios/screenshots/iphone-6.9/*.png 2>/dev/null | wc -l | tr -d ' ')
+          echo "Composed PNGs found: $count"
+          if [ "$count" -lt 6 ]; then
+            echo "ERROR: expected 6 composed PNGs, got $count"
+            exit 1
+          fi
+          # Run the unit test which checks dimensions and no-alpha on any committed files
+          # (the composed files are in the working tree, so the test picks them up)
+          npx tsx --test tests/unit/screenshots-check.test.ts
+
+      - name: Upload raw screenshots
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: raw-screenshots
+          path: store/ios/screenshots/iphone-6.9/raw/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload composed screenshots
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: composed-screenshots-iphone-6.9
+          path: store/ios/screenshots/iphone-6.9/*.png
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload build log and Maestro logs
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: build-and-maestro-logs
+          path: |
+            xcodebuild-tail.log
+            maestro-*.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,44 @@
+{
+  "_comment": "6-shot storyboard for iPhone 6.9-inch (1320x2868, iPhone 16 Pro Max). Captions from docs/specs/app-store-listing.md §8.3. First 3 carry the pitch; no fake vote counts, no free-question count, no for-kids wording.",
+  "device": "iPhone 16 Pro Max",
+  "size": { "width": 1320, "height": 2868 },
+  "shots": [
+    {
+      "id": "01-question",
+      "lines": ["Pick a side."],
+      "maestroFlow": "01-question",
+      "screen": "Question screen, option A highlighted — /game/hl-1"
+    },
+    {
+      "id": "02-share",
+      "lines": ["Challenge a friend."],
+      "maestroFlow": "02-share",
+      "screen": "Answered state: invite banner with share CTA"
+    },
+    {
+      "id": "03-match",
+      "lines": ["See if they matched."],
+      "maestroFlow": "03-match",
+      "screen": "Match result — arrived via share link, same pick as friend"
+    },
+    {
+      "id": "04-categories",
+      "lines": ["Eight categories,", "one tap."],
+      "maestroFlow": "04-categories",
+      "screen": "Categories grid — adult categories"
+    },
+    {
+      "id": "05-kids",
+      "lines": ["Dinner table.", "Car ride."],
+      "maestroFlow": "05-kids",
+      "screen": "Kids section index after switching to With kids mode"
+    },
+    {
+      "id": "06-paywall",
+      "lines": ["Free to start.", "Unlock what you like."],
+      "maestroFlow": "06-paywall",
+      "screen": "Native paywall — /unlock/high-life",
+      "note": "Price requires Xcode StoreKit Testing or a device; in a plain CI simulator run RevenueCat cannot reach the App Store and the price shows as loading. Substitute a device screenshot for the production set."
+    }
+  ]
+}

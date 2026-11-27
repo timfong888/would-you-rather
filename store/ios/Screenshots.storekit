@@ -1,0 +1,134 @@
+{
+  "_comment": "StoreKit Testing configuration for App Store screenshot capture. Open in Xcode (scheme > Run > Options > StoreKit Configuration) to serve these products and prices to the iOS Simulator when running from Xcode. This file is NOT applied when the app is installed via xcrun simctl install — for that case the paywall price will not load from RevenueCat in a CI build without credentials. See store/ios/storyboard.json shot 06-paywall note.",
+  "_defaultStorefront": "USA",
+  "_storeKitErrors": [],
+  "identifier": "Screenshots",
+  "nonConsumableProducts": [
+    {
+      "displayName": "All Grown-up Categories",
+      "internalID": "1",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "All grown-up categories, plus future ones",
+          "displayName": "All Grown-up Categories",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_premium_all",
+      "referenceName": "All Categories",
+      "type": "NonConsumable"
+    },
+    {
+      "displayName": "The High Life",
+      "internalID": "2",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "Unlock all of The High Life",
+          "displayName": "The High Life",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_unlock_high_life",
+      "referenceName": "Unlock The High Life",
+      "type": "NonConsumable"
+    },
+    {
+      "displayName": "Moral Compass",
+      "internalID": "3",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "Unlock all of Moral Compass",
+          "displayName": "Moral Compass",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_unlock_moral_compass",
+      "referenceName": "Unlock Moral Compass",
+      "type": "NonConsumable"
+    },
+    {
+      "displayName": "Social Blunders",
+      "internalID": "4",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "Unlock all of Social Blunders",
+          "displayName": "Social Blunders",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_unlock_social_blunders",
+      "referenceName": "Unlock Social Blunders",
+      "type": "NonConsumable"
+    },
+    {
+      "displayName": "Time Traveler",
+      "internalID": "5",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "Unlock all of Time Traveler",
+          "displayName": "Time Traveler",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_unlock_time_traveler",
+      "referenceName": "Unlock Time Traveler",
+      "type": "NonConsumable"
+    },
+    {
+      "displayName": "Career Climber",
+      "internalID": "6",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "Unlock all of Career Climber",
+          "displayName": "Career Climber",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_unlock_career_climber",
+      "referenceName": "Unlock Career Climber",
+      "type": "NonConsumable"
+    },
+    {
+      "displayName": "Tech Dystopia",
+      "internalID": "7",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "Unlock all of Tech Dystopia",
+          "displayName": "Tech Dystopia",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_unlock_tech_dystopia",
+      "referenceName": "Unlock Tech Dystopia",
+      "type": "NonConsumable"
+    },
+    {
+      "displayName": "Wildest Dreams",
+      "internalID": "8",
+      "isPremiumContent": false,
+      "localizations": [
+        {
+          "description": "Unlock all of Wildest Dreams",
+          "displayName": "Wildest Dreams",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "wyr_unlock_wildest_dreams",
+      "referenceName": "Unlock Wildest Dreams",
+      "type": "NonConsumable"
+    }
+  ],
+  "products": [],
+  "subscriptionGroups": [],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}
