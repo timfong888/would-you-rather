@@ -283,3 +283,15 @@ test('signing script: calls highersignal-testflight.mjs, never prints secrets in
   // the mask call for p12Pass is present (this IS the right way to handle it)
   assert.match(src, /add-mask.*p12Pass|p12Pass.*add-mask/);
 });
+
+test('signing script: uses RSA 2048 key (not ECDSA) for Apple Distribution cert', () => {
+  const src = readFileSync('scripts/highersignal-signing.mjs', 'utf8');
+  assert.match(src, /genrsa/);
+  assert.doesNotMatch(src, /ecparam/);
+});
+
+test('signing script: -subj uses /O= attribute for team id (not bare /teamid)', () => {
+  const src = readFileSync('scripts/highersignal-signing.mjs', 'utf8');
+  assert.match(src, /\/O=\$\{APPLE_TEAM_ID\}/);
+  assert.doesNotMatch(src, /\/CN=[^']*\/\$\{APPLE_TEAM_ID\}/);
+});

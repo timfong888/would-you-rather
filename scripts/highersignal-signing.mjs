@@ -264,12 +264,12 @@ async function runSigning() {
     // No shell: each openssl call is an explicit execv, never interpolated.
     const ossl = (...args) => spawnSync('openssl', args, { encoding: 'utf8' });
 
-    let r = ossl('ecparam', '-name', 'prime256v1', '-genkey', '-noout', '-out', keyPath);
-    if (r.status !== 0) throw new Error(`openssl ecparam failed: ${r.stderr}`);
+    let r = ossl('genrsa', '-out', keyPath, '2048');
+    if (r.status !== 0) throw new Error(`openssl genrsa failed: ${r.stderr}`);
     fs.chmodSync(keyPath, 0o600);
 
     r = ossl('req', '-new', '-sha256', '-key', keyPath, '-out', csrPath,
-      '-subj', `/CN=Higher Signal Distribution/${APPLE_TEAM_ID}`);
+      '-subj', `/CN=Higher Signal Distribution/O=${APPLE_TEAM_ID}`);
     if (r.status !== 0) throw new Error(`openssl req failed: ${r.stderr}`);
 
     const csrPem = readFileSync(csrPath, 'utf8');
