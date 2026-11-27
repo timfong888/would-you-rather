@@ -7,7 +7,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createPrivateKey, sign } from 'node:crypto';
-import { validateListingFull, syncFullMetadata, uploadScreenshots, verifyGoComment, createReviewSubmission, dryRunReport, stillBlockedList, SCREENSHOT_DISPLAY_TYPE, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT } from './lib/ascFull.mjs';
+import { validateListingFull, checkedFull, syncFullMetadata, uploadScreenshots, verifyGoComment, createReviewSubmission, dryRunReport, stillBlockedList, SCREENSHOT_DISPLAY_TYPE, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT } from './lib/ascFull.mjs';
 
 const ACTION = process.argv[2];
 if (!['metadata', 'screenshots', 'submit'].includes(ACTION)) {
@@ -58,27 +58,30 @@ async function upload(url, data, headers) {
   if (!res.ok) throw new Error(`Screenshot upload → HTTP ${res.status}`);
 }
 
+// All ASC calls go through checkedFull — unknown paths throw before reaching Apple.
+const checkedApi = checkedFull(api);
+
 try {
   if (ACTION === 'metadata') {
     if (apply) {
-      const log = await syncFullMetadata({ api, appId: APP_ID, listing, apply: true });
+      const log = await syncFullMetadata({ api: checkedApi, appId: APP_ID, listing, apply: true });
       console.log('APPLIED:');
       console.log(JSON.stringify(log, null, 2));
     } else {
       // Dry run: fetch live values for diff display, then report
       let liveInfo = null;
       try {
-        const versions = (await api('GET', `/v1/apps/${APP_ID}/appStoreVersions?filter[platform]=IOS&limit=10`)).data ?? [];
+        const versions = (await checkedApi('GET', `/v1/apps/${APP_ID}/appStoreVersions?filter[platform]=IOS&limit=10`)).data ?? [];
         const ver = versions.find((x) => x.attributes?.appStoreState === 'PREPARE_FOR_SUBMISSION' || x.attributes?.appStoreState?.includes('SUBMIT'));
         if (ver) {
-          const locs = (await api('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations`)).data ?? [];
+          const locs = (await checkedApi('GET', `/v1/appStoreVersions/${ver.id}/appStoreVersionLocalizations`)).data ?? [];
           const loc = locs.find((x) => x.attributes?.locale === listing.locale);
           liveInfo = { ...loc?.attributes, copyright: ver.attributes?.copyright, releaseType: ver.attributes?.releaseType };
         }
-        const infos = (await api('GET', `/v1/apps/${APP_ID}/appInfos`)).data ?? [];
+        const infos = (await checkedApi('GET', `/v1/apps/${APP_ID}/appInfos`)).data ?? [];
         const info = infos.find((i) => !['READY_FOR_SALE', 'REMOVED_FROM_SALE'].includes(i.attributes?.appStoreState ?? ''));
         if (info) {
-          const infoLocs = (await api('GET', `/v1/appInfos/${info.id}/appInfoLocalizations`)).data ?? [];
+          const infoLocs = (await checkedApi('GET', `/v1/appInfos/${info.id}/appInfoLocalizations`)).data ?? [];
           const infoLoc = infoLocs.find((x) => x.attributes?.locale === listing.locale);
           liveInfo = { ...liveInfo, ...infoLoc?.attributes };
         }
@@ -86,7 +89,7 @@ try {
         console.log(`(could not read live values: ${e.message})`);
       }
       console.log(dryRunReport(listing, liveInfo));
-      const dryLog = await syncFullMetadata({ api, appId: APP_ID, listing, apply: false });
+      const dryLog = await syncFullMetadata({ api: checkedApi, appId: APP_ID, listing, apply: false });
       console.log('\nDRY RUN planned changes:');
       console.log(JSON.stringify(dryLog, null, 2));
     }
@@ -109,7 +112,7 @@ try {
       if (!names.length) { console.error(`No PNG files found in ${dir}`); process.exit(1); }
       const files = names.map((name) => ({ name, data: readFileSync(join(dir, name)) }));
       console.log(`Uploading ${files.length} screenshots from ${dir}...`);
-      const result = await uploadScreenshots({ api, upload, appId: APP_ID, files });
+      const result = await uploadScreenshots({ api: checkedApi, upload, appId: APP_ID, files });
       console.log('UPLOADED:');
       console.log(JSON.stringify(result, null, 2));
     }
@@ -125,7 +128,7 @@ try {
       console.log(`Verifying go comment id=${GO_ISSUE_COMMENT_ID}...`);
       const goResult = await verifyGoComment({ commentId: GO_ISSUE_COMMENT_ID, fetch, githubToken: GITHUB_TOKEN });
       console.log(`Go check passed: comment ${goResult.commentId} posted at ${goResult.createdAt}`);
-      const sub = await createReviewSubmission({ api, appId: APP_ID });
+      const sub = await createReviewSubmission({ api: checkedApi, appId: APP_ID });
       console.log('REVIEW SUBMISSION CREATED:');
       console.log(JSON.stringify(sub, null, 2));
     }

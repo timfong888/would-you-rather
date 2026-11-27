@@ -2,7 +2,7 @@ name: Apple metadata
 
 # Manual only. Three actions:
 #   metadata   — push text, copyright, review notes, age rating, price/availability, IAPs, release type
-#   screenshots — upload store/ios/screenshots/iphone-6.3/*.png to APP_IPHONE_63 (1206×2622)
+#   screenshots — upload store/ios/screenshots/iphone-6.9/*.png to APP_IPHONE_69 (1320×2868)
 #   submit      — create a reviewSubmission (apply=true only; requires a verified go comment on issue 265)
 #
 # DRY RUN unless apply is checked.
@@ -57,16 +57,14 @@ jobs:
           node-version: 20
 
       # Go-check step: uses only github.token (read-only issues:read). No ASC secrets here.
-      # Runs only for the submit action so an error surfaces before any write.
+      # Runs asc-gocheck.mjs (thin script — no ASC secrets in scope) so an error surfaces
+      # before the main step acquires the key.
       - name: Verify go comment (submit only)
         if: inputs.action == 'submit' && inputs.apply == true
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GO_ISSUE_COMMENT_ID: ${{ inputs.go_issue_comment_id }}
-          APP_ID: '6836653723'
-          APPLY: 'false'
-          ACTION: submit
-        run: node scripts/asc-full.mjs submit
+        run: node scripts/asc-gocheck.mjs
 
       # Main step: ASC secrets + all three actions.
       - name: Run action

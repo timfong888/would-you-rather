@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 // @ts-ignore plain .mjs modules
-import { validateListingFull, dryRunReport, verifyGoComment, stillBlockedList, pngDimensions, SCREENSHOT_DISPLAY_TYPE, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT } from '../../scripts/lib/ascFull.mjs';
+import { validateListingFull, dryRunReport, verifyGoComment, stillBlockedList, pngDimensions, checkedFull, uploadScreenshots, SCREENSHOT_DISPLAY_TYPE, SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT } from '../../scripts/lib/ascFull.mjs';
 // @ts-ignore
 import { validateListing } from '../../scripts/lib/ascMetadata.mjs';
 
@@ -225,6 +225,80 @@ test('pngDimensions returns null for a non-PNG buffer', () => {
 
 test('pngDimensions returns null for a buffer that is too short', () => {
   assert.equal(pngDimensions(Buffer.alloc(10)), null);
+});
+
+// --- P1 regression tests ---
+
+// P1-1: go-check step must not receive ASC secrets (they would cause an immediate exit-2)
+test('workflow go-check step does not set ASC secrets', () => {
+  const yaml = readFileSync('.github/workflows/apple-metadata.yml', 'utf8');
+  // Extract the go-check step block: from "Verify go comment" to the next "- name:"
+  const startIdx = yaml.indexOf('Verify go comment');
+  const nextStepIdx = yaml.indexOf('- name:', startIdx + 1);
+  const goCheckBlock = yaml.slice(startIdx, nextStepIdx);
+  assert.doesNotMatch(goCheckBlock, /ASC_KEY_ID/, 'go-check step must not set ASC_KEY_ID');
+  assert.doesNotMatch(goCheckBlock, /ASC_ISSUER_ID/, 'go-check step must not set ASC_ISSUER_ID');
+  assert.doesNotMatch(goCheckBlock, /ASC_PRIVATE_KEY/, 'go-check step must not set ASC_PRIVATE_KEY');
+  assert.match(goCheckBlock, /asc-gocheck\.mjs/, 'go-check step must run asc-gocheck.mjs');
+});
+
+// P1-2: checkedFull blocks any path not in ALLOWED or ALLOWED_EXTRA
+test('checkedFull rejects paths outside the allow-list', async () => {
+  const rawApi = async () => ({});
+  const checked = checkedFull(rawApi);
+  await assert.rejects(() => checked('DELETE', '/v1/apps/123'), /Blocked/, 'must block DELETE');
+  await assert.rejects(() => checked('POST', '/v1/builds'), /Blocked/, 'must block POST /v1/builds');
+  await assert.rejects(() => checked('GET', '/v1/users'), /Blocked/, 'must block GET /v1/users');
+});
+
+test('checkedFull allows paths in ALLOWED_EXTRA', async () => {
+  const calls: string[] = [];
+  const rawApi = async (m: string, p: string) => { calls.push(`${m} ${p}`); return {}; };
+  const checked = checkedFull(rawApi);
+  await checked('PATCH', '/v1/ageRatingDeclarations/abc-def');
+  await checked('GET', '/v1/appStoreVersions/abc-def/appStoreReviewDetail');
+  await checked('POST', '/v1/reviewSubmissions');
+  assert.equal(calls.length, 3, 'all three allowed paths must reach rawApi');
+});
+
+// P1-3: uploadScreenshots calls upload once per uploadOperation (multipart support)
+test('uploadScreenshots sends one PUT per upload operation', async () => {
+  const uploadCalls: Array<{ url: string; data: Buffer }> = [];
+  const mockUpload = async (url: string, data: Buffer) => { uploadCalls.push({ url, data }); };
+
+  const pngBuf = Buffer.alloc(100);
+  pngBuf[0] = 0x89; pngBuf[1] = 0x50; pngBuf[2] = 0x4e; pngBuf[3] = 0x47;
+  pngBuf.writeUInt32BE(1320, 16);
+  pngBuf.writeUInt32BE(2868, 20);
+
+  const mockApi = async (method: string, path: string) => {
+    if (method === 'GET' && path.includes('appStoreVersions?')) {
+      return { data: [{ id: 'ver1', attributes: { appStoreState: 'PREPARE_FOR_SUBMISSION' } }] };
+    }
+    if (method === 'GET' && path.includes('appScreenshotSets')) return { data: [] };
+    if (method === 'POST' && path === '/v1/appScreenshotSets') return { data: { id: 'set1' } };
+    if (method === 'POST' && path === '/v1/appScreenshots') {
+      return {
+        data: {
+          id: 'shot1',
+          attributes: {
+            uploadOperations: [
+              { url: 'https://upload.example.com/p1', offset: 0, length: 50, requestHeaders: [] },
+              { url: 'https://upload.example.com/p2', offset: 50, length: 50, requestHeaders: [] },
+            ],
+          },
+        },
+      };
+    }
+    return {};
+  };
+
+  await uploadScreenshots({ api: mockApi, upload: mockUpload, appId: '123', files: [{ name: 'shot.png', data: pngBuf }] });
+  assert.equal(uploadCalls.length, 2, 'must call upload once per upload operation');
+  assert.equal(uploadCalls[0].url, 'https://upload.example.com/p1');
+  assert.equal(uploadCalls[1].url, 'https://upload.example.com/p2');
+  assert.equal(uploadCalls[0].data.length, 50, 'first part is bytes 0-49');
+  assert.equal(uploadCalls[1].data.length, 50, 'second part is bytes 50-99');
 });
 
 // --- still-blocked list completeness ---

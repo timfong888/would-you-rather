@@ -4,7 +4,7 @@
 
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { syncListing, EDITABLE_STATES, LIMITS, validateListing } from './ascMetadata.mjs';
+import { syncListing, EDITABLE_STATES, LIMITS, validateListing, ALLOWED } from './ascMetadata.mjs';
 
 export { LIMITS, EDITABLE_STATES };
 
@@ -22,12 +22,12 @@ export const ALLOWED_EXTRA = [
   ['PATCH', /^\/v1\/appInfos\/[\w-]+$/],
   // pricing (read + write price schedule)
   ['GET',   /^\/v1\/apps\/\d+\/appPriceSchedule$/],
-  ['GET',   /^\/v1\/apps\/\d+\/appPricePoints\?/],
+  ['GET',   /^\/v1\/apps\/\d+\/appPricePoints$/],
   ['POST',  /^\/v1\/appPriceSchedules$/],
   // availability (US-only territories)
   ['GET',   /^\/v1\/apps\/\d+\/appAvailabilityV2$/],
   ['POST',  /^\/v1\/appAvailabilityV2$/],
-  ['GET',   /^\/v1\/territories\?/],
+  ['GET',   /^\/v1\/territories$/],
   // IAP attachment to version
   ['GET',   /^\/v1\/apps\/\d+\/inAppPurchasesV2(\?.*)?$/],
   ['GET',   /^\/v1\/appStoreVersions\/[\w-]+\/inAppPurchasesV2(\?.*)?$/],
@@ -42,6 +42,21 @@ export const ALLOWED_EXTRA = [
   ['POST',  /^\/v1\/reviewSubmissions$/],
   ['POST',  /^\/v1\/reviewSubmissionItems$/],
 ];
+
+/**
+ * Wrap an api function to enforce the combined allow-list (ALLOWED from ascMetadata + ALLOWED_EXTRA).
+ * Every API call made by this module must pass through checkedFull — unknown paths throw rather
+ * than silently reaching App Store Connect.
+ */
+export function checkedFull(api) {
+  const all = [...ALLOWED, ...ALLOWED_EXTRA];
+  return async (method, path, body) => {
+    if (!all.some(([m, re]) => m === method && re.test(path.split('?')[0]))) {
+      throw new Error(`Blocked: ${method} ${path} is not in the ASC allow-list`);
+    }
+    return api(method, path, body);
+  };
+}
 
 export const SCREENSHOT_DISPLAY_TYPE = 'APP_IPHONE_69'; // 1320×2868 — iPhone 16 Pro Max / 15 Pro Max 6.9" (required slot)
 export const SCREENSHOT_WIDTH = 1320;
@@ -276,11 +291,16 @@ export async function uploadScreenshots({ api, upload, appId, files }) {
     const reserve = await api('POST', '/v1/appScreenshots', { data: { type: 'appScreenshots', attributes: { fileName: file.name, fileSize: file.data.length }, relationships: { appScreenshotSet: { data: { type: 'appScreenshotSets', id: setId } } } } });
     const reserved = reserve.data;
     if (!reserved) throw new Error(`Failed to reserve slot for ${file.name}`);
-    // Upload to the provided URL (Content-Type: image/png, Content-MD5: base64 of MD5)
-    const op = reserved.attributes?.uploadOperations?.[0];
-    if (!op?.url) throw new Error(`No upload URL for ${file.name}`);
-    await upload(op.url, file.data, { 'Content-Type': 'image/png', 'Content-MD5': md5, ...Object.fromEntries((op.requestHeaders ?? []).map((h) => [h.name, h.value])) });
-    // Commit
+    // Upload all parts (ASC may return multiple uploadOperations for large files).
+    const ops = reserved.attributes?.uploadOperations ?? [];
+    if (!ops.length) throw new Error(`No upload operations for ${file.name}`);
+    for (const op of ops) {
+      const start = op.offset ?? 0;
+      const slice = file.data.slice(start, start + (op.length ?? file.data.length));
+      const partMd5 = createHash('md5').update(slice).digest('base64');
+      await upload(op.url, slice, { 'Content-Type': 'image/png', 'Content-MD5': partMd5, ...Object.fromEntries((op.requestHeaders ?? []).map((h) => [h.name, h.value])) });
+    }
+    // Commit — sourceFileChecksum is the MD5 of the whole file, not per-part
     await api('PATCH', `/v1/appScreenshots/${reserved.id}`, { data: { type: 'appScreenshots', id: reserved.id, attributes: { uploaded: true, sourceFileChecksum: md5 } } });
     log.push({ file: file.name, screenshotId: reserved.id, bytes: file.data.length });
   }
